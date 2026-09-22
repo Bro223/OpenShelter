@@ -60,7 +60,11 @@ import java.util.Set;
  * tie-breakers (they keep the order total and deterministic for any row
  * state — {@code sortOrder} is not uniqueness-constrained, D1).
  * Publishing or unpublishing NEVER moves a post: its slot IS its
- * {@code sortOrder} (D4).
+ * {@code sortOrder} (D4). The reorder WRITES themselves (the atomic
+ * full-list renumber, the locale-scoped slot-preserving rewrite) live in
+ * {@link GuidanceOrderingService} (W3-A) — this service's
+ * {@code reorder}/{@code reorderInLocale} keep the transaction boundary
+ * and delegate.
  *
  * <p>Locale scope (admin-locale-scope): the admin UI edits ONE language
  * at a time (its active UI language), so the admin list can be scoped
@@ -71,16 +75,9 @@ import java.util.Set;
  * post owns its own-locale row, so a post visible only through its home
  * columns is a missing-row anomaly the scoped read still surfaces,
  * never a 500). {@code sort_order} is per POST, shared by every
- * translation: the unscoped reorder renumbers every post 1..N, while
- * the LOCALE-scoped reorder (the filtered list is not a permutation of
- * every post) PRESERVES THE GLOBAL ORDER — the visible posts occupy
- * slots in the global order (sortOrder asc, publishedAt desc nulls
- * last, id desc), and the submitted order is written into exactly those
- * slots. The invisible posts keep their values untouched, so reordering
- * one language cannot disturb the others and no post is ever lost.
- * The values stop being a contiguous 1..N after a scoped reorder — by
- * design (no unique constraint; the tie-breakers keep every read
- * deterministic).
+ * translation, so the reorders (the {@link GuidanceOrderingService}
+ * invariants) keep the other languages' slots untouched and lose no
+ * post.
  *
  * <p>Hero import (guidance-hero-import): a post may carry a PENDING hero
  * import — an admin-supplied http(s) URL in {@code heroImportUrl} instead
@@ -113,46 +110,32 @@ public class GuidanceService {
     /** The title column width (V23 {@code guidance_posts.title VARCHAR(255)}) — the service bound. */
     public static final int MAX_TITLE_LENGTH = 255;
 
-    /** The locale column width (V23 {@code guidance_posts.locale VARCHAR(5)}) — the service bound. */
-    public static final int MAX_LOCALE_LENGTH = 5;
-
-    /** The admin search-term bound (admin-guidance-search): a present q over this is a 400. */
-    public static final int MAX_SEARCH_LENGTH = 200;
+    /**
+     * The locale column width (V23 {@code guidance_posts.locale VARCHAR(5)})
+     * — the service bound; the constant's home is
+     * {@link GuidanceValidation} (W3-A), this reference keeps the
+     * pre-extraction public surface.
+     */
+    public static final int MAX_LOCALE_LENGTH = GuidanceValidation.MAX_LOCALE_LENGTH;
 
     /**
-     * The body's searchable text (admin-guidance-search): every HTML tag
-     * stripped, the remaining whitespace collapsed to single spaces, the
-     * ends trimmed. {@code <p>hello</p>} -> "hello" — a search for markup
-     * is not a feature (the sanitizer keeps only the allowed tags, so a
-     * stripped body is the reader's text). Null-safe (null -> "").
+     * The body's searchable text (admin-guidance-search) — moved to
+     * {@link GuidanceSearch} (W3-A); this delegate keeps the
+     * pre-extraction public surface (the {@code GuidanceServiceTest}
+     * seam) intact.
      */
     public static String searchableBody(String bodyHtml) {
-        if (bodyHtml == null) {
-            return "";
-        }
-        return bodyHtml.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+        return GuidanceSearch.searchableBody(bodyHtml);
     }
 
     /**
-     * The admin list's search match (admin-guidance-search): a case-
-     * insensitive SUBSTRING over the title and the tag-stripped body — no
-     * ranking, no fuzzy matching. A blank/absent needle matches everything
-     * (no filter: the public {@code q}-less behaviour, never a 400).
-     * The caller passes the SAME title/body the list renders (the scoped
-     * locale's row or the home columns), so search matches what you see.
+     * The admin list's search match (admin-guidance-search) — moved to
+     * {@link GuidanceSearch} (W3-A); this delegate keeps the
+     * pre-extraction public surface (the {@code GuidanceServiceTest}
+     * seam) intact.
      */
     public static boolean matchesSearch(String title, String bodyHtml, String needle) {
-        if (needle == null || needle.isBlank()) {
-            return true;
-        }
-        String n = needle.trim().toLowerCase(Locale.ROOT);
-        if (n.isEmpty()) {
-            return true;
-        }
-        if (title != null && title.toLowerCase(Locale.ROOT).contains(n)) {
-            return true;
-        }
-        return searchableBody(bodyHtml).toLowerCase(Locale.ROOT).contains(n);
+        return GuidanceSearch.matchesSearch(title, bodyHtml, needle);
     }
 
     /** The pending-import URL column width (V25 {@code hero_import_url VARCHAR(2048)}). */
@@ -168,6 +151,13 @@ public class GuidanceService {
     private final HeroImageImportService heroImport;
     /** The per-locale translation rows (bilingual-guidance, V26). */
     private final GuidanceTranslationRepository translations;
+    /**
+     * The ordering seam (W3-A) — the reorder implementations, constructed
+     * from this service's own collaborators (the unit suite freezes this
+     * constructor's argument list, so the seam is a component, not an
+     * injected bean).
+     */
+    private final GuidanceOrderingService ordering;
 
     public GuidanceService(GuidancePostRepository posts,
                            MediaAssetRepository mediaAssets,
@@ -183,6 +173,7 @@ public class GuidanceService {
         this.defaultLocale = Objects.requireNonNull(defaultLocale, "defaultLocale");
         this.heroImport = Objects.requireNonNull(heroImport, "heroImport");
         this.translations = Objects.requireNonNull(translations, "translations");
+        this.ordering = new GuidanceOrderingService(posts, translations, audit);
     }
 
     // ------------------------------------------------------------- reads
@@ -197,14 +188,14 @@ public class GuidanceService {
      * reader's requested language or {@code null} for the parameter-absent
      * call, which falls back to the configured default locale (existing
      * callers keep their behaviour). A PRESENT but blank or over-long
-     * value is a 400 ({@link #resolveLocale}). Empty (nothing published in
+     * value is a 400 ({@link GuidanceValidation#resolveLocale}). Empty (nothing published in
      * that locale) is an empty list, never an error.
      *
      * @throws GuidanceValidationException 400 — a blank or over-long locale
      */
     @Transactional(readOnly = true)
     public List<PublicGuidanceView> listPublic(String locale) {
-        String requested = resolveLocale(locale);
+        String requested = GuidanceValidation.resolveLocale(locale, defaultLocale);
         // The translation rows of PUBLISHED posts in the locale, already in the
         // public index order (pinned first, sortOrder asc, publishedAt desc,
         // id desc — guidance-manual-order D2). The posts are batch-loaded in
@@ -256,7 +247,7 @@ public class GuidanceService {
      */
     @Transactional(readOnly = true)
     public List<GuidancePost> listForAdmin(String locale) {
-        String requested = requireLocale(locale);
+        String requested = GuidanceValidation.requireLocale(locale);
         Set<Long> rowPosts = new LinkedHashSet<>();
         for (GuidanceTranslation row : translations.findAllByLocale(requested)) {
             rowPosts.add(row.getPostId());
@@ -281,7 +272,7 @@ public class GuidanceService {
      */
     @Transactional(readOnly = true)
     public Map<Long, GuidanceTranslation> translationsInLocale(String locale) {
-        String requested = requireLocale(locale);
+        String requested = GuidanceValidation.requireLocale(locale);
         Map<Long, GuidanceTranslation> byPost = new LinkedHashMap<>();
         for (GuidanceTranslation row : translations.findAllByLocale(requested)) {
             byPost.put(row.getPostId(), row);
@@ -315,7 +306,7 @@ public class GuidanceService {
     @Transactional(readOnly = true)
     public Optional<GuidanceTranslation> translationInLocale(long postId, String locale) {
         requirePost(postId);
-        return translations.findByPostIdAndLocale(postId, requireLocale(locale));
+        return translations.findByPostIdAndLocale(postId, GuidanceValidation.requireLocale(locale));
     }
 
     /**
@@ -337,7 +328,7 @@ public class GuidanceService {
      */
     @Transactional(readOnly = true)
     public PublicGuidanceView getByPublicSlug(String slug, String locale) {
-        String requested = resolveLocale(locale);
+        String requested = GuidanceValidation.resolveLocale(locale, defaultLocale);
         // 1. The URL slug names a translation row (a slug is unique within its
         //    locale). Resolve it to the owning post; a slug held by no row — or
         //    by rows of MORE THAN ONE post (a data anomaly) — is a 404.
@@ -420,7 +411,7 @@ public class GuidanceService {
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
-        String cleanLocale = localeOrDefault(locale);
+        String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
         String cleanImportUrl = normalizeImportUrl(heroImportUrl);
         Long heroId = heroImageId;
         // A one-shot "write and publish" carrying a pending hero import
@@ -435,8 +426,8 @@ public class GuidanceService {
         requireHeroPairing(heroId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = slug == null || slug.isBlank()
-                ? nextGeneratedSlug(cleanTitle)
-                : resolveSuppliedSlug(slug, null);
+                ? GuidanceValidation.nextGeneratedSlug(cleanTitle, posts::existsBySlug)
+                : GuidanceValidation.resolveSuppliedSlug(slug, null, posts::existsBySlug);
 
         GuidancePost post = GuidancePost.draft(finalSlug, cleanTitle, cleanBody, cleanLocale,
                 pinned, heroId, heroAlt, cleanImportUrl, posts.maxSortOrder() + 1, adminId, now);
@@ -478,7 +469,7 @@ public class GuidanceService {
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
-        String cleanLocale = localeOrDefault(locale);
+        String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
         String cleanImportUrl = normalizeImportUrl(heroImportUrl);
         if (post.isPublished() && cleanImportUrl != null) {
             // A published post cannot take a pending import (the V25
@@ -492,7 +483,8 @@ public class GuidanceService {
         }
         requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
-        String finalSlug = resolveSuppliedSlug(slug, post.getSlug());
+        String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, post.getSlug(),
+                posts::existsBySlug);
         String oldLocale = post.getLocale();
 
         post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, heroImageId,
@@ -553,7 +545,7 @@ public class GuidanceService {
                                        Long heroImageId, String heroImageAlt,
                                        String heroImportUrl) {
         GuidancePost post = requirePost(id);
-        String editL = requireLocale(editLocale);
+        String editL = GuidanceValidation.requireLocale(editLocale);
         if (editL.equals(post.getLocale())) {
             // Editing in the post's own language: the unscoped full replace
             // (home columns + home-locale move + home row sync — unchanged).
@@ -608,7 +600,8 @@ public class GuidanceService {
         }
         // The content lands on the edit locale's translation row (the row
         // was resolved above, before any write).
-        String finalSlug = resolveTranslationSlug(editL, slug, translation.getSlug());
+        String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, translation.getSlug(),
+                candidate -> translations.existsByLocaleAndSlug(editL, candidate));
         translation.update(finalSlug, cleanTitle, cleanBody, heroAlt, now);
         translations.save(translation);
         return saved;
@@ -710,27 +703,10 @@ public class GuidanceService {
     }
 
     /**
-     * The atomic full-list reorder (guidance-manual-order D3): renumbers
-     * every post's {@code sortOrder} to 1..N in the submitted order in ONE
-     * transaction — all-or-nothing, so a failure mid-transaction leaves no
-     * partial renumbering observable.
-     *
-     * <p>Validation runs FIRST, before anything is written: the list must
-     * be a PERMUTATION of every current post id — an unknown id, a
-     * duplicate id, or a current post missing from the list (a stale list:
-     * a post was created or deleted after the admin's table was loaded)
-     * is a 400 that changes nothing. An empty list is a 400 whenever any
-     * post exists; with no posts at all it is a no-op. Concurrency is
-     * last-write-wins (no version check — the environment provisions one
-     * admin); a list that predates a concurrent create/delete is caught by
-     * the set-mismatch 400, which forces a refresh instead of silently
-     * dropping or duplicating a row.
-     *
-     * <p>Idempotence: resubmitting the current order changes no value and
-     * writes NO audit row (the publish/unpublish no-op idiom). A reorder
-     * that actually changes the order writes exactly ONE
-     * {@code GUIDANCE_REORDER} row in the same transaction (D12 — the
-     * label {@code Guidance post order} is a snapshot that stays readable).
+     * The atomic full-list reorder (guidance-manual-order D3) — the
+     * implementation moved to {@link GuidanceOrderingService#reorder}
+     * (W3-A); this bean method keeps the {@code @Transactional} boundary
+     * (all-or-nothing renumber) and the pre-extraction public surface.
      *
      * @throws GuidanceValidationException 400 — an unknown id, a duplicate id,
      *                                     a missing (stale) list or an empty
@@ -738,86 +714,15 @@ public class GuidanceService {
      */
     @Transactional
     public void reorder(long adminId, List<Long> postIds) {
-        List<Long> requested = Objects.requireNonNull(postIds, "postIds");
-        Set<Long> submitted = new LinkedHashSet<>();
-        for (Long id : requested) {
-            if (id == null) {
-                throw new GuidanceValidationException("postIds must not contain null ids");
-            }
-            if (!submitted.add(id)) {
-                throw new GuidanceValidationException("postIds lists post " + id + " more than once");
-            }
-        }
-        List<GuidancePost> current = posts.findAllForAdmin();
-        Set<Long> currentIds = new LinkedHashSet<>();
-        for (GuidancePost post : current) {
-            currentIds.add(post.getId());
-        }
-        if (!submitted.equals(currentIds)) {
-            List<Long> unknown = new ArrayList<>(submitted);
-            unknown.removeAll(currentIds);
-            if (!unknown.isEmpty()) {
-                throw new GuidanceValidationException(
-                        "postIds contains unknown post ids: " + unknown + " — refresh the list");
-            }
-            throw new GuidanceValidationException(
-                    "postIds is missing current posts (the list is stale — a post was "
-                            + "created or deleted since the table was loaded): refresh the list and retry");
-        }
-        // The current order (sortOrder asc, id desc — the findAllForAdmin
-        // order): resubmitting it is a no-op that writes NO audit row.
-        List<Long> currentOrder = current.stream().map(GuidancePost::getId).toList();
-        if (requested.equals(currentOrder)) {
-            return;
-        }
-        // Renumber 1..N in the submitted order — one save per post, all in
-        // this ONE transaction (a failure rolls the whole renumber back).
-        Map<Long, GuidancePost> byId = new HashMap<>();
-        for (GuidancePost post : current) {
-            byId.put(post.getId(), post);
-        }
-        int position = 1;
-        for (Long id : requested) {
-            GuidancePost post = byId.get(id);
-            post.setSortOrder(position++);
-            posts.save(post);
-        }
-        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_REORDER,
-                "Guidance post order", null);
+        ordering.reorder(adminId, postIds);
     }
 
     /**
-     * The atomic LOCALE-SCOPED reorder (admin-locale-scope): the admin UI
-     * reorders the FILTERED list (the posts visible in ONE locale — a
-     * subset of every post, so a permutation-of-all validation cannot
-     * apply). The {@code postIds} list must be exactly the posts visible
-     * in {@code locale}, in the submitted order.
-     *
-     * <p>The SHARED-slot algorithm ({@code sort_order} is per post, shared
-     * by its translations): walk the GLOBAL stored order (sortOrder asc,
-     * publishedAt desc nulls last, id desc) once — the visible posts occupy
-     * SLOTS in that order — and rewrite the visible posts into exactly
-     * those slots, in the submitted order. Posts not visible in the locale
-     * are not touched: their {@code sort_order} keeps its value, so the
-     * other languages' orders stay consistent (a post's position is
-     * shared) and reordering one language cannot disturb the others' drafts
-     * or published rows. No post is ever lost, and the visible language's
-     * order then equals the submission.
-     *
-     * <p>The values stop being a contiguous 1..N after a scoped reorder —
-     * by design (no unique constraint; the published_at / id tie-breakers
-     * keep every read total and deterministic, and the next unscoped
-     * reorder re-densifies if wanted).
-     *
-     * <p>Validation runs FIRST, before anything is written: an id without a
-     * {@code locale} translation (or home locale) — an unknown post, a
-     * post of another language — a duplicate id, or a visible post missing
-     * from the list (stale) is a 400 that changes nothing; an empty list
-     * is a 400 whenever any visible post exists (with none, it is a no-op).
-     * Idempotence: resubmitting the current visible order changes no value
-     * and writes NO audit row; a changing reorder writes exactly ONE
-     * {@code GUIDANCE_REORDER} row named with the locale, in this
-     * transaction.
+     * The atomic LOCALE-SCOPED reorder (admin-locale-scope) — the
+     * implementation moved to
+     * {@link GuidanceOrderingService#reorderInLocale} (W3-A); this bean
+     * method keeps the {@code @Transactional} boundary and the
+     * pre-extraction public surface.
      *
      * @throws GuidanceValidationException 400 — a blank or over-long locale,
      *                                     an id not visible in the locale,
@@ -827,113 +732,21 @@ public class GuidanceService {
      */
     @Transactional
     public void reorderInLocale(long adminId, String locale, List<Long> postIds) {
-        String resolved = requireLocale(locale);
-        List<Long> requested = Objects.requireNonNull(postIds, "postIds");
-        Set<Long> submitted = new LinkedHashSet<>();
-        for (Long id : requested) {
-            if (id == null) {
-                throw new GuidanceValidationException("postIds must not contain null ids");
-            }
-            if (!submitted.add(id)) {
-                throw new GuidanceValidationException("postIds lists post " + id + " more than once");
-            }
-        }
-        // The GLOBAL order (sortOrder asc, publishedAt desc nulls last,
-        // id desc): the visible posts' slots are their positions in it.
-        List<GuidancePost> current = posts.findAllInStoredGlobalOrder();
-        Set<Long> visibleIds = new LinkedHashSet<>();
-        for (GuidanceTranslation row : translations.findAllByLocale(resolved)) {
-            visibleIds.add(row.getPostId());
-        }
-        for (GuidancePost post : current) {
-            // A post whose HOME locale is the requested one has content in
-            // it through its own columns (the home rows the V26 invariant
-            // keeps — or lacks, on the legacy rows).
-            if (post.getLocale().equals(resolved)) {
-                visibleIds.add(post.getId());
-            }
-        }
-        List<GuidancePost> visible = new ArrayList<>();
-        for (GuidancePost post : current) {
-            if (visibleIds.contains(post.getId())) {
-                visible.add(post);
-            }
-        }
-        if (!submitted.equals(visibleIds)) {
-            List<Long> notVisible = new ArrayList<>(submitted);
-            notVisible.removeAll(visibleIds);
-            if (!notVisible.isEmpty()) {
-                throw new GuidanceValidationException("postIds contains posts without a "
-                        + resolved + " translation: " + notVisible + " — refresh the list");
-            }
-            throw new GuidanceValidationException("postIds is missing current " + resolved
-                    + " posts (the list is stale — a post was created or deleted since the "
-                    + "table was loaded): refresh the list and retry");
-        }
-        // The current visible order (the global order, visible only):
-        // resubmitting it is a no-op that writes NO audit row.
-        List<Long> currentVisibleOrder = visible.stream().map(GuidancePost::getId).toList();
-        if (requested.equals(currentVisibleOrder)) {
-            return;
-        }
-        // Rewrite the visible posts into the SAME slots (the slot values in
-        // global order), in the submitted order. The slot VALUES are captured
-        // first — the walk mutates the very posts it reads from (a post taking
-        // another visible post's slot would otherwise hand out the NEW value
-        // on the next step). One save per post, all in this ONE transaction
-        // (a failure rolls the whole rewrite back).
-        Map<Long, GuidancePost> byId = new HashMap<>();
-        for (GuidancePost post : visible) {
-            byId.put(post.getId(), post);
-        }
-        List<Integer> slots = new ArrayList<>(visible.size());
-        for (GuidancePost post : visible) {
-            slots.add(post.getSortOrder());
-        }
-        for (int i = 0; i < requested.size(); i++) {
-            GuidancePost post = byId.get(requested.get(i));
-            post.setSortOrder(slots.get(i));
-            posts.save(post);
-        }
-        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_REORDER,
-                "Guidance post order (" + resolved + ")", null);
+        ordering.reorderInLocale(adminId, locale, postIds);
     }
 
     // ------------------------------------------------------------- guards
 
     /**
-     * The reader's requested locale, or the configured default when the
-     * parameter is ABSENT ({@code null}). A PRESENT but blank value is a
-     * 400 (an explicit {@code ?locale=} is a request, not an absence), and
-     * a value longer than the VARCHAR(5) column is a 400 too: it cannot
-     * match any stored row, so the 400 is the honest answer instead of a
-     * silent empty list. The value is trimmed — a stray space is a client
-     * typo, not a locale.
-     */
-    private String resolveLocale(String locale) {
-        if (locale == null) {
-            return defaultLocale;
-        }
-        String trimmed = locale.trim();
-        if (trimmed.isEmpty()) {
-            throw new GuidanceValidationException("locale must not be blank");
-        }
-        if (trimmed.length() > MAX_LOCALE_LENGTH) {
-            throw new GuidanceValidationException("locale must be at most " + MAX_LOCALE_LENGTH + " characters");
-        }
-        return trimmed;
-    }
-
-    /**
-     * The OPTIONAL admin locale (admin-locale-scope): {@code null} when the
-     * parameter is ABSENT (the admin read stays locale-blind — the legacy
-     * all-languages behaviour), a 400 ({@link #resolveLocale}) when present
-     * but blank or over-long. The admin UI always sends the active UI
-     * language; the absent parameter exists for the API's backwards
-     * compatibility, not as a "default language" (unlike the public reads).
+     * The OPTIONAL admin locale (admin-locale-scope) — moved to
+     * {@link GuidanceValidation#optionalAdminLocale} (W3-A); this delegate
+     * keeps the pre-extraction public surface (the admin controllers call
+     * it): {@code null} when the parameter is ABSENT (the admin read stays
+     * locale-blind — the legacy all-languages behaviour), a 400 when
+     * present but blank or over-long.
      */
     public String optionalAdminLocale(String locale) {
-        return locale == null ? null : resolveLocale(locale);
+        return GuidanceValidation.optionalAdminLocale(locale);
     }
 
     /**
@@ -963,11 +776,6 @@ public class GuidanceService {
             throw new GuidanceValidationException("body is required");
         }
         return BodySanitizer.sanitize(body);
-    }
-
-    /** Locale defaults from the configured primary language when omitted (D11). */
-    private String localeOrDefault(String locale) {
-        return locale == null || locale.isBlank() ? defaultLocale : locale.trim();
     }
 
     /**
@@ -1033,74 +841,6 @@ public class GuidanceService {
         return trimmed;
     }
 
-    /**
-     * The admin-supplied slug, used exactly as given (D5): validated to
-     * the generated shape (400) and refused on a collision (409 naming
-     * the slug). On an update, a blank slug keeps the current one, and
-     * a slug equal to the current one is a no-op, not a collision. The
-     * collision predicate is the post table for posts and (locale, slug)
-     * for translations — the shape rule and the no-op rule are spelled
-     * ONCE, here, so the post and translation endpoints cannot answer
-     * differently.
-     */
-    private String resolveSuppliedSlug(String supplied, String currentSlug) {
-        return resolveSuppliedSlug(supplied, currentSlug, posts::existsBySlug);
-    }
-
-    private String resolveTranslationSlug(String locale, String supplied, String currentSlug) {
-        return resolveSuppliedSlug(supplied, currentSlug,
-                slug -> translations.existsByLocaleAndSlug(locale, slug));
-    }
-
-    private String resolveSuppliedSlug(String supplied, String currentSlug,
-                                       Predicate<String> slugTaken) {
-        if (supplied == null || supplied.isBlank()) {
-            return currentSlug;
-        }
-        String slug = supplied.trim();
-        if (!SlugFactory.isValidCustomSlug(slug)) {
-            throw new GuidanceValidationException(
-                    "slug must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be at most "
-                            + SlugFactory.MAX_SLUG_LENGTH + " characters");
-        }
-        if (slug.equals(currentSlug)) {
-            return slug;
-        }
-        if (slugTaken.test(slug)) {
-            throw new SlugAlreadyUsedException(slug);
-        }
-        return slug;
-    }
-
-    /**
-     * The auto-generated slug (D5): from the title; a collision — with a
-     * draft OR a published post, the uniqueness spans both — takes
-     * {@code -2}, {@code -3}, ... and takes the first free value. The
-     * translation variant scopes the same walk to the locale (see {@link
-     * #nextGeneratedTranslationSlug(String, String)}).
-     */
-    private String nextGeneratedSlug(String title) {
-        return nextGeneratedSlug(title, posts::existsBySlug);
-    }
-
-    private String nextGeneratedTranslationSlug(String locale, String title) {
-        return nextGeneratedSlug(title,
-                slug -> translations.existsByLocaleAndSlug(locale, slug));
-    }
-
-    private String nextGeneratedSlug(String title, Predicate<String> slugTaken) {
-        String base = SlugFactory.of(title);
-        if (!slugTaken.test(base)) {
-            return base;
-        }
-        for (int suffix = 2; ; suffix++) {
-            String candidate = base + "-" + suffix;
-            if (!slugTaken.test(candidate)) {
-                return candidate;
-            }
-        }
-    }
-
     private GuidancePost requirePost(long id) {
         return posts.findById(id)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
@@ -1127,7 +867,7 @@ public class GuidanceService {
                                                  String title, String body, String heroImageAlt) {
         requirePost(postId);
         Instant now = clock.instant();
-        String cleanLocale = requireLocale(locale);
+        String cleanLocale = GuidanceValidation.requireLocale(locale);
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanAlt = heroImageAlt == null ? null : heroImageAlt.trim();
@@ -1136,8 +876,10 @@ public class GuidanceService {
                     "post already has a " + cleanLocale + " translation — update or delete it first");
         }
         String finalSlug = slug == null || slug.isBlank()
-                ? nextGeneratedTranslationSlug(cleanLocale, cleanTitle)
-                : resolveTranslationSlug(cleanLocale, slug, null);
+                ? GuidanceValidation.nextGeneratedSlug(cleanTitle,
+                        candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate))
+                : GuidanceValidation.resolveSuppliedSlug(slug, null,
+                        candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate));
         return translations.save(GuidanceTranslation.forPost(postId, cleanLocale, finalSlug,
                 cleanTitle, cleanBody, cleanAlt, now));
     }
@@ -1156,14 +898,15 @@ public class GuidanceService {
     public GuidanceTranslation updateTranslation(long postId, String locale, String slug,
                                                  String title, String body, String heroImageAlt) {
         requirePost(postId);
-        String cleanLocale = requireLocale(locale);
+        String cleanLocale = GuidanceValidation.requireLocale(locale);
         GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanAlt = heroImageAlt == null ? null : heroImageAlt.trim();
-        String finalSlug = resolveTranslationSlug(cleanLocale, slug, translation.getSlug());
+        String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, translation.getSlug(),
+                candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate));
         translation.update(finalSlug, cleanTitle, cleanBody, cleanAlt, now);
         return translations.save(translation);
     }
@@ -1181,7 +924,7 @@ public class GuidanceService {
     @Transactional
     public void deleteTranslation(long postId, String locale) {
         GuidancePost post = requirePost(postId);
-        String cleanLocale = requireLocale(locale);
+        String cleanLocale = GuidanceValidation.requireLocale(locale);
         GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
         if (cleanLocale.equals(post.getLocale())) {
@@ -1249,21 +992,8 @@ public class GuidanceService {
                                     post.getHeroImageAlt(), now);
                             translations.save(existing);
                         },
-                        () -> translations.save(GuidanceTranslation.forPost(post.getId(),
-                                post.getLocale(), post.getSlug(), post.getTitle(),
-                                post.getBodyHtml(), post.getHeroImageAlt(), now)));
-    }
-
-    /** Locale required, trimmed, and bounded by the VARCHAR(5) column (400). */
-    private String requireLocale(String locale) {
-        if (locale == null || locale.isBlank()) {
-            throw new GuidanceValidationException("locale is required");
-        }
-        String trimmed = locale.trim();
-        if (trimmed.length() > MAX_LOCALE_LENGTH) {
-            throw new GuidanceValidationException(
-                    "locale must be at most " + MAX_LOCALE_LENGTH + " characters");
-        }
-        return trimmed;
+        () -> translations.save(GuidanceTranslation.forPost(post.getId(),
+                post.getLocale(), post.getSlug(), post.getTitle(),
+                post.getBodyHtml(), post.getHeroImageAlt(), now)));
     }
 }

@@ -5,6 +5,8 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import ee.sheltermap.verification.CodePolicy;
 import org.junit.jupiter.api.Test;
 
@@ -25,8 +27,9 @@ class PasswordResetServiceTest {
     private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
     private final PasswordResetService service = new PasswordResetService(
-            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock);
+            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, pii, clock);
 
     private RegisteredUser savedUser() {
         RegisteredUser user = new RegisteredUser("Mari", EMAIL, "+37250000001");
@@ -136,8 +139,8 @@ class PasswordResetServiceTest {
         assertThat(message)
                 .isEqualTo(AppInfo.APP_DISPLAY_NAME + " password reset code: " + code + " (valid 15 min)")
                 .doesNotContain("http"); // no URL link — the code is the whole message
-        assertThat(stored.getTokenHash()).isNotEqualTo(code); // hashed at rest
-        assertThat(stored.getTokenHash()).isEqualTo(Hashes.sha256Hex(code));
+        assertThat(stored.getTokenHash()).isNotEqualTo(code); // keyed at rest (v2 slot)
+        assertThat(stored.getTokenHash()).isEqualTo(pii.codeHash(PiiCrypto.DOMAIN_CODE_PASSWORD_RESET, code));
     }
 
     @Test

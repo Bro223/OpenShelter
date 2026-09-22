@@ -2,6 +2,8 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.UserService;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -21,8 +23,9 @@ class AuthServiceTest {
     private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
     private final PasswordResetService passwordReset = new PasswordResetService(
-            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock);
+            users, credentials, resetTokens, refreshTokens, hasher, smtp, pii, clock);
     private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset, clock);
 
     private void registerMari() {

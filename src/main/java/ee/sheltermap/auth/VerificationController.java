@@ -107,8 +107,9 @@ public class VerificationController {
                     + "or per-IP throttle — Retry-After in seconds")
     })
     public CodeSentDto request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
-        if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
-            throw new RateLimitExceededException();
+        RateLimiter.Result result = verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
+        if (!result.acquired()) {
+            throw new RateLimitExceededException(result.retryAfterSeconds());
         }
         RegisteredUser user = currentUser();
         if (body.level() == VerificationLevel.SMART_ID) {

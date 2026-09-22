@@ -98,9 +98,17 @@ the single most valuable artifact in this system.
 - **Per-environment CORS + trusted proxies.** Each environment sets its
   own `CORS_ALLOWED_ORIGINS` and `RATELIMIT_TRUSTED_PROXIES`; a staging
   origin must never appear in production's list.
-- **TLS + HSTS at the edge.** Terminate TLS in front of the app; the app
-  sends `Strict-Transport-Security` only on secure requests
-  (`SecurityHeadersFilter`), so HSTS is live exactly when the edge is.
+- **TLS + HSTS at the edge.** Terminate TLS in front of the app. The app
+  sends `Strict-Transport-Security` when the client's connection was
+  secure: directly (`request.isSecure()`) or via a TRUSTED proxy that
+  terminated TLS and tagged the original scheme with
+  `X-Forwarded-Proto: https` (`SecurityHeadersFilter` honors that header
+  ONLY when the direct peer is in `RATELIMIT_TRUSTED_PROXIES` — or a
+  trusted loopback — the same hop-by-hop trust gate as the rate-limit IP
+  keying; an untrusted client sets it freely, so it is ignored). Set
+  `RATELIMIT_TRUSTED_PROXIES` to the edge's IP: in the documented
+  edge-terminates-TLS deployment the edge forwards plain HTTP, where
+  `isSecure()` alone is never true and HSTS would otherwise never fire.
 - **The single-instance constraint is per environment** (in-memory
   rate limits + alert ring, W16 — see `threat-model.md` residual 1).
   Staging may be its own single instance; it does not dilute production's
@@ -189,11 +197,25 @@ monitoring is health-probe + logs + the admin alert ring:
    public (app metadata only).
 2. **Logs** (the app logs to stdout/stderr — ship to your log
    aggregation):
-   - OTP/verification throttles: the `429` responses with
-     `Retry-After` (per-contact cap, daily caps) — a burst means an
-     abuse attempt or a provider outage retry storm.
-   - Reset re-issue skips (cooldown / per-day cap) are logged at INFO —
-     a spike on one e-mail is a reset-flow abuse attempt.
+   - **Auth failures (401):** every unauthenticated request on a protected
+     route (missing / invalid / expired / a suspended account's token —
+     the security entry point) and every rejected credential (wrong
+     password, wrong profile password, a bad refresh token — the error
+     handler) logs one `401` WARN carrying the method + path only, never
+     the presented credential, e-mail or token. A burst is a
+     credential-stuffing or token-spray attempt.
+   - **Throttles (429):** every rate-limited response logs one `429 <kind>`
+     WARN — token-bucket (login, reset, registration, verify,
+     contact-change, geo, and the refresh + logout session bucket), the
+     per-user report throttle, the verification / contact-change daily
+     cap, and the shelter-submission daily cap. Token-bucket, report and
+     daily-cap throttles carry an honest `Retry-After` (whole seconds);
+     a 429 with NO `Retry-After` is a never-refilling bucket — once
+     drained it is drained. A burst means an abuse attempt or a
+     provider-outage retry storm.
+   - **Reset re-issue skips:** the per-UTC-day cap skip is logged at INFO
+     (a spike on one e-mail is a reset-flow abuse attempt); the 60 s
+     cooldown skip is logged at DEBUG (routine, not a signal).
    - Registry import runs (Monday 03:00 Europe/Tallinn): alert if an
      import is not `OK`/`NOT_MODIFIED` — a broken import silently stops
      official data updating.

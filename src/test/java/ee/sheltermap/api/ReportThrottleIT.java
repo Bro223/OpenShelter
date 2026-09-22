@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -116,8 +117,10 @@ class ReportThrottleIT extends AbstractPersistenceIT {
         report(token, s3, "CLOSED");
         report(token, s4, "CLOSED");
 
-        // the 11th is 429 with the standard error body
-        mvc.perform(put("/api/shelters/" + s2 + "/occupancy")
+        // the 11th is 429 with the standard error body + an honest
+        // Retry-After (the oldest in-window action leaves the trailing
+        // hour at ~1h).
+        MvcResult throttled = mvc.perform(put("/api/shelters/" + s2 + "/occupancy")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"band\":\"SPACE\"}"))
@@ -126,7 +129,13 @@ class ReportThrottleIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
                 .andExpect(jsonPath("$.message").value("Too many report requests"))
-                .andExpect(jsonPath("$.path").isNotEmpty());
+                .andExpect(jsonPath("$.path").isNotEmpty())
+                .andReturn();
+
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotNull();
+        int seconds = Integer.parseInt(retryAfter);
+        assertThat(seconds).isGreaterThan(3000).isLessThanOrEqualTo(3600);
 
         // nothing was stored for the rejected action (one occupancy row for s1)
         Integer occupancyRows = jdbc.queryForObject(

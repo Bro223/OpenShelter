@@ -59,6 +59,26 @@ public class ShelterService {
             "A verified account is required to submit shelters";
 
     /**
+     * 403 message for the ownership rule (W3-A) — the rule itself moved
+     * here from {@code api.ShelterController} (the layer that owns the
+     * shelter rows owns the guard), one constant for every owner check:
+     * the author's PUT/DELETE/reply route and the owner-scoped service
+     * boundary below.
+     */
+    public static final String NOT_AUTHOR_MESSAGE =
+            "Only the author may modify this shelter";
+
+    /**
+     * 409 message for import-owned rows (admin-moderation D4) — moved
+     * here from {@code api.AdminModerationService} (W3-A): the hard-delete
+     * boundary below enforces it in the service layer too, so the
+     * constant travels with the guard. {@code AdminModerationService}
+     * keeps a forwarder for the other admin-write guards.
+     */
+    public static final String IMPORT_OWNED_MESSAGE =
+            "Registry shelters are import-owned and cannot be moderated here";
+
+    /**
      * Per-user spam floor (shelter-trust-and-reports D3): the max shelters
      * one user may have with {@code source = USER} and {@code status =
      * ACTIVE}; the 11th submission is a 409. Deletions and auto-hidden
@@ -261,6 +281,72 @@ public class ShelterService {
                 .filter(seconds -> seconds > 0)
                 .map(seconds -> (int) Math.min(seconds, Integer.MAX_VALUE))
                 .orElse(null);
+    }
+
+    /**
+     * The author check on a shelter row (W3-A — moved here from
+     * {@code api.ShelterController.requireOwnedShelter}, which enforced it
+     * in the controller): the row must exist (404), be USER-source and
+     * authored by {@code userId} (403 otherwise — registry and legacy
+     * rows are unmanageable by anyone). Plain read, no transaction of
+     * its own: the callers run it inside their own boundary (the
+     * controller's per-endpoint check, or the {@code @Transactional}
+     * owner boundary below) and the repository read is transaction-safe
+     * on its own.
+     *
+     * @throws ShelterNotFoundException 404 — unknown shelter id
+     * @throws NotAuthorException 403 — not the author (registry/legacy/
+     *                                another user's row)
+     */
+    public Shelter requireOwnedBy(long shelterId, long userId) {
+        Shelter shelter = shelterRepository.findById(shelterId)
+                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
+        if (shelter.getSource() != ShelterSource.USER
+                || shelter.getCreatedBy() == null
+                || !shelter.getCreatedBy().equals(userId)) {
+            throw new NotAuthorException(NOT_AUTHOR_MESSAGE);
+        }
+        return shelter;
+    }
+
+    /**
+     * The author's OWN update (W3-A — the ownership guard now sits on the
+     * service boundary, not only in the controller): re-checks
+     * {@link #requireOwnedBy} and applies {@link #updatePlace}. The
+     * controller still runs {@code requireOwnedBy} BEFORE its own 400
+     * validations (the status-code order the API documents: 404/403
+     * before a bbox 400); this second check makes the service safe to
+     * call from a future caller without the pre-check.
+     *
+     * @throws ShelterNotFoundException 404 — unknown shelter id
+     * @throws NotAuthorException 403 — not the author
+     */
+    @Transactional
+    public void updateOwned(long userId, Shelter place) {
+        requireOwnedBy(place.getId(), userId);
+        updatePlace(place);
+    }
+
+    /**
+     * The admin hard-delete boundary (W3-A — the guard now enforced in
+     * the service layer too): the row must exist (404) and be USER-source
+     * (409, import-owned, admin-moderation D4 — the registry import
+     * rebuilds its rows as ACTIVE on every run, so an admin delete would
+     * silently revert). The delete itself is {@link #deletePlace} — the
+     * same choke point as the author route (the DELETED history row,
+     * actor-attributed to the moderating admin, joins the transaction).
+     *
+     * @throws ShelterNotFoundException 404 — unknown shelter id
+     * @throws ImportOwnedShelterException 409 — a registry row
+     */
+    @Transactional
+    public void deletePlaceByAdmin(long moderatorId, long shelterId) {
+        Shelter shelter = shelterRepository.findById(shelterId)
+                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
+        if (shelter.getSource() != ShelterSource.USER) {
+            throw new ImportOwnedShelterException(IMPORT_OWNED_MESSAGE);
+        }
+        deletePlace(shelterId, moderatorId);
     }
 
     /**

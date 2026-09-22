@@ -18,6 +18,8 @@ import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -56,6 +58,8 @@ import java.util.List;
         ContactChangeProperties.class, ReportProperties.class, RetentionProperties.class})
 public class SecurityConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     @Bean
     public Clock clock() {
         return Clock.systemUTC();
@@ -69,6 +73,18 @@ public class SecurityConfig {
     @Bean
     public RateLimiter loginRateLimiter(RateLimitProperties properties) {
         return new TokenBucketRateLimiter(properties.loginCapacity(), properties.loginRefillPerSecond());
+    }
+
+    /**
+     * Per-IP bucket on {@code POST /auth/refresh} and {@code POST /auth/logout}
+     * (session-lifecycle): both are unauthenticated and DB-touching, so a
+     * single IP must not be able to hammer token rotation / revocation
+     * across accounts. The token-bucket countdown rides {@code Retry-After}
+     * (the limiter is a {@link TokenBucketRateLimiter}).
+     */
+    @Bean
+    public RateLimiter sessionRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.sessionCapacity(), properties.sessionRefillPerSecond());
     }
 
     /**
@@ -190,12 +206,17 @@ public class SecurityConfig {
                                                    ObjectMapper objectMapper,
                                                    CorsConfigurationSource corsConfigurationSource,
                                                    Clock clock,
-                                                   Environment env) throws Exception {
+                                                   Environment env,
+                                                   @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
+                                                   @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) throws Exception {
         // The hardening headers go BEFORE the JWT filter (the
         // same reference position, registered first = runs first), so the
         // headers are present on the 401/403 error bodies too — the entry
-        // point writes those after both filters have run.
-        SecurityHeadersFilter headersFilter = new SecurityHeadersFilter();
+        // point writes those after both filters have run. The HSTS filter
+        // gets the SAME trusted-proxy decision as ClientIps so it honors
+        // X-Forwarded-Proto only from a peer we trust (the edge).
+        SecurityHeadersFilter headersFilter = new SecurityHeadersFilter(
+                CommaSeparated.parseSet(trustedProxies), trustLoopback);
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenService, userRepository);
         http
             // Stateless Bearer-token auth (Authorization: Bearer, no cookie
@@ -206,8 +227,15 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(eh -> eh
-                .authenticationEntryPoint((request, response, ex) ->
-                        writeError(objectMapper, clock, response, request, HttpStatus.UNAUTHORIZED, "Authentication required"))
+                .authenticationEntryPoint((request, response, ex) -> {
+                    // One WARN per unauthenticated request on a protected
+                    // route (missing, invalid, expired or a suspended
+                    // account's token) so a token-spray / expired-token
+                    // storm is visible in the log (operations.md §5: alert on
+                    // volume). Method + path only — no credential or e-mail.
+                    log.warn("401 unauthenticated on {} {}", request.getMethod(), request.getRequestURI());
+                    writeError(objectMapper, clock, response, request, HttpStatus.UNAUTHORIZED, "Authentication required");
+                })
                 .accessDeniedHandler((request, response, ex) ->
                         writeError(objectMapper, clock, response, request, HttpStatus.FORBIDDEN, "Access denied")))
             .authorizeHttpRequests(auth -> {

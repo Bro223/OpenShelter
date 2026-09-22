@@ -3,6 +3,7 @@ package ee.sheltermap.verification;
 import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -23,11 +24,13 @@ public class PhoneVerificationProvider implements VerificationProvider {
     private static final int OTP_DIGITS = 6;
 
     private final SmsSender sender;
+    private final PiiCrypto piiCrypto;
     private final SecureRandom random = new SecureRandom();
     private final Clock clock;
 
-    public PhoneVerificationProvider(SmsSender sender, Clock clock) {
+    public PhoneVerificationProvider(SmsSender sender, PiiCrypto piiCrypto, Clock clock) {
         this.sender = Objects.requireNonNull(sender, "sender");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -59,7 +62,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
                 user.getId(),
                 VerificationLevel.PHONE,
                 phone,
-                CodeHashes.sha256Hex(otp),
+                piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_PHONE, otp),
                 clock.instant().plus(TTL));
     }
 
@@ -75,7 +78,8 @@ public class PhoneVerificationProvider implements VerificationProvider {
         if (pending.getAttempts() >= CodePolicy.MAX_ATTEMPTS) {
             return false;
         }
-        if (!CodeHashes.constantTimeEquals(code == null ? null : CodeHashes.sha256Hex(code), pending.getCodeHash())) {
+        if (!CodeHashes.matches(piiCrypto, pending.getCodeHash(),
+                PiiCrypto.DOMAIN_CODE_PHONE, code)) {
             pending.recordAttempt();
             return false;
         }

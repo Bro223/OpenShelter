@@ -1,6 +1,7 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.app.CommaSeparated;
+import ee.sheltermap.app.NotAuthorException;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -82,7 +83,7 @@ public class SmsTestController {
             return new SmsTestResult(provider, request.to(), toE164, false,
                     "the sms channel did not accept the message (the provider error is in the app log)");
         } catch (RuntimeException ex) {
-            log.error("[sms-test] send threw for {}: {}", request.to(), ex.getMessage());
+            log.error("[sms-test] send threw for {}", request.to(), ex);
             return new SmsTestResult(provider, request.to(), toE164, false, ex.getMessage());
         }
     }

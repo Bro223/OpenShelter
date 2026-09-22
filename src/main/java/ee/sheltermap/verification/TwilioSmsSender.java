@@ -99,7 +99,7 @@ public class TwilioSmsSender implements SmsSender {
             // The FALSE return value is the honest signal — the
             // verification flow consumes no daily slot for a refused
             // send (the contact-change flow ignores it by design).
-            log.error("Twilio SMS delivery failed to {}: {}", maskPhone(toE164), ex.getMessage());
+            log.error("Twilio SMS delivery failed to {}", maskPhone(toE164), ex);
             return false;
         }
     }

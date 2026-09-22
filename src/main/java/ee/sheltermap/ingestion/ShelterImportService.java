@@ -133,7 +133,7 @@ public class ShelterImportService {
                 recordAudit(result, "OK", null);
                 return result;
             } catch (RegistryUnavailableException e) {
-                log.error("Registry import failed: {}", e.getMessage());
+                log.error("Registry import failed", e);
                 ImportResult result = ImportResult.failure(at);
                 recordAudit(result, "FAILED", e.getMessage());
                 return result;
@@ -215,8 +215,8 @@ public class ShelterImportService {
                     result.created(), result.updated(), result.removed(),
                     status, errorMessage));
         } catch (RuntimeException e) {
-            log.error("Failed to record the data_imports audit row (status {}): {}",
-                    status, e.toString());
+            log.error("Failed to record the data_imports audit row (status {})",
+                    status, e);
         }
     }
 

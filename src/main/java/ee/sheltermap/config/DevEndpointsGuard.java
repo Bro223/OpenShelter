@@ -50,23 +50,19 @@ public class DevEndpointsGuard {
         if (Profiles.isDevTestOnly(env) || (!emailTestEnabled && !smsTestEnabled)) {
             return; // dev/test parity, or no dev diagnostic surface is activated at all
         }
-        String flags = enabledFlagNames(emailTestEnabled, smsTestEnabled);
+        String flags = FailClosedGuard.enabledFlagNames(emailTestEnabled, smsTestEnabled,
+                "app.dev-email-test.enabled", "app.dev-sms-test.enabled");
         // Loud log + loud rejection — never boot with an authenticated
-        // e-mail/SMS relay on a non-dev/test profile.
-        log.error("REFUSING TO START — dev diagnostic endpoint(s) {} enabled on a non-dev/test "
-                        + "profile: active profiles={}.", flags, Arrays.toString(env.getActiveProfiles()));
-        throw new IllegalStateException(
+        // e-mail/SMS relay on a non-dev/test profile (the fail-closed
+        // template, W3-A).
+        FailClosedGuard.refuseToBoot(log,
+                "REFUSING TO START — dev diagnostic endpoint(s) " + flags
+                        + " enabled on a non-dev/test profile: active profiles="
+                        + Arrays.toString(env.getActiveProfiles()) + ".",
                 "PRODUCTION REFUSED TO START: dev diagnostic endpoint(s) " + flags
                         + " enabled with active profiles=" + Arrays.toString(env.getActiveProfiles())
                         + ". The /dev/* test endpoints are dev-only — unset DEV_EMAIL_TEST_ENABLED / "
                         + "DEV_SMS_TEST_ENABLED, or run with SPRING_PROFILES_ACTIVE=dev/test for local "
                         + "development.");
-    }
-
-    private static String enabledFlagNames(boolean emailTestEnabled, boolean smsTestEnabled) {
-        if (emailTestEnabled && smsTestEnabled) {
-            return "app.dev-email-test.enabled + app.dev-sms-test.enabled";
-        }
-        return emailTestEnabled ? "app.dev-email-test.enabled" : "app.dev-sms-test.enabled";
     }
 }

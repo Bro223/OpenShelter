@@ -31,7 +31,7 @@ public class PendingContactChangeEntity {
     @Column(nullable = false, length = 1024)
     private String target;
 
-    @Column(name = "code_hash", nullable = false, length = 64)
+    @Column(name = "code_hash", nullable = false, length = 128)
     private String codeHash;
 
     @Column(nullable = false)

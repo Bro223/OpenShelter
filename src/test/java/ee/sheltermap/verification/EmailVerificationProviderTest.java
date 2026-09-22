@@ -2,6 +2,8 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,12 +24,13 @@ class EmailVerificationProviderTest {
     private EmailVerificationProvider provider;
     private RegisteredUser user;
     private Clock clock;
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
 
     @BeforeEach
     void setUp() {
         sender = new CapturingSmtpSender();
         clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
-        provider = new EmailVerificationProvider(sender, clock);
+        provider = new EmailVerificationProvider(sender, pii, clock);
         user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
@@ -47,8 +50,8 @@ class EmailVerificationProviderTest {
         String token = extractToken(sender.getLastMessage());
         assertThat(token).matches("[A-Za-z0-9]{8}");
 
-        // stored hashed, never plaintext
-        assertThat(pending.getCodeHash()).isEqualTo(CodeHashes.sha256Hex(token));
+        // stored hashed (keyed, v2 slot), never plaintext
+        assertThat(pending.getCodeHash()).isEqualTo(pii.codeHash(PiiCrypto.DOMAIN_CODE_EMAIL, token));
         assertThat(pending.getCodeHash()).doesNotContain(token);
     }
 
@@ -59,7 +62,7 @@ class EmailVerificationProviderTest {
         // and consumes NO daily slot — never fabricate a pending for a
         // code nobody received.
         EmailVerificationProvider refusing =
-                new EmailVerificationProvider((email, message) -> false, clock);
+                new EmailVerificationProvider((email, message) -> false, pii, clock);
 
         assertThatThrownBy(() -> refusing.request(user))
                 .isInstanceOf(CodeSendFailedException.class)

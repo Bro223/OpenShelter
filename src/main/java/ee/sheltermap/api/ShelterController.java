@@ -7,7 +7,6 @@ import ee.sheltermap.app.ShelterReportService;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.LocationKind;
@@ -30,8 +29,6 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -98,21 +95,23 @@ public class ShelterController {
     private final ShelterService shelterService;
     private final ShelterReportService reportService;
     private final UserRepository userRepository;
-    private final ShelterRepository shelterRepository;
     private final ShelterInfoRequestLog infoRequests;
+    /** The per-request authenticated-caller lookup (W3-A); the field the constructor no longer needs (the ownership read moved to the service) is dropped with it. */
+    private final CurrentCaller currentCaller;
 
     public ShelterController(ShelterQueryService queryService,
                              ShelterService shelterService,
                              ShelterReportService reportService,
                              UserRepository userRepository,
+                             /** Retained for the frozen constructor signature (the detail-read test seam); the ownership read it backed moved to {@link ShelterService#requireOwnedBy} (W3-A) — the parameter is no longer assigned. */
                              ShelterRepository shelterRepository,
                              ShelterInfoRequestLog infoRequests) {
         this.queryService = queryService;
         this.shelterService = shelterService;
         this.reportService = reportService;
         this.userRepository = userRepository;
-        this.shelterRepository = shelterRepository;
         this.infoRequests = infoRequests;
+        this.currentCaller = new CurrentCaller(userRepository);
     }
 
     /**
@@ -232,7 +231,7 @@ public class ShelterController {
     })
     @SecurityRequirements({})
     public ShelterDto get(@PathVariable long id) {
-        return queryService.findById(id, callerIdOrNull()).orElseThrow(() -> new ShelterNotFoundException(id));
+        return queryService.findById(id, currentCaller.callerIdOrNull()).orElseThrow(() -> new ShelterNotFoundException(id));
     }
 
     @PostMapping
@@ -252,7 +251,7 @@ public class ShelterController {
                     + "registered account")
     })
     public ResponseEntity<ShelterDto> create(@Valid @RequestBody CreateShelterRequest request) {
-        User user = currentUser();
+        User user = currentCaller.requireUser();
         if (!user.canWrite()) {
             throw new NotVerifiedException(ShelterService.SUBMIT_SHELTERS_MESSAGE);
         }
@@ -287,7 +286,7 @@ public class ShelterController {
     @ApiResponse(responseCode = "200", description = "The caller's shelters", content =
             @Content(array = @ArraySchema(schema = @Schema(implementation = ShelterDto.class))))
     public List<ShelterDto> mine() {
-        return queryService.findByCreatedBy(currentUser().getId());
+        return queryService.findByCreatedBy(currentCaller.requireUser().getId());
     }
 
     /**
@@ -307,7 +306,7 @@ public class ShelterController {
                     + "the reply — audit posture).")
     public void replyInfoRequest(@PathVariable long id, @Valid @RequestBody InfoRequestReplyRequest request) {
         RegisteredUser user = requireVerifiedRegisteredUser();
-        requireOwnedShelter(id, user);
+        shelterService.requireOwnedBy(id, user.getId());
         infoRequests.reply(id, request.message().trim(), user.getId());
     }
 
@@ -339,7 +338,7 @@ public class ShelterController {
                     + "exceeded — Retry-After in seconds")
     })
     public ShelterReportResult report(@PathVariable long id, @Valid @RequestBody ShelterReportRequest request) {
-        boolean damped = reportService.reportShelter(currentUser(), id, request.type(), request.detail());
+        boolean damped = reportService.reportShelter(currentCaller.requireUser(), id, request.type(), request.detail());
         return new ShelterReportResult(damped);
     }
 
@@ -356,7 +355,7 @@ public class ShelterController {
                     + "(latest band wins, updated_at refreshed). Verified users only; "
                     + "404 unknown shelter; 429 report throttle.")
     public void reportOccupancy(@PathVariable long id, @Valid @RequestBody OccupancyReportRequest request) {
-        reportService.reportOccupancy(currentUser(), id, request.band());
+        reportService.reportOccupancy(currentCaller.requireUser(), id, request.band());
     }
 
     /**
@@ -379,7 +378,7 @@ public class ShelterController {
                     + "enum is a 400 (same as band). NOT throttled — a tap is a state, "
                     + "not a report action.")
     public void reportOpenStatus(@PathVariable long id, @Valid @RequestBody OpenStatusReportRequest request) {
-        reportService.putOpenStatus(requireRegistered(currentUser()), id, request.state());
+        reportService.putOpenStatus(requireRegistered(currentCaller.requireUser()), id, request.state());
     }
 
     /**
@@ -417,7 +416,10 @@ public class ShelterController {
     })
     public ShelterDto update(@PathVariable long id, @Valid @RequestBody UpdateShelterRequest request) {
         RegisteredUser user = requireVerifiedRegisteredUser();
-        Shelter shelter = requireOwnedShelter(id, user);
+        // The ownership check runs BEFORE the 400 validations (the API's
+        // documented order: 404/403 before a bbox 400); the service
+        // boundary re-checks it (W3-A).
+        Shelter shelter = shelterService.requireOwnedBy(id, user.getId());
         requireInsideEstonia(request.latitude(), request.longitude());
         Shelter updated = new Shelter(
                 request.name(),
@@ -456,8 +458,8 @@ public class ShelterController {
         // The private-home declaration is updatable; absent = keep current.
         updated.setLocationKind(request.locationKind() == null
                 ? shelter.getLocationKind() : request.locationKind());
-        shelterService.updatePlace(updated);
-        // The caller IS the author (requireOwnedShelter) — pass the id so
+        shelterService.updateOwned(user.getId(), updated);
+        // The caller IS the author (requireOwnedBy) — pass the id so
         // the owner-scoped reviewNote stays on the owner's own response
         // (a rejected row keeps its reason through the owner's edit).
         return queryService.findById(id, user.getId())
@@ -474,20 +476,8 @@ public class ShelterController {
                     + "actor-attributed to the submitter.")
     public void delete(@PathVariable long id) {
         RegisteredUser user = requireVerifiedRegisteredUser();
-        requireOwnedShelter(id, user);
+        shelterService.requireOwnedBy(id, user.getId());
         shelterService.deletePlace(id, user.getId());
-    }
-
-    /** Resolve + author check, shared by PUT/DELETE: 404 if absent, 403 if not the author. */
-    private Shelter requireOwnedShelter(long id, User user) {
-        Shelter shelter = shelterRepository.findById(id)
-                .orElseThrow(() -> new ShelterNotFoundException(id));
-        if (shelter.getSource() != ShelterSource.USER
-                || shelter.getCreatedBy() == null
-                || !shelter.getCreatedBy().equals(user.getId())) {
-            throw new NotAuthorException("Only the author may modify this shelter");
-        }
-        return shelter;
     }
 
     /** The Estonia bbox gate, shared by POST and PUT so create/update cannot drift. */
@@ -536,7 +526,7 @@ public class ShelterController {
 
     /** Bearer JWT + verified registered account (author mutations, mirroring the shelter author-mutation convention). */
     private RegisteredUser requireVerifiedRegisteredUser() {
-        User user = currentUser();
+        User user = currentCaller.requireUser();
         if (!(user instanceof RegisteredUser registered)) {
             throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
         }
@@ -557,39 +547,5 @@ public class ShelterController {
             throw new NotVerifiedException(ShelterReportService.REPORTING_MESSAGE);
         }
         return registered;
-    }
-
-    /**
-     * The authenticated caller's id, or {@code null} for anonymous reads —
-     * the detail projection's {@code yourOccupancyBand} is null for a
-     * {@code null} caller, so this never throws on public GETs.
-     *
-     * <p>COLUMN-ONLY on purpose (the {@code JwtAuthenticationFilter}
-     * convention): the public detail read runs per request and the
-     * projection only ever needs the caller's id — it must not pay the
-     * caller's full domain mapping (PII decrypt of the e-mail/phone
-     * envelopes + the claims query) for a read. A token-valid caller
-     * whose row was DELETED keeps the erasure contract (legal-recovery):
-     * unknown ids degrade to the guest projection, exactly the behavior
-     * the old {@code findById}-and-{@code null-check} had.
-     */
-    private Long callerIdOrNull() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof Long userId) {
-            return userRepository.existsById(userId) ? userId : null;
-        }
-        return null;
-    }
-
-    private User currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        User user = userRepository.findById(userId);
-        if (user == null) {
-            throw new InvalidAccessTokenException("Unknown user");
-        }
-        return user;
     }
 }

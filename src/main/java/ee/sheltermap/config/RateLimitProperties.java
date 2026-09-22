@@ -31,5 +31,7 @@ public record RateLimitProperties(
         int resetConfirmCapacity,
         double resetConfirmRefillPerSecond,
         int loginIpCapacity,
-        double loginIpRefillPerSecond) {
+        double loginIpRefillPerSecond,
+        int sessionCapacity,
+        double sessionRefillPerSecond) {
 }

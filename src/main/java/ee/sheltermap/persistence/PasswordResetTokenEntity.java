@@ -24,7 +24,7 @@ public class PasswordResetTokenEntity {
     // Not unique since V8: at most one ACTIVE code per user is enforced by
     // the service (delete-then-insert); used/expired history rows may share
     // a hash with other users' rows (6-digit codes, hashed at rest).
-    @Column(name = "token_hash", nullable = false, length = 64)
+    @Column(name = "token_hash", nullable = false, length = 128)
     private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)

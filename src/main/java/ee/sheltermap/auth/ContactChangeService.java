@@ -6,6 +6,8 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.verification.CodeHashes;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
 import ee.sheltermap.verification.SmtpSender;
@@ -66,6 +68,7 @@ public class ContactChangeService {
     private final PendingContactChangeRepository changes;
     private final SmsSender smsSender;
     private final SmtpSender smtpSender;
+    private final PiiCrypto piiCrypto;
     private final ContactChangeProperties properties;
     private final Clock clock;
     /** Null in plain unit tests (in-memory repos are not transactional). */
@@ -78,9 +81,10 @@ public class ContactChangeService {
                                 PendingContactChangeRepository changes,
                                 SmsSender smsSender,
                                 SmtpSender smtpSender,
+                                PiiCrypto piiCrypto,
                                 ContactChangeProperties properties,
                                 Clock clock) {
-        this(userRepository, changes, smsSender, smtpSender, properties, clock, null);
+        this(userRepository, changes, smsSender, smtpSender, piiCrypto, properties, clock, null);
     }
 
     @Autowired
@@ -88,6 +92,7 @@ public class ContactChangeService {
                                 PendingContactChangeRepository changes,
                                 SmsSender smsSender,
                                 SmtpSender smtpSender,
+                                PiiCrypto piiCrypto,
                                 ContactChangeProperties properties,
                                 Clock clock,
                                 PlatformTransactionManager txManager) {
@@ -95,6 +100,7 @@ public class ContactChangeService {
         this.changes = Objects.requireNonNull(changes, "changes");
         this.smsSender = Objects.requireNonNull(smsSender, "smsSender");
         this.smtpSender = Objects.requireNonNull(smtpSender, "smtpSender");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.tx = txManager == null ? null : new TransactionTemplate(txManager);
@@ -166,7 +172,8 @@ public class ContactChangeService {
         // Phase 3 — the write, one transaction.
         inTransaction(() -> {
             replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
-                    target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                    target, piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_CONTACT_CHANGE, code),
+                    now.plusSeconds(properties.codeTtlSeconds()), now));
             return null;
         });
     }
@@ -245,7 +252,8 @@ public class ContactChangeService {
         // Phase 3 — the write, one transaction.
         inTransaction(() -> {
             replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
-                    target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                    target, piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_CONTACT_CHANGE, code),
+                    now.plusSeconds(properties.codeTtlSeconds()), now));
             return null;
         });
     }
@@ -347,7 +355,8 @@ public class ContactChangeService {
         if (change.isAttemptExhausted(properties.maxAttempts())) {
             return "Too many attempts, request a new code";
         }
-        if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
+        if (!CodeHashes.matches(piiCrypto, change.getCodeHash(),
+                PiiCrypto.DOMAIN_CODE_CONTACT_CHANGE, code)) {
             // The row-level UPDATE is the lock: 0 rows updated means another
             // confirm already reached the cap (or the row is gone) — straight
             // to the lockout message, never past the counter.

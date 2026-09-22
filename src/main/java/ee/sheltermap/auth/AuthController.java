@@ -54,6 +54,7 @@ public class AuthController {
     private final RateLimiter resetRateLimiter;
     private final RateLimiter resetConfirmRateLimiter;
     private final RateLimiter registerRateLimiter;
+    private final RateLimiter sessionRateLimiter;
     private final RollingContactOtpLimiter contactOtpLimiter;
     private final ThrottleAlertRecorder alerts;
     private final Set<String> trustedProxies;
@@ -65,6 +66,7 @@ public class AuthController {
                           @Qualifier("resetRateLimiter") RateLimiter resetRateLimiter,
                           @Qualifier("resetConfirmRateLimiter") RateLimiter resetConfirmRateLimiter,
                           @Qualifier("registerRateLimiter") RateLimiter registerRateLimiter,
+                          @Qualifier("sessionRateLimiter") RateLimiter sessionRateLimiter,
                           RollingContactOtpLimiter contactOtpLimiter,
                           ThrottleAlertRecorder alerts,
                           @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
@@ -75,6 +77,7 @@ public class AuthController {
         this.resetRateLimiter = resetRateLimiter;
         this.resetConfirmRateLimiter = resetConfirmRateLimiter;
         this.registerRateLimiter = registerRateLimiter;
+        this.sessionRateLimiter = sessionRateLimiter;
         this.contactOtpLimiter = contactOtpLimiter;
         this.alerts = alerts;
         this.trustLoopback = trustLoopback;
@@ -148,7 +151,11 @@ public class AuthController {
             + "credentials)", content = @Content(schema = @Schema(implementation =
             TokenResponse.class)))
     @SecurityRequirements({})
-    public TokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
+    public TokenResponse refresh(@Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
+        // Session-lifecycle throttle (per-IP): refresh is unauthenticated and
+        // DB-touching, so one IP must not hammer token rotation across
+        // accounts. The global 429 contract (Retry-After) applies.
+        requireRate(sessionRateLimiter, clientIp(http));
         return authService.refresh(request);
     }
 
@@ -157,7 +164,10 @@ public class AuthController {
     @Operation(summary = "Log out",
             description = "204. Revokes the given refresh token server-side.")
     @SecurityRequirements({})
-    public void logout(@Valid @RequestBody RefreshRequest request) {
+    public void logout(@Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
+        // Same per-IP session-lifecycle throttle as refresh — logout is
+        // unauthenticated and DB-touching too (revocation).
+        requireRate(sessionRateLimiter, clientIp(http));
         authService.logout(request.refreshToken());
     }
 
@@ -226,8 +236,9 @@ public class AuthController {
     }
 
     private static void requireRate(RateLimiter limiter, String key) {
-        if (!limiter.tryAcquire(key)) {
-            throw new RateLimitExceededException();
+        RateLimiter.Result result = limiter.tryAcquire(key);
+        if (!result.acquired()) {
+            throw new RateLimitExceededException(result.retryAfterSeconds());
         }
     }
 

@@ -31,7 +31,7 @@ public class PendingVerificationEntity {
     @Column(nullable = false, length = 1024)
     private String contact;
 
-    @Column(name = "code_hash", nullable = false, length = 64)
+    @Column(name = "code_hash", nullable = false, length = 128)
     private String codeHash;
 
     @Column(nullable = false)

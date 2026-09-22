@@ -260,8 +260,9 @@ public class AccountController {
     }
 
     private void requireRate(HttpServletRequest http) {
-        if (!changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
-            throw new RateLimitExceededException();
+        RateLimiter.Result result = changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
+        if (!result.acquired()) {
+            throw new RateLimitExceededException(result.retryAfterSeconds());
         }
     }
 

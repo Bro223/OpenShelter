@@ -1,6 +1,7 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.app.CommaSeparated;
+import ee.sheltermap.app.NotAuthorException;
 import ee.sheltermap.verification.SmtpSender;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
@@ -85,7 +86,7 @@ public class EmailTestController {
             mailSender.send(mail);
             return new EmailTestResult(provider, from, request.to(), request.subject(), true, null);
         } catch (Exception ex) {
-            log.error("[email-test] delivery to {} failed: {}", request.to(), ex.getMessage());
+            log.error("[email-test] delivery to {} failed", request.to(), ex);
             return new EmailTestResult(provider, from, request.to(), request.subject(), false, ex.getMessage());
         }
     }

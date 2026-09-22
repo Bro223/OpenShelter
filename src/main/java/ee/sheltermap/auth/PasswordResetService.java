@@ -5,6 +5,8 @@ import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.verification.CodeHashes;
 import ee.sheltermap.verification.CodePolicy;
 import ee.sheltermap.verification.SmtpSender;
 import org.slf4j.Logger;
@@ -83,6 +85,7 @@ public class PasswordResetService {
     private final RefreshTokenRepository refreshTokens;
     private final PasswordHasher passwordHasher;
     private final SmtpSender smtpSender;
+    private final PiiCrypto piiCrypto;
     private final Clock clock;
     /** Null in plain unit tests (in-memory repos are not transactional). */
     private final TransactionTemplate tx;
@@ -94,8 +97,9 @@ public class PasswordResetService {
                                 RefreshTokenRepository refreshTokens,
                                 PasswordHasher passwordHasher,
                                 SmtpSender smtpSender,
+                                PiiCrypto piiCrypto,
                                 Clock clock) {
-        this(users, credentials, tokens, refreshTokens, passwordHasher, smtpSender, clock, null);
+        this(users, credentials, tokens, refreshTokens, passwordHasher, smtpSender, piiCrypto, clock, null);
     }
 
     @Autowired
@@ -105,6 +109,7 @@ public class PasswordResetService {
                                 RefreshTokenRepository refreshTokens,
                                 PasswordHasher passwordHasher,
                                 SmtpSender smtpSender,
+                                PiiCrypto piiCrypto,
                                 Clock clock,
                                 PlatformTransactionManager txManager) {
         this.users = Objects.requireNonNull(users, "users");
@@ -113,6 +118,7 @@ public class PasswordResetService {
         this.refreshTokens = Objects.requireNonNull(refreshTokens, "refreshTokens");
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
         this.smtpSender = Objects.requireNonNull(smtpSender, "smtpSender");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.tx = txManager == null ? null : new TransactionTemplate(txManager);
     }
@@ -196,7 +202,8 @@ public class PasswordResetService {
         // Phase 3 — the write, one transaction (atomic one-active-code).
         inTransaction(() -> {
             tokens.deleteActiveByUserId(decision.userId, clock.instant());
-            tokens.save(new PasswordResetToken(decision.userId, Hashes.sha256Hex(code),
+            tokens.save(new PasswordResetToken(decision.userId,
+                    piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_PASSWORD_RESET, code),
                     clock.instant().plus(CODE_TTL)));
             return null;
         });
@@ -275,7 +282,8 @@ public class PasswordResetService {
         if (stored.getAttempts() >= CodePolicy.MAX_ATTEMPTS) {
             return false; // locked out — no further attempt churn
         }
-        if (!Hashes.constantTimeEquals(stored.getTokenHash(), Hashes.sha256Hex(code))) {
+        if (!CodeHashes.matches(piiCrypto, stored.getTokenHash(),
+                PiiCrypto.DOMAIN_CODE_PASSWORD_RESET, code)) {
             stored.recordAttempt();
             tokens.save(stored);
             return false;

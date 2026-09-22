@@ -2,9 +2,6 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -31,9 +28,11 @@ import java.util.Objects;
 public class AdminAccess {
 
     private final UserRepository userRepository;
+    private final CurrentCaller currentCaller;
 
     public AdminAccess(UserRepository userRepository) {
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.currentCaller = new CurrentCaller(userRepository);
     }
 
     /**
@@ -44,10 +43,7 @@ public class AdminAccess {
      * queue D4, crisis-guidance D7/D12); read endpoints ignore it.
      */
     public long requireAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
+        long userId = currentCaller.requireUserId();
         if (!userRepository.isAdmin(userId)) {
             throw new AdminAccessException("Admin access required");
         }

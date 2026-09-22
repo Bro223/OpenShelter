@@ -357,7 +357,11 @@ public class AdminController {
      * bound as {@code /admin/audit}; {@code offset} is the non-negative
      * page start (W2-A) and the {@code X-Total-Count} header is the
      * queue's length WITHOUT paging (always present). The queue's table
-     * is append-only, so the read is paged in SQL.
+     * is append-only, so the read is paged in SQL. {@code excludeDismissed}
+     * is the moderator's hide-dismissed filter: absent/{@code false}
+     * renders EVERYTHING (nothing hidden silently — the dismissed rows
+     * stay in, dimmed); {@code true} renders the OPEN reports only (the
+     * resolved verdicts out — the scope the pin counts express, W2-A).
      */
     @GetMapping("/reports")
     @Operation(summary = "The shelter report queue",
@@ -366,12 +370,17 @@ public class AdminController {
                     + "admin-only data, served from /admin/* only. limit is "
                     + "1..200, default 100 (anything else 400); offset (>= 0) "
                     + "is the page start; the X-Total-Count response header is "
-                    + "the queue's length WITHOUT paging (always present).")
+                    + "the queue's length WITHOUT paging (always present). "
+                    + "excludeDismissed=true hides the dismissed (resolved) "
+                    + "rows — the queue then shows the open reports only and "
+                    + "the header counts them; absent or false renders "
+                    + "everything, so the default hides nothing.")
     @ApiResponse(responseCode = "200", description = "The report rows (newest "
             + "first, at most limit)", headers = {
             @Header(name = "X-Total-Count",
                     description = "The report queue's row count WITHOUT the "
-                            + "paging applied (always present).",
+                            + "paging applied (always present); the OPEN "
+                            + "count when excludeDismissed=true.",
                     schema = @Schema(type = "integer", format = "int32"))
     }, content = @Content(array = @ArraySchema(schema =
             @Schema(implementation = AdminShelterReportDto.class))))
@@ -383,6 +392,10 @@ public class AdminController {
     public ResponseEntity<List<AdminShelterReportDto>> listShelterReports(
             @Parameter(description = "Narrow to one shelter (optional).")
             @RequestParam(required = false) Long shelterId,
+            @Parameter(description = "Hide the dismissed (resolved) rows: the "
+                    + "queue then shows the OPEN reports only. Absent = false "
+                    + "(everything renders — nothing is hidden silently).")
+            @RequestParam(required = false) Boolean excludeDismissed,
             @Parameter(description = "Rows to return, 1..200 (default 100; "
                     + "anything else 400).")
             @RequestParam(required = false) Integer limit,
@@ -392,7 +405,8 @@ public class AdminController {
         adminAccess.requireAdmin();
         // The bounds are checked BEFORE the read (the shared paging rule).
         Pagination.requireOffset(offset);
-        Pagination.Paged<AdminShelterReportDto> paged = moderation.listShelterReports(shelterId, limit, offset);
+        Pagination.Paged<AdminShelterReportDto> paged = moderation.listShelterReports(
+                shelterId, Boolean.TRUE.equals(excludeDismissed), limit, offset);
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(paged.total()))
                 .body(paged.rows());

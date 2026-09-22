@@ -94,8 +94,9 @@ public class LocationController {
     })
     public LocationResolvedDto resolve(@Valid @RequestBody LocationResolveRequest request,
                                        HttpServletRequest http) {
-        if (!geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
-            throw new RateLimitExceededException();
+        RateLimiter.Result result = geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
+        if (!result.acquired()) {
+            throw new RateLimitExceededException(result.retryAfterSeconds());
         }
         LocationResolveService.Outcome outcome = resolveService.resolve(request.url());
         return switch (outcome) {

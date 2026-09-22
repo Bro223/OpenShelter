@@ -3,6 +3,7 @@ package ee.sheltermap.verification;
 import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -27,11 +28,13 @@ public class EmailVerificationProvider implements VerificationProvider {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     private final SmtpSender sender;
+    private final PiiCrypto piiCrypto;
     private final SecureRandom random = new SecureRandom();
     private final Clock clock;
 
-    public EmailVerificationProvider(SmtpSender sender, Clock clock) {
+    public EmailVerificationProvider(SmtpSender sender, PiiCrypto piiCrypto, Clock clock) {
         this.sender = Objects.requireNonNull(sender, "sender");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -59,7 +62,7 @@ public class EmailVerificationProvider implements VerificationProvider {
                 user.getId(),
                 VerificationLevel.EMAIL,
                 email,
-                CodeHashes.sha256Hex(token),
+                piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_EMAIL, token),
                 clock.instant().plus(TTL));
     }
 
@@ -75,7 +78,8 @@ public class EmailVerificationProvider implements VerificationProvider {
         if (pending.getAttempts() >= CodePolicy.MAX_ATTEMPTS) {
             return false;
         }
-        if (!CodeHashes.constantTimeEquals(code == null ? null : CodeHashes.sha256Hex(code), pending.getCodeHash())) {
+        if (!CodeHashes.matches(piiCrypto, pending.getCodeHash(),
+                PiiCrypto.DOMAIN_CODE_EMAIL, code)) {
             pending.recordAttempt();
             return false;
         }

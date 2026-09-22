@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,9 +74,8 @@ import java.util.stream.Collectors;
 @Service
 public class AdminModerationService {
 
-    /** D4: registry rows are import-owned — the plain 409 message. */
-    public static final String IMPORT_OWNED_MESSAGE =
-            "Registry shelters are import-owned and cannot be moderated here";
+    /** D4: registry rows are import-owned — the plain 409 message. The value lives on {@link ShelterService} (W3-A: the delete boundary enforces it in the service layer too); this forwarder keeps the admin-write guards' reference unchanged. */
+    public static final String IMPORT_OWNED_MESSAGE = ShelterService.IMPORT_OWNED_MESSAGE;
 
     /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
@@ -206,7 +207,12 @@ public class AdminModerationService {
         requireUserOwned(shelter);
         audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
-        shelterService.deletePlace(shelterId, moderatorId);
+        // The delete runs through the service boundary (W3-A): the
+        // 404/409 import-owned guard is enforced there too, so a future
+        // caller cannot bypass it; the DELETED history row (actor = the
+        // moderating admin) joins the transaction through the same choke
+        // point as the author route.
+        shelterService.deletePlaceByAdmin(moderatorId, shelterId);
     }
 
     /**
@@ -293,17 +299,40 @@ public class AdminModerationService {
     @Transactional(readOnly = true)
     public Pagination.Paged<AdminShelterReportDto> listShelterReports(Long shelterId, Integer limit,
                                                                       Integer offset) {
+        return listShelterReports(shelterId, false, limit, offset);
+    }
+
+    /**
+     * The queue with the dismiss filter (the moderator's "hide dismissed"
+     * control). {@code excludeDismissed=true} renders the OPEN scope only
+     * (the dismissed rows are the resolved verdicts — W2-A's rule: a
+     * dismissed report stops influencing the counts, and the filtered list
+     * agrees with them: its X-Total-Count IS the sum of the per-shelter
+     * open counts the pins read). Absent/{@code false} renders EVERYTHING
+     * (the dismissed rows stay in, dimmed — nothing is hidden silently,
+     * and the audit posture is preserved: dismissal records the resolution,
+     * it never deletes the report).
+     */
+    @Transactional(readOnly = true)
+    public Pagination.Paged<AdminShelterReportDto> listShelterReports(Long shelterId,
+                                                                      boolean excludeDismissed,
+                                                                      Integer limit,
+                                                                      Integer offset) {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         long from = offset == null ? 0 : offset;
         if (shelterId != null) {
             requireShelter(shelterId);
         }
-        List<ShelterReport> reports = shelterId == null
-                ? shelterReports.findLatest(from, size)
-                : shelterReports.findLatestByShelterId(shelterId, from, size);
-        long total = shelterId == null
-                ? shelterReports.countAll()
-                : shelterReports.countByShelterId(shelterId);
+        List<ShelterReport> reports = excludeDismissed
+                ? openReportPage(shelterId, from, size)
+                : (shelterId == null
+                        ? shelterReports.findLatest(from, size)
+                        : shelterReports.findLatestByShelterId(shelterId, from, size));
+        long total = excludeDismissed
+                ? openReportCount(shelterId)
+                : (shelterId == null
+                        ? shelterReports.countAll()
+                        : shelterReports.countByShelterId(shelterId));
         if (reports.isEmpty()) {
             return new Pagination.Paged<>(List.of(), total);
         }
@@ -331,6 +360,64 @@ public class AdminModerationService {
                 })
                 .toList();
         return new Pagination.Paged<>(dtos, total);
+    }
+
+    /**
+     * The OPEN (non-dismissed) queue page: bounded store reads in the
+     * queue's newest-first order (the same (created_at, id) tie-break as
+     * the unfiltered read), the dismissed rows dropped in the domain, until
+     * the requested window is filled or the table runs out. Every single
+     * read is a bounded SQL page (the queue's store-level paging, W2-A —
+     * no unbounded statement), and the scan stops at the window's end: the
+     * cost is the dismissed rows NEWER than the requested window (the
+     * backlog the moderator already resolved), never the whole table in
+     * one read. A dismissal landing between two reads can only surface one
+     * row on the next load (eventually consistent — the same posture the
+     * unfiltered page has for a concurrent insert).
+     */
+    private List<ShelterReport> openReportPage(Long shelterId, long from, int size) {
+        long need = from + size;
+        List<ShelterReport> open = new ArrayList<>();
+        long read = 0;
+        while (open.size() < need) {
+            List<ShelterReport> batch = shelterId == null
+                    ? shelterReports.findLatest(read, Pagination.MAX_PAGE_SIZE)
+                    : shelterReports.findLatestByShelterId(shelterId, read, Pagination.MAX_PAGE_SIZE);
+            if (batch.isEmpty()) {
+                break;
+            }
+            for (ShelterReport report : batch) {
+                if (!report.isDismissed()) {
+                    open.add(report);
+                }
+            }
+            read += batch.size();
+            if (batch.size() < Pagination.MAX_PAGE_SIZE) {
+                break; // a short batch is the end of the table
+            }
+        }
+        int start = (int) Math.min(from, open.size());
+        int end = (int) Math.min(need, open.size());
+        return List.copyOf(open.subList(start, end));
+    }
+
+    /**
+     * The OPEN queue's length WITHOUT paging (the filtered view's
+     * X-Total-Count): the same dismissed-excluded, per-(shelter, type)
+     * counts the pins read (W2-A — one grouped query, no per-row scan),
+     * summed over the queue's scope. Reports of deleted shelters cascade
+     * away with the shelter, so the shelter ids cover the whole table.
+     */
+    private long openReportCount(Long shelterId) {
+        Collection<Long> ids = shelterId == null
+                ? shelters.findAll().stream().map(Shelter::getId).toList()
+                : List.of(shelterId);
+        if (ids.isEmpty()) {
+            return 0L;
+        }
+        return shelterReports.countByTypeForShelterIds(ids).stream()
+                .mapToLong(ShelterReportRepository.ReportTypeCount::count)
+                .sum();
     }
 
     /**

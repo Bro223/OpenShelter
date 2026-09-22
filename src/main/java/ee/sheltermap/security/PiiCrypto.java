@@ -40,6 +40,28 @@ public class PiiCrypto {
     /** Blind-index domain tag for {@code users.phone}. */
     public static final String DOMAIN_USER_PHONE = "users.phone";
 
+    /**
+     * One-time-code hash slot tag (keyed, domain-separated). The {@code v2:}
+     * prefix distinguishes a keyed code hash from a legacy unkeyed SHA-256
+     * hex (no prefix): the confirm path accepts BOTH so in-flight codes
+     * issued before the slot keep verifying until their TTL, and every NEW
+     * code is {@code v2:} (same slot-tag idiom as the {@code v1:} PII
+     * envelope — the hook for a future key-rotation rehash).
+     */
+    public static final String CODE_HASH_PREFIX = "v2:";
+
+    /** Domain tag for password-reset 6-digit codes at rest. */
+    public static final String DOMAIN_CODE_PASSWORD_RESET = "otp.password-reset";
+
+    /** Domain tag for contact-change 6-digit codes (email/phone) at rest. */
+    public static final String DOMAIN_CODE_CONTACT_CHANGE = "otp.contact-change";
+
+    /** Domain tag for phone-verification 6-digit OTPs at rest. */
+    public static final String DOMAIN_CODE_PHONE = "otp.phone";
+
+    /** Domain tag for e-mail-verification tokens at rest. */
+    public static final String DOMAIN_CODE_EMAIL = "otp.email";
+
     private static final String PREFIX = "v1:";
     private static final int NONCE_LENGTH = 12;
     private static final int GCM_TAG_BITS = 128;
@@ -141,5 +163,19 @@ public class PiiCrypto {
     /** Canonical e-mail identity for blind indexing (registration normalizes identically). */
     public static String canonicalEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The keyed, domain-separated one-time-code hash under the active
+     * {@code v2:} slot: {@code v2:} + HMAC-SHA256({@code domain || code}).
+     * A 6-digit code is a 10<sup>6</sup> space, so an UNKEYED single-round
+     * SHA-256 (the legacy form) is reversible from a DB dump in under a
+     * second per row; the keyed form is not (a dump alone cannot be
+     * reversed). Domain-separated, so a code from one flow never hashes to
+     * the value of the same code in another flow. The caller passes the raw
+     * code (codes are already canonical — no trim/case needed).
+     */
+    public String codeHash(String domain, String code) {
+        return CODE_HASH_PREFIX + blindIndex(domain, code);
     }
 }

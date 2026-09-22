@@ -58,7 +58,7 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             // The FALSE return value is the honest signal — the
             // verification flow consumes no daily slot for a refused
             // send (the other flows ignore it by design).
-            log.error("SMTP delivery to {} failed: {}", maskEmail(email), ex.getMessage());
+            log.error("SMTP delivery to {} failed", maskEmail(email), ex);
             return false;
         }
     }

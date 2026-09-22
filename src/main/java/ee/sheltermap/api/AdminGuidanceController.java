@@ -5,6 +5,7 @@ import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.GuidanceNotFoundException;
+import ee.sheltermap.guidance.GuidanceSearch;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
@@ -206,13 +207,13 @@ public class AdminGuidanceController {
         if (scoped) {
             String title = scopedContent != null ? scopedContent.getTitle() : post.getTitle();
             String body = scopedContent != null ? scopedContent.getBodyHtml() : post.getBodyHtml();
-            return GuidanceService.matchesSearch(title, body, query);
+            return GuidanceSearch.matchesSearch(title, body, query);
         }
-        if (GuidanceService.matchesSearch(post.getTitle(), post.getBodyHtml(), query)) {
+        if (GuidanceSearch.matchesSearch(post.getTitle(), post.getBodyHtml(), query)) {
             return true;
         }
         for (GuidanceTranslation row : allTranslations.getOrDefault(post.getId(), List.of())) {
-            if (GuidanceService.matchesSearch(row.getTitle(), row.getBodyHtml(), query)) {
+            if (GuidanceSearch.matchesSearch(row.getTitle(), row.getBodyHtml(), query)) {
                 return true;
             }
         }
@@ -228,9 +229,9 @@ public class AdminGuidanceController {
             return null;
         }
         String trimmed = q.trim();
-        if (trimmed.length() > GuidanceService.MAX_SEARCH_LENGTH) {
+        if (trimmed.length() > GuidanceSearch.MAX_SEARCH_LENGTH) {
             throw new GuidanceValidationException("q must be at most "
-                    + GuidanceService.MAX_SEARCH_LENGTH + " characters");
+                    + GuidanceSearch.MAX_SEARCH_LENGTH + " characters");
         }
         return trimmed;
     }

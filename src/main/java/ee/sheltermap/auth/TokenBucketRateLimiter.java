@@ -46,12 +46,12 @@ public class TokenBucketRateLimiter implements RateLimiter {
     }
 
     @Override
-    public boolean tryAcquire(String key) {
+    public Result tryAcquire(String key) {
         long now = clock.millis();
         Bucket bucket = buckets.computeIfAbsent(key, k -> new Bucket(now));
-        boolean acquired = bucket.tryAcquire(now);
+        Result result = bucket.tryAcquire(now);
         maybeSweep(now);
-        return acquired;
+        return result;
     }
 
     private void maybeSweep(long now) {
@@ -79,14 +79,22 @@ public class TokenBucketRateLimiter implements RateLimiter {
             this.lastAccessMillis = nowMillis;
         }
 
-        synchronized boolean tryAcquire(long nowMillis) {
+        synchronized Result tryAcquire(long nowMillis) {
             refill(nowMillis);
             lastAccessMillis = nowMillis;
             if (tokens >= 1.0) {
                 tokens -= 1.0;
-                return true;
+                return Result.passed();
             }
-            return false;
+            // Empty: the whole seconds until one token is available again
+            // (the client counts down instead of spam-clicking into repeated
+            // 429s). null — no honest countdown — when the bucket never
+            // refills (refillPerSecond == 0): once drained it is drained.
+            if (refillPerSecond > 0) {
+                long seconds = (long) Math.ceil((1.0 - tokens) / refillPerSecond);
+                return Result.throttled((int) Math.max(1, seconds));
+            }
+            return Result.throttled(null);
         }
 
         private void refill(long nowMillis) {

@@ -5,6 +5,7 @@ import ee.sheltermap.app.InfoRequestAlreadyAnsweredException;
 import ee.sheltermap.app.InfoRequestNotFoundException;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
+import ee.sheltermap.app.NotAuthorException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
@@ -354,6 +355,11 @@ public class ApiErrorHandler {
             InvalidRefreshTokenException.class,
             InvalidProfilePasswordException.class})
     ResponseEntity<ErrorResponse> unauthorized(RuntimeException ex, HttpServletRequest request) {
+        // One WARN per failed authentication so a credential-stuffing /
+        // token-spray burst is visible in the log (operations.md §5: alert on
+        // volume). The line carries the method + path only — never the
+        // presented credential, e-mail or token.
+        log.warn("401 authentication failure on {} {}", request.getMethod(), request.getRequestURI());
         return error(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
     }
 
@@ -446,20 +452,27 @@ public class ApiErrorHandler {
         return error(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
+    /**
+     * A token-bucket throttle (login, reset, registration, verification,
+     * contact-change and the geo resolver). 429 + the uniform body, with the
+     * exact {@code Retry-After} countdown the bucket computed (omitted only
+     * when the bucket never refills), and one WARN so a burst is visible in
+     * the log (operations.md §5: alert on throttle volume).
+     */
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ErrorResponse> rateLimit(RateLimitExceededException ex, HttpServletRequest request) {
-        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+        return throttle("token-bucket", ex.getMessage(), request, ex.retryAfterSeconds());
     }
 
     /**
      * The per-user report throttle (shelter-trust-and-reports D3): 10
-     * report-type actions per rolling hour (any target, any type) — the
-     * standard throttle body (429 + uniform ErrorResponse), same
-     * vocabulary as the verification and password-reset throttles.
+     * report-type actions per rolling hour (any target, any type) — 429 +
+     * the uniform body, the exact {@code Retry-After} (the oldest in-window
+     * action leaves the trailing hour) and one WARN.
      */
     @ExceptionHandler(ReportThrottledException.class)
     ResponseEntity<ErrorResponse> reportThrottled(ReportThrottledException ex, HttpServletRequest request) {
-        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+        return throttle("report", ex.getMessage(), request, ex.retryAfterSeconds());
     }
 
     /**
@@ -474,50 +487,50 @@ public class ApiErrorHandler {
 
     /**
      * The verification / contact-change anti-spam throttle (→ 429, uniform
-     * ErrorResponse — the body is deliberately unchanged). When the thrower
-     * can compute when a retry may succeed, the client additionally gets an
-     * exact {@code Retry-After} countdown header; the token-bucket
-     * {@link RateLimitExceededException} cannot compute one and stays
-     * header-less.
+     * ErrorResponse — the body is deliberately unchanged): the exact
+     * {@code Retry-After} countdown the thrower computed, and one WARN.
      */
     @ExceptionHandler(VerificationThrottledException.class)
     ResponseEntity<ErrorResponse> verificationThrottled(VerificationThrottledException ex, HttpServletRequest request) {
-        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
-        if (ex.retryAfterSeconds() != null) {
-            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
-        }
-        return builder.body(new ErrorResponse(
-                clock.instant(),
-                HttpStatus.TOO_MANY_REQUESTS.value(),
-                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()));
+        return throttle("verification", ex.getMessage(), request, ex.retryAfterSeconds());
     }
 
     /**
-     * The per-user DAILY shelter-submission cap (abuse-limits): 429,
-     * with the exact {@code Retry-After} countdown when the thrower knows
-     * when the oldest in-window submission leaves the 24 h window.
+     * The per-user DAILY shelter-submission cap (abuse-limits): 429, with
+     * the exact {@code Retry-After} countdown (when the thrower knows when
+     * the oldest in-window submission leaves the 24 h window), and one WARN.
      */
     @ExceptionHandler(ShelterSubmissionThrottledException.class)
     ResponseEntity<ErrorResponse> shelterSubmissionThrottled(ShelterSubmissionThrottledException ex,
                                                              HttpServletRequest request) {
-        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
-        if (ex.retryAfterSeconds() != null) {
-            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
-        }
-        return builder.body(new ErrorResponse(
-                clock.instant(),
-                HttpStatus.TOO_MANY_REQUESTS.value(),
-                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()));
+        return throttle("shelter-submission", ex.getMessage(), request, ex.retryAfterSeconds());
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorResponse> internal(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} ({})", request.getMethod(), request.getRequestURI(), ex);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request);
+    }
+
+    /**
+     * The one 429 shape: the uniform body + an exact {@code Retry-After}
+     * (seconds) when the thrower can compute one, and ONE WARN per throttle
+     * kind so a burst is visible in the log (operations.md §5). The method
+     * + path identify the throttled endpoint; no PII crosses into the line.
+     */
+    private ResponseEntity<ErrorResponse> throttle(String kind, String message,
+                                                   HttpServletRequest request, Integer retryAfterSeconds) {
+        log.warn("429 {} throttle on {} {}", kind, request.getMethod(), request.getRequestURI());
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+        if (retryAfterSeconds != null) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
+        }
+        return builder.body(new ErrorResponse(
+                clock.instant(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                message,
+                request.getRequestURI()));
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, String message, HttpServletRequest request) {

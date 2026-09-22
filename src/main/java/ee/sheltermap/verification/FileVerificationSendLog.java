@@ -114,7 +114,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
             Files.write(path, line.getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
-            log.error("Could not append verification send to {}: {}", path, e.getMessage());
+            log.error("Could not append verification send to {}", path, e);
         }
     }
 
@@ -135,7 +135,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
                 rewrite(); // drop pruned entries from disk too
             }
         } catch (IOException e) {
-            log.error("Could not read verification send log {}: {}", path, e.getMessage());
+            log.error("Could not read verification send log {}", path, e);
         }
     }
 
@@ -155,7 +155,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
             Files.write(path, lines, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
-            log.error("Could not rewrite verification send log {}: {}", path, e.getMessage());
+            log.error("Could not rewrite verification send log {}", path, e);
         }
     }
 

@@ -59,11 +59,14 @@ public class ProdJwtGuard {
                     ? "app.jwt.secret is still the published dev-only default"
                     : "app.jwt.secret is shorter than " + MIN_SECRET_BYTES + " bytes (HS256 minimum)";
             // Loud log + loud rejection — a misconfigured deploy must fail the
-            // boot, never run with a forgeable signing key.
-            log.error("REFUSING TO START — {}: active profiles={}. Set JWT_SECRET to a strong random value "
-                            + "(>= {} bytes, not the published dev default) or run with SPRING_PROFILES_ACTIVE=dev.",
-                    reason, Arrays.toString(env.getActiveProfiles()), MIN_SECRET_BYTES);
-            throw new IllegalStateException(
+            // boot, never run with a forgeable signing key (the fail-closed
+            // template, W3-A).
+            FailClosedGuard.refuseToBoot(log,
+                    "REFUSING TO START — " + reason + ": active profiles="
+                            + Arrays.toString(env.getActiveProfiles())
+                            + ". Set JWT_SECRET to a strong random value "
+                            + "(>= " + MIN_SECRET_BYTES + " bytes, not the published dev default) "
+                            + "or run with SPRING_PROFILES_ACTIVE=dev.",
                     "PRODUCTION REFUSED TO START: " + reason + ". Set JWT_SECRET to a strong random value "
                             + "(>= " + MIN_SECRET_BYTES + " bytes, not the published dev default), or run with "
                             + "SPRING_PROFILES_ACTIVE=dev/test for local development.");

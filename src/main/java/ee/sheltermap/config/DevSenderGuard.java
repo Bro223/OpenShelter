@@ -58,24 +58,20 @@ public class DevSenderGuard {
         if (devLike || (!mailIsDev && !smsIsDev)) {
             return; // dev/test parity, or both channels are real senders
         }
-        String channels = channelsWithDevSenders(mailIsDev, smsIsDev);
+        String channels = FailClosedGuard.enabledFlagNames(mailIsDev, smsIsDev,
+                "app.mail.provider", "app.sms.provider");
         // Loud log + loud rejection — never boot a non-dev/test profile with
-        // a console sender that will log every code in plaintext.
-        log.error("REFUSING TO START — dev code sender(s) {} active on a non-dev/test "
-                        + "profile: active profiles={}.", channels, Arrays.toString(env.getActiveProfiles()));
-        throw new IllegalStateException(
+        // a console sender that will log every code in plaintext (the
+        // fail-closed template, W3-A).
+        FailClosedGuard.refuseToBoot(log,
+                "REFUSING TO START — dev code sender(s) " + channels
+                        + " active on a non-dev/test profile: active profiles="
+                        + Arrays.toString(env.getActiveProfiles()) + ".",
                 "PRODUCTION REFUSED TO START: dev code sender(s) " + channels
                         + " active with profiles=" + Arrays.toString(env.getActiveProfiles())
                         + ". The dev senders log every code in plaintext — set "
                         + "MAIL_PROVIDER=smtp-pulse / SMS_PROVIDER=twilio for real "
                         + "channels, or run with SPRING_PROFILES_ACTIVE=dev/test for local "
                         + "development.");
-    }
-
-    private static String channelsWithDevSenders(boolean mailIsDev, boolean smsIsDev) {
-        if (mailIsDev && smsIsDev) {
-            return "app.mail.provider + app.sms.provider";
-        }
-        return mailIsDev ? "app.mail.provider" : "app.sms.provider";
     }
 }

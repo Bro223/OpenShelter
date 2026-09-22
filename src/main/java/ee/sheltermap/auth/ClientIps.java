@@ -80,6 +80,19 @@ public final class ClientIps {
         return trustedProxies.contains(ip) || (trustLoopback && isLoopback(ip));
     }
 
+    /**
+     * True iff the request's DIRECT peer ({@code getRemoteAddr()}) is a
+     * configured trusted proxy (or a trusted loopback). This is the gate for
+     * honoring an inbound {@code X-Forwarded-*} header at all: an untrusted
+     * client sets those headers freely, so they are only read when the peer
+     * that presented them is one of ours. {@link #resolve} uses the same
+     * decision before it peels {@code X-Forwarded-For}; the HSTS filter uses
+     * it before it honors {@code X-Forwarded-Proto}.
+     */
+    public static boolean peerIsTrusted(HttpServletRequest request, Set<String> trustedProxies, boolean trustLoopback) {
+        return isTrustedPeer(request.getRemoteAddr(), trustedProxies, trustLoopback);
+    }
+
     private static boolean isLoopback(String ip) {
         return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
     }

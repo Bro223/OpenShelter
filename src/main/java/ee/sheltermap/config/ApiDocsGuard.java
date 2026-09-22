@@ -56,22 +56,17 @@ public class ApiDocsGuard {
         if (Profiles.isDevTestOnly(env) || (!apiDocsEnabled && !uiEnabled)) {
             return; // dev/test parity, or no documentation surface is activated at all
         }
-        String flags = enabledFlagNames(apiDocsEnabled, uiEnabled);
+        String flags = FailClosedGuard.enabledFlagNames(apiDocsEnabled, uiEnabled,
+                "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled");
         // Loud log + loud rejection — never boot with the API map published
-        // on a non-dev/test profile.
-        log.error("REFUSING TO START — OpenAPI documentation {} enabled on a non-dev/test "
-                        + "profile: active profiles={}.", flags, Arrays.toString(env.getActiveProfiles()));
-        throw new IllegalStateException(
+        // on a non-dev/test profile (the fail-closed template, W3-A).
+        FailClosedGuard.refuseToBoot(log,
+                "REFUSING TO START — OpenAPI documentation " + flags
+                        + " enabled on a non-dev/test profile: active profiles="
+                        + Arrays.toString(env.getActiveProfiles()) + ".",
                 "PRODUCTION REFUSED TO START: OpenAPI documentation " + flags
                         + " enabled with active profiles=" + Arrays.toString(env.getActiveProfiles())
                         + ". The API document and Swagger UI are dev-only — unset SPRINGDOC_ENABLED, "
                         + "or run with SPRING_PROFILES_ACTIVE=dev/test for local development.");
-    }
-
-    private static String enabledFlagNames(boolean apiDocsEnabled, boolean uiEnabled) {
-        if (apiDocsEnabled && uiEnabled) {
-            return "springdoc.api-docs.enabled + springdoc.swagger-ui.enabled";
-        }
-        return apiDocsEnabled ? "springdoc.api-docs.enabled" : "springdoc.swagger-ui.enabled";
     }
 }

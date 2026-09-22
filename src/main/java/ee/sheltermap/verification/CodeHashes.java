@@ -1,5 +1,7 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.security.PiiCrypto;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -41,5 +43,25 @@ public final class CodeHashes {
             return false;
         }
         return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Compares a stored one-time-code hash against the presented
+     * {@code code}, handling BOTH at-rest forms: a {@code v2:} keyed hash
+     * (recomputed with the same {@code domain} via
+     * {@link PiiCrypto#codeHash}) and a legacy unkeyed SHA-256 hex (no
+     * prefix, recomputed via {@link #sha256Hex}). The legacy form is
+     * accepted so codes issued before the keyed slot keep verifying until
+     * their TTL — the migration path for already-issued codes is a natural
+     * expiry, not a data migration. Constant-time end to end.
+     */
+    public static boolean matches(PiiCrypto pii, String stored, String domain, String code) {
+        if (stored == null || code == null) {
+            return false;
+        }
+        if (stored.startsWith(PiiCrypto.CODE_HASH_PREFIX)) {
+            return constantTimeEquals(stored, pii.codeHash(domain, code));
+        }
+        return constantTimeEquals(stored, sha256Hex(code));
     }
 }

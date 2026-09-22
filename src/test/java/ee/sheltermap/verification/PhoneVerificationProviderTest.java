@@ -2,6 +2,8 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,12 +24,13 @@ class PhoneVerificationProviderTest {
     private PhoneVerificationProvider provider;
     private RegisteredUser user;
     private Clock clock;
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
 
     @BeforeEach
     void setUp() {
         sender = new CapturingSmsSender();
         clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
-        provider = new PhoneVerificationProvider(sender, clock);
+        provider = new PhoneVerificationProvider(sender, pii, clock);
         user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
@@ -48,8 +51,8 @@ class PhoneVerificationProviderTest {
         String otp = extractOtp(sender.getLastMessage());
         assertThat(otp).matches("\\d{6}");
 
-        // stored hashed, never plaintext
-        assertThat(pending.getCodeHash()).isEqualTo(CodeHashes.sha256Hex(otp));
+        // stored hashed (keyed, v2 slot), never plaintext
+        assertThat(pending.getCodeHash()).isEqualTo(pii.codeHash(PiiCrypto.DOMAIN_CODE_PHONE, otp));
         assertThat(pending.getCodeHash()).doesNotContain(otp);
     }
 
@@ -60,7 +63,7 @@ class PhoneVerificationProviderTest {
         // and consumes NO daily slot — never fabricate a pending for a
         // code nobody received.
         PhoneVerificationProvider refusing =
-                new PhoneVerificationProvider((phone, message) -> false, clock);
+                new PhoneVerificationProvider((phone, message) -> false, pii, clock);
 
         assertThatThrownBy(() -> refusing.request(user))
                 .isInstanceOf(CodeSendFailedException.class)

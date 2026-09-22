@@ -218,6 +218,13 @@ app:
     # refill ~1/min.
     geo-resolve-capacity: 5
     geo-resolve-refill-per-second: 0.084
+    # /auth/refresh + /auth/logout are rate-limited per client IP
+    # (session-lifecycle): both are unauthenticated and DB-touching, so one
+    # IP must not hammer token rotation / revocation across accounts.
+    # Generous for a legitimate session (a few refreshes + a logout per
+    # resume) but bounds a rotation/revocation DoS: burst 30, ~30/min.
+    session-capacity: 30
+    session-refill-per-second: 0.5
     # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
     # keys (hardening: without this, everyone behind nginx shares one bucket).
     # Loopback is trusted by default (local nginx setups) — see ClientIps;

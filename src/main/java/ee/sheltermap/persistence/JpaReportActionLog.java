@@ -62,7 +62,17 @@ public class JpaReportActionLog implements ReportActionLog {
                 new Object[] {"os-report-actions:" + userId}, (rs, rowNum) -> Boolean.TRUE);
         Instant now = clock.instant();
         if (actions.countByUserIdAndCreatedAtAfter(userId, now.minus(WINDOW)) >= cap) {
-            throw new ReportThrottledException();
+            // Throttled: the exact countdown is anchored on the OLDEST in-window
+            // action (it leaves the trailing hour at oldest + WINDOW). null —
+            // no honest header — if the window is somehow empty (should not
+            // happen at the cap, but fail safe to the header-less 429).
+            Instant oldest = actions.minCreatedAtByUserIdAndCreatedAtAfter(userId, now.minus(WINDOW));
+            Integer retryAfter = null;
+            if (oldest != null) {
+                long retryAfterMillis = oldest.plus(WINDOW).toEpochMilli() - now.toEpochMilli();
+                retryAfter = (int) Math.max(1, (retryAfterMillis + 999) / 1000);
+            }
+            throw new ReportThrottledException(retryAfter);
         }
         ReportActionEntity entity = new ReportActionEntity();
         entity.setUserId(userId);

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
 
@@ -25,6 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * value) when the request is secure.
  */
 @AutoConfigureMockMvc
+// Pin the trusted-proxy decision so the X-Forwarded-Proto tests are
+// deterministic regardless of a developer .env's RATELIMIT_TRUST_LOOPBACK:
+// loopback is a trusted peer, and no explicit proxy list is configured.
+@TestPropertySource(properties = {"app.ratelimit.trust-loopback=true", "app.ratelimit.trusted-proxies="})
 class SecurityHeadersIT extends AbstractPersistenceIT {
 
     @Autowired
@@ -81,6 +86,40 @@ class SecurityHeadersIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Strict-Transport-Security",
                         "max-age=31536000; includeSubDomains"));
+    }
+
+    @Test
+    void hstsIsSentOnTrustedProxyHttpsForwardedProto() throws Exception {
+        // The documented deployment: the edge terminates TLS and forwards
+        // plain HTTP, tagging the original scheme. The app sees plain HTTP
+        // (isSecure()==false) but the DIRECT peer is a trusted proxy
+        // (loopback, trust-loopback=true), so X-Forwarded-Proto is honored
+        // and HSTS fires.
+        mvc.perform(get("/api/shelters")
+                        .with(request -> {
+                            request.setRemoteAddr("127.0.0.1");
+                            request.addHeader("X-Forwarded-Proto", "https");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Strict-Transport-Security",
+                        "max-age=31536000; includeSubDomains"));
+    }
+
+    @Test
+    void hstsIsNotSentWhenForwardedProtoComesFromAnUntrustedPeer() throws Exception {
+        // An UNtrusted client sets X-Forwarded-Proto freely; honoring it
+        // would let an attacker claim the connection was HTTPS (and, on a
+        // real edge, poison the HSTS decision). Not loopback, not in the
+        // proxy list -> ignored, plain-HTTP posture, no HSTS.
+        mvc.perform(get("/api/shelters")
+                        .with(request -> {
+                            request.setRemoteAddr("203.0.113.5");
+                            request.addHeader("X-Forwarded-Proto", "https");
+                            return request;
+                        }))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Strict-Transport-Security"));
     }
 
     /** The four always-on hardening headers (HSTS and the cookie check

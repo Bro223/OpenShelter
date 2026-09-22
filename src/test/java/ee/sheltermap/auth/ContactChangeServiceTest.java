@@ -4,6 +4,8 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ class ContactChangeServiceTest {
     private RecordingSmtpSender smtp;
     private MutableClock clock;
     private ContactChangeService service;
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
 
     /** Clock whose instant the test can advance (cooldown/expiry scenarios). */
     private static final class MutableClock extends Clock {
@@ -70,7 +73,7 @@ class ContactChangeServiceTest {
         sms = new RecordingSmsSender();
         smtp = new RecordingSmtpSender();
         clock = new MutableClock(NOW);
-        service = new ContactChangeService(users, changes, sms, smtp,
+        service = new ContactChangeService(users, changes, sms, smtp, pii,
                 new ContactChangeProperties(60, 900, 5), clock);
     }
 
@@ -149,7 +152,9 @@ class ContactChangeServiceTest {
                 ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE).orElseThrow();
         assertThat(pending.getTarget()).isEqualTo("mari@new.ee");
         assertThat(pending.getCodeHash()).isNotEqualTo(codeFrom(sms.last().message()));
-        assertThat(pending.getCodeHash()).hasSize(64);
+        // keyed v2 slot: 3-char prefix + 64-char HMAC-SHA256 hex (never plaintext)
+        assertThat(pending.getCodeHash()).startsWith(PiiCrypto.CODE_HASH_PREFIX);
+        assertThat(pending.getCodeHash()).hasSize(67);
         assertThat(pending.isExpired(NOW.plusSeconds(901))).isTrue();
     }
 

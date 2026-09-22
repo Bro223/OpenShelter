@@ -109,7 +109,7 @@ public class RetentionService {
         } catch (RuntimeException e) {
             // A failed run must not kill the scheduler: the FAILED row +
             // error line are the record, and the next day's run retries.
-            log.error("Retention prune failed: {}", e.toString());
+            log.error("Retention prune failed", e);
             runLog.record(new RetentionRunLog.Row(
                     now, accountsPruned, 0, "FAILED", TextTruncation.truncate(e.toString(), 1000)));
             return new RetentionReport(accountsPruned, 0);

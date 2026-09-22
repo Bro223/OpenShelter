@@ -16,6 +16,7 @@ import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
 import ee.sheltermap.verification.CapturingSmsSender;
 import ee.sheltermap.verification.CapturingSmtpSender;
 import ee.sheltermap.verification.EmailVerificationProvider;
@@ -25,6 +26,7 @@ import ee.sheltermap.verification.PhoneVerificationProvider;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProvider;
 import ee.sheltermap.verification.VerificationService;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -64,10 +66,11 @@ class VerificationFlowTest {
 
         userService = new UserService(users);
         Clock clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
+        PiiCrypto pii = TestPiiCrypto.newTest();
         ThrottleAlertRecorder alerts = new ThrottleAlertRecorder(128);
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, pii, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, pii, clock));
         verificationService = new VerificationService(providers, pendings,
                 new InMemoryVerificationSendLog(),
                 new RollingContactOtpLimiter(0, Duration.ofHours(24), clock),

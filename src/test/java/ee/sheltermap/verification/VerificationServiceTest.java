@@ -4,6 +4,8 @@ import ee.sheltermap.alerts.ThrottleAlert;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.testutil.TestPiiCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +30,7 @@ class VerificationServiceTest {
     private ThrottleAlertRecorder alerts;
     private VerificationService service;
     private RegisteredUser user;
+    private final PiiCrypto pii = TestPiiCrypto.newTest();
 
     @BeforeEach
     void setUp() {
@@ -39,8 +42,8 @@ class VerificationServiceTest {
         alerts = new ThrottleAlertRecorder(128);
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, pii, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, pii, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
 
         service = newService(new VerificationProperties(0, 0, "unused"));
@@ -57,8 +60,8 @@ class VerificationServiceTest {
     /** Builds a service sharing this test's fakes, with the given throttle config + contact cap. */
     private VerificationService newService(VerificationProperties properties, RollingContactOtpLimiter contactLimiter) {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, pii, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, pii, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
         return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock, alerts);
     }
@@ -251,8 +254,8 @@ class VerificationServiceTest {
 
     private VerificationService serviceWith(FlakySmsSender flaky, VerificationProperties properties) {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(flaky, clock));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(new CapturingSmtpSender(), clock));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(flaky, pii, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(new CapturingSmtpSender(), pii, clock));
         return new VerificationService(providers, pendingRepo, sendLog, disabledContactLimiter(),
                 properties, clock, alerts);
     }
