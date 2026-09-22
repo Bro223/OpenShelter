@@ -142,7 +142,10 @@ jobs:
 
       - run: npx ng test --watch=false
 
-      - run: npx ng build
+      # The documented production build: `ng build` + the CSP postbuild hook
+      # (a bare `ng build` leaves the CSP-hostile onload= stylesheet swap —
+      # see frontend/README.md "Production build").
+      - run: npm run build
 
   docker:
     name: image builds and starts (healthcheck UP)
