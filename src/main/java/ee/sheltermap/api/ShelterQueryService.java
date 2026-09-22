@@ -15,6 +15,7 @@ import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReporterTrust;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
@@ -142,35 +143,81 @@ public class ShelterQueryService {
 
     /**
      * The public list with the optional viewport filter and offset/limit
-     * paging (shelter-bbox-paging D2):
+     * paging (shelter-bbox-paging D2, real paging since W2-A):
      *
-     * <ol>
-     * <li>SQL: the ACTIVE rows of the source set, inside the inclusive
-     * {@code bbox} when one is given, {@code ORDER BY id ASC} — the stable
-     * order every list answer uses (the id is unique, so the order is
-     * total and paging over it is deterministic);</li>
-     * <li>the batched DTO mapping (no N+1) over exactly that set;</li>
-     * <li>the in-memory trust filters ({@code hasCapacity},
-     * {@code provenance}) — unchanged semantics;</li>
-     * <li>the {@code offset}/{@code limit} slice LAST, over the filtered
-     * stably-ordered list — a page never contains a row the filters would
-     * drop, and consecutive pages tile the filtered list without overlap
-     * or skipped rows.</li>
-     * </ol>
+     * <p>UNPAGED (both paging params absent) — byte-identical to the
+     * pre-W2-A behaviour: the full ACTIVE projection (inside the inclusive
+     * {@code bbox} when one is given, id-ascending), the batched DTO
+     * mapping, the in-memory trust filters ({@code hasCapacity},
+     * {@code provenance}).
      *
-     * <p>Omitting the bbox and both paging params answers byte-identical
-     * to the pre-change endpoint (the no-viewport repository query is the
-     * untouched one, so the SQL is unchanged too).
+     * <p>PAGED — the filters ride INTO the SQL and the slice IS the
+     * LIMIT/OFFSET: the page's rows come back from the DB already
+     * filtered, and the batched trust lookups run over the page's ids
+     * only (the pipeline no longer loads the corpus per page). The
+     * in-memory filters are re-applied over the page-sized result as a
+     * second line of defence, so the semantics stay byte-identical to
+     * the unpaged path even if a future derivation change outgrows the
+     * column-pair pushdown. A page never contains a row the filters
+     * would drop, and consecutive pages tile the filtered stably-ordered
+     * list without overlap or skipped rows.
      */
     public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean hasCapacity,
                                     Provenance provenance, BoundingBox bbox,
                                     Integer limit, Integer offset) {
-        List<Shelter> shelters = bbox == null
-                ? shelterRepository.findAllActiveBySourceIn(source.sources())
-                : shelterRepository.findAllActiveBySourceInWithin(source.sources(), bbox);
-        List<ShelterDto> dtos = toDtos(shelters, null);
-        List<ShelterDto> filtered = applyTrustFilters(dtos, hasCapacity, provenance);
-        return Pagination.slice(filtered, offset, limit);
+        if (limit == null && offset == null) {
+            List<Shelter> shelters = bbox == null
+                    ? shelterRepository.findAllActiveBySourceIn(source.sources())
+                    : shelterRepository.findAllActiveBySourceInWithin(source.sources(), bbox);
+            return applyTrustFilters(toDtos(shelters, null), hasCapacity, provenance);
+        }
+        ProvenanceFilter pushed = provenanceFilterFor(provenance);
+        if (pushed == null) {
+            // Unreachable in the ACTIVE-only public projection (the
+            // derivation requires an INACTIVE row) — an empty page without
+            // touching the DB.
+            return List.of();
+        }
+        List<Shelter> page = shelterRepository.findActivePage(
+                source.sources(), bbox, hasCapacity,
+                pushed.provenanceSource(), pushed.provenanceReviewStatus(),
+                offset == null ? 0L : offset, limit == null ? Integer.MAX_VALUE : limit);
+        return applyTrustFilters(toDtos(page, null), hasCapacity, provenance);
+    }
+
+    /**
+     * The provenance filter as a (source, review_status) column pair —
+     * the exact derivation inputs of {@link Provenance#of} for the
+     * requested value within the ACTIVE-only public projection (REJECTED
+     * rows are INACTIVE by construction, and REPORTED_INACTIVE requires
+     * INACTIVE, so both are unreachable there):
+     *
+     * <ul>
+     * <li>OFFICIAL → (PAASETEAMET, any review state)</li>
+     * <li>PARTNER_VERIFIED → (MUNICIPALITY, any review state)</li>
+     * <li>UNDER_REVIEW → (USER, NEW)</li>
+     * <li>COMMUNITY_REPORTED → (USER, CONFIRMED)</li>
+     * </ul>
+     *
+     * @return the column pair, or {@code null} for a value unreachable in
+     *         the ACTIVE-only projection (the caller answers empty)
+     */
+    private static ProvenanceFilter provenanceFilterFor(Provenance provenance) {
+        // No provenance requested: no pushdown (the source filter still applies).
+        if (provenance == null) {
+            return new ProvenanceFilter(null, null);
+        }
+        return switch (provenance) {
+            case OFFICIAL -> new ProvenanceFilter(ShelterSource.PAASETEAMET, null);
+            case PARTNER_VERIFIED -> new ProvenanceFilter(ShelterSource.MUNICIPALITY, null);
+            case UNDER_REVIEW -> new ProvenanceFilter(ShelterSource.USER, ReviewStatus.NEW);
+            case COMMUNITY_REPORTED -> new ProvenanceFilter(ShelterSource.USER, ReviewStatus.CONFIRMED);
+            case REJECTED, REPORTED_INACTIVE -> null;
+        };
+    }
+
+    /** The (source, review_status) column pair of a provenance pushdown. */
+    private record ProvenanceFilter(ShelterSource provenanceSource, ReviewStatus provenanceReviewStatus) {
     }
 
     /** The single-shelter read without a caller (internal projections). */
@@ -427,9 +474,19 @@ public class ShelterQueryService {
         // null key: registry row / pre-V7 legacy row — no author lookup
         Long createdById = shelter.getCreatedBy();
         User author = createdById == null ? null : batches.authors().get(createdById);
-        // "Completed verification" = at least one active (non-revoked) claim;
-        // a null author (registry row or a deleted user) is never verified.
-        boolean submitterVerified = author != null && !author.getData().levels().isEmpty();
+        // "Completed verification" (W2-A part 2): rows written after V31
+        // carry the submitter's standing AS AT WRITE TIME — account
+        // erasure (created_by is SET NULL, V7) cannot change it, so the
+        // snapshot is the answer when present. When it is null (pre-V31
+        // rows, registry rows) the derivation stays honest and live:
+        // the author exists and has at least one active (non-revoked)
+        // claim — a missing author (a deleted account) is never verified,
+        // and an orphaned pre-V31 row resolves UNVERIFIED (the standing
+        // such a row inherits is an owner backfill decision).
+        Boolean snapshot = shelter.getSubmitterVerifiedAtCreation();
+        boolean submitterVerified = snapshot != null
+                ? snapshot
+                : (author != null && !author.getData().levels().isEmpty());
         // The depth behind that boolean (submitter-verification-badge): the
         // single channel when there is one, FULL at two or more. Live by
         // construction — the claim set is re-read on every request, so a row
@@ -441,6 +498,12 @@ public class ShelterQueryService {
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
+        // W2-A report semantics: the open "inaccurate information" count
+        // (WRONG_LOCATION + OTHER) — open means not dismissed (the batched
+        // per-type count already excludes dismissed reports, the W3-B
+        // dismiss filter), so a dismissed report stops counting.
+        long inaccurate = typeCounts.getOrDefault(ShelterReportType.WRONG_LOCATION, 0L)
+                + typeCounts.getOrDefault(ShelterReportType.OTHER, 0L);
         int reportTotal = typeCounts.values().stream().mapToInt(Long::intValue).sum();
         // OWNER-SCOPED (the DTO contract): the moderator's REJECT reason
         // reaches the submitter's surfaces only — the /mine list
@@ -465,6 +528,7 @@ public class ShelterQueryService {
                 submitterVerified,
                 submitterVerification,
                 (int) nonExistent,
+                (int) inaccurate,
                 batches.openStatus().get(shelter.getId()),
                 batches.occupancy().get(shelter.getId()),
                 yourOccupancyBand,
@@ -473,7 +537,7 @@ public class ShelterQueryService {
                 reviewNote,
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
-                        shelter.getStatus(), nonExistent),
+                        shelter.getStatus(), nonExistent, inaccurate),
                 reportTotal,
                 batches.lastVerified().get(shelter.getId()),
                 shelter.getInaccurateMarkedAt() != null,
@@ -497,31 +561,81 @@ public class ShelterQueryService {
      * the source is the frontend-facing {@link ShelterSourceFilter}
      * vocabulary (REGISTRY = Päästeamet + municipality imports, USER =
      * user submissions — the same grouping as the public list); {@code q}
-     * is a case-insensitive substring over name OR
-     * address, applied in-memory over the projected list (Estonia-scale
-     * data — same precedent as the trust filters).
+     * is a case-insensitive substring over name OR address.
+     *
+     * <p>Paging (W2-A): absent {@code limit}/{@code offset} = the
+     * unpaged read, byte-identical to the pre-change path (the full
+     * projection, in-memory filters). Present, the filters and the slice
+     * ride into the SQL (LIKE with the caller-trimmed, lowercased, escaped
+     * needle), the batches run over the page's ids only, and the answer
+     * carries {@link Pagination.Paged#total()} — the filtered length
+     * WITHOUT paging (the always-present X-Total-Count header value). The
+     * in-memory search filter is re-applied over the page as a second
+     * line of defence (identical semantics to the unpaged path).
      */
-    public List<AdminShelterDto> findAllForAdmin(ShelterStatus status, ShelterSourceFilter source, String q) {
-        List<Shelter> shelters = shelterRepository.findAll().stream()
-                .filter(s -> status == null || s.getStatus() == status)
-                .filter(s -> source == null || source.sources().contains(s.getSource()))
-                .sorted(Comparator.comparing(Shelter::getId))
-                .toList();
-        if (shelters.isEmpty()) {
-            return List.of();
+    public Pagination.Paged<AdminShelterDto> findAllForAdmin(ShelterStatus status,
+                                                             ShelterSourceFilter source,
+                                                             String q, Integer limit, Integer offset) {
+        String needle = q == null || q.isBlank() ? null : q.trim().toLowerCase(Locale.ROOT);
+        List<ShelterSource> sources = source == null ? List.of(ShelterSource.values()) : source.sources();
+        if (limit == null && offset == null) {
+            // The unpaged read — the pre-W2-A path, byte-identical.
+            List<Shelter> shelters = shelterRepository.findAll().stream()
+                    .filter(s -> status == null || s.getStatus() == status)
+                    .filter(s -> source == null || source.sources().contains(s.getSource()))
+                    .sorted(Comparator.comparing(Shelter::getId))
+                    .toList();
+            if (shelters.isEmpty()) {
+                return new Pagination.Paged<>(List.of(), 0L);
+            }
+            Batches batches = batchesFor(shelters, true);
+            List<AdminShelterDto> dtos = shelters.stream()
+                    .map(shelter -> toAdminDto(shelter, batches))
+                    .toList();
+            if (needle == null) {
+                return new Pagination.Paged<>(dtos, dtos.size());
+            }
+            List<AdminShelterDto> filtered = adminQFilter(dtos, needle);
+            return new Pagination.Paged<>(filtered, filtered.size());
         }
-        Batches batches = batchesFor(shelters, true);
-        List<AdminShelterDto> dtos = shelters.stream()
+        // The paged read: the filters and the slice are in the SQL, the
+        // batches run over the page's ids only — not the corpus. An
+        // offset without a limit pages "the rest of the list": the SQL
+        // limit is unbounded (the remaining rows), never an NPE.
+        String pattern = needle == null ? null : likePattern(needle);
+        List<Shelter> page = shelterRepository.findAdminPage(status, sources, pattern,
+                offset == null ? 0L : offset, limit == null ? Integer.MAX_VALUE : limit);
+        long total = shelterRepository.countAdminPage(status, sources, pattern);
+        if (page.isEmpty()) {
+            return new Pagination.Paged<>(List.of(), total);
+        }
+        Batches batches = batchesFor(page, true);
+        List<AdminShelterDto> dtos = page.stream()
                 .map(shelter -> toAdminDto(shelter, batches))
                 .toList();
-        if (q == null || q.isBlank()) {
-            return dtos;
+        if (needle != null) {
+            dtos = adminQFilter(dtos, needle);
         }
-        String needle = q.trim().toLowerCase(Locale.ROOT);
+        return new Pagination.Paged<>(dtos, total);
+    }
+
+    /** The in-memory search filter (the unpaged path's semantics, verbatim). */
+    private static List<AdminShelterDto> adminQFilter(List<AdminShelterDto> dtos, String needle) {
         return dtos.stream()
                 .filter(dto -> (dto.name() != null && dto.name().toLowerCase(Locale.ROOT).contains(needle))
                         || (dto.address() != null && dto.address().toLowerCase(Locale.ROOT).contains(needle)))
                 .toList();
+    }
+
+    /**
+     * The LIKE pattern for a case-insensitive substring search: the needle
+     * (already trimmed and lowercased by the caller) wrapped in the %
+     * wildcards, with the LIKE metacharacters escaped (the SQL uses
+     * {@code ESCAPE '\'}), so a user's literal {@code %}/{@code _} can't
+     * widen the match.
+     */
+    static String likePattern(String needle) {
+        return "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
     }
 
     private AdminShelterDto toAdminDto(Shelter shelter, Batches batches) {
@@ -531,6 +645,10 @@ public class ShelterQueryService {
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
+        // W2-A report semantics: the open "inaccurate information" count
+        // (WRONG_LOCATION + OTHER), same derivation as the public DTO.
+        long inaccurate = typeCounts.getOrDefault(ShelterReportType.WRONG_LOCATION, 0L)
+                + typeCounts.getOrDefault(ShelterReportType.OTHER, 0L);
         return new AdminShelterDto(
                 shelter.getId(),
                 shelter.getName(),
@@ -538,6 +656,7 @@ public class ShelterQueryService {
                 shelter.getSource(),
                 shelter.getStatus(),
                 (int) nonExistent,
+                (int) inaccurate,
                 batches.occupancy().get(shelter.getId()),
                 shelter.getCapacity(),
                 author == null ? null : author.getData().name(),
@@ -545,7 +664,7 @@ public class ShelterQueryService {
                 shelter.getReviewNote(),
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
-                        shelter.getStatus(), nonExistent),
+                        shelter.getStatus(), nonExistent, inaccurate),
                 shelter.getInaccurateMarkedAt() != null,
                 toAdminInfoRequest(batches.infoRequests().get(shelter.getId()),
                         batches.infoRequesters()));

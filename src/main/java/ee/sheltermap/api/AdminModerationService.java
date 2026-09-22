@@ -134,10 +134,18 @@ public class AdminModerationService {
      * case-insensitive name/address substring {@code q}. Same batched
      * trust derivations as the public list plus the submitter's profile
      * name (the trust projection, reused — no N+1).
+     *
+     * <p>Paging (W2-A): absent {@code limit}/{@code offset} = the unpaged
+     * read (byte-identical to the pre-change path). Present, the filters
+     * and the slice run in SQL, the batches run over the page's ids only,
+     * and the answer's {@link Pagination.Paged#total()} is the filtered
+     * length WITHOUT paging (the always-present X-Total-Count header
+     * value, the controller's job to publish).
      */
     @Transactional(readOnly = true)
-    public List<AdminShelterDto> listShelters(ShelterStatus status, ShelterSourceFilter source, String q) {
-        return queryService.findAllForAdmin(status, source, q);
+    public Pagination.Paged<AdminShelterDto> listShelters(ShelterStatus status, ShelterSourceFilter source,
+                                                          String q, Integer limit, Integer offset) {
+        return queryService.findAllForAdmin(status, source, q, limit, offset);
     }
 
     /**
@@ -273,33 +281,38 @@ public class AdminModerationService {
      * {@code shelterId} that shelter's queue (unknown shelter → 404);
      * without, the global queue. {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
      * (default {@value #AUDIT_DEFAULT_LIMIT}, anything
-     * else a 400) — the same bound as the audit trail's list: the table
-     * is append-only (nothing deletes rows except the shelter cascade),
-     * so the queue must stay bounded in SQL (the bound is the LIMIT
-     * clause, applied in the store). A caller that gets exactly
-     * {@code limit} rows knows the queue was truncated, the same way the
-     * audit surface already says it. Shelter name/status and the
-     * reporter's profile name + email resolve in ONE batched lookup each
-     * (no N+1) over the RETURNED window only.
+     * else a 400) and {@code offset} is the non-negative page start
+     * (W2-A — both bounds are the shared paging vocabulary). The paging
+     * is the OFFSET/LIMIT clauses (the table is append-only — nothing
+     * deletes rows except the shelter cascade — so the queue must stay
+     * bounded in SQL). The answer's {@link Pagination.Paged#total()} is
+     * the queue's length WITHOUT paging (the X-Total-Count value).
+     * Shelter name/status and the reporter's profile name + email resolve
+     * in ONE batched lookup each (no N+1) over the RETURNED page only.
      */
     @Transactional(readOnly = true)
-    public List<AdminShelterReportDto> listShelterReports(Long shelterId, Integer limit) {
+    public Pagination.Paged<AdminShelterReportDto> listShelterReports(Long shelterId, Integer limit,
+                                                                      Integer offset) {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
+        long from = offset == null ? 0 : offset;
         if (shelterId != null) {
             requireShelter(shelterId);
         }
         List<ShelterReport> reports = shelterId == null
-                ? shelterReports.findLatest(size)
-                : shelterReports.findLatestByShelterId(shelterId, size);
+                ? shelterReports.findLatest(from, size)
+                : shelterReports.findLatestByShelterId(shelterId, from, size);
+        long total = shelterId == null
+                ? shelterReports.countAll()
+                : shelterReports.countByShelterId(shelterId);
         if (reports.isEmpty()) {
-            return List.of();
+            return new Pagination.Paged<>(List.of(), total);
         }
         Map<Long, Shelter> sheltersById = shelters
                 .findByIds(reports.stream().map(ShelterReport::getShelterId).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(Shelter::getId, Function.identity()));
         Map<Long, User> reporters = users.findByIds(reports.stream()
                 .map(ShelterReport::getUserId).collect(Collectors.toSet()));
-        return reports.stream()
+        List<AdminShelterReportDto> dtos = reports.stream()
                 .map(report -> {
                     Shelter shelter = sheltersById.get(report.getShelterId());
                     User reporter = reporters.get(report.getUserId());
@@ -317,6 +330,7 @@ public class AdminModerationService {
                             report.isDismissed());
                 })
                 .toList();
+        return new Pagination.Paged<>(dtos, total);
     }
 
     /**
@@ -386,19 +400,24 @@ public class AdminModerationService {
 
     /**
      * GET /admin/audit — the moderation audit trail, newest first
-     * (community-review-queue D4). {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
-     * (default {@value #AUDIT_DEFAULT_LIMIT}); anything
-     * else is a 400 (the shared paging bound vocabulary). Shelter names and
-     * moderator names resolve in ONE batched lookup each (no N+1); a
-     * gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
+     * (community-review-queue D4). {@code limit} is
+     * 1..{@link Pagination#MAX_PAGE_SIZE} (default
+     * {@value #AUDIT_DEFAULT_LIMIT}); anything else is a 400 (the shared
+     * paging bound vocabulary). {@code offset} is the non-negative page
+     * start (W2-A). The answer's {@link Pagination.Paged#total()} is the
+     * trail's length WITHOUT paging (the X-Total-Count value). Shelter
+     * names and moderator names resolve in ONE batched lookup each (no
+     * N+1); a gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
      * outlives a hard delete).
      */
     @Transactional(readOnly = true)
-    public List<AdminAuditDto> listAudit(Integer limit) {
+    public Pagination.Paged<AdminAuditDto> listAudit(Integer limit, Integer offset) {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
-        List<ModerationAuditLog.Row> rows = audit.findLatest(size);
+        long from = offset == null ? 0 : offset;
+        List<ModerationAuditLog.Row> rows = audit.findLatest(from, size);
+        long total = audit.countAll();
         if (rows.isEmpty()) {
-            return List.of();
+            return new Pagination.Paged<>(List.of(), total);
         }
         // User-scoped rows carry a null shelterId + a
         // subjectUserId; both reference sets are resolved in ONE batched
@@ -413,7 +432,7 @@ public class AdminModerationService {
         Map<Long, User> subjects = users.findByIds(subjectIds);
         Map<Long, User> moderators = users.findByIds(rows.stream()
                 .map(ModerationAuditLog.Row::moderatorId).filter(Objects::nonNull).collect(Collectors.toSet()));
-        return rows.stream()
+        List<AdminAuditDto> dtos = rows.stream()
                 .map(row -> {
                     // V14: moderation_actions.moderator_id is ON DELETE SET NULL,
                     // so a row can outlive its moderator with a null id. The lookup
@@ -434,6 +453,7 @@ public class AdminModerationService {
                             row.createdAt());
                 })
                 .toList();
+        return new Pagination.Paged<>(dtos, total);
     }
 
     /**
@@ -515,16 +535,33 @@ public class AdminModerationService {
      * every REGISTERED and ADMIN account, id-ordered, with its
      * suspension state. GUEST rows are filtered out (no credentials to
      * suspend); the ADMIN row is listed so the provisioned account is
-     * visible but not suspendable. One pass over the whole table — the
-     * account population is small and the tab is a triage surface, not a
-     * paginated index.
+     * visible but not suspendable.
+     *
+     * <p>Paging (W2-A — the owner's "every admin list pages" rule): the
+     * unpaged read (both params absent) keeps the pre-change behaviour
+     * (one pass over the whole table — the account population is small
+     * and the tab is a triage surface); a present {@code limit}
+     * (1..{@link Pagination#MAX_PAGE_SIZE}) or {@code offset} pages in
+     * the SQL (REGISTERED + ADMIN kinds only — a page never decrypts the
+     * whole account population), and the answer's
+     * {@link Pagination.Paged#total()} is the tab's population WITHOUT
+     * paging (the X-Total-Count value).
      */
     @Transactional(readOnly = true)
-    public List<AdminUserDto> listUsers() {
-        return users.findAll().stream()
-                .filter(user -> user.getData().email() != null)
+    public Pagination.Paged<AdminUserDto> listUsers(Integer limit, Integer offset) {
+        if (limit == null && offset == null) {
+            List<AdminUserDto> dtos = users.findAll().stream()
+                    .filter(user -> user.getData().email() != null)
+                    .map(user -> AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId()))
+                    .toList();
+            return new Pagination.Paged<>(dtos, dtos.size());
+        }
+        int size = limit == null ? (int) users.countAccounts() : Pagination.requireLimit(limit);
+        long from = offset == null ? 0 : offset;
+        List<AdminUserDto> dtos = users.findAccountPage(from, size).stream()
                 .map(user -> AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId()))
                 .toList();
+        return new Pagination.Paged<>(dtos, users.countAccounts());
     }
 
     /**

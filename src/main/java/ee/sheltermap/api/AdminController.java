@@ -140,18 +140,16 @@ public class AdminController {
             @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
         // The bounds are checked BEFORE the read: a rejected page never
-        // pays for the (filtered) list load.
+        // pays for the (filtered) list load. W2-A: the filters and the
+        // slice run in SQL, the batches run over the page's ids only, and
+        // the total is the count twin — the filtered length WITHOUT
+        // paging (always present, the paging ITs pin it).
         Pagination.requireLimit(limit);
         Pagination.requireOffset(offset);
-        List<AdminShelterDto> filtered = moderation.listShelters(status, source, q);
-        int total = filtered.size();
-        // The slice runs LAST, over the (filtered) stored order — the
-        // public guidance's paging semantics verbatim (nulls = no paging;
-        // an offset past the end answers an empty page, never an error).
-        List<AdminShelterDto> paged = Pagination.slice(filtered, offset, limit);
+        Pagination.Paged<AdminShelterDto> paged = moderation.listShelters(status, source, q, limit, offset);
         return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(total))
-                .body(paged);
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(paged.rows());
     }
 
     /** Manual hide/restore; a restore disarms auto-hide (D3). 204; 404 unknown; 409 registry rows. */
@@ -278,26 +276,45 @@ public class AdminController {
      * v2 D4): every moderation-relevant action (admin AND automatic
      * AUTO_CONFIRM) with the shelter name resolved at read time
      * ("Deleted shelter" once the row is gone). {@code limit} is
-     * 1..200, default 100 (anything else 400).
+     * 1..200, default 100 (anything else 400); {@code offset} is the
+     * non-negative page start (W2-A) and the {@code X-Total-Count} header
+     * is the trail's length WITHOUT paging (always present).
      */
     @GetMapping("/audit")
     @Operation(summary = "The moderation audit trail",
             description = "Newest first: every moderation-relevant action (admin "
                     + "AND automatic AUTO_CONFIRM) with the shelter name resolved "
                     + "at read time (\"Deleted shelter\" once the row is gone). "
-                    + "limit is 1..200, default 100 (anything else 400).")
+                    + "limit is 1..200, default 100 (anything else 400); offset "
+                    + "(>= 0) is the page start; the X-Total-Count response "
+                    + "header is the trail's length WITHOUT paging (always "
+                    + "present).")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The audit rows "
-                    + "(newest first)", content = @Content(array = @ArraySchema(
+                    + "(newest first)", headers = {
+                    @Header(name = "X-Total-Count",
+                            description = "The audit trail's row count WITHOUT "
+                                    + "the paging applied (always present).",
+                            schema = @Schema(type = "integer", format = "int32"))
+            }, content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = AdminAuditDto.class)))),
-            @ApiResponse(responseCode = "400", description = "limit outside 1..200")
+            @ApiResponse(responseCode = "400", description = "limit outside 1..200, "
+                    + "or a negative offset")
     })
-    public List<AdminAuditDto> listAudit(
+    public ResponseEntity<List<AdminAuditDto>> listAudit(
             @Parameter(description = "Rows to return, 1..200 (default 100; "
                     + "anything else 400).")
-            @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the trail: >= 0; "
+                    + "past the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        return moderation.listAudit(limit);
+        // The bounds are checked BEFORE the read (the shared paging rule).
+        Pagination.requireOffset(offset);
+        Pagination.Paged<AdminAuditDto> paged = moderation.listAudit(limit, offset);
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(paged.rows());
     }
 
     /**
@@ -334,30 +351,51 @@ public class AdminController {
                 .toList();
     }
 
-    /** The shelter report queue, newest first (optional shelter filter).
-     *  {@code limit} is 1..200, default 100 (anything else 400) — the
-     *  same bound as {@code /admin/audit}; the queue's table is
-     *  append-only, so the read is capped in SQL. */
+    /**
+     * The shelter report queue, newest first (optional shelter filter).
+     * {@code limit} is 1..200, default 100 (anything else 400) — the same
+     * bound as {@code /admin/audit}; {@code offset} is the non-negative
+     * page start (W2-A) and the {@code X-Total-Count} header is the
+     * queue's length WITHOUT paging (always present). The queue's table
+     * is append-only, so the read is paged in SQL.
+     */
     @GetMapping("/reports")
     @Operation(summary = "The shelter report queue",
             description = "Newest first; optional shelterId narrows to one "
                     + "shelter. Carries the reporter's profile name + email — "
                     + "admin-only data, served from /admin/* only. limit is "
-                    + "1..200, default 100 (anything else 400 — the same "
-                    + "bound as /admin/audit; a response of exactly limit "
-                    + "rows means the queue was truncated).")
+                    + "1..200, default 100 (anything else 400); offset (>= 0) "
+                    + "is the page start; the X-Total-Count response header is "
+                    + "the queue's length WITHOUT paging (always present).")
     @ApiResponse(responseCode = "200", description = "The report rows (newest "
-            + "first, at most limit)", content = @Content(array = @ArraySchema(schema =
+            + "first, at most limit)", headers = {
+            @Header(name = "X-Total-Count",
+                    description = "The report queue's row count WITHOUT the "
+                            + "paging applied (always present).",
+                    schema = @Schema(type = "integer", format = "int32"))
+    }, content = @Content(array = @ArraySchema(schema =
             @Schema(implementation = AdminShelterReportDto.class))))
-    @ApiResponse(responseCode = "400", description = "limit outside 1..200")
-    public List<AdminShelterReportDto> listShelterReports(
+    @ApiResponse(responseCode = "400", description = "limit outside 1..200, "
+            + "or a negative offset")
+    @ApiResponse(responseCode = "404", description = "Unknown shelter (with "
+            + "shelterId)", content = @Content(mediaType = "application/json",
+            schema = @Schema(implementation = ErrorResponse.class)))
+    public ResponseEntity<List<AdminShelterReportDto>> listShelterReports(
             @Parameter(description = "Narrow to one shelter (optional).")
             @RequestParam(required = false) Long shelterId,
             @Parameter(description = "Rows to return, 1..200 (default 100; "
                     + "anything else 400).")
-            @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the queue: >= 0; "
+                    + "past the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        return moderation.listShelterReports(shelterId, limit);
+        // The bounds are checked BEFORE the read (the shared paging rule).
+        Pagination.requireOffset(offset);
+        Pagination.Paged<AdminShelterReportDto> paged = moderation.listShelterReports(shelterId, limit, offset);
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(paged.rows());
     }
 
     /** Mark a shelter report resolved — idempotent. 204; 404 unknown report. */
@@ -372,18 +410,44 @@ public class AdminController {
     /**
      * The account list behind the Users tab: every REGISTERED
      * and ADMIN account with its suspension state, id-ordered.
+     * {@code limit} (1..200; absent = the whole list) and {@code offset}
+     * (>= 0) page it (W2-A — the owner's "every admin list pages" rule),
+     * and the {@code X-Total-Count} header is the tab's population
+     * WITHOUT paging (always present).
      */
     @GetMapping("/users")
     @Operation(summary = "The account list (Users tab)",
             description = "Every REGISTERED and ADMIN account with its "
                     + "suspension state, id-ordered. E-mail is admin-only data, "
-                    + "served from /admin/* only.")
+                    + "served from /admin/* only. Optional limit (1..200; "
+                    + "absent = the whole list) / offset (>= 0) page it; the "
+                    + "X-Total-Count response header is the tab's population "
+                    + "WITHOUT paging (always present).")
     @ApiResponse(responseCode = "200", description = "The account rows "
-            + "(id-ordered)", content = @Content(array = @ArraySchema(schema =
+            + "(id-ordered)", headers = {
+            @Header(name = "X-Total-Count",
+                    description = "The REGISTERED + ADMIN account count "
+                            + "WITHOUT the paging applied (always present).",
+                            schema = @Schema(type = "integer", format = "int32"))
+    }, content = @Content(array = @ArraySchema(schema =
             @Schema(implementation = AdminUserDto.class))))
-    public List<AdminUserDto> listUsers() {
+    @ApiResponse(responseCode = "400", description = "A limit outside 1..200, "
+            + "or a negative offset")
+    public ResponseEntity<List<AdminUserDto>> listUsers(
+            @Parameter(description = "Optional page size: 1..200; absent = the "
+                    + "whole list.")
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the list: >= 0; past "
+                    + "the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        return moderation.listUsers();
+        // The bounds are checked BEFORE the read (the shared paging rule).
+        Pagination.requireLimit(limit);
+        Pagination.requireOffset(offset);
+        Pagination.Paged<AdminUserDto> paged = moderation.listUsers(limit, offset);
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(paged.rows());
     }
 
     /**

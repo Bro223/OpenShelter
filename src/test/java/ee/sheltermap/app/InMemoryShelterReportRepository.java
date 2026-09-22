@@ -95,10 +95,17 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
-    public List<ShelterReport> findLatestByShelterId(long shelterId, int limit) {
+    public List<ShelterReport> findLatestByShelterId(long shelterId, long offset, int limit) {
         return newestFirst(store.values().stream()
                 .filter(r -> r.getShelterId() == shelterId)
-                .toList()).stream().limit(limit).toList();
+                .toList()).stream().skip(offset).limit(limit).toList();
+    }
+
+    @Override
+    public long countByShelterId(long shelterId) {
+        return store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId)
+                .count();
     }
 
     private static List<ShelterReport> newestFirst(List<ShelterReport> reports) {
@@ -109,8 +116,13 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
-    public List<ShelterReport> findLatest(int limit) {
-        return newestFirst(new ArrayList<>(store.values())).stream().limit(limit).toList();
+    public List<ShelterReport> findLatest(long offset, int limit) {
+        return newestFirst(new ArrayList<>(store.values())).stream().skip(offset).limit(limit).toList();
+    }
+
+    @Override
+    public long countAll() {
+        return store.size();
     }
 
     // ---- test-only conveniences (NOT on the production seam) ----

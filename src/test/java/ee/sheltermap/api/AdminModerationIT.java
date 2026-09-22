@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,12 +111,25 @@ class AdminModerationIT extends AbstractPersistenceIT {
     }
 
     private String adminToken() throws Exception {
-        MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
-                .andExpect(status().isOk())
-                .andReturn();
-        return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+        // The per-IP /auth/login bucket (capacity 20, ~3s per refill token,
+        // application.yml) is shared by EVERY IT class in the run — one
+        // MockMvc IP, one context. Each redundant login burns a scarce
+        // token and the class sits at the bucket's edge, so the admin
+        // token is memoized per class: the JWT is stateless and the
+        // per-request kind guard re-reads the row, so a shared token
+        // changes no assertion (the demotion test nulls the cache after
+        // it changes the admin's kind).
+        if (sharedAdminToken == null) {
+            MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
+                    .andExpect(status().isOk())
+                    .andReturn();
+            sharedAdminToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+        }
+        return sharedAdminToken;
     }
+
+    private static volatile String sharedAdminToken;
 
     private long seedShelter(String name, ShelterSource source) {
         Shelter shelter = new Shelter(name, new GeoPoint(59.4, 24.7), ShelterStatus.ACTIVE,
@@ -198,6 +212,9 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
         // demote: the JWT stays valid, but the kind is the truth
         jdbc.update("UPDATE users SET kind = 'REGISTERED' WHERE id = ?", adminId);
+        // the memoized class token is now a demoted subject for every
+        // later test — drop it so a re-login (if any) re-issues
+        sharedAdminToken = null;
         // the earlier request cached the ADMIN entity in the shared PC —
         // drop it so the guard's fresh lookup re-reads the row
         entityManager.clear();
@@ -710,6 +727,161 @@ class AdminModerationIT extends AbstractPersistenceIT {
         rows.forEach(row -> stamps.add(Instant.parse(row.get("createdAt").asText())));
         assertThat(stamps).hasSize(expectedSize);
         return stamps;
+    }
+
+    // ---------- W2-A: every admin list is a bounded page + a stable count ----------
+
+    @Test
+    void theUsersListPagesInStableOrderWithTheTotalHeader() throws Exception {
+        // The admin users list must be a bounded page (limit/offset) with the
+        // X-Total-Count header = the FILTERED length WITHOUT paging — the
+        // same number on every page, so the UI can page without re-counting.
+        String token = adminToken();
+        for (int i = 0; i < 5; i++) {
+            RegisteredUser u = new RegisteredUser("Lehekord " + i, "pageu" + i + "@example.ee",
+                    "+3725003" + String.format("%04d", i));
+            users.save(u);
+        }
+        // the full filtered list (one unbounded read) is the reference set —
+        // the header must equal its length and the pages must partition it
+        MvcResult all = mvc.perform(get("/admin/users")
+                        .header("Authorization", "Bearer " + token)
+                        .param("limit", "200"))
+                .andExpect(status().isOk())
+                .andReturn();
+        int total = Integer.parseInt(all.getResponse().getHeader("X-Total-Count"));
+        java.util.List<Long> allIds = parseIds(all.getResponse().getContentAsString());
+        assertThat(allIds).hasSize(total);
+        assertThat(allIds).isNotEmpty();
+
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (long offset = 0; offset < allIds.size(); offset += 2) {
+            MvcResult page = mvc.perform(get("/admin/users")
+                            .header("Authorization", "Bearer " + token)
+                            .param("limit", "2").param("offset", String.valueOf(offset)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("X-Total-Count", String.valueOf(total)))
+                    .andReturn();
+            java.util.List<Long> pageIds = parseIds(page.getResponse().getContentAsString());
+            assertThat(pageIds).as("page at offset " + offset).hasSize(Math.min(2, allIds.size() - (int) offset));
+            assertThat(pageIds).as("each page is the same stable window of the full order")
+                    .isEqualTo(allIds.subList((int) offset, (int) offset + pageIds.size()));
+            for (long id : pageIds) {
+                assertThat(seen).as("no row appears on two pages").doesNotContain(id);
+                seen.add(id);
+            }
+        }
+        assertThat(seen).containsExactlyInAnyOrderElementsOf(allIds);
+    }
+
+    @Test
+    void theReportQueueOffsetSlicesNewestFirstWithTheTotalHeader() throws Exception {
+        // The offset window slices the SAME newest-first order the unbounded
+        // read uses, and the header stays the filtered length (this shelter's
+        // report count), never the page length.
+        long shelterId = seedShelter("Ridade", ShelterSource.USER);
+        String[] types = {"NON_EXISTENT", "CLOSED", "OPEN_CONFIRMED"};
+        java.time.Instant base = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        for (int i = 0; i < 3; i++) {
+            RegisteredUser u = new RegisteredUser("Ridade" + i, "ridade" + i + "@example.ee",
+                    "+3725004" + String.format("%04d", i));
+            users.save(u);
+            jdbc.update("INSERT INTO shelter_reports (shelter_id, user_id, type, detail, created_at) "
+                            + "VALUES (?, ?, ?, NULL, ?)",
+                    shelterId, u.getId(), types[i],
+                    java.sql.Timestamp.from(base.minus(i, java.time.temporal.ChronoUnit.MINUTES)));
+        }
+        String token = adminToken();
+
+        MvcResult middle = mvc.perform(get("/admin/reports")
+                        .header("Authorization", "Bearer " + token)
+                        .param("shelterId", String.valueOf(shelterId))
+                        .param("limit", "1").param("offset", "1"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andReturn();
+        java.util.List<Instant> middleStamps = queueCreatedAts(middle, 1);
+        java.util.List<Instant> full = queueCreatedAts(mvc.perform(get("/admin/reports")
+                        .header("Authorization", "Bearer " + token)
+                        .param("shelterId", String.valueOf(shelterId)))
+                .andReturn(), 3);
+        assertThat(middleStamps).isEqualTo(full.subList(1, 2)); // the SECOND-newest row
+
+        MvcResult tail = mvc.perform(get("/admin/reports")
+                        .header("Authorization", "Bearer " + token)
+                        .param("shelterId", String.valueOf(shelterId))
+                        .param("limit", "1").param("offset", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andReturn();
+        assertThat(queueCreatedAts(tail, 1)).isEqualTo(full.subList(2, 3));
+    }
+
+    @Test
+    void theAuditListPagesWithTheTotalHeader() throws Exception {
+        // The audit trail is the bounded twin (limit/offset) with the header
+        // = the full trail length, stable across pages.
+        String author = verifiedToken("Auvitaja", "auvitaja@example.ee");
+        // A DIFFERENT verified user OPEN-CONFIRMS the author's NEW USER
+        // shelters — the cross-user OPEN_CONFIRMED tap is the report flow's
+        // AUTO_CONFIRM audit action (one trail row per shelter; the author's
+        // own tap would not fire it); the admin hide adds the third row.
+        String confirmer = verifiedToken("Kinnitaja", "kinnitaja@example.ee");
+        long a = createShelterViaApi(author, "Auvitamine A");
+        long b = createShelterViaApi(author, "Auvitamine B");
+        String token = adminToken();
+        mvc.perform(post("/api/shelters/" + a + "/reports")
+                        .header("Authorization", "Bearer " + confirmer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk()); // the report answer is the dampening outcome (200), not a creation
+        mvc.perform(post("/api/shelters/" + b + "/reports")
+                        .header("Authorization", "Bearer " + confirmer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/admin/shelters/" + a + "/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"INACTIVE\"}"))
+                .andExpect(status().isNoContent());
+
+        // The class' shared trail already carries earlier tests' actions —
+        // read the total from the API itself and check the paging math
+        // against it: header = the full trail length, stable across pages,
+        // and the offset windows slice the SAME newest-first order.
+        MvcResult first = mvc.perform(get("/admin/audit")
+                        .header("Authorization", "Bearer " + token)
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andReturn();
+        int total = Integer.parseInt(first.getResponse().getHeader("X-Total-Count"));
+        assertThat(total).as("the two report submissions + the hide landed in the trail")
+                .isGreaterThanOrEqualTo(3);
+        String firstBody = first.getResponse().getContentAsString();
+        assertThat(firstBody).as("the newest actions are this test's own").contains("Auvitamine A");
+        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(firstBody, "\"id\""))
+                .isEqualTo(2);
+
+        long tailOffset = total - 1L;
+        MvcResult tail = mvc.perform(get("/admin/audit")
+                        .header("Authorization", "Bearer " + token)
+                        .param("limit", "2").param("offset", String.valueOf(tailOffset)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", String.valueOf(total)))
+                .andReturn();
+        String tailBody = tail.getResponse().getContentAsString();
+        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(tailBody, "\"id\""))
+                .as("the tail page carries the single oldest action").isEqualTo(1);
+    }
+
+    /** The "id" column of a JSON array of admin DTOs. */
+    private java.util.List<Long> parseIds(String json) throws Exception {
+        com.fasterxml.jackson.databind.JsonNode rows = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(json);
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        rows.forEach(row -> ids.add(row.get("id").asLong()));
+        return ids;
     }
 
     @Test

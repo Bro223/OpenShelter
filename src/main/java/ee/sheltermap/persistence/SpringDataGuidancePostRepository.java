@@ -32,13 +32,6 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
             + "ORDER BY sort_order ASC, published_at DESC NULLS LAST, id DESC", nativeQuery = true)
     List<GuidancePostEntity> findAllInStoredGlobalOrder();
 
-    /** The public index order (guidance-manual-order D2) in ONE locale — the
-     *  locale filter rides in the same query as the status and ordering (no
-     *  in-memory filter): pinned first, then sort_order asc, published_at desc
-     *  (tie-breaker), id desc. */
-    List<GuidancePostEntity> findByStatusAndLocaleOrderByPinnedDescSortOrderAscPublishedAtDescIdDesc(
-            GuidanceStatus status, String locale);
-
     /** The posts using one asset as their hero (D8); the id tie-break keeps the 409 list stable. */
     List<GuidancePostEntity> findByHeroImageIdOrderByUpdatedAtDescIdDesc(Long heroImageId);
 

@@ -1,5 +1,6 @@
 package ee.sheltermap.guidance;
 
+import ee.sheltermap.api.Pagination;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.MediaAsset;
@@ -95,6 +96,33 @@ public class MediaService {
         return mediaAssets.findAll().stream()
                 .map(asset -> new MediaAssetWithUsage(asset, counts.getOrDefault(asset.getId(), 0L)))
                 .toList();
+    }
+
+    /**
+     * The library listing paged (W2-A — the owner's "every admin list
+     * pages" rule): absent {@code limit}/{@code offset} = the unpaged
+     * listing (byte-identical to the pre-change path); present, ONE
+     * newest-first OFFSET/LIMIT page. The reused-by counts are batched
+     * over the page's ids only. The answer's {@link Pagination.Paged#total()}
+     * is the library's asset count WITHOUT paging (the X-Total-Count
+     * header value, the controller's job to publish).
+     */
+    @Transactional(readOnly = true)
+    public Pagination.Paged<MediaAssetWithUsage> listPage(Integer limit, Integer offset) {
+        if (limit == null && offset == null) {
+            List<MediaAssetWithUsage> all = list();
+            return new Pagination.Paged<>(all, all.size());
+        }
+        long from = offset == null ? 0 : offset;
+        List<MediaAsset> page = mediaAssets.findPage(from, limit == null ? (int) mediaAssets.countAll() : limit);
+        if (page.isEmpty()) {
+            return new Pagination.Paged<>(List.of(), mediaAssets.countAll());
+        }
+        Map<Long, Long> counts = mediaAssets.referencedCountsByAssetId();
+        List<MediaAssetWithUsage> rows = page.stream()
+                .map(asset -> new MediaAssetWithUsage(asset, counts.getOrDefault(asset.getId(), 0L)))
+                .toList();
+        return new Pagination.Paged<>(rows, mediaAssets.countAll());
     }
 
     /** The admin detail read (unknown id → 404). */

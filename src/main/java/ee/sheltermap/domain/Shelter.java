@@ -46,6 +46,19 @@ public class Shelter {
     /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
     private Long createdBy;
     /**
+     * Write-time trust snapshot (V31, W2-A part 2 of the erasure fix): the
+     * submitter's verified standing AS AT THE MOMENT OF SUBMISSION —
+     * {@code true} when the submitting account had at least one active
+     * verification claim when it wrote the row, {@code false} when it did
+     * not, {@code null} when there is no snapshot (pre-V31 rows, registry
+     * rows, other write paths). Account erasure SET NULLs {@code createdBy}
+     * (V7) and must not change the standing — reads prefer this column
+     * when present and fall back to the live author derivation when it is
+     * null (an orphaned pre-V31 row then resolves unverified; the
+     * backfill policy for those rows is an owner decision).
+     */
+    private Boolean submitterVerifiedAtCreation;
+    /**
      * Auto-hide disarm flag (V9): while {@code false} the 5th
      * {@code NON_EXISTENT} report may auto-hide the shelter; a manual
      * admin restore sets it {@code true} (the admin-moderation change owns
@@ -168,6 +181,14 @@ public class Shelter {
 
     public void setCreatedBy(Long createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Boolean getSubmitterVerifiedAtCreation() {
+        return submitterVerifiedAtCreation;
+    }
+
+    public void setSubmitterVerifiedAtCreation(Boolean submitterVerifiedAtCreation) {
+        this.submitterVerifiedAtCreation = submitterVerifiedAtCreation;
     }
 
     public String getName() {

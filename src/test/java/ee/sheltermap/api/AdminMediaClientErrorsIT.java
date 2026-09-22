@@ -22,8 +22,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -146,5 +149,55 @@ class AdminMediaClientErrorsIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.message")
                         .value("The uploaded file exceeds the maximum size of 5242880 bytes"))
                 .andExpect(jsonPath("$.path").value("/admin/media"));
+    }
+
+    @Test
+    void theMediaLibraryPagesWithTheTotalHeader() throws Exception {
+        // W2-A: the admin media library is a bounded page (limit/offset) with
+        // the X-Total-Count header = the FULL library length, stable across
+        // pages — the page read must not walk the whole library to count.
+        String admin = adminToken();
+        // A real 1x1 PNG — the upload pipeline sniffs and DECODES the image
+        // (a 400 for bytes that are not a readable JPEG/PNG/WebP), so the
+        // fixture must be a genuine image, unique filename per row.
+        byte[] onePixelPng = java.util.Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(multipart("/admin/media")
+                            .file(new MockMultipartFile("file", "page" + i + ".png", "image/png",
+                                    onePixelPng))
+                            .header("Authorization", "Bearer " + admin))
+                    .andExpect(status().isCreated());
+        }
+
+        MvcResult first = mvc.perform(get("/admin/media")
+                        .header("Authorization", "Bearer " + admin)
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andReturn();
+        String firstBody = first.getResponse().getContentAsString();
+        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(firstBody, "\"id\""))
+                .as("the first page carries exactly two rows").isEqualTo(2);
+
+        MvcResult second = mvc.perform(get("/admin/media")
+                        .header("Authorization", "Bearer " + admin)
+                        .param("limit", "2").param("offset", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andReturn();
+        String secondBody = second.getResponse().getContentAsString();
+        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(secondBody, "\"id\""))
+                .as("the tail page carries the remaining single row").isEqualTo(1);
+
+        // the two pages are disjoint (id sets)
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        java.util.Set<Long> firstIds = new java.util.HashSet<>();
+        for (com.fasterxml.jackson.databind.JsonNode row : mapper.readTree(firstBody)) {
+            firstIds.add(row.get("id").asLong());
+        }
+        com.fasterxml.jackson.databind.JsonNode tail = mapper.readTree(secondBody);
+        assertThat(tail.size()).isEqualTo(1);
+        assertThat(firstIds).doesNotContain(tail.get(0).get("id").asLong());
     }
 }

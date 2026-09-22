@@ -46,6 +46,40 @@ public interface ShelterRepository {
     List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox);
 
     /**
+     * Paged public list read (W2-A: real paging, not a slice over the
+     * whole corpus): the rows of ONE page of the public projection —
+     * {@code ACTIVE} rows of {@code sources} inside the optional
+     * {@code bbox} (null = everywhere), with the trust filters pushed
+     * into the SQL so the DB work scales with the page: {@code
+     * hasCapacity} (null = either, else capacity data present/absent) and
+     * the provenance column pair ({@code provenanceSource},
+     * {@code provenanceReviewStatus}; null = either) — the exact
+     * (source, reviewStatus) pair of the derived provenance the caller
+     * filtered on. Stable id-ascending order, LIMIT/OFFSET; the caller
+     * validates the bounds ({@code ee.sheltermap.api.Pagination}).
+     */
+    List<Shelter> findActivePage(List<ShelterSource> sources, BoundingBox bbox, Boolean hasCapacity,
+                                 ShelterSource provenanceSource, ReviewStatus provenanceReviewStatus,
+                                 long offset, int limit);
+
+    /**
+     * Paged admin list read (W2-A): EVERY status (the admin view, unlike
+     * the public projection), the optional exact {@code status} and
+     * {@code sources} filters and the case-insensitive name/address
+     * substring {@code qPattern} (the caller lowercases and LIKE-escapes;
+     * null = no search), stable id-ascending, LIMIT/OFFSET.
+     */
+    List<Shelter> findAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern,
+                                long offset, int limit);
+
+    /**
+     * The count twin of {@link #findAdminPage}: the filtered length
+     * WITHOUT paging — the {@code X-Total-Count} header value (always
+     * present on the admin list endpoints, filtered length, not page size).
+     */
+    long countAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern);
+
+    /**
      * The caller's shelters with the given source/status — the input of
      * the per-user active-shelter cap (shelter-trust-and-reports D3).
      */

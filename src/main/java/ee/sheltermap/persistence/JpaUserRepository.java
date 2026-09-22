@@ -250,6 +250,30 @@ public class JpaUserRepository implements UserRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<User> findAccountPage(long offset, int limit) {
+        // The tab's population is REGISTERED + ADMIN (W2-A): GUEST rows are
+        // excluded in the SQL, so a page never loads — and never decrypts
+        // — the whole account population. One batched claims query for the
+        // page (the findAll idiom).
+        List<UserEntity> entities = users.findAccountPage(
+                List.of(UserKind.REGISTERED, UserKind.ADMIN), offset, limit);
+        Map<Long, List<VerificationClaimEntity>> claimsByUser =
+                entities.isEmpty() ? Map.of()
+                        : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()
+                                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
+        return entities.stream()
+                .map(e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAccounts() {
+        return users.countAccounts(List.of(UserKind.REGISTERED, UserKind.ADMIN));
+    }
+
+    @Override
     @Transactional
     public void markActive(long userId, Instant at) {
         Objects.requireNonNull(at, "at");

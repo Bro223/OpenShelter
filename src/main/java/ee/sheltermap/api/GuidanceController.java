@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * The public crisis-guidance reads (crisis-guidance D3/D4) — permit-all
@@ -134,8 +135,9 @@ public class GuidanceController {
         int total = published.size();
         // The slice runs LAST, over the stable order (guidance-index-paging).
         List<PublicGuidanceView> page = Pagination.slice(published, offset, limit);
-        // ONE library read for the hero URLs (no N+1 over the page).
-        Map<Long, MediaAsset> heroes = heroIndex();
+        // ONE batched read for the page's hero URLs (W2-A: the pre-change
+        // hero index loaded the WHOLE media library for every request).
+        Map<Long, MediaAsset> heroes = heroIndex(page);
         List<GuidancePostDto> dtos = page.stream()
                 .map(view -> toDto(view, heroes))
                 .toList();
@@ -190,12 +192,23 @@ public class GuidanceController {
         return toDto(view, hero == null ? Map.of() : Map.of(view.getHeroImageId(), hero));
     }
 
-    private Map<Long, MediaAsset> heroIndex() {
-        Map<Long, MediaAsset> heroes = new HashMap<>();
-        for (MediaAsset asset : mediaAssets.findAll()) {
-            heroes.put(asset.getId(), asset);
+    /**
+     * The hero assets of the GIVEN views in ONE batched query (W2-A):
+     * the distinct hero ids of the page, not the whole library — an
+     * empty page (nothing published, or an offset past the end) touches
+     * the media table at all only when a view actually references a hero.
+     */
+    private Map<Long, MediaAsset> heroIndex(List<PublicGuidanceView> views) {
+        List<Long> heroIds = views.stream()
+                .map(PublicGuidanceView::getHeroImageId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (heroIds.isEmpty()) {
+            return Map.of();
         }
-        return heroes;
+        return mediaAssets.findByIds(heroIds).stream()
+                .collect(HashMap::new, (map, asset) -> map.put(asset.getId(), asset), HashMap::putAll);
     }
 
     private GuidancePostDto toDto(PublicGuidanceView view, Map<Long, MediaAsset> heroes) {

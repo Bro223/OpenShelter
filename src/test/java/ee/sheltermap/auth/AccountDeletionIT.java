@@ -211,8 +211,12 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(status().isNotFound());
 
         // 2. the public row is ORPHANED: kept, created_by NULL, trust state
-        //    untouched (CONFIRMED stays CONFIRMED), submitter no longer
-        //    resolvable (submitterVerified false — the NULL-creator render)
+        //    untouched (CONFIRMED stays CONFIRMED), and the V31 write-time
+        //    verification snapshot SURVIVES the erasure — the row keeps the
+        //    verified standing its author had at the write (the pre-V31
+        //    NULL-creator render is gone for rows written after the
+        //    snapshot column landed; the submitterVerification DEPTH stays
+        //    live-derived and is absent, because the author is gone).
         assertThat(shelters.findById(pubA)).isPresent();
         var pubAEntity = shelters.findById(pubA).orElseThrow();
         assertThat(pubAEntity.getCreatedBy()).isNull();
@@ -221,10 +225,11 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.locationKind").value("PUBLIC"))
-                .andExpect(jsonPath("$.submitterVerified").value(false))
+                .andExpect(jsonPath("$.submitterVerified").value(true))
                 // Erasure-trust: the depth behind the "verified yellow" marker
-                // is absent too (author gone), and the row keeps its ordinary
-                // community provenance — deletion grants no verified standing.
+                // is absent (the author is gone — the depth is still
+                // live-derived), and the row keeps its ordinary community
+                // provenance — deletion grants no NEW verified standing.
                 .andExpect(jsonPath("$.submitterVerification").doesNotExist())
                 .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"))
                 .andExpect(jsonPath("$.address").value(nullValue()));

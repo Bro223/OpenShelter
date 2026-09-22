@@ -69,17 +69,31 @@ public interface ShelterReportRepository {
     Optional<ShelterReport> findById(Long id);
 
     /**
-     * One shelter's reports, newest first, capped at the {@code limit} most
-     * recent rows (the admin queue, admin-moderation D3 — the cap is applied
-     * in the store, not by trimming in memory; the queue's table is
+     * One shelter's reports, newest first, the page starting at {@code
+     * offset} with at most {@code limit} rows (the admin queue,
+     * admin-moderation D3, paged since W2-A — the cap is applied in the
+     * store, not by trimming in memory; the queue's table is
      * append-only, so an unbounded read grows with the backlog).
      */
-    List<ShelterReport> findLatestByShelterId(long shelterId, int limit);
+    List<ShelterReport> findLatestByShelterId(long shelterId, long offset, int limit);
 
     /**
-     * Every report, newest first, capped at the {@code limit} most recent
-     * rows (the admin queue without a shelter filter; same store-level cap
-     * as {@link #findLatestByShelterId}).
+     * The shelter's report length WITHOUT paging (the W2-A
+     * {@code X-Total-Count} header value for the per-shelter queue).
      */
-    List<ShelterReport> findLatest(int limit);
+    long countByShelterId(long shelterId);
+
+    /**
+     * Every report, newest first, the page starting at {@code offset} with
+     * at most {@code limit} rows (the admin queue without a shelter
+     * filter; same store-level paging as
+     * {@link #findLatestByShelterId}).
+     */
+    List<ShelterReport> findLatest(long offset, int limit);
+
+    /**
+     * The report table's row count WITHOUT paging (the W2-A
+     * {@code X-Total-Count} header value for the global queue).
+     */
+    long countAll();
 }

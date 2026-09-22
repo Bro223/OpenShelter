@@ -259,7 +259,7 @@ class AdminModerationServiceTest {
         Shelter shelter = userShelter(ReviewStatus.NEW);
         shelterReports.save(new ShelterReport(shelter.getId(), submitterId,
                 ShelterReportType.NON_EXISTENT, null, NOW));
-        long reportId = shelterReports.findLatest(100).get(0).getId();
+        long reportId = shelterReports.findLatest(0, 100).get(0).getId();
 
         service.dismissReport(adminId, reportId);
         service.dismissReport(adminId, reportId); // no-op
@@ -286,7 +286,7 @@ class AdminModerationServiceTest {
         shelters.save(doomed);
         service.deleteShelter(adminId, doomed.getId());
 
-        List<AdminAuditDto> rows = service.listAudit(null);
+        List<AdminAuditDto> rows = service.listAudit(null, null).rows();
 
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).action()).isEqualTo(ModerationAuditLog.Action.DELETE);
@@ -303,11 +303,11 @@ class AdminModerationServiceTest {
         Shelter shelter = userShelter(ReviewStatus.NEW);
         service.reviewShelter(adminId, shelter.getId(), ReviewDecision.CONFIRM, null);
 
-        assertThat(service.listAudit(1)).hasSize(1);
+        assertThat(service.listAudit(1, null).rows()).hasSize(1);
         // the shared paging validator (QW4) raises the single paging 400
         // exception; the client-visible contract (400 + the message) is unchanged
-        assertThatThrownBy(() -> service.listAudit(0)).isInstanceOf(PagingBoundsException.class);
-        assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(PagingBoundsException.class);
+        assertThatThrownBy(() -> service.listAudit(0, null)).isInstanceOf(PagingBoundsException.class);
+        assertThatThrownBy(() -> service.listAudit(201, null)).isInstanceOf(PagingBoundsException.class);
     }
 
     @Test
@@ -322,7 +322,7 @@ class AdminModerationServiceTest {
         audit.recordWithDanglingModerator(null, null,
                 ModerationAuditLog.Action.USER_SUSPEND, "reason", null, null);
 
-        List<AdminAuditDto> rows = service.listAudit(null);
+        List<AdminAuditDto> rows = service.listAudit(null, null).rows();
 
         assertThat(rows).hasSize(2);
         // The first row's subject resolves (only its actor dangles).
@@ -351,7 +351,7 @@ class AdminModerationServiceTest {
         assertThat(row.moderatorId()).isEqualTo(adminId);
 
         // The audit list renders the account in the subject slot.
-        List<AdminAuditDto> dtos = service.listAudit(null);
+        List<AdminAuditDto> dtos = service.listAudit(null, null).rows();
         assertThat(dtos).hasSize(1);
         assertThat(dtos.get(0).shelterName()).isEqualTo("Account: Autor (autor@example.ee)");
         assertThat(dtos.get(0).moderatorName()).isEqualTo("Admin");
@@ -442,7 +442,7 @@ class AdminModerationServiceTest {
         // A guest row (no email) must not appear in the list.
         users.save(new ee.sheltermap.domain.GuestUser());
 
-        List<AdminUserDto> rows = service.listUsers();
+        List<AdminUserDto> rows = service.listUsers(null, null).rows();
 
         assertThat(rows).hasSize(2); // admin + submitter, id-ordered
         assertThat(rows.get(0).id()).isEqualTo(adminId);
@@ -453,7 +453,7 @@ class AdminModerationServiceTest {
         assertThat(rows.get(1).suspendedAt()).isNull();
 
         service.suspendUser(adminId, submitterId);
-        AdminUserDto suspended = service.listUsers().get(1);
+        AdminUserDto suspended = service.listUsers(null, null).rows().get(1);
         assertThat(suspended.suspendedAt()).isEqualTo(NOW);
     }
 
@@ -462,7 +462,7 @@ class AdminModerationServiceTest {
         service.suspendUser(adminId, submitterId);
         users.delete(submitterId);
 
-        List<AdminAuditDto> rows = service.listAudit(null);
+        List<AdminAuditDto> rows = service.listAudit(null, null).rows();
         assertThat(rows.get(0).shelterName())
                 .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
     }

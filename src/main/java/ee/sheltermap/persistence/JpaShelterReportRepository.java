@@ -114,18 +114,30 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ShelterReport> findLatestByShelterId(long shelterId, int limit) {
-        return reports.findLatestByShelterId(shelterId, limit).stream()
+    public List<ShelterReport> findLatestByShelterId(long shelterId, long offset, int limit) {
+        return reports.findLatestByShelterId(shelterId, offset, limit).stream()
                 .map(JpaShelterReportRepository::toDomain)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ShelterReport> findLatest(int limit) {
-        return reports.findLatest(limit).stream()
+    public long countByShelterId(long shelterId) {
+        return reports.countByShelterId(shelterId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShelterReport> findLatest(long offset, int limit) {
+        return reports.findLatest(offset, limit).stream()
                 .map(JpaShelterReportRepository::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAll() {
+        return reports.count();
     }
 
     private static ShelterReport toDomain(ShelterReportEntity entity) {

@@ -448,6 +448,11 @@ public class ShelterController {
         updated.setReviewNote(shelter.getReviewNote());
         updated.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
         updated.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
+        // The write-time trust snapshot (V31) is WROTE-TIME data — an edit
+        // never re-snapshots it (the standing is as at the SUBMISSION);
+        // preserve it through the owner's edit like the other
+        // admin-owned state.
+        updated.setSubmitterVerifiedAtCreation(shelter.getSubmitterVerifiedAtCreation());
         // The private-home declaration is updatable; absent = keep current.
         updated.setLocationKind(request.locationKind() == null
                 ? shelter.getLocationKind() : request.locationKind());

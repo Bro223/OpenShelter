@@ -133,9 +133,18 @@ public interface ModerationAuditLog {
 
     /**
      * The newest rows first (created_at descending, id descending as the
-     * same-timestamp tie-break), at most {@code limit} of them.
+     * same-timestamp tie-break), the page starting at {@code offset} with
+     * at most {@code limit} rows (paged since W2-A — the trail is
+     * append-only between retention prunings, so the read stays a
+     * bounded slice, not a trim of a full load).
      */
-    List<Row> findLatest(int limit);
+    List<Row> findLatest(long offset, int limit);
+
+    /**
+     * The trail's row count WITHOUT paging (the W2-A
+     * {@code X-Total-Count} header value for the audit list).
+     */
+    long countAll();
 
     /** Batched newest CONFIRM / AUTO_CONFIRM action per shelter — the "last verified" input. */
     List<LatestConfirmation> latestConfirmationByShelterIds(Collection<Long> shelterIds);

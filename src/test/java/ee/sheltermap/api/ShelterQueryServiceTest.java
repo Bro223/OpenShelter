@@ -447,6 +447,9 @@ class ShelterQueryServiceTest {
 
     @Test
     void verifiedCreatorGetsSubmitterVerifiedTrue() {
+        // The PRE-V31 shape (the fixture leaves submitterVerifiedAtCreation
+        // null): the standing is live-derived from the author — a row stays
+        // exactly as it always read until the V31 snapshot column is written.
         userShelter.setCreatedBy(saveUser("Mari", "mari@example.ee", true));
 
         ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
@@ -454,6 +457,27 @@ class ShelterQueryServiceTest {
         // The fixture confirms the E-MAIL channel only: one channel is the
         // PARTIAL tier, and the depth names which channel it is.
         assertThat(dto.submitterVerification()).isEqualTo(SubmitterVerification.EMAIL);
+    }
+
+    @Test
+    void theInaccurateCountSumsWrongLocationAndOtherExcludingDismissed() {
+        // W2-A report semantics: the "inaccurate information" count is the
+        // open WRONG_LOCATION + OTHER reports — the community "the data is
+        // wrong" kinds. NON_EXISTENT keeps its own count, and a dismissed
+        // report stops counting in EVERY count (the admin's invalid verdict
+        // is the dismissal, the batched per-type counts exclude it).
+        report(userShelter.getId(), 1L, ShelterReportType.WRONG_LOCATION);
+        report(userShelter.getId(), 2L, ShelterReportType.OTHER);
+        report(userShelter.getId(), 3L, ShelterReportType.NON_EXISTENT);
+        ShelterReport dismissed = new ShelterReport(userShelter.getId(), 4L,
+                ShelterReportType.WRONG_LOCATION, null, NOW);
+        dismissed.markDismissed(NOW);
+        reports.save(dismissed);
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.nonexistentReports()).isEqualTo(1);
+        assertThat(dto.inaccurateReports()).isEqualTo(2); // 1 WRONG_LOCATION + 1 OTHER; the dismissed one excluded
     }
 
     @Test
@@ -502,6 +526,15 @@ class ShelterQueryServiceTest {
         // UNVERIFIED level — the flag is false, the depth (the cue behind the
         // "verified yellow" marker) is absent, and the provenance is the
         // ordinary community value, never the registry/partner standing.
+        //
+        // W2-A backfill boundary: this is the PRE-V31 shape (the snapshot
+        // column is null on the fixture), so the read falls back to the live
+        // author and an orphaned pre-existing row resolves UNVERIFIED.
+        // Backfilling those rows is an explicit OWNER DECISION left open by
+        // the plan — the write-time standing is no longer recoverable from
+        // the row, so no backfill is implemented; when it is approved it is
+        // a one-line UPDATE against submitter_verified_at_creation and only
+        // the backfilled rows change behaviour.
         userShelter.setCreatedBy(99L); // author id present but no such user row
 
         ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
@@ -510,6 +543,45 @@ class ShelterQueryServiceTest {
         assertThat(dto.submitterVerification()).isNull();
         // USER + CONFIRMED (the fixture default) is the plain community value.
         assertThat(dto.provenance()).isEqualTo(COMMUNITY_REPORTED);
+    }
+
+    @Test
+    void theV31SnapshotSurvivesAuthorErasure() {
+        // W2-A part 2 (the erasure fix): a row written after V31 carries the
+        // submitter's standing AS AT WRITE TIME. Account erasure NULLs
+        // created_by (V7 ON DELETE SET NULL) and the live derivation dies
+        // with the author — the snapshot must survive it, so the row keeps
+        // its verified marker. The DEPTH stays live-derived (the claim set
+        // is re-read per request), so it is absent without the author, and
+        // the provenance is untouched (trust flag, not standing).
+        userShelter.setCreatedBy(99L); // the author row is gone (erasure)
+        userShelter.setSubmitterVerifiedAtCreation(Boolean.TRUE);
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.submitterVerified()).isTrue();
+        assertThat(dto.submitterVerification()).isNull();
+        assertThat(dto.provenance()).isEqualTo(COMMUNITY_REPORTED);
+    }
+
+    @Test
+    void aFalseSnapshotWinsOverTheLiveVerifiedAuthor() {
+        // The snapshot is THE answer when present — even when the live
+        // author still reads as verified (they may have confirmed a channel
+        // AFTER the write). A row written by an unverified submitter stays
+        // unverified; upgrading it is a re-review decision, not a read side
+        // effect. (The inverse — snapshot null with a live verified author
+        // deriving true — is the pre-V31 fallback, pinned by
+        // verifiedCreatorGetsSubmitterVerifiedTrue, whose fixture leaves the
+        // snapshot null.)
+        userShelter.setCreatedBy(saveUser("Mari", "mari@example.ee", true));
+        userShelter.setSubmitterVerifiedAtCreation(Boolean.FALSE);
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.submitterVerified()).isFalse();
+        // The live depth still renders — only the boolean is snapshotted.
+        assertThat(dto.submitterVerification()).isEqualTo(SubmitterVerification.EMAIL);
     }
 
     @Test

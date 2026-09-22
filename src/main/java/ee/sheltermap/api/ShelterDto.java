@@ -104,9 +104,13 @@ public record ShelterDto(
         @Schema(description = "USER-submission detail (capacity); null on "
                 + "registry rows without capacity data.")
         Integer capacity,
-        @Schema(description = "true when the shelter's creator exists and has "
-                + "a completed verification; false for registry shelters (no "
-                + "author) and for creators whose account no longer exists.")
+        @Schema(description = "The submitter's verified standing: for rows "
+                + "written after the V31 snapshot column, the standing AS AT "
+                + "WRITE TIME (a later account erasure cannot change it); for "
+                + "pre-V31 rows, live-derived — the creator exists and has a "
+                + "completed verification. false for registry shelters (no "
+                + "author) and for authors whose account no longer exists "
+                + "(an orphaned pre-V31 row resolves unverified).")
         boolean submitterVerified,
         @Schema(description = "The submitter's verification DEPTH, derived live "
                 + "from the author's CURRENT active claims: EMAIL / PHONE / "
@@ -120,6 +124,14 @@ public record ShelterDto(
                 + "(0 when none) — the UI's orange 'Reported' affordance fires "
                 + "at > 0. Distinct from reportCount (the TOTAL).")
         int nonexistentReports,
+        @Schema(description = "The open 'inaccurate information' subset of the "
+                + "community reports (WRONG_LOCATION + OTHER; 0 when none) — "
+                + "the community's 'this data is wrong' reports, W2-A: EITHER "
+                + "report kind turns the pin red when open. Open means not "
+                + "dismissed (a dismissed report stops counting). "
+                + "Additive to nonexistentReports — that field keeps its "
+                + "meaning; the pin/badge logic is the OR of the two.")
+        int inaccurateReports,
         ShelterDto.OpenStatus openStatus,
         ShelterDto.Occupancy occupancy,
         @Schema(description = "CALLER-scoped: the caller's own live occupancy "

@@ -32,4 +32,17 @@ public interface SpringDataModerationActionRepository extends JpaRepository<Mode
             + "where a.shelterId in :ids and a.action in :actions group by a.shelterId")
     List<Object[]> latestConfirmingByShelterIds(@Param("ids") Collection<Long> ids,
                                                 @Param("actions") Collection<ModerationAuditLog.Action> actions);
+
+    /**
+     * Paged trail read (W2-A): newest first (created_at descending, id
+     * descending as the same-timestamp tie-break — the deterministic
+     * stable order), exact OFFSET/LIMIT (Hibernate 6 JPQL). The declared
+     * List return pays NO hidden count query — the pre-W2-A
+     * {@code findAll(Pageable)} paid one COUNT per request; the count is
+     * now an explicit twin ({@code JpaRepository.count}) that the
+     * X-Total-Count header owns.
+     */
+    @Query("select a from ModerationActionEntity a "
+            + "order by a.createdAt desc, a.id desc offset :offset fetch first :limit rows only")
+    List<ModerationActionEntity> findLatestPage(@Param("offset") long offset, @Param("limit") int limit);
 }

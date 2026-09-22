@@ -4,10 +4,12 @@ import ee.sheltermap.domain.GuidancePost;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -34,14 +36,6 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
     /** The admin list order: the stored manual order, id desc tie-break (D2). */
     private static final Comparator<GuidancePost> ADMIN_ORDER =
             Comparator.comparingInt(GuidancePost::getSortOrder)
-                    .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
-
-    /** The public list order (guidance-manual-order D2): pinned first, then the
-     *  stored manual order, then the publishedAt / id tie-breakers. */
-    private static final Comparator<GuidancePost> PUBLIC_ORDER =
-            Comparator.comparing(GuidancePost::isPinned).reversed()
-                    .thenComparingInt(GuidancePost::getSortOrder)
-                    .thenComparing(Comparator.comparing(GuidancePost::getPublishedAt).reversed())
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
 
     /** The GLOBAL stored manual order (admin-locale-scope): sortOrder asc,
@@ -82,6 +76,17 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
     }
 
     @Override
+    public List<GuidancePost> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .map(store::get)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public Optional<GuidancePost> findBySlug(String slug) {
         return store.values().stream()
                 .filter(p -> p.getSlug().equals(slug))
@@ -101,13 +106,6 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
     @Override
     public List<GuidancePost> findAllInStoredGlobalOrder() {
         return sorted(new ArrayList<>(store.values()), GLOBAL_ORDER);
-    }
-
-    @Override
-    public List<GuidancePost> findPublished(String locale) {
-        return sorted(store.values().stream()
-                .filter(p -> p.isPublished() && p.getLocale().equals(locale))
-                .toList(), PUBLIC_ORDER);
     }
 
     @Override

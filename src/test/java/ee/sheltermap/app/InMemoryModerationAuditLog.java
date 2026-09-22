@@ -64,12 +64,18 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
-    public synchronized List<Row> findLatest(int limit) {
+    public synchronized List<Row> findLatest(long offset, int limit) {
         return rows.stream()
                 .sorted(Comparator.comparing(Row::createdAt).reversed()
                         .thenComparing(Row::id, Comparator.reverseOrder()))
+                .skip(offset)
                 .limit(limit)
                 .toList();
+    }
+
+    @Override
+    public synchronized long countAll() {
+        return rows.size();
     }
 
     @Override

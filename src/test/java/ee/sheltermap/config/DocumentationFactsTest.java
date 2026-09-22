@@ -20,7 +20,11 @@ import org.junit.jupiter.api.Test;
  *
  * <ul>
  *   <li>the Flyway version range;</li>
- *   <li>the API surface — every controller mapping must appear in the README;</li>
+ *   <li>the API surface — every controller mapping must appear in the README,
+ *       and the class-level mapping pattern must actually MATCH every
+ *       {@code @RequestMapping} it claims to read (matched-count floor —
+ *       a silently-broken pattern must not degrade the guard to checking
+ *       zero mappings);</li>
  *   <li>repository paths cited in the README must exist;</li>
  *   <li>no bare test counts in the docs (a stated suite size drifts within days and
  *       ages into a lie — see {@link #theDocsNeverStateBareTestCounts()}).</li>
@@ -47,6 +51,19 @@ class DocumentationFactsTest {
 
     private static final Pattern CLASS_MAPPING =
             Pattern.compile("@RequestMapping\\((?:value\\s*=\\s*)?\"([^\"]*)\"");
+
+    /** Every {@code @RequestMapping} annotation usage in a controller file —
+     *  the denominator the {@link #CLASS_MAPPING} floor is measured against.
+     *  The import line carries no {@code @}, so it does not count. */
+    private static final Pattern MAPPING_ANNOTATION =
+            Pattern.compile("@RequestMapping\\b");
+
+    /** One class-level mapping per controller at the time the floor was set
+     *  (2026-09-22, branch feature/frontend). The per-file equality
+     *  assertion in {@link #everyControllerMappingAppearsInTheReadme()} is
+     *  the real defence; this floor additionally guarantees the guard can
+     *  never silently check zero mappings if the pattern form changes. */
+    private static final int MIN_CLASS_MAPPINGS = 12;
 
     private static final Pattern METHOD_MAPPING =
             Pattern.compile("@(Get|Post|Put|Delete|Patch)Mapping(?:\\(\"([^\"]*)\")?");
@@ -92,12 +109,35 @@ class DocumentationFactsTest {
     void everyControllerMappingAppearsInTheReadme() throws IOException {
         String readme = Files.readString(README);
         List<String> missing = new ArrayList<>();
+        List<String> unmatched = new ArrayList<>();
+        int classMappingsMatched = 0;
 
         try (Stream<Path> files = Files.list(CONTROLLERS)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
                 String source = Files.readString(file);
+
+                Matcher annotations = MAPPING_ANNOTATION.matcher(source);
+                int annotationsFound = 0;
+                while (annotations.find()) {
+                    annotationsFound++;
+                }
+
                 Matcher classMapping = CLASS_MAPPING.matcher(source);
-                String prefix = classMapping.find() ? classMapping.group(1) : null;
+                int classMappingsInFile = 0;
+                String prefix = null;
+                while (classMapping.find()) {
+                    classMappingsInFile++;
+                    if (prefix == null) {
+                        prefix = classMapping.group(1);
+                    }
+                }
+                classMappingsMatched += classMappingsInFile;
+                if (classMappingsInFile != annotationsFound) {
+                    unmatched.add(file.getFileName() + ": " + annotationsFound
+                            + " @RequestMapping annotation(s), but the CLASS_MAPPING "
+                            + "pattern matched " + classMappingsInFile + " — the guard "
+                            + "would read a wrong or missing path prefix");
+                }
 
                 Matcher methods = METHOD_MAPPING.matcher(source);
                 while (methods.find()) {
@@ -118,6 +158,17 @@ class DocumentationFactsTest {
                 .as("these controller mappings are absent from the README API table "
                         + "(add a row, or the table no longer summarizes the API)")
                 .isEmpty();
+        assertThat(unmatched)
+                .as("a controller uses an @RequestMapping form the CLASS_MAPPING "
+                        + "pattern cannot parse — the guard would check with a wrong "
+                        + "or missing prefix; fix the pattern or the annotation form")
+                .isEmpty();
+        assertThat(classMappingsMatched)
+                .as("CLASS_MAPPING matched only %d class-level mapping(s), but %d are "
+                        + "expected (one per controller at the floor's date) — a zero or "
+                        + "near-zero match means the pattern broke and the guard is "
+                        + "checking nothing", classMappingsMatched, MIN_CLASS_MAPPINGS)
+                .isGreaterThanOrEqualTo(MIN_CLASS_MAPPINGS);
     }
 
     @Test

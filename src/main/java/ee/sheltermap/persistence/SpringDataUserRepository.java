@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +28,21 @@ public interface SpringDataUserRepository extends JpaRepository<UserEntity, Long
 
     /** Id-ordered full-table read (the admin Users tab). */
     List<UserEntity> findAllByOrderByIdAsc();
+
+    /**
+     * Paged admin Users tab read (W2-A): the tab's kinds only (GUEST rows
+     * are excluded in the SQL, so a page never loads — and never
+     * decrypts — the whole account population), id-ordered, exact
+     * OFFSET/LIMIT (Hibernate 6 JPQL).
+     */
+    @Query("select u from UserEntity u where u.kind in :kinds order by u.id asc "
+            + "offset :offset fetch first :limit rows only")
+    List<UserEntity> findAccountPage(@Param("kinds") Collection<UserKind> kinds,
+                                     @Param("offset") long offset, @Param("limit") int limit);
+
+    /** The tab's population count (W2-A X-Total-Count — same kinds as the page). */
+    @Query("select count(u) from UserEntity u where u.kind in :kinds")
+    long countAccounts(@Param("kinds") Collection<UserKind> kinds);
 
     /**
      * Retention-pruning: the REGISTERED-kind accounts idle since before

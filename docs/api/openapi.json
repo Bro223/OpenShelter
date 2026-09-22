@@ -174,6 +174,11 @@
             "description" : "The same server-derived moderator flag as on ShelterDto — the admin list is where the mark is managed.",
             "type" : "boolean"
           },
+          "inaccurateReports" : {
+            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — W2-A: EITHER report kind drives the reported state. Open means not dismissed (a dismissed report stops counting).",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "infoRequest" : {
             "$ref" : "#/components/schemas/InfoRequest",
             "description" : "The moderator→submitter information exchange for this row; null when none exists. The admin sees the request together with the submitter's reply here (the row is kept after the reply — audit posture), with the requesting admin's profile name ('Unknown' after erasure — no FK on requested_by)."
@@ -1191,6 +1196,11 @@
             "description" : "The server-derived moderator 'inaccurate' flag (idempotent mark/clear behind the admin endpoints). A marked row stays visible with status and provenance untouched.",
             "type" : "boolean"
           },
+          "inaccurateReports" : {
+            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — the community's 'this data is wrong' reports, W2-A: EITHER report kind turns the pin red when open. Open means not dismissed (a dismissed report stops counting). Additive to nonexistentReports — that field keeps its meaning; the pin/badge logic is the OR of the two.",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "infoRequest" : {
             "$ref" : "#/components/schemas/InfoRequest",
             "description" : "CALLER-scoped: the moderator→submitter information exchange for this row — set on the /mine projection ONLY (the submitter's own surface); null on the public list and detail reads (the exchange is private between the admin and the author)."
@@ -1260,7 +1270,7 @@
             "type" : "string"
           },
           "submitterVerified" : {
-            "description" : "true when the shelter's creator exists and has a completed verification; false for registry shelters (no author) and for creators whose account no longer exists.",
+            "description" : "The submitter's verified standing: for rows written after the V31 snapshot column, the standing AS AT WRITE TIME (a later account erasure cannot change it); for pre-V31 rows, live-derived — the creator exists and has a completed verification. false for registry shelters (no author) and for authors whose account no longer exists (an orphaned pre-V31 row resolves unverified).",
             "type" : "boolean"
           },
           "yourOccupancyBand" : {
@@ -2542,12 +2552,21 @@
     },
     "/admin/audit" : {
       "get" : {
-        "description" : "Newest first: every moderation-relevant action (admin AND automatic AUTO_CONFIRM) with the shelter name resolved at read time (\"Deleted shelter\" once the row is gone). limit is 1..200, default 100 (anything else 400).",
+        "description" : "Newest first: every moderation-relevant action (admin AND automatic AUTO_CONFIRM) with the shelter name resolved at read time (\"Deleted shelter\" once the row is gone). limit is 1..200, default 100 (anything else 400); offset (>= 0) is the page start; the X-Total-Count response header is the trail's length WITHOUT paging (always present).",
         "operationId" : "listAudit",
         "parameters" : [ {
           "name" : "limit",
           "in" : "query",
           "description" : "Rows to return, 1..200 (default 100; anything else 400).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the trail: >= 0; past the end answers an empty array.",
           "required" : false,
           "schema" : {
             "type" : "integer",
@@ -2566,7 +2585,17 @@
                 }
               }
             },
-            "description" : "The audit rows (newest first)"
+            "description" : "The audit rows (newest first)",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The audit trail's row count WITHOUT the paging applied (always present).",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
@@ -2579,7 +2608,7 @@
                 }
               }
             },
-            "description" : "limit outside 1..200"
+            "description" : "limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {
@@ -4394,8 +4423,27 @@
     },
     "/admin/media" : {
       "get" : {
-        "description" : "Every asset newest-first, with serving URL, dimensions, size, upload date and the reused-by-post count (0 for an unused asset — the library is the admin's inventory).",
+        "description" : "Every asset newest-first, with serving URL, dimensions, size, upload date and the reused-by-post count (0 for an unused asset — the library is the admin's inventory). Optional limit (1..200; absent = no paging) / offset (>= 0) page the newest-first order; the X-Total-Count response header is the library's asset count WITHOUT paging (always present).",
         "operationId" : "list_1",
+        "parameters" : [ {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = no paging (the whole library).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the newest-first order: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -4408,17 +4456,30 @@
                 }
               }
             },
-            "description" : "The assets (newest first)"
+            "description" : "The assets (newest first)",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The library's asset count WITHOUT the paging applied (always present).",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/MediaAssetDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {
@@ -4782,7 +4843,7 @@
     },
     "/admin/reports" : {
       "get" : {
-        "description" : "Newest first; optional shelterId narrows to one shelter. Carries the reporter's profile name + email — admin-only data, served from /admin/* only. limit is 1..200, default 100 (anything else 400 — the same bound as /admin/audit; a response of exactly limit rows means the queue was truncated).",
+        "description" : "Newest first; optional shelterId narrows to one shelter. Carries the reporter's profile name + email — admin-only data, served from /admin/* only. limit is 1..200, default 100 (anything else 400); offset (>= 0) is the page start; the X-Total-Count response header is the queue's length WITHOUT paging (always present).",
         "operationId" : "listShelterReports",
         "parameters" : [ {
           "name" : "shelterId",
@@ -4802,6 +4863,15 @@
             "type" : "integer",
             "format" : "int32"
           }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the queue: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -4815,7 +4885,17 @@
                 }
               }
             },
-            "description" : "The report rows (newest first, at most limit)"
+            "description" : "The report rows (newest first, at most limit)",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The report queue's row count WITHOUT the paging applied (always present).",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
@@ -4828,7 +4908,7 @@
                 }
               }
             },
-            "description" : "limit outside 1..200"
+            "description" : "limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {
@@ -4858,7 +4938,7 @@
                 }
               }
             },
-            "description" : "Unknown resource id — the uniform error body."
+            "description" : "Unknown shelter (with shelterId)"
           },
           "405" : {
             "content" : {
@@ -6189,8 +6269,27 @@
     },
     "/admin/users" : {
       "get" : {
-        "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only.",
+        "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only. Optional limit (1..200; absent = the whole list) / offset (>= 0) page it; the X-Total-Count response header is the tab's population WITHOUT paging (always present).",
         "operationId" : "listUsers",
+        "parameters" : [ {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = the whole list.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the list: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -6203,17 +6302,30 @@
                 }
               }
             },
-            "description" : "The account rows (id-ordered)"
+            "description" : "The account rows (id-ordered)",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The REGISTERED + ADMIN account count WITHOUT the paging applied (always present).",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminUserDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {

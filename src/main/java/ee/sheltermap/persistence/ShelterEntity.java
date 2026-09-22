@@ -70,6 +70,14 @@ public class ShelterEntity {
     @Column(name = "created_by")
     private Long createdBy;
 
+    /**
+     * Write-time trust snapshot (V31, W2-A): the submitter's verified
+     * standing as at write time; NULL = no snapshot (pre-V31 rows, registry
+     * rows) — the read falls back to the live author derivation.
+     */
+    @Column(name = "submitter_verified_at_creation")
+    private Boolean submitterVerifiedAtCreation;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -241,6 +249,14 @@ public class ShelterEntity {
 
     public void setCreatedBy(Long createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Boolean getSubmitterVerifiedAtCreation() {
+        return submitterVerifiedAtCreation;
+    }
+
+    public void setSubmitterVerifiedAtCreation(Boolean submitterVerifiedAtCreation) {
+        this.submitterVerifiedAtCreation = submitterVerifiedAtCreation;
     }
 
     public Instant getCreatedAt() {

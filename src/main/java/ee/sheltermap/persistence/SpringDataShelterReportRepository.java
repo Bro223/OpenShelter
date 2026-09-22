@@ -38,21 +38,31 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
     List<Object[]> latestByShelterAndUserForShelterIdsAndType(@Param("ids") Collection<Long> ids,
                                                               @Param("type") ee.sheltermap.domain.ShelterReportType type);
 
-    /** One shelter's reports, newest first, capped at the {@code limit}
-     *  most recent rows (the admin queue); created_at ties break by id
-     *  desc. The cap is the LIMIT clause — the queue table is append-only,
-     *  so the bound belongs in the SQL, not in an in-memory trim. */
+    /** One shelter's reports, newest first, the page starting at
+     *  {@code offset} with at most {@code limit} rows (the admin queue,
+     *  paged since W2-A); created_at ties break by id desc. The paging is
+     *  the OFFSET/LIMIT clauses — the queue table is append-only, so the
+     *  bound belongs in the SQL, not in an in-memory trim. */
     @Query("select r from ShelterReportEntity r "
             + "where r.shelterId = :shelterId "
-            + "order by r.createdAt desc, r.id desc limit :limit")
+            + "order by r.createdAt desc, r.id desc offset :offset fetch first :limit rows only")
     List<ShelterReportEntity> findLatestByShelterId(@Param("shelterId") Long shelterId,
+                                                    @Param("offset") long offset,
                                                     @Param("limit") int limit);
 
-    /** Every report, newest first, capped at the {@code limit} most recent
-     *  rows (the admin queue without a shelter filter). Served by
-     *  idx_shelter_reports_created (V30): the ORDER BY matches the
-     *  composite, so the read is an index scan of the newest rows. */
+    /** The shelter's report length without paging (W2-A X-Total-Count). */
+    @Query("select count(r) from ShelterReportEntity r where r.shelterId = :shelterId")
+    long countByShelterId(@Param("shelterId") Long shelterId);
+
+    /** Every report, newest first, the page starting at {@code offset} with
+     *  at most {@code limit} rows (the admin queue without a shelter
+     *  filter). Served by idx_shelter_reports_created (V30): the ORDER BY
+     *  matches the composite, so the read is an index scan of the newest
+     *  rows. */
     @Query("select r from ShelterReportEntity r "
-            + "order by r.createdAt desc, r.id desc limit :limit")
-    List<ShelterReportEntity> findLatest(@Param("limit") int limit);
+            + "order by r.createdAt desc, r.id desc offset :offset fetch first :limit rows only")
+    List<ShelterReportEntity> findLatest(@Param("offset") long offset, @Param("limit") int limit);
+
+    /** The report table's row count without paging (W2-A X-Total-Count —
+     *  the inherited {@code CrudRepository.count} is the one COUNT). */
 }

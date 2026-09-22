@@ -2,6 +2,7 @@ package ee.sheltermap.guidance;
 
 import ee.sheltermap.domain.MediaAsset;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +29,28 @@ public interface MediaAssetRepository {
 
     /** The library listing: newest first ({@code createdAt} descending, {@code id} descending). */
     List<MediaAsset> findAll();
+
+    /**
+     * Batched read by id (W2-A): the hero lookup for the guidance lists —
+     * ONE query over the page's hero ids, not a read of the whole library
+     * (the pre-W2-A hero index loaded every asset for every list request).
+     * Missing ids are simply absent from the result.
+     */
+    List<MediaAsset> findByIds(Collection<Long> ids);
+
+    /**
+     * A page of the library listing (W2-A — the owner's "every admin list
+     * pages" rule): the SAME newest-first order as {@link #findAll()},
+     * OFFSET/LIMIT in the store (the caller validates the bounds —
+     * {@code ee.sheltermap.api.Pagination}).
+     */
+    List<MediaAsset> findPage(long offset, int limit);
+
+    /**
+     * The library's asset count WITHOUT paging (the W2-A
+     * {@code X-Total-Count} header value for the media list).
+     */
+    long countAll();
 
     /**
      * The reused-by count per referenced asset in ONE batched query

@@ -3,6 +3,7 @@ package ee.sheltermap.guidance;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.MediaAsset;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -58,6 +59,27 @@ public class InMemoryMediaAssetRepository implements MediaAssetRepository {
                 .sorted(Comparator.comparing(MediaAsset::getCreatedAt).reversed()
                         .thenComparing(MediaAsset::getId, Comparator.reverseOrder()))
                 .toList();
+    }
+
+    @Override
+    public List<MediaAsset> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .map(store::get)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public List<MediaAsset> findPage(long offset, int limit) {
+        return findAll().stream().skip(offset).limit(limit).toList();
+    }
+
+    @Override
+    public long countAll() {
+        return store.size();
     }
 
     @Override

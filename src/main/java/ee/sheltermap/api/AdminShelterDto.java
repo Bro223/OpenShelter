@@ -59,6 +59,11 @@ public record AdminShelterDto(
         @Schema(description = "The NON_EXISTENT subset of the community "
                 + "reports; 0 when none.")
         int nonexistentReports,
+        @Schema(description = "The open 'inaccurate information' subset of the "
+                + "community reports (WRONG_LOCATION + OTHER; 0 when none) — "
+                + "W2-A: EITHER report kind drives the reported state. Open "
+                + "means not dismissed (a dismissed report stops counting).")
+        int inaccurateReports,
         ShelterDto.Occupancy occupancy,
         Integer capacity,
         @Schema(description = "The creator's profile name; null for registry "

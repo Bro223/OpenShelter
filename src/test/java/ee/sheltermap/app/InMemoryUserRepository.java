@@ -6,6 +6,7 @@ import ee.sheltermap.domain.RegisteredUser;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +92,27 @@ public class InMemoryUserRepository implements UserRepository {
     @Override
     public List<User> findAll() {
         return List.copyOf(store.values());
+    }
+
+    @Override
+    public List<User> findAccountPage(long offset, int limit) {
+        // Mirrors the JPA query: the tab's kinds only (REGISTERED + ADMIN
+        // — GUEST rows have no credentials to suspend), id-ordered,
+        // OFFSET/LIMIT (the JPA impl excludes GUESTs in the SQL; the fake
+        // excludes them here so a page never loads the whole population).
+        return store.values().stream()
+                .filter(u -> u instanceof AdminUser || u instanceof RegisteredUser)
+                .sorted(Comparator.comparing(User::getId))
+                .skip(offset)
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public long countAccounts() {
+        return store.values().stream()
+                .filter(u -> u instanceof AdminUser || u instanceof RegisteredUser)
+                .count();
     }
 
     @Override

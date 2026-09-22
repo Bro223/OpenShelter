@@ -5,6 +5,7 @@ import ee.sheltermap.guidance.MediaAssetRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,6 +71,31 @@ public class JpaMediaAssetRepository implements MediaAssetRepository {
         return assets.findAllByOrderByCreatedAtDescIdDesc().stream()
                 .map(MediaAssetMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaAsset> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return assets.findAllById(ids).stream()
+                .map(MediaAssetMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaAsset> findPage(long offset, int limit) {
+        return assets.findPage(offset, limit).stream()
+                .map(MediaAssetMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAll() {
+        return assets.count();
     }
 
     @Override

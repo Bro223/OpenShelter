@@ -207,18 +207,17 @@ public class GuidanceService {
         String requested = resolveLocale(locale);
         // The translation rows of PUBLISHED posts in the locale, already in the
         // public index order (pinned first, sortOrder asc, publishedAt desc,
-        // id desc — guidance-manual-order D2). The
-        // posts are batch-loaded once for the hero image, pinned and published
-        // stamp — one extra read, no per-row N+1.
+        // id desc — guidance-manual-order D2). The posts are batch-loaded in
+        // ONE query over the page's post ids (W2-A: the pre-change per-row
+        // detail fetch was the guidance index's N+1) for the hero image,
+        // pinned and published stamp — no per-row read.
         List<GuidanceTranslation> rows = translations.findPublishedInLocale(requested);
         if (rows.isEmpty()) {
             return List.of();
         }
         List<Long> postIds = rows.stream().map(GuidanceTranslation::getPostId).distinct().toList();
-        Map<Long, GuidancePost> postById = new HashMap<>();
-        for (long id : postIds) {
-            posts.findById(id).ifPresent(p -> postById.put(id, p));
-        }
+        Map<Long, GuidancePost> postById = posts.findByIds(postIds).stream()
+                .collect(HashMap::new, (map, post) -> map.put(post.getId(), post), HashMap::putAll);
         List<PublicGuidanceView> views = new ArrayList<>(rows.size());
         for (GuidanceTranslation row : rows) {
             GuidancePost post = postById.get(row.getPostId());

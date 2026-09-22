@@ -69,17 +69,22 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
-    public List<Row> findLatest(int limit) {
+    public List<Row> findLatest(long offset, int limit) {
         // Newest first; the id tie-break keeps same-timestamp rows
-        // deterministic (the stable-order discipline, B7a).
-        var page = actions.findAll(
-                PageRequest.of(0, limit, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
-        return page.getContent().stream()
+        // deterministic (the stable-order discipline, B7a). The declared
+        // List return pays no hidden count (W2-A — the count is the
+        // explicit countAll twin behind the X-Total-Count header).
+        return actions.findLatestPage(offset, limit).stream()
                 .map(entity -> new Row(entity.getId(), entity.getShelterId(), entity.getSubjectUserId(),
                         entity.getModeratorId(),
                         entity.getAction(), entity.getReason(), entity.getPreviousStatus(),
                         entity.getNewStatus(), entity.getCreatedAt(), entity.getSubjectLabel()))
                 .toList();
+    }
+
+    @Override
+    public long countAll() {
+        return actions.count();
     }
 
     @Override

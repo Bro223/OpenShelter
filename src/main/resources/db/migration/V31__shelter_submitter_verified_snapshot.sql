@@ -1,0 +1,14 @@
+-- Write-time trust snapshot (W2-A, part 2 of the erasure fix): the
+-- submitter's verified standing AS AT THE MOMENT OF SUBMISSION, frozen
+-- onto the row. shelters.created_by is ON DELETE SET NULL (V7), so
+-- account erasure must not change a submission's standing — the row
+-- carries its own answer from the moment it was written.
+--
+-- NULL = no write-time snapshot: pre-V31 rows and every non-user write
+-- path (registry imports have no author by design). Reads fall back to
+-- the live author derivation for NULL rows — honest on pre-existing
+-- data, and an already-orphaned pre-V31 row resolves UNVERIFIED (the
+-- standing an already-orphaned row inherits is an owner backfill
+-- decision; this column is shaped so that decision is one UPDATE, not a
+-- migration rewrite).
+ALTER TABLE shelters ADD COLUMN submitter_verified_at_creation BOOLEAN;

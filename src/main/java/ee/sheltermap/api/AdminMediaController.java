@@ -4,6 +4,7 @@ import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,21 +61,51 @@ public class AdminMediaController {
      * The library listing (D8): every asset newest-first, each with its
      * serving URL, dimensions, size, upload date and reused-by count
      * (0 for an unused asset — it is listed like any other).
+     *
+     * <p>Paging (W2-A — the owner's "every admin list pages" rule):
+     * optional {@code limit} (1..200; absent = no paging) / {@code offset}
+     * (>= 0) page the newest-first order in SQL, and the
+     * {@code X-Total-Count} response header is the library's asset count
+     * WITHOUT paging (always present).
      */
     @GetMapping
     @Operation(summary = "The media library listing",
             description = "Every asset newest-first, with serving URL, dimensions, "
                     + "size, upload date and the reused-by-post count (0 for an "
-                    + "unused asset — the library is the admin's inventory).")
+                    + "unused asset — the library is the admin's inventory). "
+                    + "Optional limit (1..200; absent = no paging) / offset (>= 0) "
+                    + "page the newest-first order; the X-Total-Count response "
+                    + "header is the library's asset count WITHOUT paging (always "
+                    + "present).")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The assets (newest "
-                    + "first)", content = @Content(array = @ArraySchema(schema =
+                    + "first)", headers = {
+                    @Header(name = "X-Total-Count",
+                            description = "The library's asset count WITHOUT the "
+                                    + "paging applied (always present).",
+                            schema = @Schema(type = "integer", format = "int32"))
+            }, content = @Content(array = @ArraySchema(schema =
                     @Schema(implementation = MediaAssetDto.class)))),
+            @ApiResponse(responseCode = "400", description = "A limit outside 1..200, "
+                    + "or a negative offset"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
-    public List<MediaAssetDto> list() {
+    public ResponseEntity<List<MediaAssetDto>> list(
+            @Parameter(description = "Optional page size: 1..200; absent = no "
+                    + "paging (the whole library).")
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the newest-first "
+                    + "order: >= 0; past the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        return media.list().stream().map(AdminMediaController::toDto).toList();
+        // The bounds are checked BEFORE the read (the shared paging rule).
+        Pagination.requireLimit(limit);
+        Pagination.requireOffset(offset);
+        Pagination.Paged<MediaService.MediaAssetWithUsage> paged = media.listPage(limit, offset);
+        List<MediaAssetDto> dtos = paged.rows().stream().map(AdminMediaController::toDto).toList();
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(dtos);
     }
 
     /**

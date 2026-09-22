@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * The admin guidance authoring API (crisis-guidance D3) — thin shell:
@@ -169,7 +170,6 @@ public class AdminGuidanceController {
         Map<Long, List<GuidanceTranslation>> allTranslations = scoped
                 ? Map.of()
                 : guidance.translationsByPost();
-        Map<Long, MediaAsset> heroes = heroIndex(all);
         // The search filter runs over the RENDERED content, in the stored
         // manual order — the order is UNCHANGED, so search and reorder
         // never fight over sorting.
@@ -180,6 +180,9 @@ public class AdminGuidanceController {
         int total = filtered.size();
         // The slice runs LAST, over the (filtered) stored manual order.
         List<GuidancePost> paged = Pagination.slice(filtered, offset, limit);
+        // ONE batched read for the PAGE's hero URLs (W2-A: the pre-change
+        // hero index loaded the WHOLE media library for every request).
+        Map<Long, MediaAsset> heroes = heroIndex(paged);
         List<AdminGuidancePostDto> dtos = paged.stream()
                 .map(post -> toAdminDto(post, heroes, content.get(post.getId())))
                 .toList();
@@ -642,12 +645,22 @@ public class AdminGuidanceController {
 
     // ------------------------------------------------------------- mapping
 
+    /**
+     * The hero assets of the GIVEN posts in ONE batched query (W2-A):
+     * the distinct hero ids of the page, not the whole library — the
+     * pre-change hero index loaded every asset for every list request.
+     */
     private Map<Long, MediaAsset> heroIndex(List<GuidancePost> posts) {
-        Map<Long, MediaAsset> heroes = new HashMap<>();
-        for (MediaAsset asset : mediaAssets.findAll()) {
-            heroes.put(asset.getId(), asset);
+        List<Long> heroIds = posts.stream()
+                .map(GuidancePost::getHeroImageId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (heroIds.isEmpty()) {
+            return Map.of();
         }
-        return heroes;
+        return mediaAssets.findByIds(heroIds).stream()
+                .collect(HashMap::new, (map, asset) -> map.put(asset.getId(), asset), HashMap::putAll);
     }
 
     private Map<Long, MediaAsset> heroIndexFor(GuidancePost post) {

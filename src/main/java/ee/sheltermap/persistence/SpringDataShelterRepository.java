@@ -52,6 +52,16 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     List<ShelterEntity> findByIdIn(Collection<Long> ids);
 
     /**
+     * Paged public list and admin list reads (W2-A) live in
+     * {@link JpaShelterRepository} as DYNAMIC native queries: a static
+     * "(:p IS NULL OR ...)" predicate shape is an unpredictable boolean
+     * expression that the planner cannot constant-fold — it seq-scans the
+     * whole table even for LIMIT 1 (measured), which would defeat the
+     * paging cost model. Building the WHERE from the predicates that are
+     * actually present lets a bounded page ride the PK index.
+     */
+
+    /**
      * Bulk-deletes rows of {@code source} whose {@code externalId} is NOT in
      * the keep-list. Rows with NULL {@code externalId} never match (SQL NULL
      * semantics), so USER submissions are safe by construction.

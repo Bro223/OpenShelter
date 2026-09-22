@@ -85,6 +85,23 @@ public interface UserRepository {
     List<User> findAll();
 
     /**
+     * Paged admin Users tab read (W2-A): the REGISTERED and ADMIN
+     * accounts — the tab's population, with GUEST rows excluded IN THE
+     * SQL (they have no credentials to suspend, and a page must not
+     * decrypt the whole account population to answer them), id-ordered,
+     * LIMIT/OFFSET (the caller validates the bounds —
+     * {@code ee.sheltermap.api.Pagination}).
+     */
+    List<User> findAccountPage(long offset, int limit);
+
+    /**
+     * The REGISTERED + ADMIN account count WITHOUT paging (the W2-A
+     * {@code X-Total-Count} header value for the users list — guests
+     * excluded, the same population {@link #findAccountPage} pages).
+     */
+    long countAccounts();
+
+    /**
      * Stamps sign-in activity (retention-pruning): a registration,
      * a successful login, or a refresh rotation. Column-only write —
      * the auth paths must not pay a full aggregate re-save (PII

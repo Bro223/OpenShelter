@@ -2,6 +2,7 @@ package ee.sheltermap.guidance;
 
 import ee.sheltermap.domain.GuidancePost;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,10 +24,6 @@ import java.util.Optional;
  *       stamp ranks after any stamped instant), {@code id} descending.
  *       The locale-scoped admin list and the locale-scoped reorder walk
  *       this order: the visible posts' SLOTS are their positions here;
- *   <li>{@link #findPublished(String)} — pinned first, then
- *       {@code sortOrder} ascending, then {@code publishedAt} descending
- *       (a tie-breaker — {@code sortOrder} is not uniqueness-constrained),
- *       {@code id} descending (backed by the V28 partial index).</li>
  * </ul>
  *
  * <p>The PUBLISHED filter lives in the query itself (D4): no code path
@@ -45,6 +42,13 @@ public interface GuidancePostRepository {
 
     Optional<GuidancePost> findById(long id);
 
+    /**
+     * Batched read by id (W2-A: the public index's post load — ONE query
+     * over the page's post ids instead of one detail fetch per row, the
+     * guidance-index N+1). Missing ids are simply absent from the result.
+     */
+    List<GuidancePost> findByIds(Collection<Long> ids);
+
     /** A draft holds a slug too — the slug is unique across all posts (the V23 constraint). */
     Optional<GuidancePost> findBySlug(String slug);
 
@@ -62,16 +66,6 @@ public interface GuidancePostRepository {
      * two agree (admin-locale-scope).
      */
     List<GuidancePost> findAllInStoredGlobalOrder();
-
-    /**
-     * The public index order in ONE locale: pinned first, then
-     * {@code sortOrder} ascending, {@code publishedAt} descending
-     * (tie-breaker — {@code sortOrder} is not uniqueness-constrained),
-     * {@code id} descending. The locale is an exact
-     * column match — the value is validated upstream (the column is
-     * VARCHAR(5)).
-     */
-    List<GuidancePost> findPublished(String locale);
 
     /**
      * The highest stored {@code sortOrder}, or 0 when there are no posts

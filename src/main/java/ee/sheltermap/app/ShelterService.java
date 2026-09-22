@@ -187,6 +187,15 @@ public class ShelterService {
                     });
         }
         place.setCreatedBy(user.getId());
+        // Write-time trust snapshot (V31, W2-A part 2 of the erasure fix):
+        // freeze the submitter's verified standing AS AT WRITE TIME onto
+        // the row — account erasure (created_by is ON DELETE SET NULL, V7)
+        // must not change it. "Verified" = at least one active (non-revoked)
+        // claim — the exact definition the DTO derives for a live author
+        // (addPlace's canWrite gate guarantees this account may submit; a
+        // policy that ever allowed writing with no claims would snapshot
+        // false, which is the honest answer).
+        place.setSubmitterVerifiedAtCreation(!user.getData().levels().isEmpty());
         // community-review-queue v2 D2: new community rows publish
         // immediately with the unverified trust state — the public list
         // is unchanged, the UI shows the "newly added" treatment.

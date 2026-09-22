@@ -108,4 +108,25 @@ public final class Pagination {
         int to = limit == null ? rows.size() : Math.min(rows.size(), from + limit);
         return List.copyOf(rows.subList(from, to));
     }
+
+    /**
+     * A paged read with its un-paged total (W2-A): the rows of ONE page
+     * plus the length of the read WITHOUT the paging (the {@code
+     * X-Total-Count} header value, always present on the admin list
+     * endpoints). The total is the FILTERED length — filters and search
+     * apply, the offset/limit do not.
+     *
+     * @param <T>    the row type
+     * @param rows   the page's rows (possibly empty past the end)
+     * @param total  the filtered, un-paged length
+     */
+    public record Paged<T>(List<T> rows, long total) {
+
+        public Paged {
+            Objects.requireNonNull(rows, "rows");
+            if (total < 0) {
+                throw new IllegalArgumentException("total must be non-negative");
+            }
+        }
+    }
 }

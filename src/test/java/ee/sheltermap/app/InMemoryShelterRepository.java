@@ -137,6 +137,83 @@ public class InMemoryShelterRepository implements ShelterRepository {
     }
 
     @Override
+    public List<Shelter> findActivePage(List<ShelterSource> sources, BoundingBox bbox, Boolean hasCapacity,
+                                        ShelterSource provenanceSource, ReviewStatus provenanceReviewStatus,
+                                        long offset, int limit) {
+        // The JPA native query's semantics, mirrored in memory: the
+        // ACTIVE-only public projection, the viewport (inclusive), the
+        // capacity filter (null = either) and the provenance column pair
+        // (null = either), id-ascending, LIMIT/OFFSET.
+        return store.values().stream()
+                .filter(s -> sources.contains(s.getSource()))
+                .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
+                .filter(s -> bbox == null || bbox.contains(s.getLocation().lat(), s.getLocation().lng()))
+                .filter(s -> hasCapacity == null || (s.getCapacity() != null) == hasCapacity)
+                .filter(s -> provenanceSource == null || s.getSource() == provenanceSource)
+                .filter(s -> provenanceReviewStatus == null || s.getReviewStatus() == provenanceReviewStatus)
+                .sorted(Comparator.comparing(Shelter::getId))
+                .skip(offset)
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public List<Shelter> findAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern,
+                                       long offset, int limit) {
+        // The JPA native query's semantics, mirrored in memory: every
+        // status (the admin view), the exact status + source filters, the
+        // case-insensitive LIKE (the pattern arrives already lowercased,
+        // % -wildcarded and ESCAPE '\\' -quoted), id-ascending,
+        // LIMIT/OFFSET.
+        return store.values().stream()
+                .filter(s -> status == null || s.getStatus() == status)
+                .filter(s -> sources.contains(s.getSource()))
+                .filter(s -> qPattern == null
+                        || likeMatches(qPattern, s.getName()) || likeMatches(qPattern, s.getAddress()))
+                .sorted(Comparator.comparing(Shelter::getId))
+                .skip(offset)
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public long countAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern) {
+        return store.values().stream()
+                .filter(s -> status == null || s.getStatus() == status)
+                .filter(s -> sources.contains(s.getSource()))
+                .filter(s -> qPattern == null
+                        || likeMatches(qPattern, s.getName()) || likeMatches(qPattern, s.getAddress()))
+                .count();
+    }
+
+    /**
+     * The SQL {@code lower(value) LIKE pattern ESCAPE '\\'} the admin
+     * search runs, emulated: {@code %} = any run, {@code _} = any single
+     * character, {@code \x} = the literal x. Case-insensitive (both sides
+     * lowercased — the pattern arrives lowercased already).
+     */
+    private static boolean likeMatches(String pattern, String value) {
+        if (value == null) {
+            return false;
+        }
+        StringBuilder regex = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                i++;
+                regex.append(java.util.regex.Pattern.quote(String.valueOf(pattern.charAt(i))));
+            } else if (c == '%') {
+                regex.append(".*");
+            } else if (c == '_') {
+                regex.append('.');
+            } else {
+                regex.append(java.util.regex.Pattern.quote(String.valueOf(c)));
+            }
+        }
+        return value.toLowerCase(java.util.Locale.ROOT).matches(regex.toString());
+    }
+
+    @Override
     public void deleteById(Long id) {
         store.remove(id);
     }
