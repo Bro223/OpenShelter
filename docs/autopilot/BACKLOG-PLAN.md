@@ -243,6 +243,23 @@ silently unaddressed. Then the full gate set, and the push.
 
 ---
 
+## Wave 7 — the legend becomes the filter (owner request, queued)
+
+**Dispatch after I18N-TOKEN-COPY releases `features/map/**`, `styles.scss` and the catalogs.**
+
+Owner request: the legend items that represent map pins become **clickable to select and unselect**, so the legend is the filter; a brief affordance line explains the mechanic ("click to select"), translated into Estonian and Russian. The green square entry is excluded — first identify what that entry actually is and report it rather than assuming.
+
+Constraints that make this safe and the reason it is one lane:
+- **One control, not two.** The map already has a separate trust-chip filter row; two controls for one piece of state is the exact "two sources of truth" defect the audits keep finding. Make the legend the single filter and remove or absorb the chip row, reporting which you chose.
+- The legend swatches already reuse the real marker classes, so selection state must not fork the geometry or the colours — a selected entry renders the same pin the map draws.
+- Selection must be reflected in the URL (the paging/filter work already established URL-only persistence; no localStorage) and must survive a reload, with the same clamp/normalize discipline as the other filters.
+- Filtering is a display concern: it must not refetch or alter the underlying data, and must not change what a shelter *is*. An empty result gets the shared empty state, not a blank map.
+- Accessibility: entries are real buttons with an accessible name and a pressed state, keyboard operable, and the affordance line is the accessible description — not a colour cue alone.
+- The hint string is new copy in three languages: provide it, and route it through the native-speaker review packet rather than treating machine output as final.
+- Tests: selecting filters the rendered markers, unselecting restores them, the URL round-trips, keyboard toggling works, and the affordance string exists in all three catalogs. Prove the filter test red against a no-op first.
+
+---
+
 ## Owner-side queue
 
 1. **ET/RU review packet** — the corpus plus the 38 new strings; every Estonian defect this week

@@ -5,9 +5,16 @@
 ### Requirement: Trust-state marker colours and badges
 
 The map legend SHALL show four entries: Registry (blue), New community
-(amber, new token), Confirmed community (green), Reported (orange).
-Marker tone for community rows: amber when review_status NEW, green
-when CONFIRMED; reported rows keep the orange override. List rows and
+(new token — the unified yellow family, one value with the verified
+yellow), Confirmed community (green), Reported (orange). (Superseded by
+later owner decisions: the NEW legend entry was removed, and then the NEW
+marker tone itself — the pin carries verification depth, not recency; the
+state rides on the "Newly added" badge; design-tokens.spec.ts pins the
+absence of a .shelter-marker--new rule.)
+Marker tone for community rows: the verification-depth shape (the yellow
+family) when the submitter's depth is reported, the community tone
+otherwise — there is no recency tone on the pin; reported rows keep the
+orange override. List rows and
 detail pages SHALL badge community rows: "Newly added" (NEW) or
 "Community-checked" (CONFIRMED); rows with location_kind PRIVATE add a
 "Private home (declared)" badge and the detail page shows a note that it
@@ -22,8 +29,9 @@ verified, and must not be relied on during an emergency.
 #### Scenario: New vs confirmed community rows
 
 - **WHEN** the map shows one NEW and one CONFIRMED community row
-- **THEN** they render amber and green respectively and the legend
-  names both states
+- **THEN** both render the community tone (the pin carries depth, not
+  recency — the NEW row's "Newly added" badge, not the pin, carries the
+  state)
 
 #### Scenario: Private declaration surfaces everywhere
 

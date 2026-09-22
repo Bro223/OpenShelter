@@ -38,7 +38,8 @@ separate later waves.
   derived from the declaration (design D7a).
 - `moderation_actions` audit table + `GET /admin/audit`; admin
   `POST /admin/shelters/{id}/review` accepts CONFIRM / REJECT (reason).
-- Display: legend grows to Registry / New community (amber) /
+- Display: legend grows to Registry / New community (yellow — since
+  unified with the verified yellow, one value per theme) /
   Confirmed community (green) / Reported (orange); NEW community rows
   get a "Newly added" badge + unverified warning on the detail page;
   CONFIRMED get "Community-checked". Nearest CTA renamed "Show shelters
@@ -51,7 +52,8 @@ separate later waves.
 - Backend: V11 migration, domain (ReviewStatus, LocationKind),
   submission/query/report/admin services, DTOs, AdminController (+2
   endpoints), ITs.
-- Frontend: marker tone logic + legend + new amber token, list/detail
+- Frontend: marker tone logic + legend + new yellow token (since
+  unified with the verified yellow), list/detail
   badges, map CTA copy + distance, submission form checkbox, admin
   (Unconfirmed + Audit tabs), contributions badges, gateways + specs.
 - Registry rows: value CONFIRMED, behaviour unchanged.

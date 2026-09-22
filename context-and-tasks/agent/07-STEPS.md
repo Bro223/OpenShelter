@@ -500,8 +500,9 @@ writes its row in the SAME transaction (D4). DTOs carry `reviewStatus` (+ `revie
 `/mine` and admin rows) + `locationKind`; `CreateShelterRequest` accepts `locationKind`
 (default `PUBLIC`).
 
-**Frontend (D5–D7):** marker palette — community `NEW` rows render amber
-(`--color-new` token, documented in `styles.scss`; `shelter-marker--new` class), `CONFIRMED`
+**Frontend (D5–D7):** marker palette — community `NEW` rows render yellow
+(the unified yellow family, one value with `--color-verified`; `--color-new`
+token, documented in `styles.scss`; `shelter-marker--new` class), `CONFIRMED`
 rows green, registry + reported states unchanged — the map legend is now **Registry / New
 community / Confirmed community / Reported** (D5). List rows + detail show "Newly added" /
 "Community-checked" badges for USER rows (replacing the old "User-submitted" provenance text)

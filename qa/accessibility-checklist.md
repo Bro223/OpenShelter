@@ -68,7 +68,7 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 **Status: VERIFIED (token-level); PARTIAL (per-surface visual)**
 
 - Single source of truth `:root` token block (`styles.scss`); documented ratios at definition: crisis CTA white-on-`#bf360c` = 5.6:1 (`styles.scss`), reported white-on-`#c2410c` = 5.18:1 (`styles.scss`), two-reds contrast rationale 5.4:1 vs 9.1:1 (N20 comment).
-- Automated contrast audit: `design-tokens.spec.ts` — "every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in both themes", "every contrast exemption is honest", "colour literals only inside the :root token block or the theme block".
+- Automated contrast audit: `design-tokens.spec.ts` — "every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme", "every contrast exemption is honest", "colour literals only inside the :root token block or the theme block".
 - High-contrast theme as token override (same token names, no parallel stylesheet): `[data-theme='high-contrast']` block (`styles.scss`), tests "the high-contrast theme block overrides a sampled set of token names (D1)" and "overrides the SAME --color* name set as :root (both directions)".
 - No first-paint flash: pre-paint inline script applies `data-theme` before the bundle (`src/index.html`); persistence in `core/theme-store.ts` (+ `theme-store.spec.ts` 7 cases incl. reload survival and pre-paint read).
 - OS form-control color fix for HC (UA colors don't follow `data-theme`): `styles.scss` + test "form controls and links carry explicit token colours".
