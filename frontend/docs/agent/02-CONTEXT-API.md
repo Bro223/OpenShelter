@@ -10,8 +10,10 @@ FE-facing summary).
 ## Base URL & CORS
 
 - Base URL from `environment.development.ts` → `''` (same-origin) in dev; the dev
-  server proxies `/api`, `/auth`, `/account`, `/verify` to `http://localhost:8080`
-  (`proxy.conf.json`) — never hardcode a URL anywhere else.
+  server proxies `/api`, `/auth`, `/account`, `/verify/` and `/admin/` to `http://localhost:8080`
+  (`proxy.conf.js` — the `.js` form is load-bearing: `/account` is BOTH an Angular route and an
+  API path, so its bypass keys on the request, not the URL — see the file's header) — never
+  hardcode a URL anywhere else.
 - Backend CORS allows `http://localhost:5173` (dev, direct testing only). No auth header needed on public GETs.
 
 ## Error shape (uniform — every non-2xx is this)
@@ -168,16 +170,16 @@ door.
 
 | Method + path                                | Body / query                                                                                                  | Success                                                                                                                                                                                                                         | Errors                                                |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `GET /admin/shelters`                        | optional `status`, `source` (exact match) + `q` (name/address substring) — absent fields omitted from the URL | 200 `AdminShelterDto[]` — **every shelter incl. hidden** (id-ordered: `id, name, address, source, status, nonexistentReports, occupancy, capacity, submitter, reviewStatus, reviewNote, locationKind, inaccurate, infoRequest`) | 401, 403                                              |
+| `GET /admin/shelters`                        | optional `status`, `source` (exact match) + `q` (name/address substring) + `limit` (1..200; absent = no paging) + `offset` (>= 0) — absent fields omitted from the URL | 200 `AdminShelterDto[]` — **every shelter incl. hidden** (id-ordered: `id, name, address, source, status, nonexistentReports, inaccurateReports, occupancy, capacity, submitter, reviewStatus, reviewNote, locationKind, provenance, inaccurate, infoRequest`); every answer carries the `X-Total-Count` header (the un-paged filtered length) | 400 (limit/offset), 401, 403                        |
 | `POST /admin/shelters/{id}/status`           | `{status: 'ACTIVE' \| 'INACTIVE'}`                                                                            | 204 — manual hide/restore (USER rows only; a **restore disarms auto-hide permanently**)                                                                                                                                         | 400 (missing/unknown status), 404, 409 (registry row) |
 | `POST /admin/shelters/{id}/review`           | `{action: 'CONFIRM' \| 'REJECT', reason?}`                                                                    | 200 `{"ok": true}` — the rare MANUAL trust override: CONFIRM promotes the row to CONFIRMED (status untouched), REJECT hides it (REJECTED + INACTIVE, reason stored as the note)                                                 | 404, 409 (registry row)                               |
 | `DELETE /admin/shelters/{id}`                | —                                                                                                             | 204 — hard delete (reports and occupancy cascade)                                                                                                                                                                               | 404, 409 (registry row)                               |
-| `GET /admin/reports`                         | optional `shelterId`                                                                                          | 200 `AdminShelterReportDto[]` — the shelter-report queue, **newest first**, with the shelter's LIVE status + the reporter's name/email                                                                                          | 401, 403, 404 (unknown `shelterId`)                   |
+| `GET /admin/reports`                         | optional `shelterId` + `excludeDismissed` (true hides the dismissed rows — absent = everything) + `limit` (1..200, default 100) + `offset` (>= 0) | 200 `AdminShelterReportDto[]` — the shelter-report queue, **newest first**, with the shelter's LIVE status + the reporter's name/email; every answer carries the `X-Total-Count` header (the queue's length without paging — the OPEN count when `excludeDismissed=true`) | 400 (limit/offset), 401, 403, 404 (unknown `shelterId`) |
 | `POST /admin/reports/{id}/dismiss`           | —                                                                                                             | 204 — mark resolved (**idempotent**; the row is KEPT, stamped once)                                                                                                                                                             | 404                                                   |
 | `GET /admin/shelters/{id}/history`           | —                                                                                                             | 200 `AdminShelterHistoryDto[]` — the row's append-only CREATED/EDITED/DELETED trail, ascending (snapshot name + actor per event)                                                                                                | 401, 403, 404                                         |
-| `GET /admin/audit`                           | optional `limit`                                                                                              | 200 `AdminAuditDto[]` — the append-only moderation audit trail, newest first (default 100, limit 1..200)                                                                                                                        | 400 (limit), 401, 403                                 |
+| `GET /admin/audit`                           | optional `limit` (1..200, default 100) + `offset` (>= 0)                                                                                              | 200 `AdminAuditDto[]` — the append-only moderation audit trail, newest first; every answer carries the `X-Total-Count` header (the trail's length without paging)                                                                                                                        | 400 (limit/offset), 401, 403                          |
 | `GET /admin/alerts`                          | optional `limit`                                                                                              | 200 `AdminAlertDto[]` — the in-memory throttle/abuse alert ring, newest first (default 50, limit 1..200)                                                                                                                        | 400 (limit), 401, 403                                 |
-| `GET /admin/users`                           | —                                                                                                             | 200 `AdminUserDto[]` — every REGISTERED + ADMIN account (id, name, email, kind, suspendedAt)                                                                                                                                    | 401, 403                                              |
+| `GET /admin/users`                           | optional `limit` (1..200; absent = the whole list) + `offset` (>= 0)                                                                                                             | 200 `AdminUserDto[]` — every REGISTERED + ADMIN account (id, name, email, kind, suspendedAt); every answer carries the `X-Total-Count` header (the account count without paging)                                                                                                                                    | 400 (limit/offset), 401, 403                          |
 | `POST /admin/users/{id}/suspend`             | —                                                                                                             | 204 — sets `suspended_at` (**idempotent**; REGISTERED only)                                                                                                                                                                     | 404, 409                                              |
 | `POST /admin/users/{id}/unsuspend`           | —                                                                                                             | 204 — clears `suspended_at` (**idempotent**)                                                                                                                                                                                    | 404, 409                                              |
 | `POST /admin/shelters/{id}/request-info`     | `{message}`                                                                                                   | 204 — the moderator→submitter information request (one exchange per shelter; the reply arrives via `POST /api/shelters/{id}/info-request/reply`)                                                                                | 400 (blank), 404, 409 (registry row)                  |
@@ -297,9 +299,11 @@ interface ShelterDto {
   capacity: number | null; // USER submissions only
   submitterVerified: boolean; // backend-computed (creator has a completed verification;
   // registry rows false)
-  submitterVerification: 'PARTIAL' | 'FULL' | null; // the submitter's verification DEPTH,
-  // derived live (one confirmed channel = PARTIAL, two+ = FULL; null = no author or no
-  // confirmed channel) — drives the marker SHAPE (triangle vs circle), never the tone
+  submitterVerification: 'EMAIL' | 'PHONE' | 'SMART_ID' | 'FULL' | null; // the submitter's
+  // verification DEPTH, derived live from the author's CURRENT claims (the single channel when
+  // exactly one is confirmed, FULL at two+; null = no author or no confirmed channel) — drives
+  // the marker SHAPE and tone (unverified yellow triangle, one-channel yellow circle, FULL
+  // green circle — never colour alone)
   nonexistentReports: number; // the NON_EXISTENT subset of the community reports (0 when
   // none); the OR with inaccurateReports below drives the orange reported state
   // (marker + "Reported (n)" badge); the trust-weighted NON_EXISTENT tally reaching
@@ -316,6 +320,10 @@ interface ShelterDto {
   reportCount: number; // the TOTAL community shelter-report count (all types)
   lastVerifiedAt: string | null; // per-entry verification stamp; null = never verified
   inaccurate: boolean; // moderator "mark inaccurate" flag (the row stays visible)
+  // Present on the record, null on every public read — owner-scoped: the /mine
+  // projection carries both (the contributions panel renders them)
+  reviewNote: string | null; // the admin's REJECT reason; null while nothing is said
+  infoRequest: InfoRequestDto | null; // the moderator→submitter exchange — /mine only
 }
 
 interface OpenStatusDto {
@@ -335,6 +343,27 @@ interface ShelterDetailDto extends ShelterDto {
   // pickers' pre-select; null for guests, anonymous callers and no-report users
   yourOccupancyBand: OccupancyBand | null;
   yourOpenStatus: 'OPEN' | 'CLOSED' | null;
+  // M9 community pulse — the detail read ONLY (null on the list + /mine): the
+  // fresh (<= 2 h) gauge aggregates + the anonymized recent-report log
+  communityPulse: CommunityPulse | null;
+}
+
+interface CommunityPulse {
+  // null sub-block = nothing fresh (the UI's explicit empty state, never a neutral gauge)
+  openClosed: { openReports: number; closedReports: number; openShare: number } | null;
+  occupancy: { spaceReports: number; gettingFullReports: number; fullReports: number;
+               fullness: number } | null;
+  recentReports: { kind: 'OPEN' | 'CLOSED' | 'SPACE' | 'GETTING_FULL' | 'FULL';
+                   reportedAt: string }[]; // capped at 10, newest first, NO reporter identity
+}
+
+interface InfoRequestDto {
+  // the moderator→submitter exchange — the /mine projection only (null on the public
+  // list and detail reads); the admin's own copy is AdminShelterDto.infoRequest
+  message: string;
+  requestedAt: string; // ISO-8601
+  replyMessage: string | null; // null until the submitter answers (one-time reply)
+  repliedAt: string | null;
 }
 
 interface ApiError {
@@ -371,14 +400,33 @@ interface AdminShelterDto {
   reviewStatus: 'NEW' | 'CONFIRMED' | 'REJECTED';
   reviewNote: string | null; // the admin's REJECT reason
   locationKind: 'PUBLIC' | 'PRIVATE';
+  provenance: 'OFFICIAL' | 'PARTNER_VERIFIED' | 'COMMUNITY_REPORTED' | 'UNDER_REVIEW' | 'REPORTED_INACTIVE' | 'REJECTED'; // the same server-derived value as on ShelterDto — the admin list is the one surface where all six values are reachable (it keeps hidden rows)
   inaccurate: boolean;
   infoRequest: AdminInfoRequestDto | null; // the moderator→submitter exchange
+}
+
+interface AdminInfoRequestDto {
+  // the admin-side copy of InfoRequestDto — adds the requesting admin's name
+  message: string;
+  requestedAt: string; // ISO-8601
+  requestedByName: string; // the asking admin's profile name ("Unknown" after erasure)
+  replyMessage: string | null;
+  repliedAt: string | null;
 }
 
 interface AdminShelterFilters {
   status?: 'ACTIVE' | 'INACTIVE'; // exact match; absent = omitted from the URL
   source?: ShelterSource;
   q?: string; // name/address substring (server-side)
+  limit?: number; // 1..200; absent = no paging
+  offset?: number; // >= 0
+}
+
+interface AdminShelterReportFilters {
+  shelterId?: number; // narrow to one shelter (unknown → 404)
+  excludeDismissed?: boolean; // true hides the dismissed rows; absent = false (nothing hidden)
+  limit?: number; // 1..200; absent = the backend's default 100
+  offset?: number; // >= 0
 }
 
 interface AdminShelterReportDto {

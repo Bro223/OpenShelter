@@ -1,0 +1,75 @@
+# Documentation coordination board
+
+Three documentation lanes work in parallel. This file is how they avoid duplicating each other and how the parent sees disagreements without reading three reports.
+
+## The rules
+
+1. **One writer per file.** Each lane edits only what its section below says it owns. A lane that believes another file must change records that as a **request** in its own section instead of editing it.
+2. **Write here twice only:** once when you start (your scope, so others can see it) and once when you finish (your verdicts). Do not append continuously — simultaneous edits to this file are the one collision this board cannot prevent.
+3. **Edit only under your own `##` heading.** Never reformat, reorder or delete another lane's section.
+4. **Every claim carries `file:line` or a measured value.** "Looks stale" is not a finding. A claim the code honours is not stale — the counter-check is the deliverable, and rejected false positives are worth recording.
+5. **Disagreement is recorded, not resolved.** If you conclude another lane's section is wrong, write it under your heading with evidence and let the parent adjudicate.
+6. **Docs describe current state; history lives in dated blocks.** A document that records what shipped on a date is not stale — it is dated. Do not rewrite history to match today.
+7. **The guard rule:** any claim that is machine-checkable should end up pinned by a test. If you find a false claim that a guard could have caught, say so — that gap is a finding in its own right.
+
+---
+
+## DOCS-FIX-1 — repairing the root and frontend doc sets
+
+**Owns:** `README.md`, `frontend/README.md`, `frontend/docs/**` (including the agent packs under `frontend/docs/agent/`).
+**Input:** `reviews/16-docs-complete-root-frontend.md` — 12 distinct false claims across 14 claim groups, each with evidence.
+**Task:** correct each false claim so the document states what the code does. Do not invent policy where a document states a rule that is itself under review — add a dated note instead.
+
+### DOCS-FIX-1 log
+
+**Started.** Scope confirmed: `README.md`, `frontend/README.md`, `frontend/docs/**` (incl. `docs/agent/**` and `docs/rich-text-editor.md`). All 12 claims re-verified against the tree before touching anything (build measured fresh to /tmp, not copied from the review). Working tree note: the admin lane's WIP (`frontend/src/app/features/admin/admin-page.*`, `shelters-panel.*`, `guidance-panel.html`, `core/models.ts`) is present and uncommitted — my gates run against it; none of my doc edits intersect those files. The pre-existing lens findings in `admin-page.ts`/`admin-page.spec.ts` are that lane's, not mine. No file outside my scope is touched; cross-lane requests (if any) go under this heading.
+
+**Finished.** All 12 claims were still false on the current tree (none had been fixed by the day's other work, none was a review misread — every one re-verified before editing). Fixes, with evidence:
+
+| # | File:claim | Fix (measured/verified evidence) |
+|---|---|---|
+| F1 | `README.md:250` package-layout `GuidanceSlug` | Replaced with `SlugFactory` (real class, `src/main/java/ee/sheltermap/guidance/`; whole-repo grep: `GuidanceSlug` existed only in the README) |
+| F2 | `README.md:393` `/admin/shelters` row carries `openStatus` | Removed the field. `AdminShelterDto.java` re-read: 16 fields, no `openStatus` (the public `ShelterDto` has it; the admin one does not) |
+| F3 | `README.md:562` ".env.example lists the variable names this app reads" | Rewritten: the template lists what a real deployment must provide (DB/JWT/PII credentials, admin seed, provider switches + credentials, dev-only toggles). Measured: `application.yml` binds 51 `${VAR…}` names; the template lists ~25 of them — 30 are absent (e.g. `REGISTRY_CLIENT`, `VERIFICATION_*`, `CONTACT_CHANGE_*`, `MEDIA_*`, `HERO_IMPORT_*`, `RETENTION_*`, `SERVER_PORT`) |
+| F4 | `frontend/README.md:163-169` bundle figures | Re-measured on a fresh `ng build` to /tmp (same tree as the gates): **609.26 kB raw / 157.12 kB transfer** (was 610.08/157.31); SCSS warning list re-sorted and re-numbered from the build output: map-page **7.63**, guidance-translations **4.87**, guidance-panel **4.64**, submit-shelter-page **4.38** (now above shelters-panel 4.31 — order changed), rest unchanged. Exactly 15 warnings, none on the initial budget |
+| F5 | `frontend/README.md` deferrals "Still English-only: account/contributions/verify/admin/legal" | Rewritten: all those surfaces ARE translated. Measured: EN/ET/RU catalogs each carry 99 `account.*` / 32 `verify.*` / 282 `admin.*` / 187 `legal.*` keys (identical counts); templates use `\| t` throughout (account 85, verify 27, contributions 25, admin panels 11-54 each); coverage is pinned by `i18n.spec.ts` (key-parity), `catalog-identity.spec.ts` (refuses EN-identical values), `i18n-template-guard.spec.ts`. What remains deferred is only the RU native-speaker review (kept, as the doc already said) |
+| F6 | `frontend/README.md:101` `styles.scss:162-255` | Re-measured: the `[data-theme='high-contrast']` block is at **279-434** (line 162 is inside the `:root` badge-tint block). Added the missing third theme: black-and-yellow has NO SCSS block — runtime tokens via `ThemeStore`/`theme-tokens.ts`; also updated the `core/` tree comment ("high-contrast theme toggle" → three-option theme) |
+| F7 | `rich-text-editor.md:202` "the one component … ViewEncapsulation.None" | Rewritten as one of TWO: the second is `shared/accessibility-dialog.component.ts:57` (black-and-yellow page-wide rules, `.a11y-*`-prefixed). The safety argument adjusted accordingly |
+| F8 | `rich-text-editor.md:216` "styles ~3.7 kB, under the warning" | Re-measured: `guidance-editor.scss` = **4.27 kB** — OVER the 4 kB warning; it is in the 15-warning list. Reworded so the 10 kB error budget is named as the guard that matters |
+| F9 | `00-README.md:61`, `01-TASK.md:53`, `02-CONTEXT-API.md:14` `proxy.conf.json` | All three → `proxy.conf.js` (the loaded file per `package.json` start scripts; `proxy.conf.json` is an unused committed sibling). `02-CONTEXT-API.md:14` also gained the missing `/verify/` + `/admin/` prefixes (verified in `proxy.conf.js`) and a one-line pointer to the `.js`-is-load-bearing rationale |
+| F10 | `01-TASK.md:76` "compose with the source chips"; `05-CONTEXT-MAP.md` (purpose line, gateway cell, MapPage cell, decision 1) | Chips are gone (wave 8): `map-page.ts:232/889`, `map-page.html:290` ("the source-kind chips are gone"), page loads `list('ALL')` only. Rewrote all five sites; decision 1 retitled "Server-side filtering where the server can filter" (`Has capacity` = the one server refetch; `Open` client-side; legend = display-only tone filter). Left untouched: `00-README.md` M4 status line and `07-STEPS.md:128` (dated DONE records — rule 6), and `01-TASK.md:8` "with a source filter" (still true: the legend's registry entry IS a source filter) |
+| F11 | `05-CONTEXT-MAP.md:22,41`, `06-CONTEXT-SHELTER.md:88` "unified yellow" | Current palette verified in `styles.scss` + `markerTone()` (leaflet-service.ts): unverified = yellow triangle (`--color-shelter-user` #ffd400), one-channel = yellow circle, two+ channels = green circle (`--color-verified` = `--color-new` #237a57, HC #7fd49a) — shape AND hue carry depth. All three sites rewritten. The legend's second entry is now "Added by an unverified user" (en.ts `map.legend.unverified`), entries re-listed to match. Badge tones verified: NEW = yellow family (`--color-badge-new`), CONFIRMED = green family (`--color-badge-user` + `--color-verified`) — the 06 fix says so explicitly. **Bonus find:** `README.md:363` (root README, `PUT /api/shelters/{id}` row) also carried "in the unified yellow family" — same stale palette claim, not on the review's list; fixed to "the yellow-family badge (yellow = not yet verified; the verified family is green)". Also updated the `:root` note in `01-TASK.md` §2 (was "shell-header toggle" framing, ONE theme implied; now names the three-option accessibility panel + the runtime-token third theme) |
+| F12 | `02-CONTEXT-API.md` admin table + TS mirrors | Verified against `AdminController.java` (current): `GET /admin/shelters` (+`inaccurateReports`+`provenance` restored to its field list — both in the DTO), `/admin/reports` (+`excludeDismissed`), `/admin/audit`, `/admin/users`, all gained `limit`/`offset` + `X-Total-Count` (defaults/400s as documented: reports/audit limit default 100, shelters/users absent = no paging). TS mirrors: `submitterVerification` fixed `'PARTIAL'`→`'EMAIL'\|'PHONE'\|'SMART_ID'\|'FULL'` (the backend enum — `PARTIAL` no longer exists anywhere; this was a bonus find beyond the review's list); `ShelterDto` mirror gained `reviewNote` + `infoRequest` (owner-scoped, null on public reads); `ShelterDetailDto` gained `communityPulse` (detail-read only); new `CommunityPulse` + `InfoRequestDto` interfaces; `AdminShelterDto` mirror gained the missing `provenance`; `AdminInfoRequestDto` defined (was referenced but never defined); `AdminShelterFilters` + new `AdminShelterReportFilters` gained paging fields (mirroring `core/models.ts`) |
+
+**Guard-rule note (rule 7):** none of F1-F12 is pinned by `DocumentationFactsTest` (4/4 green before and after my edits — it pins the Flyway range, controller-mapping presence, cited paths, bare test counts; I checked each assertion). Extending it remains the follow-up the review's guard-coverage note and the parent notes describe.
+
+**Gates (all run detached, exit files read):** `flock /tmp/openshelter-mvn.lock mvn -q test` → **exit 0**, surefire tally **1329 tests / 0 failures / 0 errors / 0 skipped** (exactly the baseline; the `ShelterPagingCostIT` pg-stat flake passed inside the run — no isolation re-run needed), `DocumentationFactsTest` 4/4. `cd frontend && npx ng test --watch=false` → **exit 0**, **1522 tests / 65 files** (baseline 1517 + the admin lane's in-flight spec additions — the delta is their WIP, which is in the tree my gate ran against). `npx ng build` → **exit 0** (twice; the first run produced the F4/F8 figures, the second re-confirmed the tree after the admin lane's continued WIP — figures re-checked, unchanged: 609.26/157.12, same 15-warning set).
+
+**For the parent (no adjudication needed, just visibility):** (1) the admin lane's uncommitted WIP was in the tree for all my gates — the frontend numbers in `frontend/README.md` describe a build of the tree AS COMMITTED by the parent, so if the admin WIP lands with a materially different initial bundle the F4 figures will need one more re-measure (a `~` difference of a few kB is inside measurement noise; the warning set is stable as long as no component style crosses 4 kB); (2) `02-CONTEXT-API.md`'s admin table still omits the guidance/media/site-texts endpoint ROWS (the addendum covers guidance ordering only) — that gap predates my lane and the review scoped F12 to paging + mirror fields, so I did not expand the table; worth a follow-up if the pack is re-baselined; (3) the root README's config env-var table omits 6 yml-bound vars (`HIKARI_*`, `RATELIMIT_TRUST_LOOPBACK`, `MEDIA_DERIVATIVE_MAX_SIDE`, `TWILIO_TIMEOUT`, `TWILIO_CONNECT_TIMEOUT`) but carries a "see `application.yml`" escape row — not on the 12, left as-is, noted here in case the guard extension wants the table exhaustive.
+
+---
+
+## DOCS-REVIEW-2 — the remaining document sets
+
+**Owns (read-only; its only write is this section plus its report file):** `openspec/specs/**`, `openspec/changes/**`, `qa/**`, `context-and-tasks/**` (the `.puml` sources and their renders), and `docs/**` **except** `docs/agent/**` and `docs/api/**`.
+**Output:** `reviews/17-docs-complete-specs-qa-context.md`, file-by-file with a verdict per claim group (verified / historical / false / unverifiable).
+**Do not:** edit any document in that scope. Findings only.
+
+### DOCS-REVIEW-2 log
+
+**Started** (this lane, read-only): scope = `openspec/specs/**` (19 specs), `openspec/changes/**` (7 active + 20 archived), `qa/**` (7 files), `context-and-tasks/**` (5 `.puml` + 9 agent-pack md + 14 tracked renders in `out/` + `render.sh`/`render_kroki.py`), `docs/**` except `docs/agent/**` and `docs/api/**` (whitepaper, threat model, operations, agentic-development, autopilot, code-review, security, deploy, content, i18n-review, external-review-ask, image credits). Not duplicating `reviews/16-docs-complete-root-frontend.md`: the frontend agent pack (`frontend/docs/agent/**`) is out of my scope; where my files repeat the same claims (palette, source chips, proxy.conf.json, three-confirmer, reported-OR, hero-on-save, legend-as-filter) I will cite my own evidence and note overlap with 16. No edits to any document in scope; only this board section + `reviews/17-docs-complete-specs-qa-context.md`.
+
+*(verdict summary: recorded at the end)*
+
+---
+
+## Cross-lane notes
+
+*(either lane may add a line here recording something the other needs: a shared false claim, a contradiction between two documents, or a guard gap. Keep each note to one line plus an evidence pointer.)*
+
+---
+
+## Parent notes
+
+- `DocumentationFactsTest` currently pins the Flyway range, controller-mapping presence, cited paths and bare counts. The first review established it would have caught **none** of the 12 false claims found in the root and frontend sets. Extending it is Wave 10's second half and follows these lanes.
+- The palette (unverified **yellow**, verified **green**, `--color-new` unified to verified), the three-distinct-confirmer verification rule, the reported-rule OR, the legend-as-filter contract and the hero-on-save trigger have all changed **today**. Documents describing earlier behaviour are stale even when they were true this morning, and several such stalenesses are known: the agent packs' palette lines, the "three source chips" claim, and `proxy.conf.json` versus the loaded `proxy.conf.js`.

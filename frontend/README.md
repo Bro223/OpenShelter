@@ -67,8 +67,9 @@ container-side configuration needed.
 ```
 src/
 ├── app/
-│   ├── core/          # ApiClient, ApiError, TokenStore, ThemeStore (high-contrast theme
-│   │                  #   toggle, 'openshelter-theme' localStorage key), guards (auth/guest/verified),
+│   ├── core/          # ApiClient, ApiError, TokenStore, ThemeStore (the three-option theme:
+│   │                  #   default / high-contrast / black-and-yellow, 'openshelter-theme'
+│   │                  #   localStorage key), guards (auth/guest/verified),
 │   │                  #   ApiInterceptor, titleGuard (route titles), models
 │   ├── session/       # AuthStore (session state + REAL profile from /account/me)
 │   ├── gateways/      # auth / verify / account / shelter / geo / geocode / admin /
@@ -98,7 +99,9 @@ src/
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
 └── styles.scss        # design tokens (the single source of truth) + global rules;
                        #   also the persisted [data-theme='high-contrast'] token-override block
-                       #   (styles.scss:162-255 — accessibility-and-provenance D1/D2)
+                       #   (styles.scss:279-434 — accessibility-and-provenance D1/D2; the third
+                       #   theme, black-and-yellow, has NO SCSS block — its token values are
+                       #   applied at runtime by ThemeStore/theme-tokens.ts)
 ```
 
 Dependency rule (enforced by review, not tooling): `features` → `gateways` → `core`; `features`
@@ -160,13 +163,13 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   (`maximumWarning: 741401b` — the previous 560 kB warning budget sat under the
   measured bundle and was permanently red, so it guarded nothing). Measured
   initial total on a fresh build (2026-09-22, re-measured after the five admin
-  panels landed): **610.08 kB raw / 157.31 kB transfer** — under the
+  panels landed): **609.26 kB raw / 157.12 kB transfer** — under the
   741401 b warning, so a fresh build prints no initial-budget warning (fifteen
   component SCSS budgets warn instead, largest first, all against the 4 kB
-  warning: map-page 7.42 kB, shelter-detail-page 5.46 kB, page-shell 4.92 kB,
-  guidance-translations 4.88 kB, guidance-order-list 4.83 kB, guidance-panel
-  4.65 kB, media-panel 4.50 kB, shelters-panel 4.31 kB, guidance-editor
-  4.27 kB, submit-shelter-page 4.11 kB, alerts-panel 4.01 kB, audit-panel
+  warning: map-page 7.63 kB, shelter-detail-page 5.46 kB, page-shell 4.92 kB,
+  guidance-translations 4.87 kB, guidance-order-list 4.83 kB, guidance-panel
+  4.64 kB, media-panel 4.50 kB, submit-shelter-page 4.38 kB, shelters-panel
+  4.31 kB, guidance-editor 4.27 kB, alerts-panel 4.01 kB, audit-panel
   4.01 kB, reports-panel 4.01 kB, unconfirmed-panel 4.01 kB, users-panel
   4.01 kB). The
   `anyComponentStyle` budget
@@ -210,13 +213,18 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   extensions). What stays deferred is a _nearest_ endpoint: nearest is a ranking, not a
   filter, and the "Show shelters around you" action keeps ranking the already-loaded list
   client-side (browser geolocation + Haversine, no server round-trip) by design.
-- **i18n (feature pages)** — the app chrome (header nav/actions, footer,
-  document titles) is trilingual EN/ET/RU (M14 slice 1: `core/i18n`, the `t`
-  pipe, the header language switcher, persisted `openshelter-locale`, default
-  `en`; the RU catalog is machine-assisted and awaits native-speaker
-  review), and shelter detail + submit are translated too (slice 2). Still
-  English-only: the account page, the contributions panel, the verify page,
-  the admin panel and the legal page bodies.
+- **i18n** — the app is trilingual EN/ET/RU: the app chrome (header
+  nav/actions, footer, document titles) since the M14 slice 1 (`core/i18n`, the
+  `t` pipe, the header language switcher, persisted `openshelter-locale`,
+  default `en`), then the shelter detail + submit (slice 2), and the account
+  page, the contributions panel, the verify page, the admin panel and the legal
+  page bodies — every one of them carries its keys in all three catalogs (EN/ET/RU
+  each: 99 `account.*`, 32 `verify.*`, 282 `admin.*`, 187 `legal.*` keys,
+  counted 2026-09-22). The coverage is mechanically pinned: catalog key-parity
+  in `i18n.spec.ts` (en/et/ru lockstep), EN-identical "translations" refused by
+  `catalog-identity.spec.ts`, hardcoded user-visible template text refused by
+  `i18n-template-guard.spec.ts`. What remains deferred: the RU catalog is
+  machine-assisted and awaits native-speaker review.
 - **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
 - **httpOnly refresh cookie** — see [token storage](#token-storage-tradeoff).
 - **SSR / prerender** — client-rendered SPA; v1 is a JS app by design.

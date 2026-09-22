@@ -85,10 +85,10 @@
    admin surfaces only, where hidden rows are visible). The label is read
    from the DTO's `source` + `reviewStatus` (backend fields — the UI NEVER
    re-derives trust state from raw report lists). The badge tone follows the
-   marker trust palette (the unified yellow family for NEW and CONFIRMED,
-   the danger tone for REJECTED). The map legend + filter chip wording
-   ("Registry (Päästeamet / municipality)", "Registry", "User") is deliberately
-   untouched — chips and legend keep the short two-valued copy.
+   marker trust palette (the yellow family for NEW — the light-tint + dark-amber text pair, the green family for
+   CONFIRMED — the verified pair, the danger tone for REJECTED). The map legend + filter chip
+   wording is the `map.legend.*` keys (the six current entries — 05-CONTEXT-MAP decision 5;
+   the chips themselves are gone, wave 8).
 8. **Trust reports are verified-gated client-side and server-enforced** (shelter-trust-and-
    reports). The detail-page trust pickers render for VERIFIED users only (anonymous/unverified
    get the login/verify prompts in the existing vocabulary);

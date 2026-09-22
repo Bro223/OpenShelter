@@ -199,8 +199,11 @@ elements — look belongs to the vendored theme.
   re-vendor to a new version directory is a new URL, so a stale browser
   cache can never serve an old theme over a new one. Keep the constant
   in lockstep with the JS import's version.
-- `GuidanceEditor` is the one component in the repo that uses
-  `ViewEncapsulation.None`, and that is load-bearing: the default
+- `GuidanceEditor` is one of the TWO components in the repo that use
+  `ViewEncapsulation.None` (the other is `AccessibilityDialog` in `shared/`,
+  whose stylesheet carries the black-and-yellow theme's page-wide rules —
+  `.a11y-*`-prefixed classes on purpose), and that is load-bearing here: the
+  default
   (emulated) strategy appends a scope attribute to every selector, and
   the component's a11y overrides target Quill's RUNTIME DOM (the
   `.ql-toolbar` controls, the editable root), which carries no scope
@@ -210,11 +213,16 @@ elements — look belongs to the vendored theme.
   that is safe — the styles are injected only when the lazy admin page
   first renders, and every other component that styles a shared class
   (e.g. `.field-note`) keeps its own **scoped** rule, whose scope
-  attribute outranks the global one in specificity.
+  attribute outranks the global one in specificity (the one other `None`
+  component, `AccessibilityDialog`, prefixes every class `.a11y-*` for the
+  same reason).
 - The `anyComponentStyle` budgets stay at their defaults (4 kB warning /
-  **10 kB error**, `frontend/README.md` bundle-budget note): the
-  component's own styles are ~3.7 kB, under the warning, and the guard
-  fires for any future component that inlines this much again. A
+  **10 kB error**, `frontend/README.md` bundle-budget note): the component's
+  own styles measure **4.27 kB** on a fresh build (2026-09-22) — OVER the
+  4 kB warning, so `guidance-editor.scss` is one of the fifteen warning files
+  in that list (expected: the a11y override block below the form styles);
+  the guard that matters is the 10 kB ERROR budget, which fires for any
+  component that inlines this stylesheet again. A
   previous lane raised the error to 30 kB to admit the `@import`; that
   was reverted deliberately and must not return.
 - Consequence for maintainers: a **re-vendor that ships a `.scss`
