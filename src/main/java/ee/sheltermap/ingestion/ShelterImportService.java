@@ -127,7 +127,7 @@ public class ShelterImportService {
                             oversize);
                 }
                 ImportResult result = applyImport(dtos, fitting, oversize, at,
-                        fetched.dataVersion());
+                        fetched.rejectedExternalIds(), fetched.dataVersion());
                 log.info("Registry import finished: created={} updated={} removed={} skipped={} failed={}",
                         result.created(), result.updated(), result.removed(), result.skipped(), result.failed());
                 recordAudit(result, "OK", null);
@@ -146,24 +146,32 @@ public class ShelterImportService {
     /** Transactional apply phase — fetch already happened outside the tx. */
     private ImportResult applyImport(List<RegistryShelterDto> fetched,
                                      List<RegistryShelterDto> fitting,
-                                     int oversize, Instant at, String dataVersion) {
+                                     int oversize, Instant at,
+                                     List<String> rejected, String dataVersion) {
         if (txTemplate == null) {
-            return doImport(fetched, fitting, oversize, at, dataVersion);
+            return doImport(fetched, fitting, oversize, at, rejected, dataVersion);
         }
-        return txTemplate.execute(status -> doImport(fetched, fitting, oversize, at, dataVersion));
+        return txTemplate.execute(status -> doImport(fetched, fitting, oversize, at, rejected, dataVersion));
     }
 
     private ImportResult doImport(List<RegistryShelterDto> fetched,
                                   List<RegistryShelterDto> fitting,
-                                  int oversize, Instant at, String dataVersion) {
+                                  int oversize, Instant at,
+                                  List<String> rejected, String dataVersion) {
         List<Shelter> parsed = parser.parse(fitting);
-        int skipped = oversize + (fitting.size() - parsed.size());
+        int skipped = oversize + rejected.size() + (fitting.size() - parsed.size());
+        if (!rejected.isEmpty()) {
+            log.warn("Registry import: {} row(s) rejected by the client as unplaceable "
+                    + "(already logged per row) — counted as skipped and retained "
+                    + "(not delisted)", rejected.size());
+        }
 
         // Keep-list for delisting = every id the registry currently serves —
-        // including rows that failed the length pre-check or parsing (a live
-        // registry row must never be deleted just because this run couldn't
-        // store or parse it).
+        // including rows that failed the length pre-check or parsing, and rows
+        // the client rejected as unplaceable (a live registry row must never
+        // be deleted just because this run couldn't store or place it).
         List<String> fetchedIds = fetchedIds(fetched);
+        fetchedIds.addAll(rejected);
 
         int created = 0;
         int updated = 0;

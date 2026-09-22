@@ -435,7 +435,8 @@ class ShelterReportIT extends AbstractPersistenceIT {
         long shelterId = seedShelter("Sihtvarjend", ShelterSource.USER);
 
         // two reporters each get a cross-verified own submission (weight 2):
-        // their NEW row is promoted by a cross-user OPEN_CONFIRMED
+        // their NEW row is promoted by THREE distinct cross-user
+        // confirmations (the auto-confirm tally)
         String t1 = verifiedToken("Usaldat1", "usaldat1@example.ee");
         long t1Row = createShelterViaApi(t1, "Usaldus row 1");
         mvc.perform(post("/api/shelters/" + t1Row + "/reports")
@@ -443,10 +444,30 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("OPEN_CONFIRMED", null)))
                 .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + t1Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja1b", "kinnitaja1b@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + t1Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja1c", "kinnitaja1c@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
         String t2 = verifiedToken("Usaldat2", "usaldat2@example.ee");
         long t2Row = createShelterViaApi(t2, "Usaldus row 2");
         mvc.perform(post("/api/shelters/" + t2Row + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kinnitaja2", "kinnitaja2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + t2Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja2b", "kinnitaja2b@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + t2Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja2c", "kinnitaja2c@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("OPEN_CONFIRMED", null)))
                 .andExpect(status().isOk());
@@ -769,10 +790,29 @@ class ShelterReportIT extends AbstractPersistenceIT {
         mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"));
 
-        // a cross-user OPEN tap promotes NEW→CONFIRMED (the OPEN_CONFIRMED
-        // auto-confirm rule, reused)
+        // one cross-user OPEN tap is one distinct confirmation — below the
+        // 3-distinct threshold (the submitter's own tap above never
+        // counts)
         mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
                         .header("Authorization", "Bearer " + verifiedToken("Teine tap", "teine-tap@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Kolmas tap", "kolmas-tap@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+
+        // the third distinct non-submitter tap crosses: NEW→CONFIRMED (the
+        // OPEN_CONFIRMED auto-confirm tally, the tap is one of the
+        // distinct confirmations)
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Neljäs tap", "neljas-tap@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(openStatusBody("OPEN")))
                 .andExpect(status().isNoContent());

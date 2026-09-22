@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
 
 import java.time.Instant;
@@ -39,6 +40,15 @@ public class InMemoryShelterOpenStatusRepository implements ShelterOpenStatusRep
         return store.values().stream()
                 .filter(r -> r.getShelterId() == shelterId && r.getUserId() == userId)
                 .findFirst();
+    }
+
+    @Override
+    public List<Long> userIdsByShelterIdAndState(long shelterId, OpenStatusState state) {
+        return store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId && r.getState() == state)
+                .map(ShelterOpenStatusReport::getUserId)
+                .distinct()
+                .toList();
     }
 
     @Override

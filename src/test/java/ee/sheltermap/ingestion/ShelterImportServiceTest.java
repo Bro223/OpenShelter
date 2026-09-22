@@ -253,6 +253,26 @@ class ShelterImportServiceTest {
         assertThat(repo.findAll()).hasSize(1);
     }
 
+    @Test
+    void clientRejectedRowsAreCountedAsSkippedAndKeptFromDelisting() {
+        // The client refused to place RX-1 (unresolvable axis order / outside
+        // the bbox) — it is counted as skipped and, like every other row the
+        // registry still serves, must NOT be delisted from the local store.
+        repo.save(registryShelter("RX-1", "Rejected row"));
+
+        ImportResult result = service(FakeRegistryClient.fetch(new RegistryFetch(
+                List.of(dto("PK-1", "A", 59.4, 24.7)), "v1", false,
+                List.of("RX-1")))).importFromRegistry();
+
+        assertThat(result.created()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
+        assertThat(result.removed()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);   // the client-rejected row
+        assertThat(result.failed()).isZero();
+        assertThat(repo.findAll()).extracting(Shelter::getExternalId)
+                .containsExactlyInAnyOrder("RX-1", "PK-1");
+    }
+
     private static RegistryShelterDto oversizedDto(String id, String name, String address) {
         return new RegistryShelterDto(id, name, address, 59.4, 24.7, 100, true,
                 "Harju maakond", "Tallinn", "02.07.2026", "SMIT. Päästeameti avaandmed");
@@ -353,7 +373,7 @@ class ShelterImportServiceTest {
 
             @Override
             public RegistryFetch fetch() {
-                return new RegistryFetch(List.of(), "v1", true);
+                return new RegistryFetch(List.of(), "v1", true, List.of());
             }
         };
 

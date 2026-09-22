@@ -822,24 +822,25 @@ class AdminModerationIT extends AbstractPersistenceIT {
         // The audit trail is the bounded twin (limit/offset) with the header
         // = the full trail length, stable across pages.
         String author = verifiedToken("Auvitaja", "auvitaja@example.ee");
-        // A DIFFERENT verified user OPEN-CONFIRMS the author's NEW USER
-        // shelters — the cross-user OPEN_CONFIRMED tap is the report flow's
-        // AUTO_CONFIRM audit action (one trail row per shelter; the author's
-        // own tap would not fire it); the admin hide adds the third row.
+        // THREE distinct verified users OPEN-CONFIRM each of the author's
+        // NEW USER shelters — the crossing confirmation (the third distinct
+        // one) is the report flow's AUTO_CONFIRM audit action (one trail
+        // row per shelter; the author's own confirmation would not count)
         String confirmer = verifiedToken("Kinnitaja", "kinnitaja@example.ee");
+        String confirmer2 = verifiedToken("Kinnitaja B", "kinnitaja-b@example.ee");
+        String confirmer3 = verifiedToken("Kinnitaja C", "kinnitaja-c@example.ee");
         long a = createShelterViaApi(author, "Auvitamine A");
         long b = createShelterViaApi(author, "Auvitamine B");
         String token = adminToken();
-        mvc.perform(post("/api/shelters/" + a + "/reports")
-                        .header("Authorization", "Bearer " + confirmer)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isOk()); // the report answer is the dampening outcome (200), not a creation
-        mvc.perform(post("/api/shelters/" + b + "/reports")
-                        .header("Authorization", "Bearer " + confirmer)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isOk());
+        for (long row : new long[]{a, b}) {
+            for (String t : new String[]{confirmer, confirmer2, confirmer3}) {
+                mvc.perform(post("/api/shelters/" + row + "/reports")
+                                .header("Authorization", "Bearer " + t)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                        .andExpect(status().isOk()); // the report answer is the dampening outcome (200), not a creation
+            }
+        }
         mvc.perform(post("/admin/shelters/" + a + "/status")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

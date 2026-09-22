@@ -135,7 +135,11 @@ class AccountDeletionIT extends AbstractPersistenceIT {
         return JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
     }
 
-    /** A positive (OPEN_CONFIRMED) report — the NEW→CONFIRMED promotion (D2). */
+    /**
+     * A positive (OPEN_CONFIRMED) report — one of the distinct confirmations
+     * in the NEW→CONFIRMED tally (D2); the row promotes when the third
+     * distinct non-submitter confirmation lands.
+     */
     private void positiveReport(Auth reporter, long shelterId) throws Exception {
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + reporter.token())
@@ -194,12 +198,21 @@ class AccountDeletionIT extends AbstractPersistenceIT {
     void deletionPurgesPrivateOrphansPublicAndCascadesTheAccount() throws Exception {
         Auth a = registerVerified("Kahane", "kahane-del@example.ee", "+3725002001", "kahane-pass");
         Auth b = registerVerified("Kaks", "kaks-del@example.ee", "+3725002002", "kaks-pass");
+        // two further distinct confirmers (the 3-distinct verify tally)
+        Auth c = registerVerified("Kolm", "kolm-del@example.ee", "+3725002003", "kolm-pass");
+        Auth d = registerVerified("Neli", "neli-del@example.ee", "+3725002004", "neli-pass");
 
         long pubA = submit(a, "Kahane Public", false);
         long privA = submit(a, "Kahane Private", true);
         long pubB = submit(b, "Kaks Public", false);
-        // cross-reports: each audit row's actor is the REPORTING user
+        // cross-reports: three distinct confirmers per row; the CROSSING
+        // confirmation (the third) is the actor of the AUTO_CONFIRM row —
+        // b crosses pubA, a crosses pubB
+        positiveReport(c, pubA);
+        positiveReport(d, pubA);
         positiveReport(b, pubA);
+        positiveReport(c, pubB);
+        positiveReport(d, pubB);
         positiveReport(a, pubB);
 
         mvc.perform(delete("/account").header("Authorization", "Bearer " + a.token()))

@@ -40,10 +40,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Acceptance IT for the community trust lifecycle without a blocking
  * queue (community-review-queue v2 D1/D2/D3/D4/D7) — full-stack MockMvc
  * against the real services, security chain, JWT filter and Postgres:
- * new USER rows publish IMMEDIATELY as NEW (public list + /mine); a
- * positive community report from another user promotes NEW→CONFIRMED
- * with an AUTO_CONFIRM audit row (the submitter's own positive report
- * does not); the rare admin CONFIRM/REJECT decisions (REJECT hides via
+ * new USER rows publish IMMEDIATELY as NEW (public list + /mine); three
+ * DISTINCT community confirmers promote NEW→CONFIRMED (the crossing
+ * action writes the AUTO_CONFIRM audit row; the submitter's own
+ * confirmation never counts, not even as the third); the rare admin
+ * CONFIRM/REJECT decisions (REJECT hides via
  * status INACTIVE + stores the reason; restoring a REJECTED row via the
  * existing status endpoint reverts it to NEW); registry rows untouched
  * (review → 409, import-owned, backfilled CONFIRMED); the moderation
@@ -209,17 +210,33 @@ class CommunityReviewIT extends AbstractPersistenceIT {
 
     // ---------- automatic trust: community confirmation ----------
 
+    /** One OPEN_CONFIRMED report from a distinct non-submitter. */
+    private void openConfirmed(long shelterId, String token) throws Exception {
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+    }
+
     @Test
-    void aPositiveReportFromAnotherUserConfirmsTheRowAndAuditsIt() throws Exception {
+    void threeDistinctConfirmationsConfirmTheRowAndAuditTheCrossingOne() throws Exception {
         String author = verifiedToken("Autor", "autor2@example.ee");
         long id = createShelterViaApi(author, "Kinnitatav");
         long authorId = shelters.findById(id).orElseThrow().getCreatedBy();
 
-        mvc.perform(post("/api/shelters/" + id + "/reports")
-                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja", "kinnitaja@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isOk());
+        // the first two distinct confirmers stay below the threshold —
+        // the owner-reported defect was that ONE of them already flipped
+        // the row community-verified
+        openConfirmed(id, verifiedToken("Kinnitaja1", "kinnitaja1@example.ee"));
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+        openConfirmed(id, verifiedToken("Kinnitaja2", "kinnitaja2@example.ee"));
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+
+        // the third distinct confirmer crosses
+        openConfirmed(id, verifiedToken("Kinnitaja", "kinnitaja@example.ee"));
 
         // CONFIRMED: the row keeps its public visibility, the state moved
         entityManager.flush();
@@ -231,7 +248,11 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + author))
                 .andExpect(jsonPath("$[0].reviewStatus").value("CONFIRMED"));
 
-        // the AUTO_CONFIRM audit row: the REPORTING user is the actor
+        // the AUTO_CONFIRM audit row: the CROSSING reporter is the actor
+        // of record — exactly one row, written on the third action
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM moderation_actions WHERE shelter_id = ? AND action = 'AUTO_CONFIRM'",
+                Integer.class, id)).isEqualTo(1);
         Long confirmerId = userIdByEmail("kinnitaja@example.ee"); // PII-at-rest: hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT action FROM moderation_actions WHERE shelter_id = ?", String.class, id))
@@ -435,8 +456,21 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
 
         // the actions, oldest → newest
+        // three distinct confirmers cross the verify threshold on the
+        // third report (one AUTO_CONFIRM row, the crossing reporter is
+        // the actor)
         mvc.perform(post("/api/shelters/" + queue + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kinnitaja", "kinnitaja2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk()); // below the threshold
+        mvc.perform(post("/api/shelters/" + queue + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja3", "kinnitaja3@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk()); // still below
+        mvc.perform(post("/api/shelters/" + queue + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja4", "kinnitaja4@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
                 .andExpect(status().isOk()); // → AUTO_CONFIRM (NEW->CONFIRMED)
@@ -483,8 +517,8 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[4].action").value("AUTO_CONFIRM"))
                 .andExpect(jsonPath("$[4].previousStatus").value("NEW"))
                 .andExpect(jsonPath("$[4].newStatus").value("CONFIRMED"));
-        // the AUTO_CONFIRM actor is the REPORTING user, not an admin
-        Long kinnitajaId = userIdByEmail("kinnitaja2@example.ee"); // PII-at-rest: hash lookup
+        // the AUTO_CONFIRM actor is the CROSSING reporter, not an admin
+        Long kinnitajaId = userIdByEmail("kinnitaja4@example.ee"); // PII-at-rest: hash lookup
         entityManager.flush();
         assertThat(jdbc.queryForObject(
                         "SELECT moderator_id FROM moderation_actions WHERE action = 'AUTO_CONFIRM' "
@@ -661,7 +695,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         long id = createShelterViaApi(author, "M5b kinnitus");
         String first = verifiedToken("Kinnitaja", "kinnitaja-m5b-1@example.ee");
 
-        // a community confirmation verifies the row (NEW → CONFIRMED)
+        // one community confirmation is below the 3-distinct threshold
         mvc.perform(post("/api/shelters/" + id + "/reports")
                         .header("Authorization", "Bearer " + first)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -669,9 +703,9 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
         entityManager.flush();
         assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
-                String.class, id)).isEqualTo("CONFIRMED");
+                String.class, id)).isEqualTo("NEW");
 
-        // the owner's edit voids the verification again — the data
+        // the owner's edit voids the pending tally again — the data
         // changed, so the previous stamp no longer covers it
         mvc.perform(put("/api/shelters/" + id)
                         .header("Authorization", "Bearer " + author)
@@ -684,11 +718,23 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
                 String.class, id)).isEqualTo("NEW");
 
-        // a SECOND community confirmation clears it (one report per user
-        // per shelter per type — a different user confirms)
+        // the pre-edit confirmation still counts (one report per user per
+        // shelter per type — the other confirmers are different users):
+        // two more distinct confirmations clear the pending state, on the
+        // third overall
         mvc.perform(post("/api/shelters/" + id + "/reports")
                         .header("Authorization",
                                 "Bearer " + verifiedToken("Kinnitaja2", "kinnitaja-m5b-2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
+                String.class, id)).isEqualTo("NEW");
+
+        mvc.perform(post("/api/shelters/" + id + "/reports")
+                        .header("Authorization",
+                                "Bearer " + verifiedToken("Kinnitaja3", "kinnitaja-m5b-3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
                 .andExpect(status().isOk());

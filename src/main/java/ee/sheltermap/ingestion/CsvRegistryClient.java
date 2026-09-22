@@ -1,6 +1,7 @@
 package ee.sheltermap.ingestion;
 
 import ee.sheltermap.app.DataImportLog;
+import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.ShelterSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,7 +98,7 @@ public class CsvRegistryClient implements ShelterRegistryClient {
         ResponseEntity<byte[]> response = download(ifModifiedSince);
         if (response.getStatusCode().value() == 304) {
             log.info("Registry CSV unchanged since {} — no import apply this run", lastVersion);
-            return new RegistryFetch(List.of(), lastVersion, true);
+            return new RegistryFetch(List.of(), lastVersion, true, List.of());
         }
 
         String version = versionOf(response.getHeaders());
@@ -125,13 +126,25 @@ public class CsvRegistryClient implements ShelterRegistryClient {
         }
 
         List<RegistryShelterDto> dtos = new ArrayList<>(parsed.rows().size());
+        List<String> rejected = new ArrayList<>();
         for (RegistryCsvParser.Row row : parsed.rows()) {
             RegistryShelterDto dto = toDto(row, dataAsOf);
             if (dto != null) {
                 dtos.add(dto);
+            } else {
+                rejected.add(row.externalId());
             }
         }
-        return new RegistryFetch(dtos, version, false);
+        if (!rejected.isEmpty()) {
+            // Loud by design (public-safety map): every unplaceable row was
+            // also logged individually in toDto; the import counts these as
+            // skipped and retains (never delists) the stored rows.
+            log.warn("Registry CSV run: {} of {} row(s) could not be placed and were "
+                    + "rejected (axis order unresolvable, transform non-finite, or "
+                    + "outside the Estonia bbox) — counted as skipped; first ids: {}",
+                    rejected.size(), parsed.rows().size(), rejected.stream().limit(5).toList());
+        }
+        return new RegistryFetch(dtos, version, false, rejected);
     }
 
     private ResponseEntity<byte[]> download(String ifModifiedSince) {
@@ -171,16 +184,49 @@ public class CsvRegistryClient implements ShelterRegistryClient {
         return false;
     }
 
-    /** One CSV row → the neutral DTO; {@code null} on a non-finite transform. */
+    /**
+     * One CSV row → the neutral DTO, or {@code null} when the row cannot be
+     * placed (the caller logs it loudly and counts it):
+     * <ul>
+     *   <li>the axis order is unresolvable — see {@link Lest97AxisOrder}: the
+     *       live publisher fills {@code lest_x} with northings and
+     *       {@code lest_y} with eastings despite the names, and a row whose
+     *       two values fall in the same scale band cannot be guessed;</li>
+     *   <li>the transform yields a non-finite point; or</li>
+     *   <li>the placed point is outside the Estonia bbox — the same check as
+     *       {@link GeoPoint#inEstonia} downstream in the parser, applied here
+     *       too so the rejection is counted at the boundary that produced it
+     *       (the parser's guard stays as the backstop for every source).</li>
+     * </ul>
+     */
     private RegistryShelterDto toDto(RegistryCsvParser.Row row, String dataAsOf) {
-        double[] wgs84 = transformer.toWgs84(row.lestX(), row.lestY());
+        Lest97AxisOrder.Resolved axes = Lest97AxisOrder.resolve(row.lestX(), row.lestY());
+        if (axes == null) {
+            log.warn("Registry CSV row {} ({}): L-EST97 axis order unresolvable "
+                    + "(lest_x={}, lest_y={}) — rejected, not placed",
+                    row.externalId(), row.name(), row.lestX(), row.lestY());
+            return null;
+        }
+        double[] wgs84 = transformer.toWgs84(axes.easting(), axes.northing());
         if (wgs84 == null) {
+            log.warn("Registry CSV row {} ({}): WGS84 transform non-finite "
+                    + "(lest_x={}, lest_y={}) — rejected, not placed",
+                    row.externalId(), row.name(), row.lestX(), row.lestY());
+            return null;
+        }
+        double latitude = wgs84[1];
+        double longitude = wgs84[0];
+        if (!GeoPoint.inEstonia(latitude, longitude)) {
+            log.warn("Registry CSV row {} ({}): placed at ({}, {}) outside the Estonia "
+                    + "bbox (lest_x={}, lest_y={}) — rejected, not placed",
+                    row.externalId(), row.name(), latitude, longitude,
+                    row.lestX(), row.lestY());
             return null;
         }
         String[] segments = splitAddress(row.address());
         return new RegistryShelterDto(
                 row.externalId(), row.name(), row.address(),
-                wgs84[1], wgs84[0],   // (lat, lng)
+                latitude, longitude,
                 null, false,          // the CSV publishes no capacity/accessibility
                 segments[0], segments[1],
                 dataAsOf, SOURCE_NAME);

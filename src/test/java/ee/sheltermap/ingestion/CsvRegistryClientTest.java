@@ -125,6 +125,10 @@ class CsvRegistryClientTest {
         assertThat(fetch.dataVersion()).isEqualTo(LAST_MODIFIED);
         assertThat(fetch.rows()).hasSize(2);
 
+        // L-EST97 → WGS84 via the shared transformer. Row 1 is in the LIVE
+        // PUBLISHER'S ORDER (lest_x = northing 6 567 275.63, lest_y = easting
+        // 516 551.56) and must be detected and swapped; row 2 honours its
+        // column names and must not be swapped.
         RegistryShelterDto first = fetch.rows().get(0);
         assertThat(first.externalId()).isEqualTo("PÕ81166");
         assertThat(first.name()).isEqualTo("Vasalemma Kogukonnamaja");
@@ -136,11 +140,67 @@ class CsvRegistryClientTest {
         assertThat(first.dataAsOf()).isEqualTo("2026-09-06"); // Last-Modified day, UTC
         assertThat(first.capacity()).isNull();
         assertThat(first.accessible()).isFalse();
+        assertThat(first.latitude()).isCloseTo(59.24350, within(0.001));
+        assertThat(first.longitude()).isCloseTo(24.29003, within(0.001));
 
         // L-EST97 → WGS84 via the shared transformer
         RegistryShelterDto second = fetch.rows().get(1);
         assertThat(second.latitude()).isCloseTo(59.427685, within(0.001));
         assertThat(second.longitude()).isCloseTo(24.745890, within(0.001));
+        assertThat(fetch.rejectedExternalIds()).isEmpty();
+        r.server().verify();
+    }
+
+    /**
+     * Live-file defect guard (P0-COORDINATES): the publisher fills the column
+     * NAMED {@code lest_x} with NORTING-scale values and {@code lest_y} with
+     * EASTING-scale values, so trusting the names places Pärnu Hotell in the
+     * English Channel (−0.346°E, 60.511°N). The client must detect the axis
+     * order from the values and place it in Pärnu city centre.
+     */
+    @Test
+    void livePublisherRowOrderIsDetectedFromValuesNotNames() {
+        Rig r = rig(freshLog());
+        expectCsv(r.server(), csvBody(
+                "\"LÄ23016\";\"Pärnu Hotell\";\"Pärnu maakond, Pärnu linn, Rüütli tn 44\";6471752.8;529641.52"));
+
+        RegistryFetch fetch = r.client().fetch();
+
+        assertThat(fetch.rows()).hasSize(1);
+        RegistryShelterDto parnu = fetch.rows().get(0);
+        assertThat(parnu.latitude()).isCloseTo(58.38523, within(0.001));
+        assertThat(parnu.longitude()).isCloseTo(24.50676, within(0.001));
+        assertThat(fetch.rejectedExternalIds()).isEmpty();
+        r.server().verify();
+    }
+
+    /**
+     * Unplaceable rows are rejected — loudly (per-row warn + run summary),
+     * counted (rejectedExternalIds → the import's skipped), and never placed:
+     * <ul>
+     *   <li>both values in the same scale band → axis order unresolvable;</li>
+     *   <li>order resolvable but the point outside the Estonia bbox — the live
+     *       ID35606 (Narva border) lands 0.002° east of the bbox edge.</li>
+     * </ul>
+     */
+    @Test
+    void unplaceableRowsAreRejectedCountedAndNeverPlaced() {
+        Rig r = rig(freshLog());
+        expectCsv(r.server(), csvBody(
+                // live Pärnu row — places correctly (the only survivor)
+                "\"LÄ23016\";\"Pärnu Hotell\";\"Pärnu maakond, Pärnu linn, Rüütli tn 44\";6471752.8;529641.52",
+                // both values easting-scale (529641.52 and 661000.0 are real
+                // eastings: Pärnu, Tartu) → unresolvable, must not be guessed
+                "\"X1\";\"Ambiguus\";\"Pärnu maakond, Pärnu linn\";529641.52;661000.0",
+                // live ID35606 — order resolvable, but the point is just
+                // outside the eastern bbox edge (28.202°E > 28.2°E)
+                "\"ID35606\";\"Bastioni käigud\";\"Ida-Viru maakond, Narva linn, Narva linn, Rüütli tn 59\";6590218.58;738663.74"));
+
+        RegistryFetch fetch = r.client().fetch();
+
+        assertThat(fetch.rows()).hasSize(1);
+        assertThat(fetch.rows().get(0).externalId()).isEqualTo("LÄ23016");
+        assertThat(fetch.rejectedExternalIds()).containsExactly("X1", "ID35606");
         r.server().verify();
     }
 

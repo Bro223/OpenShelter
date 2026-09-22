@@ -19,7 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Typed shelter reports + live occupancy + live open/closed state
@@ -49,15 +52,23 @@ import java.util.Objects;
  * the threshold, so later reports increment it but never re-hide. No
  * other path auto-hides.
  *
- * <p>Auto-confirm (community-review-queue v2 D2): when an
- * {@code OPEN_CONFIRMED} report is successfully recorded for a USER row
- * in review state NEW, by a user who is NOT the row's submitter, the
- * row is promoted NEW→CONFIRMED in the SAME transaction and an
- * AUTO_CONFIRM row is written to the moderation audit trail (the
- * reporting user is the actor of record). The submitter's own positive
- * report never promotes; registry and already-confirmed rows are
- * untouched. This is the primary trust flow — no human in the loop —
- * and trust weighting never gates the positive side.
+ * <p>Auto-confirm (community verification, the positive mirror of the
+ * auto-hide): when an {@code OPEN_CONFIRMED} report is successfully
+ * recorded for a USER row in review state NEW, the row's tally of
+ * DISTINCT community confirmers is recomputed — the verified reporters
+ * who filed an open (non-dismissed) {@code OPEN_CONFIRMED} report or
+ * whose current live tap is OPEN, each distinct user counted once,
+ * the row's SUBMITTER excluded (their own confirmation never verifies
+ * their own shelter, not even as the third). At
+ * {@link ShelterReport#AUTO_CONFIRM_THRESHOLD} (3) distinct confirmers
+ * the row is promoted NEW→CONFIRMED in the SAME transaction and an
+ * AUTO_CONFIRM row is written to the moderation audit trail (the acting
+ * user — the one whose action crossed the threshold — is the actor of
+ * record). A successful OPEN tap runs the SAME tally (a tap is one of
+ * the distinct confirmations). Registry and already-confirmed rows are
+ * untouched; trust weighting never gates the positive side. A dismissal
+ * drops the reporter from the tally, but never demotes an already
+ * confirmed row.
  *
  * <p>Duplicate dampening (D3): a {@code NON_EXISTENT} report is
  * stored {@code damped} when the reporter holds their own other USER
@@ -206,12 +217,14 @@ public class ShelterReportService {
      * throttled: a tap is a state, not a report action, so it records
      * nothing in the action log and consumes no budget.
      *
-     * <p>A successful OPEN tap runs the SAME auto-confirm as the
-     * {@code OPEN_CONFIRMED} report path: a USER row in review state
-     * NEW is promoted NEW→CONFIRMED (AUTO_CONFIRM audit, the tapping
-     * user as actor of record) when the tapping user is NOT the row's
-     * submitter. A CLOSED tap never confirms; the submitter's own tap
-     * never confirms.
+     * <p>A successful OPEN tap runs the SAME auto-confirm tally as the
+     * {@code OPEN_CONFIRMED} report path: a tap is one of the distinct
+     * confirmations — a USER row in review state NEW is promoted
+     * NEW→CONFIRMED (AUTO_CONFIRM audit, the tapping user as actor of
+     * record) when the tap brings the distinct non-submitter
+     * confirmations to {@link ShelterReport#AUTO_CONFIRM_THRESHOLD}.
+     * A CLOSED tap never confirms; the submitter's own tap never
+     * counts.
      *
      * @throws NotVerifiedException     unverified registered user (→ 403)
      * @throws ShelterNotFoundException unknown shelter id (→ 404)
@@ -285,25 +298,51 @@ public class ShelterReportService {
     }
 
     /**
-     * The NEW→CONFIRMED promotion (community-review-queue v2 D2) — the
-     * ONLY automatic path: a USER row in review state NEW, confirmed by a
-     * positive report from a user other than the submitter (a legacy
-     * USER row without an author counts as unclaimed — any reporter
-     * qualifies). The promotion joins this report's transaction and the
-     * audit row's actor is the reporting user (AUTO_CONFIRM).
+     * The NEW→CONFIRMED promotion (community verification) — the ONLY
+     * automatic path: a USER row in review state NEW promotes when its
+     * tally of distinct community confirmers (open {@code OPEN_CONFIRMED}
+     * reports and current OPEN taps, the submitter excluded) reaches
+     * {@link ShelterReport#AUTO_CONFIRM_THRESHOLD}. The promotion joins
+     * this action's transaction and the audit row's actor is the acting
+     * user (AUTO_CONFIRM) — the one whose action crossed the threshold.
      */
-    private void autoConfirmIfEligible(Shelter shelter, RegisteredUser reporter) {
-        boolean byOtherUser = shelter.getCreatedBy() == null
-                || !shelter.getCreatedBy().equals(reporter.getId());
+    private void autoConfirmIfEligible(Shelter shelter, RegisteredUser actor) {
         if (shelter.getSource() == ShelterSource.USER
                 && shelter.getReviewStatus() == ReviewStatus.NEW
-                && byOtherUser) {
+                && distinctConfirmers(shelter) >= ShelterReport.AUTO_CONFIRM_THRESHOLD) {
             shelter.setReviewStatus(ReviewStatus.CONFIRMED);
             shelters.save(shelter);
-            audit.record(shelter.getId(), null, reporter.getId(),
+            audit.record(shelter.getId(), null, actor.getId(),
                     ModerationAuditLog.Action.AUTO_CONFIRM, null,
                     ReviewStatus.NEW, ReviewStatus.CONFIRMED);
         }
+    }
+
+    /**
+     * The shelter's distinct community confirmers (the auto-confirm
+     * tally): the distinct verified users who filed an open
+     * (non-dismissed) {@code OPEN_CONFIRMED} report or whose current
+     * live tap is OPEN, the row's submitter excluded — their own
+     * confirmation never verifies their own shelter, not even as the
+     * third. Each distinct user counts once regardless of how many
+     * positive actions they took (a row without a stored author — pre-V7
+     * legacy — has no submitter to exclude). The report half reuses the
+     * same seam as the hide tally (the (shelter, user, type) uniqueness
+     * gives one row per reporter; dismissed reports are excluded there
+     * by the query), so a dismissal drops the reporter from this tally
+     * exactly as from the hide tally and the displayed counts.
+     */
+    private long distinctConfirmers(Shelter shelter) {
+        Set<Long> confirmers = new HashSet<>(reports
+                .reportersByShelterIdAndType(shelter.getId(), ShelterReportType.OPEN_CONFIRMED)
+                .stream().map(ShelterReportRepository.DampedReporter::userId)
+                .collect(Collectors.toSet()));
+        confirmers.addAll(openStatus.userIdsByShelterIdAndState(shelter.getId(), OpenStatusState.OPEN));
+        Long submitter = shelter.getCreatedBy();
+        if (submitter != null) {
+            confirmers.remove(submitter);
+        }
+        return confirmers.size();
     }
 
     /**

@@ -18,6 +18,17 @@ public class ShelterReport {
 
     public static final int MAX_DETAIL_LENGTH = 500;
     /**
+     * The number of DISTINCT community confirmers at which a USER row in
+     * review state NEW is promoted NEW→CONFIRMED (the positive mirror of
+     * the auto-hide). A confirmer is a verified reporter who filed an
+     * open (non-dismissed) {@code OPEN_CONFIRMED} report or whose current
+     * live tap is OPEN; each distinct user counts once, report and tap
+     * alike, and the row's submitter is always excluded — their own
+     * confirmation never verifies their own shelter, not even as the
+     * third. A domain fact: the report service enforces it.
+     */
+    public static final int AUTO_CONFIRM_THRESHOLD = 3;
+    /**
      * The trust-weighted {@code NON_EXISTENT} hide tally at which an ACTIVE
      * shelter is auto-hidden (shelter-trust-and-reports D1 — the 4→5
      * transition; community-self-moderation made the tally trust-

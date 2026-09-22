@@ -158,17 +158,25 @@ class LastVerifiedApiIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.reportCount").value(0));
 
         Instant before = Instant.now();
-        String reporter = verifiedToken("Kontrollija", "kontrollija1@example.ee");
+        // the 3-distinct threshold: the first two checkers stay below
+        report(shelterId, verifiedToken("Kontrollija1", "kontrollija1@example.ee"), "OPEN_CONFIRMED");
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+        report(shelterId, verifiedToken("Kontrollija2", "kontrollija2@example.ee"), "OPEN_CONFIRMED");
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+        String reporter = verifiedToken("Kontrollija3", "kontrollija3@example.ee");
         report(shelterId, reporter, "OPEN_CONFIRMED");
         Instant after = Instant.now();
 
-        // the cross-user check verifies the row AND promotes it (the auto-
-        // confirm flow) — the stamp lands inside the call window
+        // the third cross-user check verifies the row AND promotes it (the
+        // auto-confirm tally) — the stamp (newest check) lands inside the
+        // call window
         MvcResult result = mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"))
-                .andExpect(jsonPath("$.reportCount").value(1))
+                .andExpect(jsonPath("$.reportCount").value(3))
                 .andReturn();
         String stamp = com.jayway.jsonpath.JsonPath.read(
                 result.getResponse().getContentAsString(), "$.lastVerifiedAt");

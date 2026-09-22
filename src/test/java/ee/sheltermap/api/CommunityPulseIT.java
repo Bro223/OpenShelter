@@ -198,9 +198,9 @@ class CommunityPulseIT extends AbstractPersistenceIT {
     void aTrustedReporterMovesTheShareLikeTheAutoHideTally() throws Exception {
         long shelterId = seedShelter("Usaldus pulss");
 
-        // the trusted reporter: an own submission cross-verified by
-        // another user's OPEN_CONFIRMED (the auto-confirm promotion →
-        // weight 2, the same derivation the tally uses)
+        // the trusted reporter: an own submission cross-verified by THREE
+        // distinct users' OPEN_CONFIRMED confirmations (the auto-confirm
+        // tally → weight 2, the same derivation the tally uses)
         String trusted = verifiedToken("Usaldatud", "usaldatud@example.ee");
         MvcResult created = mvc.perform(post("/api/shelters")
                         .header("Authorization", "Bearer " + trusted)
@@ -212,6 +212,16 @@ class CommunityPulseIT extends AbstractPersistenceIT {
                 created.getResponse().getContentAsString(), "$.id")).longValue();
         mvc.perform(post("/api/shelters/" + ownRow + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kinnitaja", "kinnitaja@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + ownRow + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja2", "kinnitaja2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + ownRow + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja3", "kinnitaja3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
                 .andExpect(status().isOk());

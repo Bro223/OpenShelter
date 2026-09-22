@@ -1,6 +1,7 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.ShelterOpenStatusRepository;
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +63,12 @@ public class JpaShelterOpenStatusReportRepository implements ShelterOpenStatusRe
     public Optional<ShelterOpenStatusReport> findByShelterIdAndUserId(long shelterId, long userId) {
         return openStatus.findByShelterIdAndUserId(shelterId, userId)
                 .map(JpaShelterOpenStatusReportRepository::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> userIdsByShelterIdAndState(long shelterId, OpenStatusState state) {
+        return openStatus.userIdsByShelterIdAndState(shelterId, state);
     }
 
     @Override

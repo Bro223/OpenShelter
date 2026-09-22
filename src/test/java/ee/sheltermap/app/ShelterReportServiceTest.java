@@ -38,8 +38,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * zero; no re-hide after a manual restore / disarmed flag), the
  * duplicate dampening of self-interested negative votes, the occupancy
  * upsert, the live open/closed state upsert (same level as capacity —
- * not throttled, OPEN taps auto-confirm like OPEN_CONFIRMED reports) and
- * the dismissed-report exclusion from the hide tally.
+ * not throttled; an OPEN tap is one of the distinct-user confirmations in
+ * the 3-distinct auto-confirm tally) and the dismissed-report exclusion
+ * from the hide tally.
  */
 class ShelterReportServiceTest {
 
@@ -388,11 +389,20 @@ class ShelterReportServiceTest {
     }
 
     @Test
-    void anOpenTapFromAnotherUserAutoConfirmsANewRow() {
+    void threeDistinctOpenTapsVerifyANewRow() {
         RegisteredUser submitter = user("Submitter", true);
         shelter.setCreatedBy(submitter.getId());
         shelter.setReviewStatus(ReviewStatus.NEW);
 
+        // the first two distinct tappers stay below the threshold
+        service.putOpenStatus(user("Tapper1", true), shelter.getId(), OpenStatusState.OPEN);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+        service.putOpenStatus(user("Tapper2", true), shelter.getId(), OpenStatusState.OPEN);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        // the third distinct tapper crosses the threshold: one audit row
         service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
 
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
@@ -445,12 +455,62 @@ class ShelterReportServiceTest {
 
     // ---------- auto-confirm (community-review-queue v2 D2) ----------
 
+    // (the old single-report promotion test is superseded:
+    // threeDistinctConfirmersVerifyANewRow covers the crossing + audit
+    // shape, aSingleConfirmationDoesNotVerifyANewRow pins the threshold)
+
     @Test
-    void aPositiveReportFromAnotherUserConfirmsANewRow() {
+    void theSubmittersOwnPositiveReportDoesNotConfirm() {
         RegisteredUser submitter = user("Submitter", true);
         shelter.setCreatedBy(submitter.getId());
         shelter.setReviewStatus(ReviewStatus.NEW);
 
+        service.reportShelter(submitter, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    // ---------- community verification threshold (3 distinct confirmers) ----------
+
+    /**
+     * The owner-reported defect, pinned: ONE positive confirmation used to
+     * flip a community row to the verified (green) state immediately. A
+     * single confirmation — the least the community can express — must
+     * leave the row in the pending (NEW) state.
+     */
+    @Test
+    void aSingleConfirmationDoesNotVerifyANewRow() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    /**
+     * The rule itself: three DISTINCT non-submitter confirmations promote
+     * the row, and only on the crossing (third) action — one audit row,
+     * the crossing reporter as the actor of record.
+     */
+    @Test
+    void threeDistinctConfirmersVerifyANewRow() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.reportShelter(user("K1", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        service.reportShelter(user("K2", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        // the third distinct reporter crosses the threshold
         service.reportShelter(verified, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
 
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
@@ -464,16 +524,117 @@ class ShelterReportServiceTest {
         assertThat(row.reason()).isNull();
     }
 
+    /**
+     * The report and the tap are the two positive signals (the UI's
+     * confirmation surface is the tap; OPEN_CONFIRMED is the stored
+     * report). Distinctness is per PERSON: the same user's report + tap
+     * is one confirmation, not two.
+     */
     @Test
-    void theSubmittersOwnPositiveReportDoesNotConfirm() {
+    void aMixedReportAndTapFromThreeDistinctUsersVerifiesAndEachUserCountsOnce() {
         RegisteredUser submitter = user("Submitter", true);
         shelter.setCreatedBy(submitter.getId());
         shelter.setReviewStatus(ReviewStatus.NEW);
 
-        service.reportShelter(submitter, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
-
+        // verified reports AND taps the same shelter: one distinct person
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
+        service.putOpenStatus(user("Tapper", true), shelter.getId(), OpenStatusState.OPEN);
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(audit.rows()).isEmpty();
+
+        // the third distinct person crosses
+        RegisteredUser k3 = user("K3", true);
+        service.reportShelter(k3, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).hasSize(1);
+        // the crossing reporter is the actor of record
+        assertThat(audit.rows().get(0).moderatorId()).isEqualTo(k3.getId());
+    }
+
+    /**
+     * The submitter's own confirmations never count toward their own
+     * shelter's verification — including when they would be the third
+     * person: submitter report + tap + two distinct others is only TWO
+     * distinct non-submitter confirmations.
+     */
+    @Test
+    void theSubmittersOwnConfirmationNeverCountsIncludingAsTheThird() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        // the submitter's own report and tap: neither is a confirmation
+        service.reportShelter(submitter, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        service.putOpenStatus(submitter, shelter.getId(), OpenStatusState.OPEN);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+
+        // two distinct others: three people confirmed, but only two
+        // distinct non-submitters — still pending
+        service.reportShelter(user("K1", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        service.reportShelter(user("K2", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        // the third distinct NON-SUBMITTER crosses
+        service.reportShelter(user("K3", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+    }
+
+    /**
+     * A dismissed confirmation is the admin's invalid verdict: it stops
+     * counting in the tally, exactly as it stops counting in the hide
+     * tally and the displayed counts.
+     */
+    @Test
+    void aDismissedConfirmationDoesNotCountTowardTheTally() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        RegisteredUser k1 = user("K1", true);
+        RegisteredUser k2 = user("K2", true);
+        service.reportShelter(k1, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        service.reportShelter(k2, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        // the admin judged k1's confirmation invalid
+        reports.findByShelterId(shelter.getId()).stream()
+                .filter(r -> r.getUserId() == k1.getId())
+                .findFirst().orElseThrow()
+                .markDismissed(FIXED.instant());
+
+        // k3 is the third person but the second DISTINCT undismissed
+        // confirmer — still pending
+        service.reportShelter(user("K3", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        // a fourth person is the third distinct undismissed confirmer
+        service.reportShelter(user("K4", true), shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).hasSize(1);
+    }
+
+    /**
+     * The two trust thresholds must not drift into each other: the
+     * auto-hide stays at 5 (trust-weighted open NON_EXISTENT
+     * reporters — the reported state), community verification at 3
+     * (distinct confirmers). The auto-hide behaviour itself: five
+     * baseline (weight-1) reporters still hide on the fifth report.
+     */
+    @Test
+    void theAutoHideThresholdStaysFiveAndTheVerifyThresholdIsThree() {
+        assertThat(ShelterReport.AUTO_HIDE_THRESHOLD).isEqualTo(5);
+        assertThat(ShelterReport.AUTO_CONFIRM_THRESHOLD).isEqualTo(3);
+
+        for (int i = 1; i <= 4; i++) {
+            service.reportShelter(user("H" + i, true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        }
+        assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+
+        // the fifth baseline report crosses the hide tally
+        service.reportShelter(user("H5", true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.INACTIVE);
     }
 
     @Test
@@ -646,12 +807,13 @@ class ShelterReportServiceTest {
                 ShelterReportType.NON_EXISTENT, null)).isFalse();
 
         // a rival's positive report is stored plain (helping the map is not
-        // self-interested) and still auto-confirms a NEW row
+        // self-interested); one confirmation alone no longer verifies the
+        // row (the 3-distinct threshold)
         RegisteredUser rival = rivalWithOwnListing("RivalPos", true);
         shelter.setReviewStatus(ReviewStatus.NEW);
         assertThat(service.reportShelter(rival, shelter.getId(),
                 ShelterReportType.OPEN_CONFIRMED, null)).isFalse();
-        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
     }
 
     @Test

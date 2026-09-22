@@ -8,7 +8,9 @@ import java.time.Instant;
  * @param created        shelters newly created
  * @param updated        shelters refreshed in place
  * @param removed        registry rows deleted because they vanished from the latest fetch
- * @param skipped        malformed rows (bad coordinates, outside Estonia, blank name…)
+ * @param skipped        malformed rows (bad coordinates, outside Estonia,
+ *                       blank name…) plus rows the client rejected as
+ *                       unplaceable
  * @param failed         1 when the registry was unreachable and the import aborted, else 0
  * @param at             when the import finished
  * @param overlapSkipped true when the run was skipped because another import

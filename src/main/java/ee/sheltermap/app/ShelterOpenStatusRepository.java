@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
 
 import java.time.Instant;
@@ -21,6 +22,14 @@ public interface ShelterOpenStatusRepository {
     void save(ShelterOpenStatusReport report);
 
     Optional<ShelterOpenStatusReport> findByShelterIdAndUserId(long shelterId, long userId);
+
+    /**
+     * The distinct user ids whose CURRENT live state for one shelter is
+     * the given state (one query) — the live-tap half of the
+     * auto-confirm tally (one row per (shelter, user), so the state is
+     * always the latest tap's).
+     */
+    List<Long> userIdsByShelterIdAndState(long shelterId, OpenStatusState state);
 
     /**
      * All open-status rows for the given shelters that are fresh
