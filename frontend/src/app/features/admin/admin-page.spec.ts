@@ -167,23 +167,13 @@ const GUIDANCE_DRAFT: AdminGuidancePostDto = {
   updatedAt: '2026-09-01T10:00:00Z',
 };
 
-/** A DRAFT carrying a PENDING hero import (guidance-hero-import): the
- *  publish that consumes it is the one that fetches/validates/stores
- *  the image — this fixture is that draft. */
+/** A DRAFT carrying a hero import URL whose import FAILED at save
+ *  (guidance-hero-import, the save-time trigger): the post was stored
+ *  anyway, the URL kept for a retry — this fixture is that draft. */
 const GUIDANCE_PENDING_IMPORT: AdminGuidancePostDto = {
   ...GUIDANCE_DRAFT,
   heroImageAlt: 'Kelder, vaade sissepääsust',
   heroImportUrl: 'https://cdn.example.com/kelder.jpg',
-};
-
-/** The same draft AFTER a successful publish: the import was consumed
- *  (stored asset linked, URL cleared, status PUBLISHED). */
-const GUIDANCE_IMPORTED_PUBLISHED: AdminGuidancePostDto = {
-  ...GUIDANCE_PENDING_IMPORT,
-  status: 'PUBLISHED',
-  heroImageId: 9,
-  heroImageUrl: '/api/media/deadbeefdeadbeefdeadbeefdeadbeef.jpg',
-  heroImportUrl: null,
 };
 
 const GUIDANCE_PUBLISHED: AdminGuidancePostDto = {
@@ -1994,6 +1984,46 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('slug "uus-juhis" is already in use');
   });
 
+  it('create: a failed hero import at save keeps the editor open on the stored row (no success copy, the row is appended)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    admin.listGuidancePostsPage.mockResolvedValue(paged([]));
+    admin.listMediaAssets.mockResolvedValue(paged([]));
+    // The save SUCCEEDED — the 200 body is the stored post, carrying the
+    // import's failure (heroImportError: write responses only).
+    admin.createGuidancePost.mockResolvedValue({
+      ...GUIDANCE_DRAFT,
+      heroImageAlt: 'Kelder, vaade sissepääsust',
+      heroImportUrl: 'https://cdn.example.com/kelder.jpg',
+      heroImportError: 'The host serving the hero image could not be fetched',
+    });
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    buttonByText(element, 'New post')!.click();
+    await settle(fixture);
+    typeValue(inputById(element, 'ge-title')!, 'Uus juhis (mustand)', fixture);
+    typeValue(inputById(element, 'ge-body')!, '<p>Keha</p>', fixture);
+    // The hero is an import URL (the alt is mandatory iff a hero is set).
+    typeValue(inputById(element, 'ge-hero-import-url')!, 'https://cdn.example.com/kelder.jpg', fixture);
+    typeValue(inputById(element, 'ge-alt')!, 'Kelder, vaade sissepääsust', fixture);
+    buttonByText(element, 'Save')!.click();
+    await settle(fixture);
+
+    // The post was stored: the row is APPENDED to the list...
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.textContent).toContain('Uus juhis (mustand)');
+    // ...but the import failed: the editor STAYS open on the stored row,
+    // no success copy, and the server's message is surfaced against the
+    // hero URL field inside the editor.
+    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+    expect(element.textContent).not.toContain('Post created.');
+    expect(element.textContent).toContain('The host serving the hero image could not be fetched');
+    // The URL stays in the field for a retry (the saved row is re-bound).
+    expect((inputById(element, 'ge-hero-import-url')! as HTMLInputElement).value)
+      .toBe('https://cdn.example.com/kelder.jpg');
+  });
+
   it('edit: opens with the fetched post; Save PUTs the update body (no status field)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
@@ -2156,44 +2186,41 @@ describe('AdminPage', () => {
     expect(rule, 'no undefined --color-text-inverse token').not.toMatch(/--color-text-inverse/);
   });
 
-  // ---- the pending hero import (guidance-hero-import) --------------------------
-  // The publish call IS the import: the server fetches, validates and
-  // stores the draft's heroImportUrl inside it. The 204 carries no body,
-  // so the row's (changed) hero reference is re-fetched to keep the list
-  // thumbnail honest; a failed import fails the publish (server message
-  // echoed, the row stays a draft with the URL intact).
+  // ---- the hero import at SAVE (guidance-hero-import, the Wave 9 trigger) ----
+  // Publish is a pure stamp: it fetches, validates and stores NOTHING —
+  // the hero import runs at SAVE (create/update), so a post whose import
+  // failed (or never ran) publishes exactly as stored. The 204 changes
+  // nothing on the row besides the status — no detail re-fetch.
 
-  it('publish with a pending hero import: the row adopts the stored image (the detail re-fetch after the 204)', async () => {
+  it('publish with a hero import URL (import failed at save): the stamp goes through, no re-fetch, the URL stays', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(
       paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
     );
     admin.publishGuidancePost.mockResolvedValue(undefined);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_IMPORTED_PUBLISHED);
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
 
     const draftRow = element.querySelectorAll('tbody tr')[0]!;
-    // No stored asset yet: no thumbnail before the publish.
+    // No stored asset yet (the import failed at save): no thumbnail.
     expect(draftRow.querySelector('img.admin-guidance-thumb')).toBeNull();
 
     buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
     await settle(fixture);
 
     expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
-    // The import ran inside the publish; the row's hero reference is the
-    // re-fetched post (the 204 body carries nothing).
-    expect(admin.getGuidancePost).toHaveBeenCalledWith(12, 'en');
+    // The publish is a pure stamp — it does NOT fetch the image and does
+    // NOT re-fetch the detail (the old publish-time import is gone).
+    expect(admin.getGuidancePost).not.toHaveBeenCalled();
     expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Published');
     expect(element.textContent).toContain('Post published.');
-    // The result is shown: the stored image's thumbnail is in the row now.
-    const row = element.querySelectorAll('tbody tr')[0]!;
-    const thumb = row.querySelector('img.admin-guidance-thumb');
-    expect(thumb?.getAttribute('src')).toBe('/api/media/deadbeefdeadbeefdeadbeefdeadbeef.jpg');
-    expect(thumb?.getAttribute('alt')).toBe('Kelder, vaade sissepääsust');
+    // The publish conjured no hero: the row still has no stored asset
+    // (the failed import left it hero-less — the URL stays in the row's
+    // STATE for a retry, the table does not render the URL itself).
+    expect(element.querySelectorAll('tbody tr')[0]!.querySelector('img.admin-guidance-thumb')).toBeNull();
   });
 
-  it('publish WITHOUT a pending import does not re-fetch the detail (the status patch is enough)', async () => {
+  it('publish WITHOUT an import URL does not re-fetch the detail (the status patch is enough)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
     admin.publishGuidancePost.mockResolvedValue(undefined);
@@ -2208,14 +2235,15 @@ describe('AdminPage', () => {
     expect(admin.getGuidancePost).not.toHaveBeenCalled();
   });
 
-  it('a refused import fails the publish: the server message is echoed, the row stays a draft with the URL intact', async () => {
+  it('publish never fails for an image reason: a post whose import failed at save publishes as stored', async () => {
+    // The old trigger could 400/502 the publish on a failed import — the
+    // new one cannot: the publish endpoint answers only 204/404. A 204
+    // with the URL still on the row is the contract.
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(
       paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
     );
-    admin.publishGuidancePost.mockRejectedValue(
-      apiError(400, 'heroImportUrl names a refused address', '/admin/guidance/12/publish'),
-    );
+    admin.publishGuidancePost.mockResolvedValue(undefined);
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
 
@@ -2224,33 +2252,11 @@ describe('AdminPage', () => {
     await settle(fixture);
 
     expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
-    // The server's error message is shown (400s are echoed, the
-    // error-copy convention) — and the row is still a draft (no patch,
-    // no re-fetch: the import left the URL on the draft).
-    expect(element.textContent).toContain('heroImportUrl names a refused address');
-    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Draft');
-    expect(admin.getGuidancePost).not.toHaveBeenCalled();
-    expect(element.textContent).not.toContain('Post published.');
-  });
-
-  it('an unreachable import (502) fails the publish with the generic 5xx copy (the error-copy convention)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(
-      paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
-    );
-    admin.publishGuidancePost.mockRejectedValue(
-      apiError(502, 'could not be fetched', '/admin/guidance/12/publish'),
-    );
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-
-    const draftRow = element.querySelectorAll('tbody tr')[0]!;
-    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
-    await settle(fixture);
-
-    expect(element.textContent).toContain('Something went wrong. Please try again.');
-    expect(element.textContent).not.toContain('could not be fetched'); // 5xx bodies are never echoed
-    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Draft');
+    // No error banner (the import failure was surfaced at SAVE, against
+    // the hero field in the editor — not here), the row is published.
+    expect(element.textContent).not.toContain('Something went wrong. Please try again.');
+    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Published');
+    expect(element.textContent).toContain('Post published.');
     expect(admin.getGuidancePost).not.toHaveBeenCalled();
   });
 

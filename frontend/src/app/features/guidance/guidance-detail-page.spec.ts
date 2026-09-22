@@ -288,7 +288,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   // reader switching into the post's language sees it appear (no reload).
   // ---------------------------------------------------------------------------
   describe('locale switch', () => {
-    it('a mismatch 404 is the not-found state (no error banner), and switching into the post\'s language renders it', async () => {
+    it("a mismatch 404 is the not-found state (no error banner), and switching into the post's language renders it", async () => {
       // The post exists ONLY in Estonian.
       const etPost = guidancePost({
         slug: 'vesi-ja-kuumus',
@@ -397,18 +397,19 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       //    would defeat the immutable cache and re-download 1–3 MB originals.
       //  - fetchpriority=high: the hero is the article's first content (above
       //    the fold) — the browser must fetch it before the below-fold work.
-      //  - decoding=async + the width/height attributes (matching the 4/3
-      //    aspect-ratio box, 704x528): the decode stays off the critical path
-      //    and the title never shifts while the image loads (no CLS).
+      //  - decoding=async: the decode stays off the critical path.
+      //  - NO width/height attributes (pinned): the natural dimensions
+      //    are not stored server-side, so a pinned pair would mis-reserve
+      //    the old 4/3 box (704x528) and jump when the real image lands.
+      //    The hero sizes to its own aspect ratio instead (max-width
+      //    100% + height auto in guidance-detail-page.scss).
       expect(img?.getAttribute('fetchpriority')).toBe('high');
       expect(img?.getAttribute('decoding')).toBe('async');
-      expect(img?.getAttribute('width')).toBe('704');
-      expect(img?.getAttribute('height')).toBe('528');
+      expect(img?.hasAttribute('width')).toBe(false);
+      expect(img?.hasAttribute('height')).toBe(false);
       // The hero is the article's first content: above the title header,
       // and the title stays the page's single h1.
-      expect(element.querySelector('h1')?.textContent).toBe(
-        'Water and heating in the first days',
-      );
+      expect(element.querySelector('h1')?.textContent).toBe('Water and heating in the first days');
       expect(element.querySelectorAll('h1')).toHaveLength(1);
       const heroBox = element.querySelector('.guidance-detail__hero');
       const title = element.querySelector('h1');
@@ -442,9 +443,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       const { element } = await open('/blog/no-hero');
 
       // The post rendered (chrome + body intact)...
-      expect(element.querySelector('h1')?.textContent).toBe(
-        'Water and heating in the first days',
-      );
+      expect(element.querySelector('h1')?.textContent).toBe('Water and heating in the first days');
       expect(element.querySelector('.guidance-detail__body')).not.toBeNull();
       // ...but the section carries NO <img> at all (the stored body here is
       // plain prose) and NO placeholder frame — asserted on the DOM, not on
@@ -473,9 +472,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       fixture.detectChanges();
 
       expect(element.querySelector('img.guidance-detail__hero')).toBeNull();
-      expect(
-        element.querySelector('.guidance-detail__hero--failed'),
-      ).not.toBeNull();
+      expect(element.querySelector('.guidance-detail__hero--failed')).not.toBeNull();
     });
 
     it('a failed hero does not carry over to the next slug (the state resets per load)', async () => {
@@ -498,9 +495,9 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
         }),
       );
       const { element, fixture, router } = await open('/blog/broken-a');
-      element.querySelector<HTMLImageElement>('img.guidance-detail__hero')!.dispatchEvent(
-        new Event('error'),
-      );
+      element
+        .querySelector<HTMLImageElement>('img.guidance-detail__hero')!
+        .dispatchEvent(new Event('error'));
       fixture.detectChanges();
       expect(element.querySelector('.guidance-detail__hero--failed')).not.toBeNull();
 

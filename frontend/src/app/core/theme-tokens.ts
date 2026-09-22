@@ -45,7 +45,7 @@ export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
  *                                        verified pair)
  *   new     #7fd49a   black on it    11.79:1 (= the verified value — the
  *                                verified family is ONE value, owner decision;
- *                                the wave-8 re-tint made it the success green)
+ *                                the verified-green re-tint made it the success green)
  *   pick    #4dd0c4   on #000        10.9:1 (the selected-point pin)
  *   info    #8ac6f5   on #000        11.7:1
  *   border  #8a7400   vs #000        4.58:1 (UI boundary ≥ 3:1)
@@ -142,6 +142,11 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-badge-registry': '#14263a',
   '--color-badge-user':
     '#11301d' /* dark green tint — "Community-checked" (brightened verified on it 8.05:1) */,
+  /* "Newly added" badge: the dark-tint mirror of the light pair (like the
+     sibling badge tints); the uniform badge ruling still wins visually in
+     this theme */
+  '--color-badge-new': '#33260a',
+  '--color-badge-new-text': '#ffd400' /* bright yellow on the dark amber tint = 10.31:1 */,
   /* Map + markers (the map is not themed — tiles stay light) */
   '--color-shelter-registry': '#7ab8ff',
   '--color-shelter-user':

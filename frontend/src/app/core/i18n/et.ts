@@ -84,7 +84,7 @@ export const ET: Messages = {
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
-  // MACHINE DRAFT (wave-8 re-tint copy) — awaiting native Estonian review.
+  // MACHINE DRAFT (the verified-green re-tint copy) — awaiting native Estonian review.
   'how.sources':
     'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis „Register”. Kogukonna asukohad lisavad kasutajad: kinnitamata kasutajal on kollane kolmnurk, osaliselt kinnitatud kasutajal kollane ring ja täielikult kinnitatud kasutajal roheline ring. Avatud teatega asukoht on märgitud punase märgisega. Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
   'how.report':
@@ -210,7 +210,7 @@ export const ET: Messages = {
   'map.trustFiltersAria': 'Varjupaikade filtrid',
   'map.shelterListAria': 'Varjupaigad',
   'map.chipOpen': 'Avatud',
-  'map.chipHasCapacity': 'On mahtu',
+  'map.chipHasCapacity': 'On ruumi',
   'map.emptyFilter': 'Ükski varjupaik sellele filtrile ei sobi.',
   'map.loading': 'Laen varjupaiku…',
   'map.viewDetails': 'Vaata detaile',
@@ -880,14 +880,15 @@ export const ET: Messages = {
    *  uuesti proovida sõnum. */
   'admin.guidance.editor.hero.uploadError.generic':
     'Pildi üleslaadimine ebaõnnestus. Palun proovi uuesti.',
-  /** Pealtpildi impordi URL-i silt (guidance-hero-import): mustandiga
-   *  salvestatav ootav import, mille server laadib avaldamisel alla. */
+  /** Pealtpildi impordi URL-i silt (guidance-hero-import): valikuline
+   *  import — server laadib pildi alla, kontrollib ja salvestab
+   *  SALVESTAMISE ajal (ei kogumiku varrast). */
   'admin.guidance.editor.hero.importLabel': 'Impordi URL-ist (valikuline)',
-  /** Alati nähtav vihje: pilti ei laadita toimetamise ajal — server
-   *  laadib pildi alla, kontrollib ja salvestab selle, kui post
-   *  avaldatakse. */
+  /** Alati nähtav vihje: pilti ei laadita toimetamise ajal — kui
+   *  salvestad, laadib server pildi alla, kontrollib ja salvestab;
+   *  muudetud URL imporditakse järgmisel salvestusel uuesti. */
   'admin.guidance.editor.hero.importHint':
-    'Pilti ei laadita toimetamise ajal — URL salvestatakse mustandiga ja server laadib, kontrollib ja salvestab selle, kui post avaldatakse.',
+    'Toimetamise ajal pilti ei laadita. Kui salvestad, laadib server pildi alla, kontrollib ja salvestab selle; kui muudad URL-i, impordib järgmine salvestus uue.',
   /** URL ei läbinud kuju kontrolli (peegeldab serveri salvestusaja 400
    *  vea): pole täielik http(s)-aadress või sisaldab volitusandmeid. */
   'admin.guidance.editor.hero.importInvalid':
@@ -896,11 +897,19 @@ export const ET: Messages = {
    *  ega ootavat import-URL-i (pealtpildi valimise kontrollid on
    *  keelatud). */
   'admin.guidance.editor.hero.none': 'Ilma pildita',
-  /** Nähtav, kui ootavat import-URL-i on salvestatud: alla laadimine
-   *  toimub avaldamisel, ebaõnnestunud allalaadimine jättab
-   *  avaldamise tegemata (mustand hoiab URL-i puutumatuna). */
+  /** Nähtav, kui import-URL on salvestatud: allalaadimine toimub
+   *  SALVESTAMISE ajal (loomine ja muudatus, mustand ja avaldatud
+   *  postid) — ebaõnnestunud import ei blokeeri kunagi salvestust:
+   *  post salvestatakse siiski, hoiab eelmist pilti (või ei midagi)
+   *  ja URL-i uuesti proovimiseks. */
   'admin.guidance.editor.hero.importNote':
-    'Midagi pole veel alla laetud. Avaldamisel laadib server pildi alla — kui allalaadimine ebaõnnestub, avaldamine jääb ära ja see mustand hoiab URL-i.',
+    'Pilt imporditakse salvestamisel. Kui allalaadimine ebaõnnestub, salvestatakse post siiski ja ebaõnnestumine näidatakse allpool — post hoiab eelmist pilti (või ei midagi) ja URL jääb uuesti proovimiseks.',
+  /** Salvestusaja import ebaõnnestus salvestuses, mis posti salvestas
+   *  (kirjutusvastuse heroImportError): serveri sõnumi (mis näidatakse
+   *  otse allpool) sissejuhatav rida — post SAlVESTATI, pilt ei
+   *  õnnestunud. */
+  'admin.guidance.editor.hero.importFailed':
+    'Post salvestati, kuid pilti ei õnnestunud impordida:',
   'admin.guidance.editor.altLabel': 'Pealtpildi alt-tekst (valikuga)',
   'admin.guidance.editor.altRequired': 'Kui pealtpilt on valitud, on alt-tekst kohustuslik.',
   'admin.guidance.editor.altForbidden': 'Eemalda alt-tekst või vali pealtpilt.',

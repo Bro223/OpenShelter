@@ -2028,7 +2028,22 @@ export class AdminPage implements OnInit, OnDestroy {
         );
         this.success.set(this.i18n.t('admin.guidance.success.updated'));
       }
-      this.closeGuidanceEditor();
+      if (result.heroImportError !== null && result.heroImportError !== undefined) {
+        // The save SUCCEEDED — the post was stored — but its hero import
+        // FAILED at save (the write response carries the failure). Keep
+        // the editor open on the saved row: the failure is surfaced
+        // against the hero field (the editor reads heroImportError off
+        // the bound post), the URL stays for a retry, and the admin
+        // fixes and re-saves from there. (The create-mode switch from
+        // 'new' to the stored post is deliberate: the stored row is what
+        // the retry edits.) The success copy is cleared — the editor's
+        // field error is the signal (a "Post created." banner next to a
+        // field error argues with it).
+        this.success.set(null);
+        this.guidanceEditor.set(result);
+      } else {
+        this.closeGuidanceEditor();
+      }
       // The slug may have moved (or a save-and-publish set the status) —
       // the publishedAt merge follows the new state.
       this.refreshPublishedIndex();
@@ -2063,26 +2078,12 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       if (status === 'PUBLISHED') {
+        // Publish is a pure stamp (the Wave 9 trigger): it fetches,
+        // validates and stores NOTHING — the hero import runs at SAVE.
+        // The 204 therefore changes nothing on the row besides the
+        // status, so there is no detail re-fetch (the old publish-time
+        // import used to change the hero reference mid-publish).
         await this.admin.publishGuidancePost(row.id);
-        // The pending hero import (guidance-hero-import) RUNS inside this
-        // publish call: the server fetches, validates and stores the
-        // draft's heroImportUrl (a failed import fails the publish, so a
-        // success here means the import succeeded or was absent). The 204
-        // carries no body, so when the row carried a pending URL the hero
-        // reference changed (now a stored asset, URL cleared) and the
-        // detail re-fetch keeps the list's thumbnail honest. The fetch is
-        // held under the shared busy flag — the button's "Working…" covers
-        // the whole import, not just the stamp. A re-fetch failure (the
-        // post vanished concurrently) degrades to the stale row: the
-        // publish itself succeeded, the next list load fixes the row.
-        if (row.heroImportUrl !== null) {
-          try {
-            const fresh = await this.admin.getGuidancePost(row.id, this.i18n.contentLocale());
-            this.patchGuidance(row.id, fresh);
-          } catch {
-            // Stale row: the publish succeeded, the list load heals it.
-          }
-        }
       } else {
         await this.admin.unpublishGuidancePost(row.id);
       }

@@ -117,6 +117,25 @@
   }
 }
 
+/* Edit mode (M5): the session-expired state — the /mine load 401'd, the
+   central interceptor cleared the session and routed to /login. Same
+   neutral card as the not-found state (nothing can load or save here),
+   with the login link as the single way forward. This state never mounts
+   the form — and with it the .submit-map container — so an unauthorized
+   page can never render a dead grey map box. */
+.edit-unavailable {
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+
+  &__title {
+    margin: 0 0 var(--space-12);
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
 .location-field {
   margin: 0;
   padding: var(--space-12) var(--space-14) var(--space-14);

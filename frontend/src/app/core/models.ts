@@ -989,13 +989,21 @@ export interface AdminGuidancePostDto {
    */
   heroImageSrcset?: string | null;
   /**
-   * The PENDING hero import (guidance-hero-import): the admin-supplied
-   * remote URL stored with the draft, fetched, validated and stored by
-   * the server at the next publish (null when the hero is a plain library
-   * reference — a published post always carries none; the V25 CHECK makes
-   * a pending URL on a published post impossible).
+   * The hero's source URL (guidance-hero-import): the admin-supplied
+   * remote URL, fetched, validated and stored by the server at SAVE time
+   * (create and update, draft or published alike). Kept after a
+   * successful import as the hero's provenance (the imported asset's
+   * `source_url` records the same origin); retryable after a failed one.
+   * Null when the hero is a plain library reference (or absent).
    */
   heroImportUrl: string | null;
+  /**
+   * The hero import that FAILED at the save producing this DTO (write
+   * responses only — list/detail reads and successful saves answer null):
+   * the post was still stored, the URL kept for a retry on the next save
+   * (a failed import never blocks a save).
+   */
+  heroImportError?: string | null;
   /** The author's user id; null after the account's erasure. */
   createdBy: number | null;
   /** ISO-8601 instant. */
@@ -1045,13 +1053,13 @@ export interface CreateGuidancePostRequest {
   /** At most 300 characters; null when there is no hero. */
   heroImageAlt: string | null;
   /**
-   * The pending hero import (guidance-hero-import): omitted when blank
-   * (no pending import). An http(s) URL the server fetches, validates and
-   * stores at publish time instead of picking a library asset — the alt is
-   * mandatory iff a hero of EITHER kind is set (the 400 pairing rule). A
-   * one-shot PUBLISHED create imports it in the create call itself (a
-   * failed import fails the create: 400 policy/non-image, 413 over cap,
-   * 502 unfetchable).
+   * The hero import (guidance-hero-import): omitted when blank. An
+   * http(s) URL the server fetches, validates and stores AT SAVE (this
+   * create call) instead of picking a library asset — the alt is
+   * mandatory iff a hero of EITHER kind is set (the 400 pairing rule).
+   * A failed import never blocks the create: the post is stored anyway
+   * and the response's `heroImportError` names the failure (the URL is
+   * kept for a retry on the next save).
    */
   heroImportUrl?: string;
   /** DRAFT by default; an explicit PUBLISHED publishes in one call. */
@@ -1077,11 +1085,13 @@ export interface UpdateGuidancePostRequest {
   /** null when there is no hero (the 400 pairing rule, both directions). */
   heroImageAlt: string | null;
   /**
-   * The pending hero import (guidance-hero-import): omitted (or null) when
-   * blank — that CLEARS a pending import (the PUT is a full replace). A
-   * non-null URL on an already-published post is a 400 (unpublish first —
-   * the V25 CHECK); the import is consumed at the next publish, where it
-   * supersedes `heroImageId`.
+   * The hero import (guidance-hero-import): omitted (or null) when blank
+   * — that CLEARS the import URL (the PUT is a full replace). A non-null
+   * URL is fetched, validated and stored AT SAVE, draft or published
+   * alike (the Wave 9 trigger); a changed URL re-imports (superseding the
+   * previous hero — the replaced asset stays in the library, D8). A
+   * failed import never blocks the update: the response's
+   * `heroImportError` names it and the URL is kept for a retry.
    */
   heroImportUrl?: string;
 }

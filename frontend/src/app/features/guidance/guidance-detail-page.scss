@@ -27,22 +27,40 @@
   gap: var(--space-8);
 }
 
-/* The hero image: the index card's hero idiom (guidance-list-page) at
-   article scale — full width in a fixed 4/3 aspect-ratio box,
-   object-fit: cover. The box (not the image bytes) defines the height,
-   so the title below never shifts while the image loads. The failed
-   variant is the index's neutral "no image" box — same look for a
-   404'd stored URL as the cards use for a hero-less / failed card. */
+/* The hero image at article scale: natural size, capped by the column
+   (max-width: 100% + height: auto — the image's OWN aspect ratio
+   decides the height, so nothing is stretched and a small image is
+   never upscaled past its natural width) AND capped in height
+   (max-height: 24rem, owner report: a full-column hero takes too
+   much vertical space) — when the cap binds, the width shrinks with
+   the ratio and the image centers. No fixed aspect-ratio box:
+   the old 4/3 box + default object-fit: fill stretched every photo.
+   The index cards keep the 4/3 cover idiom — that one crops, it does
+   not stretch. The failed variant is the index's neutral "no image"
+   box — it is a <span> with no intrinsic size, so it KEEPS the 4/3
+   frame to stay visible. */
 .guidance-detail__hero {
-  width: 100%;
-  aspect-ratio: 4 / 3;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 24rem;
+  margin-inline: auto; /* mobile default: centered */
   border-radius: var(--radius-md);
 
+  /* Desktop (owner ruling): float to the left of the article column;
+     the mobile default (centered) stays below the 900px breakpoint —
+     the repo-wide page-layout break. */
+  @media (min-width: 900px) {
+    margin-inline: 0 auto;
+  }
+
   &--failed {
-    /* The neutral "no image" box: a border + background on the same 4/3
-       frame (the element is a <span>, so it needs a display upgrade to
-       take the width/aspect-ratio of the shared rule). */
+    /* The neutral "no image" box: a border + background in a 4/3 frame
+       (the element is a <span>, so it needs a display upgrade and its
+       own aspect-ratio to take the width). */
     display: block;
+    aspect-ratio: 4 / 3;
     border: 1px solid var(--color-border-subtle);
     background: var(--color-bg-subtle);
   }

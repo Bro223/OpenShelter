@@ -53,10 +53,10 @@ export function inEstonia(latitude: number, longitude: number): boolean {
  * or an open inaccurate-information report; the OR of the two per the
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
- * every theme; the wave-8 verified-green re-tint did not touch
+ * every theme; the verified-green re-tint did not touch
  * it). For
  * community rows the SHAPE + HUE then carry the submitter's verification
- * depth (submitter-verification-badge, wave-8 owner logic): `user`
+ * depth (submitter-verification-badge, owner logic): `user`
  * (depth absent) is the YELLOW TRIANGLE, `partial` (one confirmed channel)
  * the YELLOW CIRCLE, `full` (two or more) the GREEN CIRCLE — never colour
  * alone (WCAG 1.4.1, the same rationale as the anchor diamond). A

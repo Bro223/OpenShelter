@@ -35,13 +35,15 @@
         (click)="toggleTone('registry')"
         (keydown)="onToneToggleKey('registry', $event)"
       >
-        <span
-          class="shelter-marker shelter-marker--registry legend-swatch"
-          aria-hidden="true"
-        ></span>
+        <span class="legend-swatch-slot">
+          <span
+            class="shelter-marker shelter-marker--registry legend-swatch"
+            aria-hidden="true"
+          ></span>
+        </span>
         {{ 'map.legend.registry' | t }}
       </button>
-      <!-- Community trust tone (wave-8 re-tint, owner decision — green
+      <!-- Community trust tone (the verified-green re-tint, owner decision — green
              means verified, unverified is the YELLOW tone: the pin palette
              is green/yellow/blue/red only, there is no grey in it). The
              community pin a USER row whose submitter depth the API does
@@ -58,11 +60,13 @@
         (click)="toggleTone('user')"
         (keydown)="onToneToggleKey('user', $event)"
       >
-        <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
+        <span class="legend-swatch-slot"
+          ><span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span
+        ></span>
         {{ 'map.legend.unverified' | t }}
       </button>
       <!-- Submitter verification depth (submitter-verification-badge,
-             wave-8 owner logic): yellow = not fully verified, green =
+             owner logic): yellow = not fully verified, green =
              verified — the triangle marks the UNVERIFIED submitter, the
              yellow circle the half-verified one (exactly one confirmed
              channel) and the green circle the fully verified one (two or
@@ -78,10 +82,12 @@
         (click)="toggleTone('partial')"
         (keydown)="onToneToggleKey('partial', $event)"
       >
-        <span
-          class="shelter-marker shelter-marker--partial legend-swatch"
-          aria-hidden="true"
-        ></span>
+        <span class="legend-swatch-slot">
+          <span
+            class="shelter-marker shelter-marker--partial legend-swatch"
+            aria-hidden="true"
+          ></span>
+        </span>
         {{ 'map.legend.partialVerified' | t }}
       </button>
       <button
@@ -93,7 +99,9 @@
         (click)="toggleTone('full')"
         (keydown)="onToneToggleKey('full', $event)"
       >
-        <span class="shelter-marker shelter-marker--full legend-swatch" aria-hidden="true"></span>
+        <span class="legend-swatch-slot">
+          <span class="shelter-marker shelter-marker--full legend-swatch" aria-hidden="true"></span>
+        </span>
         {{ 'map.legend.fullVerified' | t }}
       </button>
       <!-- Reported state (shelter-trust-and-reports D6): the single
@@ -107,10 +115,12 @@
         (click)="toggleTone('reported')"
         (keydown)="onToneToggleKey('reported', $event)"
       >
-        <span
-          class="shelter-marker shelter-marker--reported legend-swatch"
-          aria-hidden="true"
-        ></span>
+        <span class="legend-swatch-slot">
+          <span
+            class="shelter-marker shelter-marker--reported legend-swatch"
+            aria-hidden="true"
+          ></span>
+        </span>
         {{ 'map.legend.reported' | t }}
       </button>
       <!-- The origin marker (M8): the searched address the per-row
@@ -124,7 +134,12 @@
              Clear action) — a UI marker, not a shelter pin tone — so it
              stays an inert legend entry. -->
       <span class="legend-item">
-        <span class="shelter-marker shelter-marker--anchor legend-swatch" aria-hidden="true"></span>
+        <span class="legend-swatch-slot"
+          ><span
+            class="shelter-marker shelter-marker--anchor legend-swatch"
+            aria-hidden="true"
+          ></span
+        ></span>
         {{ 'map.searched' | t }}
       </span>
     </div>
@@ -331,9 +346,9 @@
                 <span class="shelter-row__meta">
                   <!-- Source/trust badge (community-review-queue): registry
                        rows say which registry; USER rows say their trust
-                       state (NEW = "Newly added", CONFIRMED =
-                       "Community-checked" — the NEW badge rides the
-                       verified green family's tint, wave-8 re-tint). -->
+                       state (NEW = "Newly added" on the unverified-yellow
+                       badge pair, CONFIRMED = "Community-checked" on the
+                       verified green tint). -->
                   <span class="badge badge--source" [ngClass]="communityBadgeClass(shelter)">
                     {{ sourceTrustLabel(shelter) }}
                   </span>

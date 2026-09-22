@@ -178,7 +178,7 @@ export const EN: Messages = {
   // The submitter-verification shapes (submitter-verification-badge).
   'map.legend.partialVerified': 'Added by a partially verified user',
   'map.legend.fullVerified': 'Added by a fully verified user',
-  // The unverified community tone (wave-8 re-tint — green means verified,
+  // The unverified community tone (the verified-green re-tint — green means verified,
   // unverified is the YELLOW tone; the pin palette is green/yellow/blue/
   // red only, there is no grey in it): the community pin a USER row whose
   // submitter depth the API does not report keeps.
@@ -874,13 +874,15 @@ export const EN: Messages = {
     'That file is not a supported image (JPEG, PNG or WebP), or its type does not match.',
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': 'The image upload failed. Please try again.',
-  /** The hero-import URL input's label: a PENDING import stored with the
-   *  draft, fetched by the server at publish. */
+  /** The hero-import URL input's label (guidance-hero-import): an
+   *  OPTIONAL import — the server fetches, validates and stores the
+   *  image at SAVE time instead of picking a library asset. */
   'admin.guidance.editor.hero.importLabel': 'Import from URL (optional)',
-  /** Always-on hint: nothing is fetched at edit time — the server
-   *  fetches, validates and stores the image at the next publish. */
+  /** Always-on hint: nothing is fetched while you edit — when you save,
+   *  the server fetches, validates and stores the image; a changed URL
+   *  re-imports on the next save. */
   'admin.guidance.editor.hero.importHint':
-    'The image is not fetched while you edit — the URL is stored with the draft, and the server fetches, validates and stores it when the post is published.',
+    'Nothing is fetched while you edit. When you save, the server downloads, validates and stores the image; if you change the URL, the next save imports the new one.',
   /** The URL failed the shape check (mirrors the backend's write-time
    *  400s): not a full http(s) address, or it embeds credentials. */
   'admin.guidance.editor.hero.importInvalid':
@@ -888,11 +890,17 @@ export const EN: Messages = {
   /** The explicit "no image" tick (checked = no library asset AND no
    *  pending import URL; the hero choice controls are disabled). */
   'admin.guidance.editor.hero.none': 'No image',
-  /** Shown while a pending import URL is stored: the fetch happens at
-   *  publish, and a failed fetch fails the publish (the draft keeps the
-   *  URL intact). */
+  /** Shown while an import URL is stored: the fetch happens at SAVE
+   *  (create and update, draft or published alike); a failed fetch never
+   *  blocks the save — the post is stored anyway, keeps its previous
+   *  image (or none) and the URL for a retry. */
   'admin.guidance.editor.hero.importNote':
-    'Nothing has been fetched yet. On publish the server downloads the image — if the fetch fails, the publish fails and this draft keeps the URL.',
+    'The image is imported when you save. If the download fails, the post is still saved and the failure is shown below — the post keeps its previous image (or none), and the URL stays for a retry.',
+  /** The save-time import failed at the save that stored the post (the
+   *  write response's heroImportError): the lead-in above the server's
+   *  message (which renders directly below it). */
+  'admin.guidance.editor.hero.importFailed':
+    'The post was saved, but the image could not be imported:',
   'admin.guidance.editor.altLabel': 'Hero image alt text (optional)',
   'admin.guidance.editor.altRequired': 'Alt text is required when a hero image is chosen.',
   'admin.guidance.editor.altForbidden': 'Remove the alt text or choose a hero image.',

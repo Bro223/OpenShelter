@@ -46,6 +46,20 @@
        PUT without the row's id.) -->
   @if (editMode() && editLoading()) {
     <app-loading-indicator class="submit-state" [message]="'account.contrib.loading' | t" />
+  } @else if (editMode() && sessionExpired()) {
+    <!-- The /mine load 401'd: the session is dead and the central
+         interceptor has routed to /login?session=expired (api-interceptor
+         owns the session work — the page never re-implements it). This is
+         the explicit state for the window until the bounce lands, and what
+         a back-button return shows before the guard redirects again. It
+         never renders the form — and with it the mini-map — so an
+         unauthorized page can never be a dead grey map box. The copy
+         reuses the login page's session-expired note + the nav's Log in
+         link (no new catalog keys). -->
+    <div class="edit-unavailable" role="status">
+      <h2 class="edit-unavailable__title">{{ 'authPage.login.sessionExpired' | t }}</h2>
+      <a routerLink="/login" class="btn">{{ 'auth.login' | t }}</a>
+    </div>
   } @else if (editMode() && editMissing()) {
     <div class="edit-not-found" role="status">
       <h2 class="edit-not-found__title">{{ 'detail.notFoundTitle' | t }}</h2>

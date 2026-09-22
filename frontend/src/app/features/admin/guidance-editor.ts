@@ -11,6 +11,7 @@ import {
   input,
   output,
   signal,
+  effect,
   ViewEncapsulation,
 } from '@angular/core';
 import {
@@ -38,6 +39,7 @@ import type {
 import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import Quill from '../../../vendor/quill/2.0.3/dist/quill.js';
+import type { Subscription } from 'rxjs';
 import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js';// The snow theme's stylesheet loads WITH the editor: the editor's init
 // path (ngOnInit) injects a <link> to a VERSIONED static asset — the
 // build copies the vendored quill.snow.css verbatim into dist (the
@@ -589,12 +591,14 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     readonly heroImportInvalid: MessageKey;
     readonly heroNone: MessageKey;
     readonly heroImportNote: MessageKey;
+    readonly heroImportFailed: MessageKey;
   } = {
     heroImportLabel: 'admin.guidance.editor.hero.importLabel',
     heroImportHint: 'admin.guidance.editor.hero.importHint',
     heroImportInvalid: 'admin.guidance.editor.hero.importInvalid',
     heroNone: 'admin.guidance.editor.hero.none',
     heroImportNote: 'admin.guidance.editor.hero.importNote',
+    heroImportFailed: 'admin.guidance.editor.hero.importFailed',
   };
 
   private readonly admin = inject(AdminGateway);
@@ -659,14 +663,16 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       nonNullable: true,
       validators: [Validators.maxLength(300)],
     }),
-    /** The pending hero import (guidance-hero-import): blank = no pending
-     *  import. Stored with the draft, fetched/validated/stored by the
-     *  server at the next publish (a one-shot PUBLISHED create imports it
-     *  in the create call). The shape validator mirrors the backend's
-     *  write-time 400s; the length bound is the backend's 2048.
+    /** The hero import (guidance-hero-import): blank = no import URL.
+     *  Fetched/validated/stored by the server AT SAVE (create and
+     *  update, draft or published alike); a changed URL re-imports, a
+     *  failed import never blocks the save (the 200 body's
+     *  `heroImportError` names it, the URL stays for a retry). The shape
+     *  validator mirrors the backend's write-time 400s; the length bound
+     *  is the backend's 2048.
      *  Starts DISABLED: a new post is hero-less (the "no image" tick is
      *  checked by default) and the field re-enables when the tick is
-     *  unchecked or a prefill shows a pending URL. Control-level disable
+     *  unchecked or a prefill shows a stored URL. Control-level disable
      *  on purpose — a [disabled] property binding does not stick next to
      *  a reactive form directive (Angular manages the element's disabled
      *  state from the control). */
@@ -697,6 +703,26 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  Starts false, and the page recreates the editor on every open, so it
    *  cannot leak from a previous post. */
   protected readonly draftSaved = signal(false);
+  /** The hero import that FAILED at the save producing the bound post
+   *  (write responses only — the save stored the post anyway): surfaced
+   *  against the hero URL field so the admin sees WHY the image is not
+   *  there yet, with the URL kept for a retry. A fresh read (list/detail)
+   *  carries no error, and editing the URL clears the stale one (the
+   *  next save retries the import). */
+  protected readonly heroImportError = signal<string | null>(null);
+  /** Follows the bound post across rebinds: the page rebinds the saved
+   *  row after a save that stored the post but failed the hero import —
+   *  the write response's error re-surfaces against the hero field; a
+   *  plain read (no error) clears it. Component-scoped: destroyed with
+   *  the component. */
+  constructor() {
+    effect(() => {
+      this.heroImportError.set(this.post()?.heroImportError ?? null);
+    });
+  }
+  /** The URL field's value subscription (the stale-error clear); torn
+   *  down with the component. */
+  private importUrlSub: Subscription | null = null;
 
   // ---- the body editor (Quill 2 over the sanitizer's allowlist) ----------
   /** The standard toolbar's control inventory (Quill's config form — the
@@ -724,6 +750,16 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     // see loadSnowTheme().
     loadSnowTheme();
     const post = this.post();
+    // The save-time hero import's failure (write response): shown
+    // against the hero URL field. Editing the URL clears the stale error
+    // (the next save retries the import with the new URL).
+    this.heroImportError.set(post?.heroImportError ?? null);
+    this.importUrlSub = this.heroImportUrl().valueChanges.subscribe(() => {
+      this.heroImportError.set(null);
+    });
+    this.destroyRef.onDestroy(() => {
+      this.importUrlSub?.unsubscribe();
+    });
     if (post === null) {
       // create mode — the form starts blank; the post is created in the
       // CONTENT language (admin-locale-scope + admin-locale-split — the
@@ -759,9 +795,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     this.form.get('heroImageAlt')?.setValue(post.heroImageAlt ?? '');
     this.form.get('heroImportUrl')?.setValue(post.heroImportUrl ?? '');
     // The "no image" tick reflects the SAVED state: no library asset AND
-    // no pending import URL. A post whose hero is a pending import (a
-    // draft carrying heroImportUrl) counts as a hero — the tick stays
-    // unchecked so the URL field below shows what is coming at publish.
+    // no import URL. A post whose hero is an imported (or not-yet-imported)
+    // URL counts as a hero — the tick stays unchecked so the URL field
+    // below shows the stored source URL.
     this.form
       .get('noHero')
       ?.setValue(post.heroImageId === null && (post.heroImportUrl ?? null) === null);
@@ -1017,10 +1053,17 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     return this.form.get('noHero') as FormControl<boolean>;
   }
 
-  /** The pending import URL as trimmed text — the note's condition and
-   *  the save payload's value (blank = no pending import). */
+  /** The import URL as trimmed text — the note's condition and
+   *  the save payload's value (blank = no import URL). */
   protected heroImportPending(): string {
     return this.heroImportUrl().value.trim();
+  }
+
+  /** The URL field was edited: a stale import-failure error belongs to
+   *  the URL it described — clear it (the next save retries the import
+   *  with the new value). */
+  onHeroImportUrlEdited(): void {
+    this.heroImportError.set(null);
   }
 
   /**
@@ -1191,6 +1234,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       this.heroImportUrl().setValue('');
       this.heroImageAlt().setValue('');
       this.heroPickerOpen.set(false);
+      // Clearing the hero also retires the import-failure error (there is
+      // no URL left to describe it).
+      this.heroImportError.set(null);
     }
     this.noHero().setValue(checked);
     this.syncHeroImportDisabled();
@@ -1309,10 +1355,11 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       // The alt travels only with a hero of EITHER kind (the pairing
       // rule guarantees: hasHero -> alt non-blank, !hasHero -> alt blank).
       heroImageAlt: hasHero ? alt : null,
-      // The pending import URL: omitted when blank — on the create that
-      // is "no pending import", on the PUT (full replace) it CLEARS a
-      // previously stored URL. Non-blank: stored with the draft, consumed
-      // at publish (a one-shot PUBLISHED create imports it in the call).
+      // The import URL: omitted when blank — on the create that is "no
+      // import URL", on the PUT (full replace) it CLEARS a previously
+      // stored URL. Non-blank: fetched, validated and stored AT SAVE
+      // (a failed import never blocks the save — the response's
+      // heroImportError names it, the URL stays for a retry).
       ...(importUrl === '' ? {} : { heroImportUrl: importUrl }),
     };
     const post = this.post();

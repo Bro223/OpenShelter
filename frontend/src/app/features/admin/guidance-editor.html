@@ -234,16 +234,15 @@
         </div>
 
         <!-- Import a hero image from a URL (guidance-hero-import):
-             the URL is NOT fetched at edit time — it is stored with the
-             draft as a PENDING import, and the server fetches, validates
-             and stores the image at the next publish (a failed import
-             fails the publish: 400 policy/non-image, 413 over cap,
-             502 unfetchable — the post stays a draft with the URL
-             intact). A one-shot PUBLISHED create (create mode's radio)
-             imports it in the create call itself. type=text on purpose
-             (the URL input's native validation would double the client
-             check with a different rule set; heroImportUrlValidator
-             mirrors the backend's write-time 400s). -->
+             the URL is fetched, validated and stored AT SAVE (create and
+             update, draft or published alike): a successful import becomes
+             the hero (the URL is kept as its provenance), a changed URL
+             re-imports, and a failed import NEVER blocks the save — the
+             post is stored anyway and the server's message is shown
+             against this field (heroImportError, write responses only).
+             type=text on purpose (the URL input's native validation would
+             double the client check with a different rule set;
+             heroImportUrlValidator mirrors the backend's write-time 400s). -->
         <div class="guidance-editor__hero-import">
           <label for="ge-hero-import-url">{{ i18nKeys.heroImportLabel | t }}</label>
           <input
@@ -254,16 +253,24 @@
             maxlength="2048"
             autocomplete="off"
             spellcheck="false"
+            (input)="onHeroImportUrlEdited()"
           />
           <p class="field-note">{{ i18nKeys.heroImportHint | t }}</p>
           @if (heroImportUrl().invalid && heroImportUrl().touched) {
             <p class="field-error">{{ i18nKeys.heroImportInvalid | t }}</p>
           }
+          @if (heroImportError() !== null) {
+            <!-- The save stored the post; its hero import FAILED at save
+                 (the write response carried the failure): the server's
+                 message, against the field that describes it. Editing the
+                 URL clears it; the next save retries the import. -->
+            <p class="field-error" role="alert">{{ i18nKeys.heroImportFailed | t }}</p>
+            <p class="field-error" role="alert">{{ heroImportError() }}</p>
+          }
           @if (heroImportPending() !== '') {
-            <!-- The pending state, said out loud: nothing is fetched at
-                 edit time — this is the result the admin will see at
-                 publish (the stored image appears then; a failure shows
-                 the server's message). -->
+            <!-- The save-time result, said out loud: the image is
+                 fetched on save; a failed fetch keeps the previous hero
+                 (or none) and the URL for a retry. -->
             <p class="field-note">{{ i18nKeys.heroImportNote | t }}</p>
           }
         </div>

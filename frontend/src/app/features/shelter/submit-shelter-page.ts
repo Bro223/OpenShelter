@@ -233,6 +233,20 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   /** The param is malformed, or the id is not the caller's row (absent
    *  from /mine): the not-found state renders instead of the form. */
   protected readonly editMissing = signal(false);
+  /**
+   * True when the /mine load failed with a 401 — the session is dead. The
+   * central interceptor has ALREADY done the session work (cleared the
+   * tokens, routed to /login?session=expired, rethrown the error —
+   * api-interceptor.ts handles 401 exactly once, pages never do); the
+   * page's half of the pattern (the same one /account's contributions
+   * panel follows: an explicit error state, session logic stays central)
+   * is this explicit unavailable state — rendered for the window until the
+   * bounce lands and on any back-button return. It never renders the form
+   * (it could never save without the row's id) and with it the mini-map:
+   * an unauthorized page leaves no dead grey .submit-map box behind.
+   * Other load failures (5xx, network) keep the banner instead.
+   */
+  protected readonly sessionExpired = signal(false);
   /** The id of the row being edited — set once the /mine row is found.
    *  null = creation mode, or an edit that never resolved to a row. */
   protected readonly editingId = signal<number | null>(null);
@@ -367,6 +381,16 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
         this.editingId.set(row.id);
       })
       .catch((failure: unknown) => {
+        // A 401 here is the dead-session case: the central interceptor has
+        // cleared the session and routed to /login?session=expired. Render
+        // the explicit session-expired state (its copy carries the message
+        // — no banner on top) instead of a half page that can never load
+        // its data. The 403/400/5xx/network branches keep the banner —
+        // the session is alive there and the user can retry on the page.
+        if (toApiError(failure).status === 401) {
+          this.sessionExpired.set(true);
+          return;
+        }
         this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       })
       .finally(() => this.editLoading.set(false));

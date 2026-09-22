@@ -58,15 +58,16 @@
 }
 
 /* Legend swatches reuse the exact marker classes from styles.scss (the
-   single source of truth for marker colours); only the size differs here.
+   single source of truth for marker colours + geometry); the presentational
+   slot in the legend below is the only size seam (see .legend-swatch-slot).
    PLACEMENT (wave 8 — the owner's overlay-obscures-the-map report): the
    legend is a SIBLING of the map element (map-page__layout child, DOM order
    map → legend → sidebar). The BASE rule below is the DESKTOP placement
    (≥900px): the absolute overlay over the map's bottom-left corner (the
    layout is its containing block — see the .map-page__layout note). At the
    narrow breakpoint the @media block below switches it to position: static
-   so the stacked column renders it IN FLOW below the map (a wrapping row
-   band) instead of on top of it. The entries are real buttons in BOTH
+   so the stacked column renders it IN FLOW below the map (keeping the
+   column axis) instead of on top of it. The entries are real buttons in BOTH
    placements, so keyboard operability + the hint line's aria-describedby
    are placement-independent (pinned in map-page.spec.ts). */
 .map-legend {
@@ -88,6 +89,21 @@
     display: flex;
     align-items: center;
     gap: var(--space-6);
+    /* Single-line labels: pin the line box to the font so every row is
+       exactly slot + padding tall. Without this the inert anchor entry's
+       text inherits the body's 1.5 line-height (the toggle buttons keep
+       the UA's normal) and its row comes out ~4px taller — its swatch
+       centre then drifts 2px from the toggle rows' centres (measured).
+       Slot 14px > 12.8px font, so the slot still drives the row height. */
+    line-height: 1;
+    /* Shared by the toggle buttons AND the inert anchor entry below: the
+       same padding + transparent border on every entry keeps each swatch's
+       slot (and centre) at the same x in every row — the anchor entry used
+       to sit 7px left of the toggles, which split the legend's swatch
+       column (owner report: the entries do not read as one set). */
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
   }
 
   /* The legend filter's affordance line (wave 7 — the legend IS the
@@ -109,9 +125,6 @@
      draws. The non-colour selection cue is the border + fill (shape); the
      pressed state is aria-pressed, so colour is never the only cue. */
   .legend-item--toggle {
-    padding: var(--space-4) var(--space-6);
-    border: 1px solid transparent;
-    border-radius: var(--radius-md);
     background: none;
     color: inherit;
     font-family: inherit;
@@ -129,29 +142,56 @@
     }
   }
 
-  .legend-swatch {
-    width: 12px; /* marker-size swatch, not spacing */
-    height: 12px;
+  /* The presentational SLOT — one fixed box for EVERY legend entry
+     (owner report: nothing unified the box each shape was drawn in, so the
+     entries did not read as one set). The slot is pure layout: the shape,
+     colour, edge and shadow still come ENTIRELY from the marker classes
+     below (styles.scss is the single source — the map pins and the legend
+     swatches cannot drift). 14px = the map's own marker size (leaflet
+     iconSize [14, 14]), so the legend is a 1:1 key, not a rescaled one. */
+  .legend-swatch-slot {
+    width: 14px;
+    height: 14px;
     flex-shrink: 0;
-    /* Required for the verification TRIANGLE (.shelter-marker--partial in
-       styles.scss): that shape draws its 2px edge with absolutely-positioned
+    display: grid;
+    place-items: center;
+  }
+
+  .legend-swatch {
+    width: 14px; /* the slot's size: the circle inscribes edge-to-edge */
+    height: 14px;
+    /* The verification TRIANGLE (.shelter-marker--user in styles.scss):
+       that shape draws its 2px edge with absolutely-positioned
        pseudo-elements (clip-path on the element cannot carry a border). A
-       static span would let them resolve against .map-legend instead, painting
-       a legend-sized triangle — this makes the swatch their containing block,
-       exactly like Leaflet's absolute .leaflet-marker-icon does on the map. */
+       static span would let them resolve against .map-legend instead,
+       painting a legend-sized triangle — this makes the swatch their
+       containing block, exactly like Leaflet's absolute .leaflet-marker-icon
+       does on the map. */
     position: relative;
 
-    /* The verification TRIANGLE reads larger than the round swatches at the
-       same box size (a triangle fills its bounding box corner-to-corner), so
-       it is shrunk a little in the LEGEND only: the map marker keeps its full
-       size, and the pseudo-element edge keeps the same 2px the circles use. */
-    &.shelter-marker--partial {
+    /* Consistent inscription: every shape's RENDERED bounding box lands on
+       the slot's 14px, which means each shape is fit to the slot by its
+       OWN class geometry (no parallel geometry — the triangle's edge and
+       the diamond's rotation are declared in styles.scss, not here):
+       • circle — 14px element, the 2px edge sits INSIDE the box:
+         14.0 × 14.0 (its exact map size);
+       • triangle — the class's edge extends the element by 2px per side
+         (inset: -2px), so a 10px element inscribes the 14.0 × 14.0 edge
+         triangle (ink 12.88, the class's own 4% corner inset);
+       • diamond — the class rotates the square 45°, so its bounding box is
+         element × √2: 9.9px inscribes the 14.0 × 14.0 diamond (9.9 × √2
+         = 14.00).
+       The map keeps its full pin geometry untouched (shape is load-bearing
+       there — the class→token mapping is pinned in design-tokens.spec.ts);
+       only the legend's presentational fit is local. */
+    &.shelter-marker--user {
       width: 10px;
       height: 10px;
-      /* The smaller box would centre the triangle 1px left of the 12px round
-         swatches in the rows above and below (each shape is centred on its own
-         box), so nudge it back into line (owner report). */
-      margin-left: 1px;
+    }
+
+    &.shelter-marker--anchor {
+      width: 9.9px;
+      height: 9.9px;
     }
   }
 }
@@ -506,9 +546,9 @@
    MIXED_PAIRS re-derives the mix, >= 4.5:1 in every theme — note RAISING
    the tint makes the pair WORSE, the text is the same hue as its own
    tint, so the percentage is spec-pinned). The Community-checked chip
-   rides the verified GREEN 8% mix for the same reason yellow can't (its
-   text on its own tint would measure 1.39:1 in light); the Newly added
-   chip takes the solid warning fill + surface text (the global
+   rides the verified GREEN 8% mix for the same reason a yellow 8% mix
+   can't (yellow text on its own tint would measure 1.39:1 in light); the
+   Newly added chip takes the --color-badge-new tint pair (the global
    .badge.badge--new pair, repeated here because this scoped rule would
    otherwise win the cascade). */
 .badge--source {
@@ -521,8 +561,8 @@
   }
 
   &.badge--new {
-    background: var(--color-warning);
-    color: var(--color-bg-surface);
+    background: var(--color-badge-new);
+    color: var(--color-badge-new-text);
   }
 }
 
@@ -617,19 +657,16 @@
     height: 420px; /* page-specific layout dimension (documented exception) */
   }
 
-  /* Legend out of the map (wave 8): static = in-flow, so the stacked
-     column renders it BETWEEN the map and the sidebar — below the map, never
-     over it, at every width <900px (mobile 375 and up, all tablets). The
-     vertical column becomes a wrapping ROW band: the affordance hint leads,
-     then the entries wrap on as many lines as the width allows — the
-     overlay's footprint (a ~200px column over the map) becomes ~2–3
-     content lines below it. Swatch geometry is untouched (the marker
-     classes are the single source; only the flex axis wraps). */
+  /* Legend out of the map (wave 8): static = in-flow, so it renders
+     BETWEEN the map and the sidebar — below the map, never over it, at
+     every width <900px (mobile 375 and up, all tablets). It keeps the
+     desktop COLUMN axis (one option per line, owner ruling: the wrapping
+     row paired the short "Reported" entry with its neighbour — the tone
+     filters read as a list, not a flow of chips); the full-width rows
+     double as big tap targets. Swatch geometry is untouched (the slot +
+     marker classes are the single source). */
   .map-legend {
     position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
   }
 
   .map-page__sidebar {

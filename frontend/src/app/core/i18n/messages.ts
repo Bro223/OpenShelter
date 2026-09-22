@@ -188,7 +188,7 @@ export interface Messages {
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
-  /** The unverified community tone (wave-8 re-tint, owner decision: green
+  /** The unverified community tone (the verified-green re-tint, owner decision: green
    *  means verified, unverified is the YELLOW tone — the pin palette is
    *  green/yellow/blue/red only, there is no grey in it): the community
    *  pin a USER row whose submitter depth the API does not report keeps —
@@ -1121,23 +1121,30 @@ export interface Messages {
   'admin.guidance.editor.hero.uploadError.unsupported': string;
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': string;
-  /** The hero-import URL input's label (guidance-hero-import): a PENDING
-   *  import stored with the draft, fetched by the server at publish. */
+  /** The hero-import URL input's label (guidance-hero-import): an
+   *  OPTIONAL import — the server fetches, validates and stores the
+   *  image at SAVE time instead of picking a library asset. */
   'admin.guidance.editor.hero.importLabel': string;
-  /** Always-on hint under the URL input: the image is not fetched at
-   *  edit time — the server fetches, validates and stores it when the
-   *  post is published. */
+  /** Always-on hint under the URL input: nothing is fetched while you
+   *  edit — when you save, the server fetches, validates and stores the
+   *  image (a changed URL re-imports on the next save). */
   'admin.guidance.editor.hero.importHint': string;
   /** The URL failed the shape check (mirrors the backend's write-time
    *  400s): not a full http(s) address, or it embeds credentials. */
   'admin.guidance.editor.hero.importInvalid': string;
   /** The explicit "no image" tick: checked = no library asset AND no
-   *  pending import URL (the hero choice controls are disabled). */
+   *  import URL (the hero choice controls are disabled). */
   'admin.guidance.editor.hero.none': string;
-  /** Shown while a pending import URL is stored: the fetch happens at
-   *  publish, and a failed fetch fails the publish (the draft keeps the
-   *  URL intact). */
+  /** Shown while an import URL is stored: the fetch happens at SAVE
+   *  (create and update, draft or published alike); a failed fetch never
+   *  blocks the save — the post is stored anyway, keeps its previous
+   *  image (or none) and the URL for a retry. */
   'admin.guidance.editor.hero.importNote': string;
+  /** The save-time import FAILED at the save that stored the post
+   *  (write response's `heroImportError`): the lead-in above the
+   *  server's message — the post WAS saved, the image is what failed.
+   *  The server message renders on its own line directly below. */
+  'admin.guidance.editor.hero.importFailed': string;
   /** The alt's label; the cross-field rule (mandatory iff a hero is set)
    *  is enforced in the UI with the two errors below, mirroring the
    *  server's 400 so a pointless round trip never happens. */

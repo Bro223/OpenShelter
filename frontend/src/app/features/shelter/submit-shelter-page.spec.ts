@@ -1418,6 +1418,36 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.querySelector('.edit-not-found')).toBeNull(); // not a not-found
   });
 
+  it('a 401 /mine load (dead session) renders the explicit session-expired state — no form, no map, never a silent grey box', async () => {
+    // The dead-session 401: the central interceptor has already cleared the
+    // session and routed to /login?session=expired (the full-stack proof is
+    // in submit-shelter-page-session.spec.ts). The page's job is the
+    // explicit state for the window until the bounce lands — and on any
+    // back-button return it is the state the user sees.
+    gateway.mine.mockRejectedValue(
+      ApiError.fromHttp(
+        401,
+        { timestamp: 't', status: 401, error: 'Unauthorized', message: 'Authentication required', path: '/api/shelters/mine' },
+        '/api/shelters/mine',
+      ),
+    );
+    const { element } = await openEdit('7');
+
+    // The explicit unavailable state, with a way back to login…
+    expect(element.querySelector('.edit-unavailable')).not.toBeNull();
+    expect(element.textContent).toContain('Your session has expired');
+    expect(element.querySelector('.edit-unavailable a[href="/login"]')).not.toBeNull();
+    // …and never a dead map: no form (it could never save without the row's
+    // id) and no map instance — the unauthorized state leaves no .submit-map
+    // box behind, and it is not the not-found state either.
+    expect(element.querySelector('form')).toBeNull();
+    expect(element.querySelector('.submit-map')).toBeNull();
+    expect(leaflet.created).toBe(0);
+    expect(element.querySelector('.edit-not-found')).toBeNull();
+    // No banner on top of the explicit state (the state carries the copy).
+    expect(element.textContent).not.toContain('Authentication required');
+  });
+
   it('shows the loading line while the edit row is being fetched', async () => {
     let resolveMine!: (rows: MineShelterDto[]) => void;
     gateway.mine.mockReturnValue(

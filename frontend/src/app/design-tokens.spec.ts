@@ -412,12 +412,11 @@ describe('design tokens (M6)', () => {
     // 8.05:1 dark, re-run by the spec on the literals.
     ['--color-shelter-registry', '--color-badge-registry'],
     ['--color-verified', '--color-badge-user'],
-    // "Newly added" badge text on its solid fill (community-review-queue D5,
-    // wave-8 owner ruling — solid yellow chip, readable): fill =
-    // --color-warning (the theme's solid yellow), text = --color-bg-surface
-    // (white on the dark mustard in light, black on the bright fill in the
-    // dark themes) — the same pattern as the reported badge.
-    ['--color-bg-surface', '--color-warning'],
+    // "Newly added" badge text on its fill — the same light-tint + dark-text
+    // treatment as the sibling badges above: light #6b4e00 on #fbf0bf =
+    // 6.75:1, the dark themes #ffd400 on #33260a = 10.31:1 (checked per
+    // theme, like every pair in this list).
+    ['--color-badge-new-text', '--color-badge-new'],
     // Chrome band (header + footer + <900 menu panel): every text pair on
     // the band, every theme. Light + high-contrast: the navy band —
     // 13.57 / 8.80 / 7.18 / 7.20:1 (the HC block pins the same values and
@@ -653,9 +652,9 @@ describe('design tokens (M6)', () => {
   });
 
   it('the unified verified family is ONE value per theme: --color-new === --color-verified (owner decision)', () => {
-    // The verified-family unification (owner decision, wave 8): the "newly
+    // The verified-family unification (owner decision): the "newly
     // added / not yet verified" state and the verified family are ONE value —
-    // GREEN means verified (the wave-8 re-tint: the verified family moved from
+    // GREEN means verified (the re-tint: the verified family moved from
     // yellow to the community green, and the unverified user tone moved to
     // the yellow the verified pins used), the state rides on the marker
     // shape + the row's badge
@@ -688,7 +687,7 @@ describe('design tokens (M6)', () => {
     expect(offenders, 'the verified family must be one value per theme').toEqual([]);
   });
 
-  it('the marker colours keep their meanings (wave-8 decision: green=verified, yellow=unverified, blue=registry, red-orange=reported, teal=picked)', () => {
+  it('the marker colours keep their meanings (owner decision: green=verified, yellow=unverified, blue=registry, red-orange=reported, teal=picked)', () => {
     // The colour->meaning mapping the owner reads in the rest of the UI:
     // GREEN means verified (the partial triangle + the full circle),
     // UNVERIFIED is YELLOW (the community pin tone — the pin palette is

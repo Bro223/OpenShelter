@@ -90,17 +90,18 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
-  /* Community trust family (community-review-queue D5; wave-8 re-tint, owner
-     decision — GREEN MEANS VERIFIED): ONE value with --color-verified.
-     The state rides on the marker shape + the row's badge text, never on a
-     second hue. The reported red stays reserved and distinct in every
-     theme (#c2410c, hue ~18° vs ~156° here). The "Newly added" badge is
-     the SOLID yellow chip (wave-8 owner ruling: solid --color-warning fill
-     + --color-bg-surface text — see the .badge.badge--new rule below; the
-     old --color-badge-new tint token was retired with it). */
+  /* Community trust family (community-review-queue D5; the verified-green
+     re-tint, owner decision — GREEN MEANS VERIFIED): ONE value with
+     --color-verified. The state rides on the marker shape + the row's
+     badge text, never on a second hue. The reported red stays reserved and
+     distinct in every theme (#c2410c, hue ~18° vs ~156° here). The
+     "Newly added" badge is a LIGHT TINT of the unverified yellow + dark
+     amber text — the same tint + dark-text treatment as the sibling
+     badges: --color-badge-new + --color-badge-new-text below (6.75:1
+     light, 10.31:1 dark). */
   --color-new: #237a57;
-  /* Submitter-verified marker fill (submitter-verification-badge; wave-8
-     re-tint): the ONE green-family value — shared by BOTH verification
+  /* Submitter-verified marker fill (submitter-verification-badge; the
+     verified-green re-tint): the ONE green-family value — shared by BOTH verification
      shapes (triangle = one confirmed channel, circle = two or more; the
      depth is carried by the shape, not by a second colour) AND the NEW
      state (--color-new is unified with this token, owner decision). The
@@ -159,11 +160,16 @@
      (registry 4.86:1, the Community-checked pair 4.67:1). */
   --color-badge-registry: #e2edf7; /* light tint of the official blue */
   --color-badge-user: #eaf4eb; /* pale green tint — the "Community-checked" pair (verified text on it = 4.67:1) */
+  /* "Newly added" badge — a light tint of the unverified yellow (the same
+     light-tint + dark-text treatment as the sibling badges above): dark
+     amber text on it = 6.75:1. */
+  --color-badge-new: #fbf0bf;
+  --color-badge-new-text: #6b4e00;
 
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
   --color-shelter-registry: #1769aa; /* registry (Päästeamet / municipality) — doubles as the badge text */
-  /* Unverified community tone (wave-8 re-tint, owner decision: the pin
+  /* Unverified community tone (the verified-green re-tint, owner decision: the pin
      palette is green / yellow / blue / red — UNVERIFIED is the yellow,
      the community green became the verified family): the yellow the
      verified pins used, now meaning "not yet verified" instead. The
@@ -288,7 +294,7 @@
      success #7fd49a       on success-bg / soft / srf  8.6 /  9.1 / 10.3
      badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
      badge green #7fd49a    on badge-user #11301d       8.0 ("Community-checked" badge)
-     badge surface #141414  on warning #f0b429          9.9 ("Newly added" badge — solid)
+     badge amber #ffd400   on badge-new #33260a        10.3 ("Newly added" badge)
      registry pair          on the map row's 8% color-mix fill  7.7 (the mixed
                                    fill is audit-enforced in
                                    design-tokens.spec.ts MIXED_PAIRS — the user
@@ -317,7 +323,7 @@
      Map context (D1): the MAP is not themed — OSM tiles stay light, so the
      marker tokens keep their TRUST coding (blue=registry, yellow=the
      unverified community tone, green=the verified family, teal=the selected
-     pick — red means "reported" only; the wave-8 re-tint moved the green
+     pick — red means "reported" only; the verified-green re-tint moved the green
      from the user tone to the verified family and the yellow from the
      verified pins to the unverified tone).
      --color-shelter-registry is brightened from #1769aa, and
@@ -382,7 +388,7 @@
   --color-reported: #ffa94d;
 
   /* Community trust family — unified with the verified GREEN (ONE value with
-     --color-verified, owner decision; the wave-8 re-tint: green means
+     --color-verified, owner decision; the re-tint: green means
      verified). The brightened reported/CTA oranges stay the distinct family. */
   --color-new: #7fd49a;
   /* Submitter-verified marker fill (submitter-verification-badge): the ONE
@@ -414,6 +420,11 @@
   /* Source badges (dark tints; text = the brightened marker tokens below) */
   --color-badge-registry: #14263a;
   --color-badge-user: #11301d; /* dark green tint — the "Community-checked" pair (brightened verified text on it = 8.05:1) */
+  /* "Newly added" badge — the dark-tint mirror of the light pair (the
+     sibling badge tints above are dark tints + bright text in this
+     theme): dark amber tint + the bright unverified yellow = 10.31:1. */
+  --color-badge-new: #33260a;
+  --color-badge-new-text: #ffd400;
 
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
@@ -712,10 +723,12 @@ textarea {
    occupancy = NEUTRAL ("space available" is not a celebration, "full" is
    not a crisis); user ("Community-checked") = the green verified pair
    (the --color-badge-user fill with the --color-verified text, 4.67:1
-   light / 8.05:1 dark); new ("Newly added") = the SOLID yellow chip
-   (wave-8 owner ruling: solid --color-warning fill, --color-bg-surface
-   text — 5.59:1 light, black text on the bright fill in the dark themes;
-   pinned in design-tokens.spec.ts); private = the neutral description
+   light / 8.05:1 dark); new ("Newly added") = the unverified-yellow tint
+   + dark amber text in light (6.75:1), the dark amber tint + bright
+   yellow text in the dark themes (10.31:1) — --color-badge-new +
+   --color-badge-new-text, the same tint + dark-text treatment as the
+   sibling badges (pinned in design-tokens.spec.ts);
+   private = the neutral description
    chip (what the location is, not a state). */
 .badge {
   font-size: var(--text-2xs);
@@ -732,8 +745,8 @@ textarea {
 }
 
 .badge.badge--new {
-  background: var(--color-warning);
-  color: var(--color-bg-surface);
+  background: var(--color-badge-new);
+  color: var(--color-badge-new-text);
 }
 
 .badge.badge--private {
@@ -780,7 +793,7 @@ textarea {
   background: var(--color-shelter-registry);
 }
 
-/* Unverified community tone — the YELLOW TRIANGLE (wave-8 owner logic:
+/* Unverified community tone — the YELLOW TRIANGLE (owner logic:
    triangle = unverified user, yellow CIRCLE = half-verified user, green
    circle = fully verified user — the shape AND the hue carry the state).
    The triangle needs its edge drawn by pseudo-elements: `clip-path` on the
@@ -829,7 +842,7 @@ textarea {
   }
 }
 
-/* Submitter verification depth (submitter-verification-badge, wave-8 owner
+/* Submitter verification depth (submitter-verification-badge, owner
    logic — yellow is "not fully verified", green is verified): the HALF-
    verified circle (one confirmed channel) keeps the unverified yellow, the
    FULL circle (two or more) is the verified green; the unverified tone is

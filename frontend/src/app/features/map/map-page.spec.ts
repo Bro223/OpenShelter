@@ -461,7 +461,7 @@ describe('MapPage', () => {
       // carries no recency swatch (a re-added one needs the pin-tone
       // decision first).
       expect(legend?.querySelector('.shelter-marker--new')).toBeNull();
-      // The unverified community tone (wave-8 re-tint — green means
+      // The unverified community tone (the verified-green re-tint — green means
       // verified, unverified is the YELLOW pin) is STILL rendered: a row
       // whose submitter depth the API does not report keeps this tone.
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
@@ -1853,9 +1853,9 @@ describe('MapPage', () => {
   // ---------------------------------------------------------------------------
   describe('legend filter (the legend is the filter)', () => {
     // One shelter per pin tone, already in the name-sorted order:
-    // registry (blue) / user (yellow — the unverified tone, wave-8 re-tint)
-    // / partial (green triangle) / full (green circle) / reported (red —
-    // beats everything).
+    // registry (blue) / user (yellow — the unverified triangle, the
+    // verified-green re-tint) / partial (yellow circle) / full (green
+    // circle) / reported (red — beats everything).
     const REGISTRY_ROW = shelter({ id: 31, name: 'Alpha Registry Shelter' });
     const USER_ROW = shelter({
       id: 32,

@@ -73,12 +73,12 @@
   }
 }
 
-/* Trust-state badge (community-review-queue): the /mine pill — the NEW
-   ("Newly added") and CONFIRMED ("Community-checked") chips are the
-   unverified-family pair (base rule — the wave-8 owner decision: the NEW
-   badge follows the row's yellow pin, so no local override), REJECTED
-   danger. Same vocabulary as the map/detail badges; the contrast pairs
-   are pinned in design-tokens.spec.ts. */
+/* Trust-state badge (community-review-queue): the /mine pill — the base
+   rule is the CONFIRMED ("Community-checked") verified-green pair; the
+   NEW ("Newly added") chip is the &.badge--new override below (the
+   unverified yellow pair, following the row's yellow pin), REJECTED the
+   danger one. Same vocabulary as the map/detail badges; the contrast
+   pairs are pinned in design-tokens.spec.ts. */
 .contrib-badge {
   display: inline-block;
   font-size: var(--text-2xs);
@@ -89,11 +89,11 @@
   color: var(--color-verified);
 
   &.badge--new {
-    /* Solid yellow chip (wave-8 owner ruling) — same rule as the global
-       .badge.badge--new; stated here because the /mine base pill would
-       otherwise win this scoped cascade. */
-    background: var(--color-warning);
-    color: var(--color-bg-surface);
+    /* The unverified-yellow tint + dark text pair — same rule as the
+       global .badge.badge--new; stated here because the /mine base pill
+       would otherwise win this scoped cascade. */
+    background: var(--color-badge-new);
+    color: var(--color-badge-new-text);
   }
 
   &.badge--rejected {

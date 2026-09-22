@@ -14,9 +14,9 @@
         @if (shelter(); as s) {
           <!-- Source/trust badge (community-review-queue D5): registry rows
                say which registry; USER rows say their trust state (NEW =
-               "Newly added", CONFIRMED = "Community-checked" — both ride
-               the unverified yellow pair; the badge text carries the
-               state, wave-8). -->
+               "Newly added" on the unverified-yellow badge pair, CONFIRMED
+               = "Community-checked" on the verified green tint; the badge
+               text carries the state). -->
           <span class="badge" [ngClass]="communityBadgeClass(s)">
             {{ sourceTrustLabel(s) }}
           </span>
@@ -40,9 +40,7 @@
             @if (hasReports(s)) {
               <!-- The count — the open trust-report sum that
                    drives the badge (single-sourced with the map row). -->
-              <span class="badge badge--reported">{{
-                reportedBadgeText(s)
-              }}</span>
+              <span class="badge badge--reported">{{ reportedBadgeText(s) }}</span>
             }
             @if (openStatusBadgeText(s.openStatus); as openText) {
               <span class="badge badge--closed">{{ openText }}</span>

@@ -298,11 +298,12 @@ export class AdminGateway {
    * an explicit status PUBLISHED publishes in one call. 400 validation
    * (title/body required, the alt/hero pairing, the slug shape); 409 an
    * admin-supplied slug another post already holds (naming the slug); 404
-   * a heroImageId with no such asset. The pending hero import
-   * (`heroImportUrl`, guidance-hero-import): stored with the draft and
-   * consumed at publish; in the one-shot PUBLISHED create the server
-   * fetches, validates and stores the image IN this call — a failed import
-   * fails the create (400 policy/non-image, 413 over cap, 502 unfetchable).
+   * a heroImageId with no such asset. The hero import (`heroImportUrl`,
+   * guidance-hero-import): the server fetches, validates and stores the
+   * image AT SAVE (this create call — draft and one-shot PUBLISHED
+   * alike). A failed import never blocks the create: the post is stored
+   * anyway and the 200 body's `heroImportError` names the failure (the
+   * URL is kept for a retry on the next save).
    */
   createGuidancePost(request: CreateGuidancePostRequest): Promise<AdminGuidancePostDto> {
     return lastValueFrom(this.api.post<AdminGuidancePostDto>('/admin/guidance', request));
@@ -315,14 +316,16 @@ export class AdminGateway {
    * server-side (the stored value is the sanitizer output). The
    * publication state is NOT editable here — publish/unpublish own it.
    * 404 unknown id (or a heroImageId with no such asset). `heroImportUrl`
-   * (guidance-hero-import): a blank/absent value CLEARS a pending import
-   * (full replace); a non-null URL on an already-published post is a 400
-   * (unpublish first).
+   * (guidance-hero-import): a blank/absent value CLEARS the import URL
+   * (full replace); a non-null URL is fetched, validated and stored AT
+   * SAVE, draft or published alike (the Wave 9 trigger) — a changed URL
+   * re-imports. A failed import never blocks the update: the 200 body's
+   * `heroImportError` names it and the URL is kept for a retry.
    *
    * <p>Scoped (admin-locale-scope, `locale` given): the content fields
    * (title/slug/body/hero alt) are written to THAT locale's translation row
-   * while the post-level fields (pinned, the hero reference, the pending
-   * import) stay shared on the post. `request.locale` is the post's HOME
+   * while the post-level fields (pinned, the hero reference, the import
+   * URL) stay shared on the post. `request.locale` is the post's HOME
    * (a foreign-locale edit never moves it — a different declaration is a
    * 400); a post without a translation in the locale 404s.
    */
@@ -340,11 +343,11 @@ export class AdminGateway {
    * POST /admin/guidance/{id}/publish -> 204 (no body). Stamps publishedAt
    * from the server clock (a re-publish stamps a FRESH instant);
    * idempotent — an already-published post is a 204 no-op that writes no
-   * audit row. 404 unknown id. This call is where the pending hero import
-   * (guidance-hero-import) RUNS: a draft carrying `heroImportUrl` has the
-   * image fetched, validated and stored inside this call, and a failed
-   * import fails the publish (400 policy/non-image, 413 over cap, 502
-   * unfetchable) leaving the post a DRAFT with the URL intact.
+   * audit row. 404 unknown id. The hero import moved to SAVE time (the
+   * Wave 9 trigger): this call never fetches, validates or stores
+   * anything — a post with an unimported or failed hero URL publishes
+   * exactly as stored, so publishing is never the moment an image can
+   * fail for the first time.
    */
   publishGuidancePost(id: number): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/guidance/${id}/publish`));

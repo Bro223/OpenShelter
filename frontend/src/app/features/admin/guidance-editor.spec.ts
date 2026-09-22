@@ -83,9 +83,9 @@ const NO_HERO_DRAFT: AdminGuidancePostDto = {
   heroImportUrl: null,
 };
 
-/** A DRAFT carrying a PENDING hero import (guidance-hero-import): no
- *  stored asset yet — the URL is fetched, validated and stored at the
- *  next publish. */
+/** A DRAFT carrying a hero import URL whose import FAILED at save
+ *  (guidance-hero-import, the save-time trigger): the post was stored
+ *  anyway (no asset yet), the URL kept for a retry. */
 const PENDING_IMPORT_DRAFT: AdminGuidancePostDto = {
   ...DRAFT_POST,
   heroImageId: null,
@@ -649,6 +649,55 @@ describe('GuidanceEditor', () => {
     // The error line renders from the touched state (the copy lands with
     // the i18n lane's keys — assert the element, not the text).
     expect(h.element.querySelector('.guidance-editor__hero-import .field-error')).not.toBeNull();
+  });
+
+  // ---- the save-time import's failure (guidance-hero-import, Wave 9) ----
+  // The write response can carry heroImportError: the save stored the
+  // post anyway, the image import failed AT SAVE. The failure is shown
+  // against the hero URL field (lead-in + the server's message), and
+  // editing the URL clears the stale error (the next save retries).
+
+  it('a write response with heroImportError shows the failure against the hero URL field', () => {
+    const h = createHost({
+      ...PENDING_IMPORT_DRAFT,
+      heroImportError:
+        'The hero image URL answered HTTP 404 (the URL is broken — no retry will fix it)',
+    });
+    const block = h.element.querySelector('.guidance-editor__hero-import')!;
+    // The lead-in and the server's message, as field-errors on the block.
+    const errors = Array.from(block.querySelectorAll('.field-error')).map((el) =>
+      el.textContent?.trim(),
+    );
+    expect(errors).toContain('The post was saved, but the image could not be imported:');
+    expect(errors).toContain(
+      'The hero image URL answered HTTP 404 (the URL is broken — no retry will fix it)',
+    );
+  });
+
+  it('editing the URL clears the stale import-failure error (the next save retries)', () => {
+    const h = createHost({
+      ...PENDING_IMPORT_DRAFT,
+      heroImportError: 'The host serving the hero image answered HTTP 500 (a retry may succeed)',
+    });
+    expect(h.element.textContent).toContain(
+      'The post was saved, but the image could not be imported:',
+    );
+    typeValue(
+      inputById(h.element, 'ge-hero-import-url')!,
+      'https://cdn.example.com/other.jpg',
+      h.fixture,
+    );
+    h.fixture.detectChanges();
+    expect(h.element.textContent).not.toContain(
+      'The post was saved, but the image could not be imported:',
+    );
+  });
+
+  it('a plain read (no heroImportError) shows no import-failure line', () => {
+    const h = createHost(PENDING_IMPORT_DRAFT);
+    expect(h.element.textContent).not.toContain(
+      'The post was saved, but the image could not be imported:',
+    );
   });
 
   it('a draft without a hero: the "no image" tick is visible and CHECKED (the saved state); the choice controls are disabled', () => {

@@ -153,11 +153,10 @@ export function sourceTrustLabel(
 
 /**
  * The row's badge tone (community-review-queue D5): the badge follows the
- * marker's trust palette — after the wave-8 re-tint BOTH community tones
- * (NEW "Newly added", CONFIRMED "Community-checked") ride the unverified
- * yellow pair (the badge TEXT carries the state; the verified GREEN family
- * is the pin's, via the shapes — never this badge); REJECTED keeps the
- * danger one.
+ * marker's trust palette — NEW ("Newly added") rides the unverified yellow
+ * pair, CONFIRMED ("Community-checked") the verified green pair (the badge
+ * TEXT carries the state; the verified GREEN shapes carry the submitter's
+ * depth on the pin — never on this badge); REJECTED keeps the danger one.
  * Registry rows get no modifier (their base badge fill already says
  * registry). Applied on every surface that renders the badge (map row,
  * detail header, admin list, /mine).
