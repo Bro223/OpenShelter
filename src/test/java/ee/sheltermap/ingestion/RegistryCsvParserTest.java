@@ -55,6 +55,32 @@ class RegistryCsvParserTest {
     }
 
     @Test
+    void acceptsQuotedHeaderFromLiveSource() {
+        // The live file serves every header field double-quoted.
+        String body = "\"id\";\"nimi\";\"aadress\";\"lest_x\";\"lest_y\"\n"
+                + "\"PÕ81166\";\"Vasalemma Kogukonnamaja\";\"Harju maakond, Lääne-Harju vald, Vasalemma alevik, Ranna tee 8\";6567275.63;516551.56\n";
+
+        RegistryCsvParser.Parsed parsed = RegistryCsvParser.parse(body);
+
+        assertThat(parsed.dropped()).isZero();
+        assertThat(parsed.rows()).hasSize(1);
+        assertThat(parsed.rows().get(0).externalId()).isEqualTo("PÕ81166");
+        assertThat(parsed.rows().get(0).name()).isEqualTo("Vasalemma Kogukonnamaja");
+    }
+
+    @Test
+    void acceptsUnquotedHeaderFromLegacyFormat() {
+        // The previously-working unquoted header must keep parsing.
+        String body = csv("\"P1\";\"A\";\"Pärnu maakond, Pärnu linn, Linnatu 1\";5100000.0;4000000.0");
+
+        RegistryCsvParser.Parsed parsed = RegistryCsvParser.parse(body);
+
+        assertThat(parsed.dropped()).isZero();
+        assertThat(parsed.rows()).hasSize(1);
+        assertThat(parsed.rows().get(0).externalId()).isEqualTo("P1");
+    }
+
+    @Test
     void dropsMalformedRowsAndCountsThem() {
         String body = csv(
                 "\"LÕ41281\";\"Good row\";\"Pärnu maakond, Pärnu linn, Linnatu 1\";5100000.0;4000000.0",
@@ -92,6 +118,15 @@ class RegistryCsvParserTest {
     @Test
     void wrongHeaderFailsDeterministically() {
         String body = "id;name;address;x;y\n\"P1\";\"A\";\"a\";1.0;2.0\n";
+
+        assertThatThrownBy(() -> RegistryCsvParser.parse(body))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unexpected CSV header");
+    }
+
+    @Test
+    void truncatedHeaderFailsDeterministically() {
+        String body = "id;nimi;aadress;lest_x\n\"P1\";\"A\";\"a\";1.0\n";
 
         assertThatThrownBy(() -> RegistryCsvParser.parse(body))
                 .isInstanceOf(IllegalArgumentException.class)

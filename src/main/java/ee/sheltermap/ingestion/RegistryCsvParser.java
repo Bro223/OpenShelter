@@ -10,9 +10,10 @@ import java.util.List;
  * ({@code https://opendata.smit.ee/gis/varjumiskohad.csv}, official-dataset-csv).
  *
  * <p>Format (verified against the live file): UTF-8, semicolon-separated,
- * header {@code id;nimi;aadress;lest_x;lest_y}, every field double-quoted
- * (addresses contain commas — the delimiter is the semicolon, never the
- * comma). Coordinates are EPSG:3301 (L-EST97) meters; the mapping to WGS84
+ * header {@code id;nimi;aadress;lest_x;lest_y}, fields double-quoted in the
+ * live file (addresses contain commas — the delimiter is the semicolon,
+ * never the comma). The header is validated quote-aware, so the same five
+ * column names are accepted whether or not the fields are quoted. Coordinates are EPSG:3301 (L-EST97) meters; the mapping to WGS84
  * happens in the client via {@link LEst97Transformer}.
  *
  * <p>Malformed ROWS are dropped and counted (the import's "skipped"
@@ -23,7 +24,9 @@ import java.util.List;
  */
 public final class RegistryCsvParser {
 
-    private static final String EXPECTED_HEADER = "id;nimi;aadress;lest_x;lest_y";
+    /** The five expected header column names, in order. */
+    private static final List<String> EXPECTED_COLUMNS =
+            List.of("id", "nimi", "aadress", "lest_x", "lest_y");
 
     private RegistryCsvParser() {
     }
@@ -39,8 +42,10 @@ public final class RegistryCsvParser {
 
     /**
      * @throws IllegalArgumentException when the header line is not
-     *         {@code id;nimi;aadress;lest_x;lest_y} (after BOM/trim) —
-     *         callers translate that into a no-retry registry failure
+     *         {@code id;nimi;aadress;lest_x;lest_y} (after BOM/trim, with
+     *         the header fields optionally double-quoted, as the live file
+     *         serves them) — callers translate that into a no-retry
+     *         registry failure
      */
     public static Parsed parse(String csv) {
         if (csv == null) {
@@ -59,7 +64,7 @@ public final class RegistryCsvParser {
                 continue;
             }
             if (!headerSeen) {
-                if (!EXPECTED_HEADER.equals(line.trim())) {
+                if (!isExpectedHeader(line)) {
                     throw new IllegalArgumentException(
                             "unexpected CSV header: " + firstLinePreview(line));
                 }
@@ -78,6 +83,17 @@ public final class RegistryCsvParser {
             return new Parsed(List.of(), 0);
         }
         return new Parsed(List.copyOf(rows), dropped);
+    }
+
+    /**
+     * The header line, run through the same quote-aware splitter as the data
+     * rows: {@code id;nimi;aadress;lest_x;lest_y} and
+     * {@code "id";"nimi";"aadress";"lest_x";"lest_y"} both validate to the
+     * same five names, and nothing else does. A genuinely wrong or truncated
+     * header still throws — the failure must stay loud, not become lenient.
+     */
+    private static boolean isExpectedHeader(String line) {
+        return EXPECTED_COLUMNS.equals(splitFields(line.trim()));
     }
 
     /**
