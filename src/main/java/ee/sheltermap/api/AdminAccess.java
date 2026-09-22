@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.auth.CurrentCaller;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;

@@ -134,4 +134,83 @@ class MediaStorageTest {
         assertThat(storage.root()).isAbsolute();
         assertThat(storage.root()).isEqualByComparingTo(storage.root().normalize());
     }
+
+    // ------------------------------------------------------------- P2-9 derivatives
+
+    @Test
+    void storeDerivativeDerivesTheNameBesideTheOriginal() throws Exception {
+        MediaStorage storage = storage();
+        MediaStorage.StoredFile original = storage.store(new byte[]{1, 2, 3}, "png");
+        byte[] derivativeBytes = new byte[]{9, 9};
+
+        MediaStorage.StoredFile derivative =
+                storage.storeDerivative(original.storedFilename(), 96, derivativeBytes);
+
+        String stem = original.storedFilename().substring(0, 32);
+        assertThat(derivative.storedFilename()).isEqualTo(stem + "-t96.png");
+        assertThat(derivative.path()).exists();
+        assertThat(Files.readAllBytes(derivative.path())).containsExactly(derivativeBytes);
+        // The parent-equality gate applies to derivative names too.
+        assertThat(storage.resolve(derivative.storedFilename()).orElseThrow().getParent())
+                .isEqualTo(storage.root());
+    }
+
+    @Test
+    void storeDerivativeKeepsTheBaseExtension() throws Exception {
+        MediaStorage storage = storage();
+        MediaStorage.StoredFile original = storage.store(new byte[]{1}, "jpg");
+
+        String name = storage.storeDerivative(original.storedFilename(), 480, new byte[]{2}).storedFilename();
+
+        assertThat(name).endsWith("-t480.jpg");
+    }
+
+    @Test
+    void storeDerivativeRejectsAForeignBaseNameOrWidth() {
+        MediaStorage storage = storage();
+        String original = storage.store(new byte[]{1}, "jpg").storedFilename();
+        for (String base : new String[]{"../x.png", original.toUpperCase(), null}) {
+            assertThatThrownBy(() -> storage.storeDerivative(base, 96, new byte[]{1}))
+                    .as("base: %s", (Object) base)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        assertThatThrownBy(() -> storage.storeDerivative(original, 123, new byte[]{1}))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void deleteWithDerivativesRemovesTheWholeSet() throws Exception {
+        MediaStorage storage = storage();
+        String name = storage.store(new byte[]{1}, "png").storedFilename();
+        storage.storeDerivative(name, 96, new byte[]{2});
+        storage.storeDerivative(name, 192, new byte[]{3});
+        assertThat(Files.list(storage.root()).count()).isEqualTo(3);
+
+        storage.deleteWithDerivatives(name);
+
+        assertThat(Files.list(storage.root()).count()).isZero();
+    }
+
+    @Test
+    void deleteWithDerivativesIsIdempotentForUnknownNames() {
+        MediaStorage storage = storage();
+        assertThatNoException().isThrownBy(() ->
+                storage.deleteWithDerivatives("0123456789abcdef0123456789abcdef.png"));
+        assertThatNoException().isThrownBy(() -> storage.deleteWithDerivatives(null));
+    }
+
+    @Test
+    void derivativeWidthsPresentListsOnlyWhatExistsOnDisk() throws Exception {
+        MediaStorage storage = storage();
+        String name = storage.store(new byte[]{1}, "png").storedFilename();
+        assertThat(storage.derivativeWidthsPresent(name)).isEmpty();
+
+        storage.storeDerivative(name, 96, new byte[]{2});
+        storage.storeDerivative(name, 480, new byte[]{3});
+
+        assertThat(storage.derivativeWidthsPresent(name)).containsExactly(96, 480);
+        // A name outside the contract has no derivative name space.
+        assertThat(storage.derivativeWidthsPresent("../x.png")).isEmpty();
+        assertThat(storage.derivativeWidthsPresent(null)).isEmpty();
+    }
 }

@@ -9,6 +9,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -98,6 +103,48 @@ class MediaServiceTest {
 
     private long countFiles() throws java.io.IOException {
         return Files.list(mediaDir).count();
+    }
+
+    /**
+     * A REAL decodable PNG (ImageIO-encoded gradient) — unlike the
+     * header-only {@link #png} fixture, the derivative renderer can
+     * decode it (P2-9 tests).
+     */
+    private static byte[] realPng(int width, int height) throws IOException {
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                img.setRGB(x, y, (x * 255 / Math.max(1, width - 1) << 16)
+                        | (y * 255 / Math.max(1, height - 1) << 8) | 128);
+            }
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        if (!ImageIO.write(img, "png", out)) {
+            throw new IOException("no PNG writer on this JDK");
+        }
+        return out.toByteArray();
+    }
+
+    /** A header-only WebP (VP8L) — inspector-readable, undecodable. */
+    private static byte[] webpVp8l(int width, int height) {
+        byte[] b = new byte[24];
+        b[0] = 'R'; b[1] = 'I'; b[2] = 'F'; b[3] = 'F';
+        b[4] = 0; b[5] = 0; b[6] = 0; b[7] = 16; // RIFF payload size
+        b[8] = 'W'; b[9] = 'E'; b[10] = 'B'; b[11] = 'P';
+        b[12] = 'V'; b[13] = 'P'; b[14] = '8'; b[15] = 'L';
+        b[16] = 18; b[17] = 0; b[18] = 0; b[19] = 0; // chunk size
+        b[20] = 0x2F;
+        int packed = (width - 1) | ((height - 1) << 14);
+        b[21] = (byte) (packed & 0xFF);
+        b[22] = (byte) ((packed >> 8) & 0xFF);
+        b[23] = (byte) ((packed >> 16) & 0xFF);
+        return b;
+    }
+
+    /** A service with a cap that fits real image fixtures (the class
+     *  default of 1024 bytes is the 413-test's small cap). */
+    private MediaService bigCapService() {
+        return new MediaService(media, posts, storage, audit, clock, 1_000_000);
     }
 
     // ------------------------------------------------------------- upload (D7)
@@ -275,5 +322,113 @@ class MediaServiceTest {
         assertThat(media.findById(asset.getId())).isPresent();
         assertThat(storage.resolve(asset.getStoredFilename())).isPresent();
         assertThat(audit.rows()).isEmpty();
+    }
+
+    // ------------------------------------------------------------- P2-9 derivatives
+
+    @Test
+    void anUploadStoresTheThumbnailDerivativesBesideTheOriginal() throws Exception {
+        MediaAsset asset = bigCapService().upload(ADMIN_ID, realPng(300, 150), "image/png", "photo.png");
+
+        String stem = asset.getStoredFilename().substring(0, 32);
+        // The original is untouched, the renderable widths sit beside it.
+        assertThat(Files.exists(storage.resolve(asset.getStoredFilename()).orElseThrow())).isTrue();
+        assertThat(Files.exists(storage.resolve(stem + "-t96.png").orElseThrow())).isTrue();
+        assertThat(Files.exists(storage.resolve(stem + "-t192.png").orElseThrow())).isTrue();
+        // 480/800 would upscale a 300 px original — never rendered.
+        assertThat(Files.exists(storage.resolve(stem + "-t480.png").orElseThrow())).isFalse();
+        assertThat(Files.exists(storage.resolve(stem + "-t800.png").orElseThrow())).isFalse();
+        assertThat(countFiles()).isEqualTo(3);
+        // The derivative is a readable image at the target width (the
+        // content gate ran before the write) — the aspect follows.
+        MediaImageInspector.ImageInfo d96 = MediaImageInspector.inspect(
+                Files.readAllBytes(storage.resolve(stem + "-t96.png").orElseThrow())).orElseThrow();
+        assertThat(d96.contentType()).isEqualTo("image/png");
+        assertThat(d96.width()).isEqualTo(96);
+        assertThat(d96.height()).isEqualTo(48); // 150 × 96 / 300
+    }
+
+    @Test
+    void aWebpUploadGetsNoDerivativesAndNoSrcset() throws Exception {
+        MediaService big = bigCapService();
+        MediaAsset asset = big.upload(ADMIN_ID, webpVp8l(300, 150), "image/webp", "photo.webp");
+
+        assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.webp$");
+        // No JDK WebP decoder → the original only, the slots render it.
+        assertThat(countFiles()).isEqualTo(1);
+        assertThat(big.derivativeSrcset(asset)).isNull();
+    }
+
+    @Test
+    void theSrcsetListsExactlyTheDerivativesOnDisk() throws Exception {
+        MediaService big = bigCapService();
+        MediaAsset asset = big.upload(ADMIN_ID, realPng(300, 150), "image/png", "photo.png");
+        String stem = asset.getStoredFilename().substring(0, 32);
+
+        assertThat(big.derivativeSrcset(asset))
+                .isEqualTo("/api/media/" + stem + "-t96.png 96w, /api/media/" + stem + "-t192.png 192w");
+    }
+
+    @Test
+    void anOriginalAboveTheDecodeGuardIsStoredWithoutDerivatives() throws Exception {
+        // The header claims 10001×10001 — above the 10000 decode guard:
+        // stored as-is (the upload contract is unchanged), the decode is
+        // never attempted, no derivative, no srcset.
+        MediaAsset asset = uploadPng("huge.png", 10_001, 10_001);
+
+        assertThat(countFiles()).isEqualTo(1);
+        assertThat(service.derivativeSrcset(asset)).isNull();
+    }
+
+    @Test
+    void aRowFailureRemovesTheOriginalAndLeavesNoOrphanDerivatives() throws Exception {
+        InMemoryMediaAssetRepository failingMedia = new InMemoryMediaAssetRepository(posts) {
+            @Override
+            public MediaAsset save(MediaAsset asset) {
+                throw new IllegalStateException("row insert failed");
+            }
+        };
+        MediaService big = new MediaService(failingMedia, posts, storage, audit, clock, 1_000_000);
+
+        assertThatThrownBy(() -> big.upload(ADMIN_ID, realPng(300, 150), "image/png", "photo.png"))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(countFiles()).isZero();
+        assertThat(failingMedia.findAll()).isEmpty();
+    }
+
+    @Test
+    void aDerivativeWriteFailureNeverFailsTheUpload() throws Exception {
+        MediaStorage broken = new MediaStorage(mediaDir) {
+            @Override
+            public StoredFile storeDerivative(String originalFilename, int width, byte[] bytes) {
+                throw new UncheckedIOException("simulated disk failure",
+                        new IOException("disk gone"));
+            }
+        };
+        broken.init();
+        MediaService big = new MediaService(media, posts, broken, audit, clock, 1_000_000);
+
+        // Best effort: the upload of the validated original stands — the
+        // derivative is skipped, the srcset is built from what exists.
+        MediaAsset asset = big.upload(ADMIN_ID, realPng(300, 150), "image/png", "photo.png");
+
+        assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.png$");
+        assertThat(Files.exists(broken.resolve(asset.getStoredFilename()).orElseThrow())).isTrue();
+        assertThat(countFiles()).isEqualTo(1);
+        assertThat(big.derivativeSrcset(asset)).isNull();
+    }
+
+    @Test
+    void deletingAnAssetRemovesItsDerivativesToo() throws Exception {
+        MediaService big = bigCapService();
+        MediaAsset asset = big.upload(ADMIN_ID, realPng(300, 150), "image/png", "photo.png");
+        assertThat(countFiles()).isEqualTo(3); // original + 96 + 192
+
+        big.delete(ADMIN_ID, asset.getId(), false);
+
+        assertThat(media.findById(asset.getId())).isEmpty();
+        assertThat(countFiles()).isZero();
+        assertThat(audit.rows()).hasSize(1);
     }
 }

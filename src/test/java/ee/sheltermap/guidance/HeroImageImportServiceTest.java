@@ -459,4 +459,77 @@ class HeroImageImportServiceTest {
                 .as("a failed import leaves no orphan file")
                 .isZero();
     }
+
+    // ------------------------------------------------------------- P2-9 derivatives
+
+    /** A REAL decodable PNG (ImageIO-encoded gradient) — the header-only
+     *  {@link #png} fixture is inspector-readable but undecodable. */
+    private static byte[] realPng(int width, int height) throws java.io.IOException {
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                img.setRGB(x, y, (x * 255 / Math.max(1, width - 1) << 16)
+                        | (y * 255 / Math.max(1, height - 1) << 8) | 128);
+            }
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        if (!javax.imageio.ImageIO.write(img, "png", out)) {
+            throw new java.io.IOException("no PNG writer on this JDK");
+        }
+        return out.toByteArray();
+    }
+
+    @Test
+    void anImportStoresTheDerivativesBesideTheOriginal() throws Exception {
+        // A decodable 300×150 original: the renderable widths (96, 192)
+        // join the original beside it; 480/800 would upscale.
+        script.put("https://public.example/real.png", new HeroImageFetchClient.FetchedImage(
+                200, null, realPng(300, 150)));
+
+        MediaAsset asset = service.importHero(ADMIN_ID, "https://public.example/real.png");
+
+        String stem = asset.getStoredFilename().substring(0, 32);
+        assertThat(Files.exists(storage.resolve(asset.getStoredFilename()).orElseThrow())).isTrue();
+        assertThat(Files.exists(storage.resolve(stem + "-t96.png").orElseThrow())).isTrue();
+        assertThat(Files.exists(storage.resolve(stem + "-t192.png").orElseThrow())).isTrue();
+        assertThat(Files.exists(storage.resolve(stem + "-t480.png").orElseThrow())).isFalse();
+        assertThat(countFiles()).isEqualTo(3);
+    }
+
+    @Test
+    void aDerivativeThatFailsValidationRefusesTheImportLeavingNothingBehind() throws Exception {
+        // THE P2-9 acceptance rule, pinned at the seam: a derivative that
+        // fails the content gate fails the import — the publish transaction
+        // rolls back and the post stays a DRAFT (the existing failure
+        // behaviour), and nothing is left on disk.
+        HeroImageImportService gateFailing = new HeroImageImportService(
+                (url, maxBytes) -> new HeroImageFetchClient.FetchedImage(200, null, png(100, 50)),
+                host -> List.of(addr("93.184.216.34")),
+                storage, media, clock, MAX_BYTES, Duration.ofSeconds(10),
+                HeroImageImportService.DEFAULT_MAX_SIDE, () -> nanos) {
+            @Override
+            List<MediaDerivatives.RenderedDerivative> renderDerivativesStrict(
+                    MediaImageInspector.ImageInfo info, byte[] bytes) {
+                throw new UnsupportedImageException("simulated gate failure");
+            }
+        };
+
+        assertThatThrownBy(() ->
+                gateFailing.importHero(ADMIN_ID, "https://public.example/hero.png"))
+                .isInstanceOf(UnsupportedImageException.class);
+        assertThat(countFiles()).isZero();
+        assertThat(media.findAll()).isEmpty();
+    }
+
+    @Test
+    void anUndecodableImportedImageIsStoredWithoutDerivatives() throws Exception {
+        // The default fixture is header-only: the inspector reads it,
+        // ImageIO cannot decode it — the import stores the original and
+        // skips the derivatives (the pre-P2-9 behaviour, unchanged).
+        MediaAsset asset = service.importHero(ADMIN_ID, "https://public.example/hero.png");
+
+        assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.png$");
+        assertThat(countFiles()).isEqualTo(1);
+    }
 }

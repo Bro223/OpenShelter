@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.OccupancyBand;
@@ -68,7 +69,10 @@ class ShelterReportServiceTest {
         audit = new InMemoryModerationAuditLog(FIXED);
         users = new InMemoryUserRepository();
         service = new ShelterReportService(shelters, reports, occupancy, openStatus,
-                actionLog, audit, new ReporterTrustEvaluator(shelters, audit), FIXED, 100.0);
+                actionLog, audit, new ReporterTrustEvaluator(shelters, audit),
+                new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
+                        new InMemoryShelterHistoryLog(FIXED), FIXED),
+                FIXED, 100.0);
 
         verified = user("Mari", true);
         unverified = user("Priit", false);
@@ -182,6 +186,8 @@ class ShelterReportServiceTest {
         };
         ShelterReportService racyService = new ShelterReportService(shelters, racy, occupancy,
                 openStatus, actionLog, audit, new ReporterTrustEvaluator(shelters, audit),
+                new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
+                        new InMemoryShelterHistoryLog(FIXED), FIXED),
                 FIXED, 100.0);
 
         assertThatThrownBy(() -> racyService.reportShelter(verified, shelter.getId(),

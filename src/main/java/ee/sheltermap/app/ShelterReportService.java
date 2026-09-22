@@ -89,6 +89,7 @@ public class ShelterReportService {
     private final ReportActionLog actionLog;
     private final ModerationAuditLog audit;
     private final ReporterTrustEvaluator trust;
+    private final ShelterService sheltersService;
     private final Clock clock;
     /** The near-duplicate haversine tolerance — one spelling of the duplicate rule (D3). */
     private final double duplicateCoordMeters;
@@ -100,6 +101,7 @@ public class ShelterReportService {
                                 ReportActionLog actionLog,
                                 ModerationAuditLog audit,
                                 ReporterTrustEvaluator trust,
+                                ShelterService sheltersService,
                                 Clock clock,
                                 @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters) {
         this.shelters = Objects.requireNonNull(shelters, "shelters");
@@ -109,6 +111,7 @@ public class ShelterReportService {
         this.actionLog = Objects.requireNonNull(actionLog, "actionLog");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.trust = Objects.requireNonNull(trust, "trust");
+        this.sheltersService = Objects.requireNonNull(sheltersService, "sheltersService");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.duplicateCoordMeters = duplicateCoordMeters;
     }
@@ -129,7 +132,7 @@ public class ShelterReportService {
     @Transactional
     public boolean reportShelter(User caller, long shelterId, ShelterReportType type, String detail) {
         RegisteredUser user = requireVerified(caller);
-        Shelter shelter = requireShelter(shelterId);
+        Shelter shelter = sheltersService.requireShelter(shelterId);
         if (reports.existsByShelterIdAndUserIdAndType(shelterId, user.getId(), type)) {
             throw new DuplicateReportException();
         }
@@ -181,7 +184,7 @@ public class ShelterReportService {
     @Transactional
     public void reportOccupancy(User caller, long shelterId, OccupancyBand band) {
         RegisteredUser user = requireVerified(caller);
-        requireShelter(shelterId);
+        sheltersService.requireShelter(shelterId);
         actionLog.record(user.getId(), ReportActionLog.Action.OCCUPANCY);
         Instant now = clock.instant();
         ShelterOccupancyReport existing = occupancy
@@ -218,7 +221,7 @@ public class ShelterReportService {
         if (!user.canWrite()) {
             throw new NotVerifiedException(REPORTING_MESSAGE);
         }
-        Shelter shelter = requireShelter(shelterId);
+        Shelter shelter = sheltersService.requireShelter(shelterId);
         Instant now = clock.instant();
         ShelterOpenStatusReport existing = openStatus
                 .findByShelterIdAndUserId(shelterId, user.getId())
@@ -315,11 +318,6 @@ public class ShelterReportService {
         return type == ShelterReportType.CLOSED
                 || type == ShelterReportType.WRONG_LOCATION
                 || type == ShelterReportType.OTHER ? detail : null;
-    }
-
-    private Shelter requireShelter(long shelterId) {
-        return shelters.findById(shelterId)
-                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
     }
 
     private static RegisteredUser requireVerified(User user) {

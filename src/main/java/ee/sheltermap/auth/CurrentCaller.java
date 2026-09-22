@@ -1,7 +1,6 @@
-package ee.sheltermap.api;
+package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,10 +12,13 @@ import java.util.Objects;
  * surface that resolves the JWT principal to a user (W3-A): before this
  * extraction the "read the principal, resolve the user" sequence had a
  * copy per caller ({@code ShelterController} twice — the column-only id
- * probe and the full row load — and {@link AdminAccess} once), and the
- * auth package still carries its own for the account endpoints. One
- * implementation here, three behaviours with the exact status
- * vocabulary each caller had:
+ * probe and the full row load — and {@code AdminAccess} once), and the
+ * auth package's own account/verification controllers each carried a
+ * third shape of it (W4-A: moved here from {@code ee.sheltermap.api},
+ * the neutral home for the primitive — both the api and the auth
+ * controllers consume it, and the api already depends on the auth
+ * package, never the reverse). One implementation, three behaviours
+ * with the exact status vocabulary each caller had:
  *
  * <ul>
  *   <li>{@link #callerIdOrNull()} — anonymous or an erased row: {@code
@@ -89,8 +91,32 @@ public final class CurrentCaller {
      * re-authenticate rather than learn that an account once existed.
      */
     public User requireUser() {
-        long userId = requireUserId();
-        User user = userRepository.findById(userId);
+        return requireUser(requireUserId());
+    }
+
+    /**
+     * The caller's row for an id already established by
+     * {@link #requireUserId()}, or {@code null} when the row no longer
+     * exists — the row-load half of the lookup WITHOUT deciding the
+     * error vocabulary (W4-A): the auth controllers resolve the id
+     * through {@link #requireUserId()} (their 401 convention) and map a
+     * gone or guest row to their own documented message, so the
+     * per-surface status vocabulary stays exactly what each endpoint
+     * had while the SecurityContext read + row-load sequence lives
+     * here once instead of once per controller.
+     */
+    public User userOrNull(long userId) {
+        return userRepository.findById(userId);
+    }
+
+    /**
+     * The caller's row for an id already established by
+     * {@link #requireUserId()}, or 401 "Unknown user" when the row is
+     * gone (the {@link #requireUser()} vocabulary, for callers that do
+     * NOT remap the erasure themselves).
+     */
+    public User requireUser(long userId) {
+        User user = userOrNull(userId);
         if (user == null) {
             throw new InvalidAccessTokenException("Unknown user");
         }

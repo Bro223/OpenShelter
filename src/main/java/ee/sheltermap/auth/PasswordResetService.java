@@ -23,7 +23,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Password reset (03-auth.puml): a 6-digit one-time code e-mailed to the
@@ -124,20 +123,6 @@ public class PasswordResetService {
     }
 
     /**
-     * Runs {@code work} in one transaction when a transaction manager is
-     * present; in plain unit tests (in-memory fakes) it runs directly.
-     * This is the ShelterImportService idiom — the boundary belongs to the
-     * service, because the send between the two phases must sit OUTSIDE
-     * any transaction.
-     */
-    private <T> T inTransaction(Supplier<T> work) {
-        if (tx == null) {
-            return work.get();
-        }
-        return tx.execute(status -> work.get());
-    }
-
-    /**
      * E-mails a 6-digit reset code to the account with {@code email} and
      * stores its SHA-256 hash for 15 minutes, invalidating any earlier
      * active code for the same user (one active code per user). For
@@ -181,7 +166,7 @@ public class PasswordResetService {
     public void requestReset(String email) {
         Objects.requireNonNull(email, "email");
         // Phase 1 — the decision, one consistent snapshot (read + prune).
-        ResetDecision decision = inTransaction(() -> decide(email));
+        ResetDecision decision = Transactions.in(tx, () -> decide(email));
         if (decision == null || decision.recipient == null) {
             return; // unknown e-mail / admin refusal threw / cooldown / cap
         }
@@ -200,7 +185,7 @@ public class PasswordResetService {
             return;
         }
         // Phase 3 — the write, one transaction (atomic one-active-code).
-        inTransaction(() -> {
+        Transactions.in(tx, () -> {
             tokens.deleteActiveByUserId(decision.userId, clock.instant());
             tokens.save(new PasswordResetToken(decision.userId,
                     piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_PASSWORD_RESET, code),

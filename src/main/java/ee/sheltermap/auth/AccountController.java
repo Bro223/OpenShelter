@@ -4,7 +4,6 @@ import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
-import ee.sheltermap.domain.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -17,8 +16,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -77,7 +74,7 @@ public class AccountController {
 
     private final ContactChangeService contactChangeService;
     private final AccountService accountService;
-    private final UserRepository userRepository;
+    private final CurrentCaller currentCaller;
     private final RateLimiter changeRequestRateLimiter;
     private final ContactChangeProperties properties;
     private final Set<String> trustedProxies;
@@ -92,7 +89,7 @@ public class AccountController {
                              @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.contactChangeService = Objects.requireNonNull(contactChangeService, "contactChangeService");
         this.accountService = Objects.requireNonNull(accountService, "accountService");
-        this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.currentCaller = new CurrentCaller(userRepository);
         this.changeRequestRateLimiter = Objects.requireNonNull(changeRequestRateLimiter, "changeRequestRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
@@ -243,14 +240,8 @@ public class AccountController {
                     + "account (refused; the message names the env provisioning)")
     })
     public void deleteAccount() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
-            // Unreachable in practice: /account/** requires a valid JWT —
-            // 401, not a 400, like the rest of the group's fallback.
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        User user = userRepository.findById(userId);
-        if (!(user instanceof RegisteredUser registered)) {
+        long userId = currentCaller.requireUserId();
+        if (!(currentCaller.userOrNull(userId) instanceof RegisteredUser registered)) {
             return; // already erased — idempotent no-op
         }
         if (!registered.canWrite()) {
@@ -267,16 +258,8 @@ public class AccountController {
     }
 
     private RegisteredUser currentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
-            // Unreachable in practice: /account/** requires a valid JWT — but
-            // if it ever fires, it is an authentication failure (401), not a
-            // contact-change validation error (400). Matches the Shelter
-            // controller fallback convention.
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        User user = userRepository.findById(userId);
-        if (!(user instanceof RegisteredUser registered)) {
+        long userId = currentCaller.requireUserId();
+        if (!(currentCaller.userOrNull(userId) instanceof RegisteredUser registered)) {
             throw new InvalidContactChangeException("Account not found");
         }
         return registered;

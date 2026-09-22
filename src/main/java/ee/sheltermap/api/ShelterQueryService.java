@@ -680,7 +680,7 @@ public class ShelterQueryService {
         }
         User requester = request.requestedBy() == null ? null : requesters.get(request.requestedBy());
         return new AdminShelterDto.InfoRequest(request.message(), request.requestedAt(),
-                requester == null ? "Unknown" : requester.getData().name(),
+                requester == null ? AdminModerationService.UNKNOWN_NAME : requester.getData().name(),
                 request.replyMessage(), request.repliedAt());
     }
 

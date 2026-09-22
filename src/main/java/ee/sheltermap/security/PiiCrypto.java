@@ -11,7 +11,6 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.Locale;
 
 /**
  * PII-at-rest crypto: AES-256-GCM encryption with a version-tagged
@@ -160,9 +159,13 @@ public class PiiCrypto {
         }
     }
 
-    /** Canonical e-mail identity for blind indexing (registration normalizes identically). */
+    /** Canonical e-mail identity for blind indexing (registration
+     *  normalizes identically — the shared {@link Contacts#normalize} rule,
+     *  W4-A: before the extraction this two-liner was inlined HERE and
+     *  separately in the limiter/recorder/auth consumers, so a drift in
+     *  any copy would have split the blind index from the live lookups). */
     public static String canonicalEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
+        return Contacts.normalize(email);
     }
 
     /**

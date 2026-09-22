@@ -1,7 +1,5 @@
 package ee.sheltermap.domain;
 
-import java.util.Objects;
-
 /**
  * A reporter's derived trust weight (community-self-moderation, D1).
  *
@@ -50,7 +48,6 @@ public record ReporterTrust(int weight) {
      *                                moderation actions
      */
     public static ReporterTrust of(boolean crossVerifiedSubmission, int ownAutoConfirms) {
-        Objects.requireNonNull(Boolean.valueOf(crossVerifiedSubmission), "crossVerifiedSubmission");
         if (ownAutoConfirms < 0) {
             throw new IllegalArgumentException("ownAutoConfirms must not be negative");
         }

@@ -1,7 +1,6 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
-import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

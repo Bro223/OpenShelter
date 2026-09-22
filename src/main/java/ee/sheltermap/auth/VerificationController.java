@@ -20,8 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,6 +62,7 @@ public class VerificationController {
 
     private final VerificationService verificationService;
     private final UserRepository userRepository;
+    private final CurrentCaller currentCaller;
     private final RateLimiter verifyRateLimiter;
     private final VerificationProperties properties;
     private final Set<String> trustedProxies;
@@ -77,6 +76,7 @@ public class VerificationController {
                                   @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.verificationService = Objects.requireNonNull(verificationService, "verificationService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.currentCaller = new CurrentCaller(userRepository);
         this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
@@ -160,13 +160,16 @@ public class VerificationController {
     }
 
     private RegisteredUser currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            // unreachable in practice: /verify/** requires a valid JWT
-            throw new VerificationFailedException("Authentication required");
-        }
-        User user = userRepository.findById(userId);
-        if (!(user instanceof RegisteredUser registered)) {
+        // W4-A: the principal read + row load is the shared CurrentCaller
+        // primitive — this surface keeps its own documented 400 vocabulary
+        // on top of it (a gone or guest row is "Account not found"). The
+        // anonymous branch is unreachable over HTTP (/verify/** requires a
+        // valid JWT — the security entry point answers anonymous requests
+        // with its 401 first); when the primitive's 401 fallback ever fires,
+        // it is an authentication failure like the entry point's, which is
+        // the convention the sibling account endpoints document.
+        long userId = currentCaller.requireUserId();
+        if (!(currentCaller.userOrNull(userId) instanceof RegisteredUser registered)) {
             throw new VerificationFailedException("Account not found");
         }
         return registered;

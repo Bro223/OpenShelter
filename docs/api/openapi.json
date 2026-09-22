@@ -929,6 +929,9 @@
           "sourceUrl" : {
             "type" : "string"
           },
+          "srcset" : {
+            "type" : "string"
+          },
           "storedFilename" : {
             "type" : "string"
           },
@@ -7174,7 +7177,7 @@
     },
     "/api/media/{filename}" : {
       "get" : {
-        "description" : "404 for anything outside the generated name shape, with no asset row, or with a missing file. Content-Type from the STORED type; Cache-Control: public, max-age=31536000, immutable (generated names are never reused).",
+        "description" : "404 for anything outside the generated name shapes, with no asset row, or with a missing file. A derivative name (`<32hex>-t<width>.<ext>`) is served with the BASE asset's stored Content-Type (the derivative keeps the original's format) and its own on-disk size. Content-Type from the STORED type; Cache-Control: public, max-age=31536000, immutable (generated names are never reused).",
         "operationId" : "serve",
         "parameters" : [ {
           "name" : "filename",

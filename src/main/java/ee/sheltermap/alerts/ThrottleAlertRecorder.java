@@ -1,12 +1,13 @@
 package ee.sheltermap.alerts;
 
+import ee.sheltermap.security.Contacts;
+
 import java.time.Clock;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -52,13 +53,13 @@ public class ThrottleAlertRecorder {
 
     /**
      * The per-contact OTP cap fired on the verify or register surface
-     * (429). The contact is normalized (trim + root-locale lowercase — the
-     * same normalization as {@code RollingContactOtpLimiter}) so the
+     * (429). The contact is normalized ({@link Contacts#normalize} — the
+     * same one shared rule as {@code RollingContactOtpLimiter}) so the
      * alert's subject matches the limiter's bucket key.
      */
     public void otpContactCap(String contact, Integer retryAfterSeconds) {
         record(new ThrottleAlert(nextId(), ThrottleAlert.KIND_OTP_CONTACT_CAP,
-                "contact:" + normalize(contact),
+                "contact:" + Contacts.normalize(contact),
                 "OTP contact cap reached (429)",
                 retryAfterSeconds, clock.instant()));
     }
@@ -81,7 +82,7 @@ public class ThrottleAlertRecorder {
      */
     public void codeSendFailure(String contact, String channel) {
         record(new ThrottleAlert(nextId(), ThrottleAlert.KIND_CODE_SEND_FAILURE,
-                "contact:" + normalize(contact),
+                "contact:" + Contacts.normalize(contact),
                 "Code send refused by the " + channel + " channel (no 429 — delivery failed)",
                 null, clock.instant()));
     }
@@ -138,10 +139,5 @@ public class ThrottleAlertRecorder {
         synchronized (ring) {
             return ++sequence;
         }
-    }
-
-    private static String normalize(String contact) {
-        Objects.requireNonNull(contact, "contact");
-        return contact.trim().toLowerCase(Locale.ROOT);
     }
 }

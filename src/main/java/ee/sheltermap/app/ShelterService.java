@@ -72,8 +72,9 @@ public class ShelterService {
      * 409 message for import-owned rows (admin-moderation D4) — moved
      * here from {@code api.AdminModerationService} (W3-A): the hard-delete
      * boundary below enforces it in the service layer too, so the
-     * constant travels with the guard. {@code AdminModerationService}
-     * keeps a forwarder for the other admin-write guards.
+     * constant travels with the guard. W4-A: the admin service's
+     * forwarder constant is gone with its private guard copy — every
+     * throw site constructs from this one constant.
      */
     public static final String IMPORT_OWNED_MESSAGE =
             "Registry shelters are import-owned and cannot be moderated here";
@@ -299,14 +300,44 @@ public class ShelterService {
      *                                another user's row)
      */
     public Shelter requireOwnedBy(long shelterId, long userId) {
-        Shelter shelter = shelterRepository.findById(shelterId)
-                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
+        Shelter shelter = requireShelter(shelterId);
         if (shelter.getSource() != ShelterSource.USER
                 || shelter.getCreatedBy() == null
                 || !shelter.getCreatedBy().equals(userId)) {
             throw new NotAuthorException(NOT_AUTHOR_MESSAGE);
         }
         return shelter;
+    }
+
+    /**
+     * The 404 half of every shelter-row lookup (W4-A — the byte-identical
+     * private copies in {@code ShelterReportService} and
+     * {@code AdminModerationService} are gone): unknown id →
+     * {@link ShelterNotFoundException} (404), otherwise the row. Plain
+     * read, no transaction of its own (the callers run inside their own
+     * boundary, and the repository read is transaction-safe on its own).
+     *
+     * @throws ShelterNotFoundException 404 — unknown shelter id
+     */
+    public Shelter requireShelter(long shelterId) {
+        return shelterRepository.findById(shelterId)
+                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
+    }
+
+    /**
+     * D4 (admin-moderation): only USER-source rows are admin-manageable;
+     * registry rows are import-owned. The ONE guard every admin write on
+     * a shelter row goes through (W4-A — the source check was inlined in
+     * {@link #deletePlaceByAdmin} AND copied as a private guard in
+     * {@code api.AdminModerationService}; the constant now travels with
+     * the single guard, and the admin service's forwarder is gone).
+     *
+     * @throws ImportOwnedShelterException 409 — a registry row
+     */
+    public void requireUserOwned(Shelter shelter) {
+        if (shelter.getSource() != ShelterSource.USER) {
+            throw new ImportOwnedShelterException(IMPORT_OWNED_MESSAGE);
+        }
     }
 
     /**
@@ -341,11 +372,7 @@ public class ShelterService {
      */
     @Transactional
     public void deletePlaceByAdmin(long moderatorId, long shelterId) {
-        Shelter shelter = shelterRepository.findById(shelterId)
-                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
-        if (shelter.getSource() != ShelterSource.USER) {
-            throw new ImportOwnedShelterException(IMPORT_OWNED_MESSAGE);
-        }
+        requireUserOwned(requireShelter(shelterId));
         deletePlace(shelterId, moderatorId);
     }
 

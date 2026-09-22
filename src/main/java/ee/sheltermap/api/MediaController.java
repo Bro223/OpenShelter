@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.regex.Pattern;
 
@@ -37,6 +39,22 @@ import java.util.regex.Pattern;
  * never be stale. EVERYTHING unknown answers 404 without revealing
  * whether a file exists elsewhere on disk.
  *
+ * <p>P2-9 derivatives: a derivative name
+ * ({@code ^[a-f0-9]{32}-t\d+\.(jpg|png|webp)$}) is the SECOND shape —
+ * the {@code -t<width>} marker is digits only (the traversal-forbidding
+ * of the base shape is inherited), the base name (the 32-hex stem + the
+ * extension) is looked up as the asset row, and the derivative file is
+ * resolved under the same parent-equality gate. A derivative is served
+ * with the ORIGINAL's stored content type (the derivative keeps the
+ * original's extension — the same format) and its own on-disk size. A
+ * derivative name with no base row, or a base row whose derivative file
+ * is missing, answers the SAME uniform 404 as everything else — an
+ * asset without derivatives (a WebP original, a pre-feature upload)
+ * simply has no derivative URLs, and the slots render its original via
+ * plain {@code src} (the srcset is built from what exists on disk).
+ * The public URL shape of EXISTING assets is unchanged: the base regex
+ * is untouched and a base name still answers exactly as before.
+ *
  * <p>The path sits under {@code /api/} on purpose: the frontend dev
  * proxy already proxies {@code /api}, so the public pages and the admin
  * thumbnails load in dev with no proxy change.
@@ -54,6 +72,9 @@ public class MediaController {
     /** D7: the generated name shape — the first gate of the public serving path. */
     private static final Pattern STORED_FILENAME = Pattern.compile("^[a-f0-9]{32}\\.(jpg|png|webp)$");
 
+    /** P2-9: the derivative name shape (the base shape + the digit-only {@code -t<width>} marker). */
+    private static final Pattern DERIVATIVE_FILENAME = Pattern.compile("^[a-f0-9]{32}-t\\d+\\.(jpg|png|webp)$");
+
     /** Generated names are never reused → an immutable year (D7). */
     private static final Duration IMMUTABLE_CACHE = Duration.ofSeconds(31_536_000);
 
@@ -66,15 +87,21 @@ public class MediaController {
     }
 
     /**
-     * Serves one stored image. 404 for: a name outside the generated
-     * shape (traversal, absolute paths, encoded variants — all fail the
-     * regex or the path variable), a name with no asset row, and a row
-     * whose file is missing.
+     * Serves one stored image (the original OR a P2-9 derivative). 404
+     * for: a name outside the generated shapes (traversal, absolute
+     * paths, encoded variants — all fail the regexes or the path
+     * variable), a name with no asset row (a derivative name with no
+     * BASE row), and a row whose file is missing (a derivative name
+     * whose derivative file is missing — the asset renders its original
+     * then, its srcset is built from what exists).
      */
     @GetMapping("/{filename}")
     @Operation(summary = "Serve a stored image",
-            description = "404 for anything outside the generated name shape, with "
-                    + "no asset row, or with a missing file. Content-Type from the "
+            description = "404 for anything outside the generated name shapes, with "
+                    + "no asset row, or with a missing file. A derivative name "
+                    + "(`<32hex>-t<width>.<ext>`) is served with the BASE asset's "
+                    + "stored Content-Type (the derivative keeps the original's "
+                    + "format) and its own on-disk size. Content-Type from the "
                     + "STORED type; Cache-Control: public, max-age=31536000, "
                     + "immutable (generated names are never reused).")
     @ApiResponses(value = {
@@ -85,17 +112,43 @@ public class MediaController {
     })
     @SecurityRequirements({})
     public ResponseEntity<FileSystemResource> serve(@PathVariable String filename) {
-        if (!STORED_FILENAME.matcher(filename).matches()) {
-            throw new GuidanceNotFoundException("Not found");
+        if (STORED_FILENAME.matcher(filename).matches()) {
+            MediaAsset asset = mediaAssets.findByStoredFilename(filename)
+                    .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
+            Path path = storage.resolve(filename)
+                    .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(asset.getContentType()))
+                    .cacheControl(CacheControl.maxAge(IMMUTABLE_CACHE).cachePublic().immutable())
+                    .contentLength(asset.getSizeBytes())
+                    .body(new FileSystemResource(path));
         }
-        MediaAsset asset = mediaAssets.findByStoredFilename(filename)
-                .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
-        Path path = storage.resolve(filename)
-                .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(asset.getContentType()))
-                .cacheControl(CacheControl.maxAge(IMMUTABLE_CACHE).cachePublic().immutable())
-                .contentLength(asset.getSizeBytes())
-                .body(new FileSystemResource(path));
+        // P2-9: the derivative shape — the base row is looked up by the
+        // BASE name (the derivative has no row of its own), the file by
+        // its own name; a missing base row or a missing file is the same
+        // uniform 404 (nothing outside the upload directory is ever read).
+        if (DERIVATIVE_FILENAME.matcher(filename).matches()) {
+            String baseName = filename.substring(0, filename.indexOf('-'))
+                    + filename.substring(filename.lastIndexOf('.'));
+            MediaAsset asset = mediaAssets.findByStoredFilename(baseName)
+                    .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
+            Path path = storage.resolve(filename)
+                    .orElseThrow(() -> new GuidanceNotFoundException("Not found"));
+            if (!Files.isRegularFile(path)) {
+                throw new GuidanceNotFoundException("Not found");
+            }
+            long size;
+            try {
+                size = Files.size(path);
+            } catch (IOException e) {
+                throw new GuidanceNotFoundException("Not found");
+            }
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(asset.getContentType()))
+                    .cacheControl(CacheControl.maxAge(IMMUTABLE_CACHE).cachePublic().immutable())
+                    .contentLength(size)
+                    .body(new FileSystemResource(path));
+        }
+        throw new GuidanceNotFoundException("Not found");
     }
 }

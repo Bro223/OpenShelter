@@ -1,8 +1,7 @@
-package ee.sheltermap.api;
+package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import org.junit.jupiter.api.AfterEach;
@@ -14,11 +13,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted authenticated-caller lookup (W3-A): the three
+ * The extracted authenticated-caller lookup (W3-A; W4-A: moved here from
+ * {@code ee.sheltermap.api} — the auth controllers consume it too): the
  * behaviours of {@link CurrentCaller} — the column-only id probe that
- * never throws, the id-only requirement (401, no row load), and the full
- * row load (401 anonymous / 401 erased). The principal is the JWT's user
- * id ({@code Long}) in the {@link SecurityContextHolder}, the
+ * never throws, the id-only requirement (401, no row load), the full row
+ * load (401 anonymous / 401 erased), and the vocabulary-neutral row load
+ * the auth controllers remap to their own 400. The principal is the JWT's
+ * user id ({@code Long}) in the {@link SecurityContextHolder}, the
  * {@code JwtAuthenticationFilter} convention.
  */
 class CurrentCallerTest {
@@ -137,5 +138,42 @@ class CurrentCallerTest {
         assertThatThrownBy(() -> new CurrentCaller(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("userRepository");
+    }
+
+    // ------------------------------------------------ userOrNull / requireUser(id)
+
+    @Test
+    void userOrNullReturnsTheRowWithoutThrowing() {
+        users.save(ALICE);
+        long id = ALICE.getId();
+        assertThat(caller.userOrNull(id)).isSameAs(ALICE);
+    }
+
+    @Test
+    void userOrNullReturnsNullForAnErasedRow() {
+        // The vocabulary-neutral half (W4-A): the auth controllers map
+        // this null to their own documented 400 — the primitive decides
+        // nothing about the status.
+        users.save(ALICE);
+        long id = ALICE.getId();
+        users.delete(id);
+        assertThat(caller.userOrNull(id)).isNull();
+    }
+
+    @Test
+    void requireUserByIdIsA401UnknownUserForAnErasedRow() {
+        users.save(ALICE);
+        long id = ALICE.getId();
+        users.delete(id);
+        assertThatThrownBy(() -> caller.requireUser(id))
+                .isInstanceOf(InvalidAccessTokenException.class)
+                .hasMessage("Unknown user");
+    }
+
+    @Test
+    void requireUserByIdReturnsTheRow() {
+        users.save(ALICE);
+        long id = ALICE.getId();
+        assertThat(caller.requireUser(id)).isSameAs(ALICE);
     }
 }

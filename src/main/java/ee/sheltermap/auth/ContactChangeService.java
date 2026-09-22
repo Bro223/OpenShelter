@@ -6,6 +6,7 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.Contacts;
 import ee.sheltermap.security.PiiCrypto;
 import ee.sheltermap.verification.CodeHashes;
 import ee.sheltermap.verification.PhoneNumbers;
@@ -24,9 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Cross-channel contact changes (product decision, see 04-CONTEXT-AUTH.md):
@@ -106,19 +105,6 @@ public class ContactChangeService {
         this.tx = txManager == null ? null : new TransactionTemplate(txManager);
     }
 
-    /**
-     * Runs {@code work} in one transaction when a transaction manager is
-     * present; in plain unit tests (in-memory fakes) it runs directly.
-     * The boundary belongs to the service because the provider send must
-     * sit OUTSIDE any transaction (send-first-then-commit, reviews F2).
-     */
-    private <T> T inTransaction(Supplier<T> work) {
-        if (tx == null) {
-            return work.get();
-        }
-        return tx.execute(status -> work.get());
-    }
-
     // ---- Email change (verified by SMS to the current phone) ----
 
     /**
@@ -143,9 +129,9 @@ public class ContactChangeService {
      */
     public void requestEmailChange(RegisteredUser user, String newEmail) {
         requireNotProvisionedAdmin(user);
-        String target = newEmail.trim().toLowerCase(Locale.ROOT);
+        String target = Contacts.normalize(newEmail);
         // Phase 1 — the checks, one read-side transaction.
-        inTransaction(() -> {
+        Transactions.in(tx, () -> {
             if (target.equalsIgnoreCase(user.getData().email())) {
                 throw new InvalidContactChangeException("New email equals the current email");
             }
@@ -170,7 +156,7 @@ public class ContactChangeService {
             return;
         }
         // Phase 3 — the write, one transaction.
-        inTransaction(() -> {
+        Transactions.in(tx, () -> {
             replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
                     target, piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_CONTACT_CHANGE, code),
                     now.plusSeconds(properties.codeTtlSeconds()), now));
@@ -229,7 +215,7 @@ public class ContactChangeService {
         requireNotProvisionedAdmin(user);
         String target = PhoneNumbers.normalizeE164(newPhone);
         // Phase 1 — the checks, one read-side transaction.
-        inTransaction(() -> {
+        Transactions.in(tx, () -> {
             if (target.equals(user.getData().phone())) {
                 throw new InvalidContactChangeException("New phone equals the current phone");
             }
@@ -250,7 +236,7 @@ public class ContactChangeService {
             return;
         }
         // Phase 3 — the write, one transaction.
-        inTransaction(() -> {
+        Transactions.in(tx, () -> {
             replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
                     target, piiCrypto.codeHash(PiiCrypto.DOMAIN_CODE_CONTACT_CHANGE, code),
                     now.plusSeconds(properties.codeTtlSeconds()), now));

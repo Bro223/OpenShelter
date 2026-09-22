@@ -1,6 +1,5 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
@@ -20,7 +19,6 @@ import ee.sheltermap.domain.ReviewDecision;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReport;
-import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
 import org.springframework.stereotype.Service;
@@ -74,9 +72,6 @@ import java.util.stream.Collectors;
 @Service
 public class AdminModerationService {
 
-    /** D4: registry rows are import-owned — the plain 409 message. The value lives on {@link ShelterService} (W3-A: the delete boundary enforces it in the service layer too); this forwarder keeps the admin-write guards' reference unchanged. */
-    public static final String IMPORT_OWNED_MESSAGE = ShelterService.IMPORT_OWNED_MESSAGE;
-
     /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
 
@@ -85,6 +80,15 @@ public class AdminModerationService {
 
     /** The read-time rendering of a gone subject account in the audit trail. */
     public static final String DELETED_ACCOUNT_NAME = "Deleted account";
+
+    /**
+     * The read-time rendering of a referent whose name no longer resolves
+     * (W4-A — the literal was inlined five times across this class and
+     * {@code ShelterQueryService}): an erased actor's name in the queue /
+     * audit rows, a vanished shelter's name in the report queue, and an
+     * account whose profile name is blank.
+     */
+    public static final String UNKNOWN_NAME = "Unknown";
 
     /** Plain-spoken 409 for a suspend/unsuspend of a GUEST account (no credentials). */
     public static final String NON_REGISTERED_SUSPENSION_MESSAGE =
@@ -162,8 +166,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void setShelterStatus(long moderatorId, long shelterId, ShelterStatus target) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         if (shelter.getStatus() != target) {
             ReviewStatus previousReview = shelter.getReviewStatus();
             if (target == ShelterStatus.ACTIVE) {
@@ -203,8 +207,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void deleteShelter(long moderatorId, long shelterId) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
         // The delete runs through the service boundary (W3-A): the
@@ -232,8 +236,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void requestInfo(long moderatorId, long shelterId, String message) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         infoRequests.request(shelterId, message.trim(), moderatorId);
     }
 
@@ -250,8 +254,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void markInaccurate(long moderatorId, long shelterId, String reason) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         if (shelter.getInaccurateMarkedAt() == null) {
             shelter.setInaccurateMarkedAt(clock.instant());
             shelter.setInaccurateMarkedBy(moderatorId);
@@ -270,8 +274,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void clearInaccurate(long moderatorId, long shelterId) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         if (shelter.getInaccurateMarkedAt() != null) {
             shelter.setInaccurateMarkedAt(null);
             shelter.setInaccurateMarkedBy(null);
@@ -321,7 +325,7 @@ public class AdminModerationService {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         long from = offset == null ? 0 : offset;
         if (shelterId != null) {
-            requireShelter(shelterId);
+            shelterService.requireShelter(shelterId);
         }
         List<ShelterReport> reports = excludeDismissed
                 ? openReportPage(shelterId, from, size)
@@ -348,11 +352,11 @@ public class AdminModerationService {
                     return new AdminShelterReportDto(
                             report.getId(),
                             report.getShelterId(),
-                            shelter == null ? "Unknown" : shelter.getName(),
+                            shelter == null ? UNKNOWN_NAME : shelter.getName(),
                             shelter == null ? null : shelter.getStatus(),
                             report.getType(),
                             report.getDetail(),
-                            reporter == null ? "Unknown" : reporter.getData().name(),
+                            reporter == null ? UNKNOWN_NAME : reporter.getData().name(),
                             reporter == null ? null : reporter.getData().email(),
                             report.getCreatedAt(),
                             report.isDamped(),
@@ -462,8 +466,8 @@ public class AdminModerationService {
      */
     @Transactional
     public void reviewShelter(long moderatorId, long shelterId, ReviewDecision decision, String reason) {
-        Shelter shelter = requireShelter(shelterId);
-        requireUserOwned(shelter);
+        Shelter shelter = shelterService.requireShelter(shelterId);
+        shelterService.requireUserOwned(shelter);
         ReviewStatus previous = shelter.getReviewStatus();
         String note = normalizeReason(reason);
         switch (decision) {
@@ -536,7 +540,7 @@ public class AdminModerationService {
                             row.reason(),
                             row.previousStatus(),
                             row.newStatus(),
-                            moderator == null ? "Unknown" : moderator.getData().name(),
+                            moderator == null ? UNKNOWN_NAME : moderator.getData().name(),
                             row.createdAt());
                 })
                 .toList();
@@ -575,7 +579,7 @@ public class AdminModerationService {
                     return new AdminShelterHistoryDto(
                             event.id(),
                             event.shelterName(),
-                            actor == null ? "Unknown" : actor.getData().name(),
+                            actor == null ? UNKNOWN_NAME : actor.getData().name(),
                             event.action(),
                             ShelterHistoryChanges.parse(event.changes()),
                             event.createdAt());
@@ -613,7 +617,7 @@ public class AdminModerationService {
         }
         String name = subject.getData().name();
         String email = subject.getData().email();
-        String base = (name == null || name.isBlank()) ? "Unknown" : name;
+        String base = (name == null || name.isBlank()) ? UNKNOWN_NAME : name;
         return "Account: " + base + (email == null || email.isBlank() ? "" : " (" + email + ")");
     }
 
@@ -730,11 +734,6 @@ public class AdminModerationService {
         return "GUEST";
     }
 
-    private Shelter requireShelter(long shelterId) {
-        return shelters.findById(shelterId)
-                .orElseThrow(() -> new ShelterNotFoundException(shelterId));
-    }
-
     /** The target shelter's review state for the audit row (the FK guarantees the row exists). */
     private ReviewStatus reviewStatusOf(long shelterId) {
         return shelters.findById(shelterId)
@@ -753,12 +752,5 @@ public class AdminModerationService {
             case CONFIRM -> ModerationAuditLog.Action.CONFIRM;
             case REJECT -> ModerationAuditLog.Action.REJECT;
         };
-    }
-
-    /** D4: only USER-source rows are admin-manageable; registry rows are import-owned. */
-    private static void requireUserOwned(Shelter shelter) {
-        if (shelter.getSource() != ShelterSource.USER) {
-            throw new ImportOwnedShelterException(IMPORT_OWNED_MESSAGE);
-        }
     }
 }

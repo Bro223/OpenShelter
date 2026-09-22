@@ -102,7 +102,7 @@ public class AdminMediaController {
         Pagination.requireLimit(limit);
         Pagination.requireOffset(offset);
         Pagination.Paged<MediaService.MediaAssetWithUsage> paged = media.listPage(limit, offset);
-        List<MediaAssetDto> dtos = paged.rows().stream().map(AdminMediaController::toDto).toList();
+        List<MediaAssetDto> dtos = paged.rows().stream().map(this::toDto).toList();
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(paged.total()))
                 .body(dtos);
@@ -183,7 +183,7 @@ public class AdminMediaController {
         return toDto(media.delete(adminAccess.requireAdmin(), id, confirm));
     }
 
-    private static MediaAssetDto toDto(MediaService.MediaAssetWithUsage row) {
+    private MediaAssetDto toDto(MediaService.MediaAssetWithUsage row) {
         MediaAsset asset = row.asset();
         return new MediaAssetDto(
                 asset.getId() == null ? 0 : asset.getId(),
@@ -196,6 +196,7 @@ public class AdminMediaController {
                 asset.getSizeBytes(),
                 asset.getCreatedAt(),
                 row.reusedBy(),
-                asset.getSourceUrl());
+                asset.getSourceUrl(),
+                media.derivativeSrcset(asset));
     }
 }

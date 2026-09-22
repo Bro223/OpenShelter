@@ -152,4 +152,27 @@ class ShelterServiceOwnershipTest {
         service.deletePlaceByAdmin(7L, place.getId());
         assertThat(repo.findById(place.getId())).isEmpty();
     }
+
+    // ------------------------------------- shared guards (W4-A: one guard per rule)
+
+    @Test
+    void requireShelterAnswers404ForAnUnknownIdAndTheRowOtherwise() {
+        assertThatThrownBy(() -> service.requireShelter(999L))
+                .isInstanceOf(ShelterNotFoundException.class);
+        Shelter place = saveUserPlace(1L);
+        assertThat(service.requireShelter(place.getId())).isSameAs(repo.findById(place.getId()).orElseThrow());
+    }
+
+    @Test
+    void requireUserOwnedPassesAUserRowAndRefusesARegistryRow() {
+        // The single D4 guard every admin write on a shelter row goes
+        // through (the admin service's private copy is gone): USER rows
+        // pass, registry rows are import-owned (409), fail-first.
+        Shelter userPlace = saveUserPlace(1L);
+        service.requireUserOwned(userPlace);
+        Shelter registry = place("Town hall", ShelterSource.PAASETEAMET);
+        assertThatThrownBy(() -> service.requireUserOwned(registry))
+                .isInstanceOf(ImportOwnedShelterException.class)
+                .hasMessage(ShelterService.IMPORT_OWNED_MESSAGE);
+    }
 }

@@ -2,13 +2,13 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserService;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.Contacts;
 import ee.sheltermap.verification.PhoneNumbers;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -71,11 +71,12 @@ public class AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         Objects.requireNonNull(request, "request");
-        // Canonical email identity: lower-case BEFORE the uniqueness
-        // check. The V3 unique index is case-sensitive, so without this,
+        // Canonical email identity: the shared rule (Contacts — trim +
+        // root-locale lower-case) applied BEFORE the uniqueness check.
+        // The V3 unique index is case-sensitive, so without this,
         // "Foo@x.com" and "foo@x.com" could both be stored (the pre-check is
         // case-insensitive) and login would later hit IncorrectResultSize.
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String email = Contacts.normalize(request.email());
         if (users.findByEmail(email) != null) {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }

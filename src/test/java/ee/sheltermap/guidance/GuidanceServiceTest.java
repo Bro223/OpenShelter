@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1018,6 +1017,124 @@ class GuidanceServiceTest {
         assertThat(service.getById(en.getId()).getLocale()).isEqualTo("en");
         assertThat(translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow().getTitle())
                 .isEqualTo("Eesti originaal");
+    }
+
+    // ------------------------------------------------- translation updates (bilingual-guidance)
+
+    @Test
+    void updatingATranslationReplacesTheRowContentAndKeepsTheSlugWhenOmitted() {
+        GuidancePost en = createAndPublish("English original", "en");
+        GuidanceTranslation et = service.createTranslation(en.getId(), "et", null,
+                "Eesti originaal", "<p>et keha</p>", null);
+
+        GuidanceTranslation updated = service.updateTranslation(en.getId(), "et", null,
+                "Eesti uuendatud", "<p>uus keha</p>", "alt uus");
+
+        assertThat(updated.getTitle()).isEqualTo("Eesti uuendatud");
+        assertThat(updated.getBodyHtml()).isEqualTo("<p>uus keha</p>");
+        assertThat(updated.getHeroImageAlt()).isEqualTo("alt uus");
+        // The slug KEEPS (omitted): the public URL must not move on an edit.
+        assertThat(updated.getSlug()).isEqualTo(et.getSlug());
+        // The post's home columns and home row are untouched (the locale is the
+        // key — an et edit never writes en content).
+        assertThat(service.getById(en.getId()).getTitle()).isEqualTo("English original");
+        assertThat(translations.findByPostIdAndLocale(en.getId(), "en").orElseThrow().getTitle())
+                .isEqualTo("English original");
+        // The public read serves the UPDATED row in its locale.
+        assertThat(service.getByPublicSlug(updated.getSlug(), "et").getBodyHtml())
+                .isEqualTo("<p>uus keha</p>");
+    }
+
+    @Test
+    void updatingATranslationWithAnExplicitSlugMovesItAndFreesTheOldOne() {
+        GuidancePost en = createAndPublish("English original", "en");
+        GuidanceTranslation et = service.createTranslation(en.getId(), "et", null,
+                "Eesti originaal", "<p>et keha</p>", null);
+        String oldSlug = et.getSlug();
+
+        GuidanceTranslation updated = service.updateTranslation(en.getId(), "et", "eesti-uu-slug",
+                "Eesti uuendatud", "<p>uus keha</p>", null);
+        assertThat(updated.getSlug()).isEqualTo("eesti-uu-slug");
+        // The old slug is FREE again in its locale (another post may take it).
+        GuidancePost etPost = createAndPublish("Eesti teine", "et");
+        service.createTranslation(etPost.getId(), "en", oldSlug, "Second en", "<p>b</p>", null);
+    }
+
+    @Test
+    void anUpdatedTranslationBodyIsReSanitizedLikeEveryOtherWrite() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti", "<p>b</p>", null);
+
+        GuidanceTranslation updated = service.updateTranslation(en.getId(), "et", null,
+                "Eesti", "<p>ok</p><script>alert(1)</script><img src=x onerror=alert(1)", null);
+        assertThat(updated.getBodyHtml()).doesNotContain("<script");
+        assertThat(updated.getBodyHtml()).doesNotContain("<img");
+        assertThat(updated.getBodyHtml()).contains("<p>ok</p>");
+    }
+
+    @Test
+    void updatingATranslationRefusesABlankTitleAndAnOverlongLocale() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti", "<p>b</p>", null);
+
+        assertThatThrownBy(() -> service.updateTranslation(en.getId(), "et", null,
+                "   ", "<p>b</p>", null))
+                .isInstanceOf(GuidanceValidationException.class);
+        assertThatThrownBy(() -> service.updateTranslation(en.getId(), "abcdef", null,
+                "Eesti", "<p>b</p>", null))
+                .isInstanceOf(GuidanceValidationException.class);
+
+        // Fail first: the row is untouched by either refusal.
+        assertThat(translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow().getTitle())
+                .isEqualTo("Eesti");
+    }
+
+    @Test
+    void updatingATranslationToASlugHeldByAnotherRowInTheLocaleIs409() {
+        GuidancePost en = createAndPublish("English original", "en");
+        GuidancePost etPost = createAndPublish("Eesti oma", "et");
+        String taken = etPost.getSlug(); // an en-locale-free, et-locale slug
+        service.createTranslation(en.getId(), "et", null, "Eesti", "<p>b</p>", null);
+
+        assertThatThrownBy(() -> service.updateTranslation(en.getId(), "et", taken,
+                "Eesti", "<p>b</p>", null))
+                .isInstanceOf(SlugAlreadyUsedException.class)
+                .hasMessageContaining(taken);
+    }
+
+    @Test
+    void updatingATranslationOfAnUnknownPostIs404AndALocaleWithoutARowIs404() {
+        GuidancePost en = createAndPublish("English original", "en");
+
+        // Unknown post: 404, before anything else.
+        assertThatThrownBy(() -> service.updateTranslation(9999L, "en", null,
+                "T", "<p>b</p>", null))
+                .isInstanceOf(GuidanceNotFoundException.class);
+
+        // Known post, a locale it has no translation in: 404 in the
+        // translations vocabulary (the UI creates the row first).
+        assertThatThrownBy(() -> service.updateTranslation(en.getId(), "ru", null,
+                "Russkiy", "<p>b</p>", null))
+                .isInstanceOf(GuidanceNotFoundException.class);
+    }
+
+    @Test
+    void updatingTheHomeLocaleRowDoesNotRewriteTheHomeColumns() {
+        // The documented shape of the endpoint: it writes the translation
+        // ROW, and the post's home columns belong to the post update path
+        // (update/updateInLocale re-sync the row from them). An update here
+        // on the home locale therefore moves the ROW away from the columns
+        // (the V26 invariant is the POST path's to keep) — the admin UI
+        // offers the translation editor for foreign rows only and edits the
+        // home locale through the ordinary post edit, so this path stays a
+        // data-repair escape hatch, not a user flow.
+        GuidancePost en = createAndPublish("English original", "en");
+
+        GuidanceTranslation updated = service.updateTranslation(en.getId(), "en", null,
+                "English repaired", "<p>repaired</p>", null);
+        assertThat(updated.getTitle()).isEqualTo("English repaired");
+        // The row moved; the post's home columns did not (the pre-fix read).
+        assertThat(service.getById(en.getId()).getTitle()).isEqualTo("English original");
     }
 
     @Test

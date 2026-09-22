@@ -2,6 +2,7 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.CommaSeparated;
+import ee.sheltermap.security.Contacts;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationThrottledException;
@@ -197,7 +198,7 @@ public class AuthController {
             + "administrator's email — password reset is not available for it")
     @SecurityRequirements({})
     public CodeSentDto requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
-        requireRate(resetRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
+        requireRate(resetRateLimiter, clientIp(http) + "|" + Contacts.normalize(request.email()));
         authService.requestPasswordReset(request.email());
         return new CodeSentDto(PasswordResetService.reissueCooldownSeconds());
     }
@@ -227,7 +228,7 @@ public class AuthController {
     public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest http) {
         // Per-(IP, email) anti-guess bucket — a 6-digit code must not be
         // brute-forceable through the confirm endpoint.
-        requireRate(resetConfirmRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
+        requireRate(resetConfirmRateLimiter, clientIp(http) + "|" + Contacts.normalize(request.email()));
         authService.resetPassword(request.email(), request.code(), request.newPassword());
     }
 
@@ -243,20 +244,17 @@ public class AuthController {
     }
 
     /**
-     * Normalizes a login contact for rate-limit keying: e-mail → trim +
-     * lowercase; a phone-like value (no {@code @}) → E.164 (lenient, never
-     * throws) then lowercase — so {@code 50000001} and {@code +37250000001}
-     * share one bucket (same canonical identity as the lookup).
+     * Normalizes a login contact for rate-limit keying: e-mail → the shared
+     * identity rule ({@link Contacts#normalize}); a phone-like value (no
+     * {@code @}) → E.164 (lenient, never throws) then lowercase — so
+     * {@code 50000001} and {@code +37250000001} share one bucket (same
+     * canonical identity as the lookup).
      */
     private static String normalizedContact(String emailOrPhone) {
         String contact = emailOrPhone.trim();
         if (contact.contains("@")) {
-            return contact.toLowerCase(Locale.ROOT);
+            return Contacts.normalize(emailOrPhone);
         }
         return PhoneNumbers.normalizeE164(contact).toLowerCase(Locale.ROOT);
-    }
-
-    private static String normalizedEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

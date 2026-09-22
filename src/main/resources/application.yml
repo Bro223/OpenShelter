@@ -333,6 +333,15 @@ app:
     # claim a canvas that decodes to a multi-gigabyte bitmap.
     # 10000 px bounds the decodable bitmap at ~400 MiB of BGRA.
     import-max-side: ${HERO_IMPORT_MAX_SIDE:10000}
+    # The P2-9 thumbnail derivatives' DECODE guard: an uploaded original
+    # with a side above this is stored as-is WITHOUT derivatives (the
+    # decode is never attempted, so an unbounded header cannot drive an
+    # unbounded bitmap) — its slots render the original. The import
+    # path's twin is import-max-side (guard 7, which REFUSES such an
+    # import). The derivative widths themselves are fixed
+    # (MediaDerivatives.WIDTHS: 96/192/480/800, covering the 40–72 px
+    # slots and the 400 px guidance card at up to 2× pixel ratio).
+    derivative-max-side: ${MEDIA_DERIVATIVE_MAX_SIDE:10000}
   guidance:
     # Default locale for new guidance posts (D11): mirrors the frontend's
     # DEFAULT_LOCALE (core/i18n, 'en'). Flipping the app's default

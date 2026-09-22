@@ -71,6 +71,10 @@ import java.util.function.LongSupplier;
  * SNIFFED bytes, not the remote header and not the remote filename. A
  * script or a polyglot therefore cannot be stored or served as an image:
  * only bytes the inspector reads as JPEG/PNG/WebP ever reach the library.
+ * The same gate is extended to the P2-9 thumbnail derivatives (rendered
+ * from the validated bytes at store time and re-gated by
+ * {@link MediaImageInspector} before they are written beside the
+ * original — a derivative that fails the gate fails the import).
  */
 @Service
 public class HeroImageImportService {
@@ -298,8 +302,11 @@ public class HeroImageImportService {
 
     /**
      * The terminal response: status, content and pixel checks (guards 6
-     * and 7), then the store — file first, row second, with the orphan
-     * cleanup of the upload path.
+     * and 7), the P2-9 derivative render (in memory — a derivative that
+     * fails the content gate fails the import here, before anything
+     * touches disk: the post stays a DRAFT, the existing failure
+     * behaviour), then the store — original file first, row second,
+     * derivative files last, with the orphan cleanup of the upload path.
      */
     private MediaAsset store(long adminId, String sourceUrl,
                              HeroImageFetchClient.FetchedImage response) {
@@ -356,20 +363,76 @@ public class HeroImageImportService {
             throw new UnsupportedImageException("Unsupported image type: " + info.contentType());
         }
 
+        // P2-9 — the thumbnail derivatives, rendered IN MEMORY before
+        // anything touches disk: a derivative that fails the content
+        // gate fails the import HERE (the publish transaction rolls
+        // back and the post stays a DRAFT — the existing failure
+        // behaviour, the plan's acceptance rule). An undecodable body
+        // (or a WebP original — no JDK decoder) simply yields NO
+        // derivatives: the original is still stored and served.
+        List<MediaDerivatives.RenderedDerivative> derivatives = renderDerivativesStrict(info, bytes);
+
         // Every validation step passed — only now do the bytes touch disk
         // (file first, row second, the upload path's order).
         MediaStorage.StoredFile stored = storage.store(bytes, extension);
         try {
-            return mediaAssets.save(MediaAsset.create(
+            MediaAsset asset = mediaAssets.save(MediaAsset.create(
                     stored.storedFilename(), null, info.contentType(),
                     info.width(), info.height(), bytes.length,
                     adminId, clock.instant(), sourceUrl));
+            // The derivative files join after the row: a row failure
+            // below removes the original AND the derivatives (no
+            // orphan); a derivative WRITE failure after the row only
+            // skips the width (the srcset is built from what exists).
+            storeDerivativeFiles(stored.storedFilename(), derivatives);
+            return asset;
         } catch (RuntimeException ex) {
             // The file is on disk but the row could not be stored: remove
-            // the just-written file so a failed import leaves no orphan
-            // (the row rolls back with the transaction anyway).
-            storage.delete(stored.storedFilename());
+            // the just-written file AND the derivatives written so far so
+            // a failed import leaves no orphan (the row rolls back with
+            // the transaction anyway).
+            storage.deleteWithDerivatives(stored.storedFilename());
             throw ex;
+        }
+    }
+
+    /**
+     * The P2-9 import-path render step (strict gate): every derivative
+     * the original can serve (renderable format only — no WebP;
+     * guard 7 already bounded the sides, re-checked here defensively;
+     * no upscale), each rendered byte sequence re-gated by the SAME
+     * inspector as the original (guard 6 extended to the encoder's
+     * output). A gate failure THROWS — the acceptance rule: a
+     * derivative that fails validation fails the import and the post
+     * stays a DRAFT. Package-visible for the tests (the rule is
+     * asserted on this seam).
+     */
+    List<MediaDerivatives.RenderedDerivative> renderDerivativesStrict(
+            MediaImageInspector.ImageInfo info, byte[] bytes) {
+        if (!MediaDerivatives.isRenderable(info.contentType())) {
+            return List.of(); // WebP: no JDK decoder — the slots render the original
+        }
+        if (info.width() > maxSide || info.height() > maxSide) {
+            return List.of(); // guard 7 already refused such an import; defensive
+        }
+        return MediaDerivatives.renderAll(
+                info.contentType(), info.width(), info.height(), bytes, false);
+    }
+
+    /**
+     * The P2-9 import-path write step: the rendered derivative files
+     * beside the original. A per-width write failure only skips the
+     * width (the original + the row stand; the srcset lists what
+     * exists) — a disk failure is not a validation failure.
+     */
+    private void storeDerivativeFiles(String storedFilename,
+                                      List<MediaDerivatives.RenderedDerivative> derivatives) {
+        for (MediaDerivatives.RenderedDerivative derivative : derivatives) {
+            try {
+                storage.storeDerivative(storedFilename, derivative.width(), derivative.bytes());
+            } catch (RuntimeException ex) {
+                // skip the width — the original stands
+            }
         }
     }
 }

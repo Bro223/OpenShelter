@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -260,6 +261,91 @@ class GuidanceTranslationIT extends AbstractPersistenceIT {
     }
 
     // ------------------------------------------------------------- authorisation + CRUD
+
+    @Test
+    void updatingATranslationReplacesTheRowAndServesItPublicly() throws Exception {
+        String admin = adminToken();
+        // The row exists first (the endpoint UPDATES — it does not create);
+        // the created row's slug comes straight from the create response.
+        MvcResult created = mvc.perform(post("/admin/guidance/" + enPostId + "/translations")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"locale\":\"ru\",\"title\":\"Tri minuty\",\"body\":\"<p>b1</p>\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slug").isNotEmpty())
+                .andReturn();
+        String ruSlug = JsonPath.read(created.getResponse().getContentAsString(), "$.slug");
+
+        // The full replace: new title/body, slug OMITTED — it keeps.
+        mvc.perform(put("/admin/guidance/" + enPostId + "/translations/ru")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Три минуты в убежище\",\"body\":\"<p>b2</p>\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locale").value("ru"))
+                .andExpect(jsonPath("$.title").value("Три минуты в убежище"))
+                .andExpect(jsonPath("$.slug").value(ruSlug));
+
+        // The list read (a JPA query — the auto-flush makes the write
+        // visible) holds the new content; the slug is unchanged, and the
+        // home (en) row is untouched by the foreign-locale edit (the V26
+        // invariant — this endpoint never writes the home row here).
+        MvcResult updatedList = mvc.perform(get("/admin/guidance/" + enPostId + "/translations")
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<Map<String, Object>> rows = JsonPath.read(updatedList.getResponse().getContentAsString(), "$");
+        Map<String, Object> ru = rows.stream().filter(r -> "ru".equals(r.get("locale"))).findFirst().orElseThrow();
+        assertThat((String) ru.get("slug")).isEqualTo(ruSlug);
+        assertThat((String) ru.get("bodyHtml")).isEqualTo("<p>b2</p>");
+        Map<String, Object> en = rows.stream().filter(r -> "en".equals(r.get("locale"))).findFirst().orElseThrow();
+        assertThat((String) en.get("title")).isEqualTo("Three minutes in a shelter");
+        assertThat((String) en.get("bodyHtml")).isEqualTo("<p>body-en</p>");
+
+        // The public read in ru serves the UPDATED content.
+        mvc.perform(get("/api/guidance/" + ruSlug).param("locale", "ru"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locale").value("ru"))
+                .andExpect(jsonPath("$.bodyHtml").value("<p>b2</p>"))
+                .andExpect(jsonPath("$.localeFallback").value(false));
+    }
+
+    @Test
+    void updatingATranslationRefusesBlankTitleUnknownPostUnknownLocaleAndSlugCollisions() throws Exception {
+        String admin = adminToken();
+        // A second EN post owns another en-locale slug (the collision fuel).
+        GuidancePost enTwo = publish("Second english post", "en");
+
+        // No ru row on the en post yet — updating it is a 404 (the UI
+        // creates the row first; the endpoint does not double as create).
+        mvc.perform(put("/admin/guidance/" + enPostId + "/translations/ru")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}"))
+                .andExpect(status().isNotFound());
+
+        // Unknown post: 404.
+        mvc.perform(put("/admin/guidance/999999/translations/en")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}"))
+                .andExpect(status().isNotFound());
+
+        // Blank title on the existing en row: 400, the row untouched.
+        mvc.perform(put("/admin/guidance/" + enPostId + "/translations/en")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"   \",\"body\":\"<p>b</p>\"}"))
+                .andExpect(status().isBadRequest());
+
+        // A slug ANOTHER en-locale row holds: 409 naming it.
+        mvc.perform(put("/admin/guidance/" + enPostId + "/translations/en")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"T\",\"body\":\"<p>b</p>\",\"slug\":\"" + enTwo.getSlug() + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(enTwo.getSlug())));
+    }
 
     @Test
     void translationManagementRequiresAnAdmin() throws Exception {

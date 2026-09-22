@@ -186,9 +186,7 @@ public class OpenApiConfig {
                             return;
                         }
                         if (response.getContent() == null || response.getContent().isEmpty()) {
-                            response.setContent(new Content().addMediaType("application/json",
-                                    new MediaType().schema(new Schema<>()
-                                            .$ref("#/components/schemas/ErrorResponse"))));
+                            response.setContent(errorResponseContent());
                         }
                     });
                 }));
@@ -250,13 +248,21 @@ public class OpenApiConfig {
         if (operation.getResponses() == null) {
             operation.setResponses(new ApiResponses());
         }
-        // A $ref body: sibling keywords such as format are ignored by the
-        // OpenAPI 3.0 spec, so only the reference is set here.
         operation.getResponses().putIfAbsent(code,
                 new ApiResponse()
                         .description(description)
-                        .content(new Content().addMediaType("application/json",
-                                new MediaType().schema(new Schema<>()
-                                        .$ref("#/components/schemas/ErrorResponse")))));
+                        .content(errorResponseContent()));
+    }
+
+    /** The uniform {@code application/json} ErrorResponse body — the ONE
+     *  Content shape both the {@code attachIfAbsent} pass and the
+     *  content-filler customizer build (W4-A: before the extraction the
+     *  $ref expression had a copy in each). A $ref body: sibling keywords
+     *  such as format are ignored by the OpenAPI 3.0 spec, so only the
+     *  reference is set here. */
+    private static Content errorResponseContent() {
+        return new Content().addMediaType("application/json",
+                new MediaType().schema(new Schema<>()
+                        .$ref("#/components/schemas/ErrorResponse")));
     }
 }

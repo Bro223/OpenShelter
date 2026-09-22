@@ -4,6 +4,7 @@ import ee.sheltermap.api.Pagination;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.MediaAsset;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,16 @@ import java.util.Objects;
  * unpublished or otherwise altered. A completed delete writes its
  * MEDIA_DELETE audit row in the same transaction (D12); a refused one
  * writes nothing.
+ *
+ * <p>Derivatives (P2-9): after a successful upload (and, in
+ * {@code HeroImageImportService}, after a successful import) the
+ * thumbnail derivatives are rendered and stored beside the original —
+ * BEST EFFORT here: the original is authoritative, so a derivative that
+ * cannot be rendered, that fails the content gate or that cannot be
+ * written is skipped, never failing the upload (the slot then renders
+ * the original — the srcset is built from what EXISTS on disk, see
+ * {@link #derivativeSrcset}). Deletion removes the whole set
+ * ({@code MediaStorage.deleteWithDerivatives}).
  */
 @Service
 public class MediaService {
@@ -63,19 +74,39 @@ public class MediaService {
     private final Clock clock;
     /** The upload size cap (D13: {@code app.media.max-bytes}, default 5 MiB). */
     private final long maxBytes;
+    /**
+     * The P2-9 decode guard: an original with a side above this is stored
+     * WITHOUT derivatives (the decode is never attempted — the unbounded
+     * header cannot drive an unbounded bitmap). Mirrors the import path's
+     * guard 7 ({@code app.media.import-max-side}).
+     */
+    private final int derivativeMaxSide;
 
+    @Autowired
     public MediaService(MediaAssetRepository mediaAssets,
                         GuidancePostRepository posts,
                         MediaStorage storage,
                         ModerationAuditLog audit,
                         Clock clock,
-                        @Value("${app.media.max-bytes:5242880}") long maxBytes) {
+                        @Value("${app.media.max-bytes:5242880}") long maxBytes,
+                        @Value("${app.media.derivative-max-side:10000}") int derivativeMaxSide) {
         this.mediaAssets = Objects.requireNonNull(mediaAssets, "mediaAssets");
         this.posts = Objects.requireNonNull(posts, "posts");
         this.storage = Objects.requireNonNull(storage, "storage");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.maxBytes = maxBytes;
+        this.derivativeMaxSide = derivativeMaxSide;
+    }
+
+    /** The pre-P2-9 form: the decode guard at its default (10000 px). */
+    public MediaService(MediaAssetRepository mediaAssets,
+                        GuidancePostRepository posts,
+                        MediaStorage storage,
+                        ModerationAuditLog audit,
+                        Clock clock,
+                        long maxBytes) {
+        this(mediaAssets, posts, storage, audit, clock, maxBytes, 10_000);
     }
 
     /** One library listing row: the asset plus how many posts use it as hero. */
@@ -131,6 +162,33 @@ public class MediaService {
         MediaAsset asset = requireAsset(id);
         long count = mediaAssets.referencedCountsByAssetId().getOrDefault(asset.getId(), 0L);
         return new MediaAssetWithUsage(asset, count);
+    }
+
+    /**
+     * The {@code srcset} for an asset's thumbnail slots (P2-9): one
+     * {@code w} descriptor per derivative that EXISTS on disk (the
+     * filesystem is the truth — the row knows nothing about them), in
+     * ascending width order, or {@code null} when the asset has none
+     * (a WebP original, a pre-feature upload, a skipped decode) — the
+     * slot then renders the original via plain {@code src}.
+     */
+    public String derivativeSrcset(MediaAsset asset) {
+        List<Integer> widths = storage.derivativeWidthsPresent(asset.getStoredFilename());
+        if (widths.isEmpty()) {
+            return null;
+        }
+        StringBuilder srcset = new StringBuilder();
+        for (int width : widths) {
+            if (srcset.length() > 0) {
+                srcset.append(", ");
+            }
+            srcset.append(MEDIA_URL_PREFIX)
+                    .append(MediaDerivatives.derivativeName(asset.getStoredFilename(), width))
+                    .append(' ')
+                    .append(width)
+                    .append("w");
+        }
+        return srcset.toString();
     }
 
     // ------------------------------------------------------------- writes
@@ -194,14 +252,56 @@ public class MediaService {
                     bytes.length,
                     adminId,
                     clock.instant());
-            return mediaAssets.save(asset);
+            MediaAsset saved = mediaAssets.save(asset);
+            // P2-9: the thumbnail derivatives beside the original —
+            // best effort (the hook never propagates: the upload of the
+            // validated original cannot fail because of a thumbnail).
+            storeDerivativesBestEffort(stored.storedFilename(), info, bytes);
+            return saved;
         } catch (RuntimeException ex) {
             // The file is already on disk but the row could not be
-            // stored: remove the just-written file so the failed upload
-            // leaves no orphan (the row would roll back with the
-            // transaction anyway).
-            storage.delete(stored.storedFilename());
+            // stored: remove the just-written file (and any derivative
+            // written before the failure) so the failed upload leaves no
+            // orphan (the row would roll back with the transaction
+            // anyway).
+            storage.deleteWithDerivatives(stored.storedFilename());
             throw ex;
+        }
+    }
+
+    /**
+     * The P2-9 upload-path derivative step — BEST EFFORT by contract
+     * (never propagates): the original is authoritative, so a skipped
+     * render (WebP, an unbounded decode, an undecodable body), a
+     * gate failure and a failed write all only skip the width — the
+     * srcset is built from what ends up on disk. Package-visible for
+     * the tests (the best-effort promise is asserted on this seam).
+     */
+    void storeDerivativesBestEffort(String storedFilename,
+                                    MediaImageInspector.ImageInfo info,
+                                    byte[] bytes) {
+        if (!MediaDerivatives.isRenderable(info.contentType())) {
+            return; // WebP: no JDK decoder — the slots render the original
+        }
+        // The decode guard: an unbounded header must never drive an
+        // unbounded bitmap — store the original as-is, without derivatives.
+        if (info.width() > derivativeMaxSide || info.height() > derivativeMaxSide) {
+            return;
+        }
+        List<MediaDerivatives.RenderedDerivative> rendered;
+        try {
+            rendered = MediaDerivatives.renderAll(
+                    info.contentType(), info.width(), info.height(), bytes, true);
+        } catch (RuntimeException ex) {
+            return; // best effort — the original stays
+        }
+        for (MediaDerivatives.RenderedDerivative derivative : rendered) {
+            try {
+                storage.storeDerivative(storedFilename, derivative.width(), derivative.bytes());
+            } catch (RuntimeException ex) {
+                // Best effort: skip the width (a disk failure likely
+                // skips the rest too); the original and the row stand.
+            }
         }
     }
 
@@ -243,7 +343,9 @@ public class MediaService {
             post.clearHero();
             posts.save(post);
         }
-        storage.delete(asset.getStoredFilename());
+        // P2-9: the whole set goes — original AND the derivatives beside
+        // it (orphan thumbnails would only ever 404 against a gone row).
+        storage.deleteWithDerivatives(asset.getStoredFilename());
         mediaAssets.delete(asset);
         // The pre-delete snapshot is the controller's 200 body.
         return new MediaAssetWithUsage(asset, referencing.size());

@@ -7,6 +7,7 @@ import ee.sheltermap.app.ShelterReportService;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.auth.CurrentCaller;
 import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.LocationKind;

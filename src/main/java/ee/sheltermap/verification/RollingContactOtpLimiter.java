@@ -1,11 +1,12 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.security.Contacts;
+
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * oldest in-window event leaves it (the caller surfaces that in
  * {@code Retry-After}). A rejected acquire records nothing.
  *
- * <p>The key is normalized here (trim + root-locale lowercase), so e-mail
+ * <p>The key is normalized here ({@link Contacts#normalize} — trim +
+ * root-locale lowercase, the one shared contact-identity rule, W4-A), so e-mail
  * spellings share one bucket. Phones arrive pre-normalized as E.164 (digits
  * plus a leading {@code +}) and are unaffected by lowercasing. Callers
  * namespace the key per surface ({@code "register:"} / {@code "verify:"}),
@@ -92,7 +94,7 @@ public class RollingContactOtpLimiter {
             return Result.ok();
         }
         long now = clock.millis();
-        Deque<Long> deque = events.computeIfAbsent(normalize(contact), k -> new ArrayDeque<>());
+        Deque<Long> deque = events.computeIfAbsent(Contacts.normalize(contact), k -> new ArrayDeque<>());
         synchronized (deque) {
             evictExpired(deque, now);
             if (deque.size() >= maxPerWindow) {
@@ -111,11 +113,6 @@ public class RollingContactOtpLimiter {
     public void clear() {
         events.clear();
         lastSweepMillis = clock.millis();
-    }
-
-    private static String normalize(String contact) {
-        Objects.requireNonNull(contact, "contact");
-        return contact.trim().toLowerCase(Locale.ROOT);
     }
 
     private void evictExpired(Deque<Long> deque, long now) {
