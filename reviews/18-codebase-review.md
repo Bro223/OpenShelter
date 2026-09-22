@@ -473,3 +473,21 @@ behaviour: one untested race (the tally crossing), one stale dataset (the re-imp
 file (the admin page), one text-level guard seam (the geometry audit), and one process wound
 (empty commit with a true-sounding message). None of the open items hides a false behaviour
 claim in the code — the one false claim found is in a commit message, not in the system.
+
+---
+
+## Parent correction (2026-09-22, after the review)
+
+**The registry-import finding is refuted by measurement, and this file is corrected rather than left standing.**
+
+The review read "confirmed open: registry re-import" from `lastImport = 07:54:44Z` being earlier than the L-EST97 fix commit. That is an inference from a timestamp, and it is the same inference the delivery audit made earlier today. The served data contradicts it:
+
+```
+GET /api/shelters?limit=200  → 200 rows, 189 PAASETEAMET on page 1
+lat range 57.6148–59.4702   lng range 22.0291–28.1965   (all inside the 57.5–59.7 / 21.5–28.2 bbox)
+Pärnu Hotell LÄ23016 → 58.38523, 24.50676   (the coordinate the value-detected axis order computes)
+```
+
+An earlier lane reconciled all 302 restored rows against the live publisher CSV and found them bit-identical; this probe independently confirms a sample. **No re-import is required, and no transposed pin is being served.** The lesson matches the one this repository keeps relearning: a stale *timestamp* is not evidence of stale *data* (see the coordination board's rule about counter-checks).
+
+Everything else in the review stands, including the empty-commit finding (`9aff085`), which is accurate and mine.
