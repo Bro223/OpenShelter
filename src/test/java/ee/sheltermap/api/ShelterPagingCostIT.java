@@ -3,7 +3,6 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -11,7 +10,6 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -93,31 +91,19 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
     GuidanceService guidance;
 
     @Autowired
-    AdminSeeder seeder;
-
-    @Autowired
     JdbcTemplate jdbc;
-
-    @BeforeEach
-    void seedAdmin() {
-        // Contexts are shared across IT classes but each class gets a fresh
-        // database — re-run the create-if-absent seeder per test (the same
-        // discipline as AdminModerationIT).
-        seeder.run(null);
-    }
 
     @AfterEach
     void wipeOwnRows() {
         // The shared-container discipline for the DELIBERATELY non-
         // transactional ITs — but TARGETED, not the base class' blanket
-        // wipe: other IT contexts seeded their env admin at THEIR context
-        // startup (once, create-if-absent) and do not re-seed per test —
-        // a TRUNCATE of the users table here would delete their admin and
-        // 401 their logins (SiteTextsApiIT). So this cleanup removes only
-        // what THIS class committed: the guidance corpus (translations
-        // first — the FK child), the corpus shelters (the class-unique
-        // name prefix — no other class seeds that shape), and the
-        // guidance author. The seeder's admin row is left exactly as found.
+        // wipe: this cleanup removes only what THIS class committed: the
+        // guidance corpus (translations first — the FK child), the corpus
+        // shelters (the class-unique name prefix — no other class seeds
+        // that shape), and the guidance author. The provisioned admin row
+        // is self-healing anyway — the base @BeforeEach re-runs the
+        // create-if-absent seeder before every test — but the minimal
+        // footprint keeps this class' rows out of other ITs' row counts.
         jdbc.execute("TRUNCATE guidance_post_translations, guidance_posts RESTART IDENTITY");
         jdbc.update("DELETE FROM shelters WHERE name LIKE 'W2A-COST-%'");
         try {

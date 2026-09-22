@@ -3,7 +3,6 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.auth.RecordingSmtpSender;
 import ee.sheltermap.auth.RecordingSmsSender;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.auth.TokenService;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
@@ -74,9 +73,6 @@ class AdminAlertsIT extends AbstractPersistenceIT {
     TokenService tokens;
 
     @Autowired
-    AdminSeeder seeder;
-
-    @Autowired
     InMemoryVerificationSendLog sendLog;
 
     @Autowired
@@ -104,17 +100,6 @@ class AdminAlertsIT extends AbstractPersistenceIT {
         SmsSender smsSender() {
             return new RecordingSmsSender();
         }
-    }
-
-    /**
-     * The seeder runs at CONTEXT start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database — re-run
-     * per test so the admin exists in THIS class's database (same idiom
-     * as AdminModerationIT).
-     */
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
     }
 
     @BeforeEach

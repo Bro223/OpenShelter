@@ -4,7 +4,6 @@ import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.auth.TokenService;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
@@ -17,7 +16,6 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -75,20 +73,7 @@ class ProvenanceApiIT extends AbstractPersistenceIT {
     @Autowired
     TokenService tokens;
 
-    @Autowired
-    AdminSeeder seeder;
-
     private long nextUser = 1;
-
-    /**
-     * The seeder runs at context start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database (same
-     * pattern as AdminModerationIT) — re-run per test.
-     */
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
-    }
 
     // ---------- helpers ----------
 

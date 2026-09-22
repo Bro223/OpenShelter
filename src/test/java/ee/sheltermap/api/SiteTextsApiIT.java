@@ -34,8 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * non-https URL; a blank value resets the override (the row is deleted,
  * the shipped catalog default stands). Full-stack MockMvc against the
  * real service, security chain, JWT filter and Postgres; the admin is
- * seeded by the context startup and logs in through the normal
- * /auth/login (the AdminAlertsIT idiom).
+ * (re-)seeded before each test by the shared base (create-if-absent,
+ * immune to a preceding race IT's wipe of the shared container) and
+ * logs in through the normal /auth/login.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -68,6 +69,9 @@ class SiteTextsApiIT extends AbstractPersistenceIT {
 
     @BeforeEach
     void setUp() throws Exception {
+        // The provisioned admin is (re-)seeded by the base @BeforeEach
+        // before this setUp — create-if-absent, immune to a preceding
+        // race IT's wipeAllTables().
         adminToken = adminToken();
         // A regular (non-admin) account for the 403 leg (the AdminAlertsIT
         // verified-user idiom: email-verified row, token issued directly).

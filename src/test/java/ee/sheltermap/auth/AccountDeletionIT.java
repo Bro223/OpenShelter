@@ -10,7 +10,6 @@ import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import ee.sheltermap.security.PiiCrypto;
 import ee.sheltermap.verification.PhoneNumbers;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -57,9 +56,6 @@ class AccountDeletionIT extends AbstractPersistenceIT {
     MockMvc mvc;
 
     @Autowired
-    AdminSeeder seeder;
-
-    @Autowired
     UserRepository users;
 
     @Autowired
@@ -70,13 +66,6 @@ class AccountDeletionIT extends AbstractPersistenceIT {
 
     @Autowired
     PiiCrypto piiCrypto;
-
-    @BeforeEach
-    void seedAdmin() {
-        // Create-if-absent (idempotent): guarantees the provisioned admin
-        // exists even if a sibling IT deliberately wiped the shared tables.
-        seeder.run(null);
-    }
 
     /** A write-capable (e-mail-verified) user with real credentials. */
     private record Auth(long id, String email, String phone, String password,

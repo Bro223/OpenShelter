@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.guidance.GuidanceService;
@@ -85,9 +84,6 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
     GuidanceService guidance;
 
     @Autowired
-    AdminSeeder seeder;
-
-    @Autowired
     JdbcTemplate jdbc;
 
     private long adminId;
@@ -95,9 +91,8 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
 
     @BeforeEach
     void seed() throws Exception {
-        // The seeder runs at CONTEXT start, but contexts are shared — re-run
-        // per test so the admin exists (create-if-absent, idempotent).
-        seeder.run(null);
+        // The provisioned admin is (re-)seeded by the base @BeforeEach
+        // (create-if-absent, immune to the @AfterEach wipe below).
         adminId = userIdByEmail("guid-order@example.ee");
         adminToken = login("guid-order@example.ee", "guid-order-pass");
     }

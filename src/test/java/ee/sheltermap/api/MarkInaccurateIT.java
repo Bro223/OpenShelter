@@ -3,7 +3,6 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.auth.Argon2PasswordHasher;
 import ee.sheltermap.auth.TokenResponse;
 import ee.sheltermap.auth.TokenService;
@@ -17,7 +16,6 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -82,14 +80,6 @@ class MarkInaccurateIT extends AbstractPersistenceIT {
 
     @Autowired
     PasswordEncoder passwordEncoder;
-
-    @Autowired
-    AdminSeeder seeder;
-
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
-    }
 
     // ---------- helpers ----------
 

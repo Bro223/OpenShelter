@@ -70,6 +70,22 @@ import java.util.stream.Collectors;
  * drops the reporter from the tally, but never demotes an already
  * confirmed row.
  *
+ * <p>Race outcome for the crossings (auto-confirm AND auto-hide), pinned
+ * by {@code ShelterTallyCrossingRaceIT}: the tally decides on the shelter
+ * as loaded at the top of the writer's transaction, so two concurrent
+ * crossing writers can BOTH decide "I cross". The
+ * {@code shelters.version} column is the actual concurrency guard — not
+ * the stale-status check: the first versioned UPDATE to commit promotes
+ * (exactly one transition, exactly one AUTO_CONFIRM row on the positive
+ * side), and the loser's WHOLE transaction — its legitimate report
+ * included — rolls back and surfaces as 409 "The resource changed under
+ * you; reload and retry". The 409 is retryable: with the loser's report
+ * rolled back, the duplicate pre-check passes on the re-POST and the
+ * report is stored (the row is already promoted/hidden by then, so the
+ * retry writes no second transition). Under a true race BOTH writers are
+ * legitimate crossing actions, so the actor of record is a crossing
+ * writer — the winner's — not necessarily "the" crossing report.
+ *
  * <p>Duplicate dampening (D3): a {@code NON_EXISTENT} report is
  * stored {@code damped} when the reporter holds their own other USER
  * listing of the same place (same normalized name within
@@ -305,6 +321,29 @@ public class ShelterReportService {
      * {@link ShelterReport#AUTO_CONFIRM_THRESHOLD}. The promotion joins
      * this action's transaction and the audit row's actor is the acting
      * user (AUTO_CONFIRM) — the one whose action crossed the threshold.
+     *
+     * <p><strong>Concurrency semantics (pinned by
+     * {@code ShelterTallyCrossingRaceIT}).</strong> The guard evaluated
+     * above runs on the shelter entity loaded at the top of THIS
+     * transaction, so a concurrent crossing writer can make the same
+     * decision on its own (stale) snapshot. What keeps the promotion to
+     * exactly one is the {@code shelters.version} column, not the
+     * {@code reviewStatus == NEW} check: the two versioned UPDATE
+     * statements serialize on the row, the first to commit promotes and writes the
+     * single AUTO_CONFIRM row, and the loser's UPDATE finds the row
+     * already moved — its whole transaction (its legitimate report
+     * included) rolls back and the request is answered 409 "The resource
+     * changed under you; reload and retry" (never 500, never a silently
+     * dropped report). The 409 is retryable: the loser's report is gone
+     * from the store, so the duplicate pre-check passes on re-POST and
+     * the report is stored; the row is already CONFIRMED, so the retry
+     * cannot double-promote. The actor of record is therefore the
+     * WINNER's user — under a true race both writers are legitimate
+     * crossing actions and the recorded actor is the one whose action
+     * committed, not necessarily "the" crossing report. (The
+     * auto-hide crossing has the same guarantee — one transition, loser
+     * 409'd and retryable — with one asymmetry: it writes no audit row,
+     * the queue evidences it; review 18 F2.)
      */
     private void autoConfirmIfEligible(Shelter shelter, RegisteredUser actor) {
         if (shelter.getSource() == ShelterSource.USER

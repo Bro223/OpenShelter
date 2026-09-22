@@ -1,8 +1,10 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.security.PiiCrypto;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -136,6 +138,45 @@ public abstract class AbstractPersistenceIT {
     @Autowired
     private PiiCrypto piiCrypto;
 
+    @Autowired
+    private AdminSeeder adminSeeder;
+
+    /**
+     * Re-runs the env-provisioned admin seeder ({@link AdminSeeder#run}).
+     *
+     * <p><strong>Why per test, not only at context start:</strong> every IT
+     * context pools against the ONE shared Testcontainers Postgres, and the
+     * race ITs are deliberately NOT {@code @Transactional} — their
+     * {@link #wipeAllTables()} in {@code @AfterEach} truncates the shared
+     * {@code users} table, the provisioned admin row included. Surefire's
+     * class order is filesystem-scan-dependent, so without a per-test
+     * reseed a wipe can land between any two classes and turn the next
+     * class's admin login into a generic 401 (first observed in
+     * {@code SiteTextsApiIT}). The seeder is create-if-absent and
+     * idempotent, so re-running it before every test makes admin presence
+     * self-healing and the suite order-independent: a new IT class that
+     * logs in as admin inherits this protection without per-class code.
+     * In {@code @Transactional} classes the seeder joins the test
+     * transaction and rolls back with it (the INSERT is immediate —
+     * {@code UserEntity} uses IDENTITY ids — so raw-JDBC lookups in
+     * {@code @BeforeEach} see the row); in the non-transactional race ITs
+     * it commits in its own transaction.
+     */
+    protected final void seedAdmin() {
+        adminSeeder.run(null);
+    }
+
+    /**
+     * The per-test admin reseed: JUnit runs superclass
+     * {@code @BeforeEach} methods first, so this runs before every test of
+     * every IT subclass, before any subclass setup or admin login. This is
+     * the shared-container hazard fix — see {@link #seedAdmin()}.
+     */
+    @BeforeEach
+    void reseedProvisionedAdmin() {
+        seedAdmin();
+    }
+
     /**
      * PII-at-rest: raw-JDBC user lookup by the e-mail's blind index —
      * the {@code users.email} column holds ciphertext, never plaintext.
@@ -152,6 +193,12 @@ public abstract class AbstractPersistenceIT {
      * {@code @Transactional} (race tests: the workers run in their own
      * committed transactions, so their rows would otherwise leak into other
      * ITs' row counts on the shared container). Call from @AfterEach.
+     *
+     * <p>The TRUNCATE also removes the provisioned admin row — that is
+     * SAFE for every admin-login IT, because
+     * {@link #reseedProvisionedAdmin()} re-runs the create-if-absent
+     * seeder before the next test in ANY class. Do not "help" a sibling
+     * IT by re-adding a per-class seeder call: the base hook covers it.
      */
     protected final void wipeAllTables() {
         jdbcTemplate.execute(

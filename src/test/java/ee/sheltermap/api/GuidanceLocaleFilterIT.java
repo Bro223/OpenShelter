@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,12 +60,6 @@ class GuidanceLocaleFilterIT extends AbstractPersistenceIT {
     @Autowired
     GuidanceService guidance;
 
-    /** The seeder runs at CONTEXT start, but contexts are shared while the
-        seed is transactional — re-run per test so the admin exists in THIS
-        test's transaction (create-if-absent, so idempotent). */
-    @Autowired
-    AdminSeeder seeder;
-
     /** The seeded "current data": two published posts per language. */
     private String enSlug1;
     private String enSlug2;
@@ -75,7 +68,8 @@ class GuidanceLocaleFilterIT extends AbstractPersistenceIT {
 
     @BeforeEach
     void seed() {
-        seeder.run(null);
+        // The provisioned admin is (re-)seeded by the base @BeforeEach
+        // (create-if-absent); this adds the class's own fixture rows.
         // A real user row: the post's created_by and the audit's
         // moderator_id are FKs to users.
         long authorId = saveUser(users, "guid-locale-author@example.ee", "+37250040001").getId();

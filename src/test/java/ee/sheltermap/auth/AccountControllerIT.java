@@ -74,16 +74,6 @@ class AccountControllerIT extends AbstractPersistenceIT {
     PendingContactChangeRepository changes;
 
     @Autowired
-    AdminSeeder seeder;
-
-    @BeforeEach
-    void seedAdmin() {
-        // Create-if-absent (idempotent): guarantees the provisioned admin
-        // exists even if a sibling IT deliberately wiped the shared tables.
-        seeder.run(null);
-    }
-
-    @Autowired
     RecordingSmsSender sms;
 
     @Autowired

@@ -1,9 +1,7 @@
 package ee.sheltermap.api;
 
 import com.jayway.jsonpath.JsonPath;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -82,19 +80,6 @@ class AdminMediaClientErrorsIT extends AbstractPersistenceIT {
 
     @Autowired
     MockMvc mvc;
-
-    @Autowired
-    AdminSeeder seeder;
-
-    /** The seeder runs at CONTEXT start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database — re-run it
-     * per test so the admin exists in THIS class's database
-     * (create-if-absent, same as CommunityReviewIT).
-     */
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
-    }
 
     private String adminToken() throws Exception {
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)

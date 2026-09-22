@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
@@ -74,12 +73,6 @@ class GuidanceTranslationIT extends AbstractPersistenceIT {
     @Autowired
     GuidanceService guidance;
 
-    /** The seeder runs at CONTEXT start, but contexts are shared while the
-        seed is transactional — re-run per test so the admin exists in THIS
-        test's transaction (create-if-absent, so idempotent). */
-    @Autowired
-    AdminSeeder seeder;
-
     @Autowired
     JdbcTemplate jdbc;
 
@@ -91,7 +84,8 @@ class GuidanceTranslationIT extends AbstractPersistenceIT {
 
     @BeforeEach
     void seed() {
-        seeder.run(null);
+        // The provisioned admin is (re-)seeded by the base @BeforeEach
+        // (create-if-absent); this adds the class's own fixture rows.
         authorId = saveUser(users, "guid-trans-author@example.ee", "+37250040002").getId();
         // Two published posts, one per language — NOT yet linked (the owner's
         // starting state: separate rows with nothing connecting them).

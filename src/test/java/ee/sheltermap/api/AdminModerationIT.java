@@ -3,7 +3,6 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.auth.TokenService;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
@@ -14,7 +13,6 @@ import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -73,21 +71,6 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
     @Autowired
     JdbcTemplate jdbc;
-
-    @Autowired
-    AdminSeeder seeder;
-
-    /**
-     * The seeder runs at CONTEXT start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database — the
-     * startup seed may have landed in another class's DB. The seeder is
-     * create-if-absent, so re-running it per test guarantees the admin
-     * exists in THIS class's database regardless of context-cache order.
-     */
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
-    }
 
     /**
      * The test transaction and the MockMvc requests share one persistence

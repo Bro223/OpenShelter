@@ -59,17 +59,16 @@ class AdminSeederIT extends AbstractPersistenceIT {
     EntityManager entityManager;
 
     /**
-     * The seeder runs at CONTEXT start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database — the
-     * startup seed may have landed in another class's DB. The seeder is
-     * create-if-absent, so re-running it per test guarantees the admin
-     * exists in THIS class's database regardless of context-cache order.
-     * Flush: the seeder's JPA writes are pending in the test transaction —
-     * raw-JDBC reads (adminId()) do not trigger Hibernate's auto-flush.
+     * The base {@code @BeforeEach} re-runs the create-if-absent seeder in
+     * this test's transaction before this class's callbacks — so the admin
+     * exists regardless of context-cache order or a sibling IT's wipe.
+     * The flush is what THIS class additionally needs: the seeder's writes
+     * that are still pending in the test transaction must be visible to
+     * the raw-JDBC reads (adminId()) — they do not trigger Hibernate's
+     * auto-flush.
      */
     @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
+    void flushSeederWrites() {
         entityManager.flush();
     }
 

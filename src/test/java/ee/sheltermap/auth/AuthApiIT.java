@@ -64,16 +64,6 @@ class AuthApiIT extends AbstractPersistenceIT {
     @Autowired
     PasswordResetTokenRepository resetTokens;
 
-    @Autowired
-    AdminSeeder seeder;
-
-    @BeforeEach
-    void seedAdmin() {
-        // Create-if-absent (idempotent): guarantees the provisioned admin
-        // exists even if a sibling IT deliberately wiped the shared tables.
-        seeder.run(null);
-    }
-
     @TestConfiguration
     static class Config {
         @Bean

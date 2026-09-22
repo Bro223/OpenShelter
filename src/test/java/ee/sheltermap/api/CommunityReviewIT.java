@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
-import ee.sheltermap.auth.AdminSeeder;
 import ee.sheltermap.auth.TokenService;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
@@ -14,7 +13,6 @@ import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -51,9 +49,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * audit trail (one row per action with the correct previous/new
  * review_status pair and actor, read-time name resolution — "Deleted
  * shelter" once the row is gone); and the private-home declaration
- * (locationKind) round-tripping. The admin is seeded by the context
- * startup (app.admin.* set) and logs in through the normal /auth/login,
- * like AdminModerationIT.
+ * (locationKind) round-tripping. The admin is (re-)seeded before each
+ * test by the shared base (create-if-absent, the shared-container hazard
+ * fix) and logs in through the normal /auth/login, like AdminModerationIT.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -88,20 +86,6 @@ class CommunityReviewIT extends AbstractPersistenceIT {
 
     @Autowired
     JdbcTemplate jdbc;
-
-    @Autowired
-    AdminSeeder seeder;
-
-    /**
-     * The seeder runs at CONTEXT start, but Spring contexts are shared
-     * across IT classes while each class gets a FRESH database — re-run
-     * it per test so the admin exists in THIS class's database
-     * (create-if-absent, same as AdminModerationIT).
-     */
-    @BeforeEach
-    void seedAdmin() {
-        seeder.run(null);
-    }
 
     /**
      * The test transaction and the MockMvc requests share one persistence
