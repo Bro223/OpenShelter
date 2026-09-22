@@ -447,13 +447,16 @@ describe('design tokens (M6)', () => {
       ] as [string, string][]
     ).map(([fg, bg]) => ({ theme: 'black-and-yellow' as const, fg, bg, min: 3 })),
     // HC-only text pairs (not checked in light, where the value is a
-    // graphical-object fill, not a text colour): --color-shelter-pick is the
-    // one "unchanged (map context)" token of the theme. It is #ff8a80
-    // (brightened as a safe superset) so the token holds 4.5:1 on every HC
-    // surface if it ever serves as text (today it is used only as the
-    // /submit pin fill). No token pair sits below threshold — the
-    // user-reported dark-on-dark came from UA-default colours instead (see
-    // the "form controls and links" test below).
+    // graphical-object fill, not a text colour): the map is not themed —
+    // its surface stays light in every theme — so the pick pin is the map
+    // colour that could sit on the dark HC page. The pin is the teal
+    // selected-point accent (it was red — red now means "reported"); the
+    // HC value is the brightened teal #4dd0c4 (a safe superset) so the
+    // token holds 4.5:1 on every HC surface if it ever serves as text
+    // (today it is used only as the /submit pin fill + the anchor
+    // diamond). No token pair sits below threshold — the user-reported
+    // dark-on-dark came from UA-default colours instead (see the "form
+    // controls and links" test below).
     ...HC_ONLY_TEXT_PAIRS.map(([fg, bg]) => ({
       theme: 'high-contrast' as const,
       fg,
@@ -634,30 +637,17 @@ describe('design tokens (M6)', () => {
     expect(offenders, 'the yellow family must be one value per theme').toEqual([]);
   });
 
-  it('the NEW marker is a RING (the W4-D shape gap): a surface-coloured hole in the yellow disc — the silhouette, not a second hue, distinguishes it from the filled verified circle', () => {
-    // The owner-visible marker gap (W4-D): NEW and VERIFIED (two+ channels)
-    // were BOTH filled yellow circles — the unification made the hue one
-    // value, so the state was invisible on the map. The fix rides on
-    // SHAPE (WCAG 1.4.1, the anchor diamond's rationale): NEW becomes a
-    // ring (a surface-coloured hole in the disc) while --full stays a solid
-    // fill. These pins keep the decision single-sourced in the marker
-    // class: any legend swatch that reuses .shelter-marker--new inherits
-    // the ring by construction, and the fill stays --color-new (the value
-    // equality is the pin above — the reported red-orange stays its own
-    // family, untouched here).
-    const block = balancedBlock(stylesCss, /^\.shelter-marker--new \{$/);
-    expect(block, '.shelter-marker--new rule missing from styles.scss').not.toBeNull();
-    // The fill stays the unified yellow — no re-split of the family.
-    expect(block).toContain('background: var(--color-new)');
-    // The ring's hole: a centred pseudo-element disc in the surface
-    // colour (the same colour as the pin's 2px edge).
-    const hole = balancedBlock(block!, /&::after \{$/);
-    expect(hole, '.shelter-marker--new &::after (the ring hole) missing').not.toBeNull();
-    expect(hole).toContain('position: absolute');
-    expect(hole).toContain('border-radius: 50%');
-    expect(hole).toContain('background: var(--color-bg-surface)');
-    // The FILLED verified circle must stay a solid disc — if it ever
-    // gains the same hole, the two silhouettes merge and the gap re-opens.
+  it('the yellow marker shapes are SOLID discs and the NEW tone is absent (the pin carries depth, not recency — owner decision)', () => {
+    // The NEW state left the pin entirely (owner decision — it rides on
+    // the "Newly added" badge on the sidebar row, the detail page and the
+    // admin list), so the ring geometry that used to carry it is gone and
+    // a spec asserting removed geometry would be worse than none. What
+    // survives is the silhouette contract of the remaining yellow family:
+    // the FILLED verified circle (--full, two+ confirmed channels) must
+    // stay a solid disc, and the reported pin stays its solid red-orange
+    // fill — if either ever gains a ::after hole or a second shape, the
+    // shape vocabulary that carries verification depth (WCAG 1.4.1, the
+    // anchor diamond's rationale) is broken.
     const full = balancedBlock(stylesCss, /^\.shelter-marker--full \{$/);
     expect(full, '.shelter-marker--full rule missing from styles.scss').not.toBeNull();
     expect(full).toContain('background: var(--color-verified)');
@@ -667,6 +657,14 @@ describe('design tokens (M6)', () => {
     expect(reported, '.shelter-marker--reported rule missing from styles.scss').not.toBeNull();
     expect(reported).toContain('background: var(--color-reported)');
     expect(reported).not.toContain('::after');
+    // The removed recency tone stays removed: a re-added
+    // .shelter-marker--new rule (with or without the ring) fails here —
+    // the pin-tone decision (depth, not recency) cannot be silently
+    // undone without a spec change in the same commit.
+    expect(
+      balancedBlock(stylesCss, /^\.shelter-marker--new \{$/),
+      '.shelter-marker--new re-added: the pin carries depth, not recency',
+    ).toBeNull();
   });
 
   it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme', () => {

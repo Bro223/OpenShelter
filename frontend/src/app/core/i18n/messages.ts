@@ -90,7 +90,6 @@ export interface Messages {
 
   // --- consent banner (first-level data-usage notice)
   /** Accessible name of the consent banner region. */
-  'consent.aria': string;
   'consent.title': string;
   'consent.body': string;
   'consent.acknowledge': string;
@@ -103,12 +102,6 @@ export interface Messages {
   'how.report': string;
   'how.nearest': string;
   'how.guarantee': string;
-  'how.exampleTitle': string;
-  'how.example.1': string;
-  'how.example.2': string;
-  'how.example.3': string;
-  'how.example.4': string;
-  'how.example.5': string;
 
   // --- auth pages (login / register / reset)
   'authPage.login.title': string;
@@ -195,7 +188,6 @@ export interface Messages {
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
-  'map.legend.new': string;
   'map.legend.confirmed': string;
   'map.legend.reported': string;
   /** The submitter-verification shapes (submitter-verification-badge): a
@@ -659,15 +651,6 @@ export interface Messages {
   'account.contrib.delete': string;
   'account.contrib.deleteConfirm': string;
   'account.contrib.deleteConfirmButton': string;
-  'account.contrib.nameLabel': string;
-  'account.contrib.nameRequired': string;
-  'account.contrib.descriptionLabel': string;
-  'account.contrib.descriptionTooLong': string;
-  'account.contrib.latitudeLabel': string;
-  'account.contrib.latitudeError': string;
-  'account.contrib.longitudeLabel': string;
-  'account.contrib.longitudeError': string;
-  'account.contrib.estoniaNote': string;
   'account.contrib.infoQuestion': string;
   'account.contrib.replyLabel': string;
   'account.contrib.replyRequired': string;
@@ -1000,7 +983,6 @@ export interface Messages {
 
   'admin.guidance.tab': string;
   'admin.guidance.loading': string;
-  'admin.guidance.empty': string;
   /** The scoped empty state (admin-locale-scope): no posts have content in
    *  the active UI language. `{locale}` is the language code. */
   'admin.guidance.emptyLocale': string;
@@ -1120,7 +1102,6 @@ export interface Messages {
   'admin.guidance.editor.link.noSelection': string;
   'admin.guidance.editor.heroLabel': string;
   /** The selected hero's caption (above its thumbnail). */
-  'admin.guidance.editor.hero.current': string;
   'admin.guidance.editor.hero.choose': string;
   'admin.guidance.editor.hero.loading': string;
   /** The picker's empty state (points at the Media library tab). */

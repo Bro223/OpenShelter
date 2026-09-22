@@ -46,7 +46,7 @@ const BASEMENT = shelter({
   source: 'USER',
   description: 'Neighbourhood basement',
   capacity: 12,
-  reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
+  reviewStatus: 'NEW', // D3: USER rows backfill NEW (badge only — the pin carries depth, not recency)
 });
 const CONFIRMED_BASEMENT = shelter({
   ...BASEMENT,
@@ -117,12 +117,13 @@ describe('LeafletService', () => {
     // Both registry rows (PAASETEAMET + MUNICIPALITY) get the blue
     // registry-family pin.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(2);
-    // Community tones (community-review-queue D5): NEW = amber, CONFIRMED =
-    // green. No reported state on the plain fixtures.
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(1);
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(1);
+    // Community tone (owner decision: the pin carries verification depth,
+    // not recency — there is no NEW pin tone): both no-depth community
+    // rows (BASEMENT NEW, CONFIRMED_BASEMENT) keep the community tone. No
+    // reported state on the plain fixtures.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(2);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported')).length).toBe(0);
-    // Exactly four marker classes exist: registry / new / user / reported.
+    // No retired partner/proposed marker class leaks in.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--partner')).length).toBe(0);
     // Each pin keeps the leaflet positioning class alongside the marker class.
     expect(markers.every((m) => m.classList.contains('leaflet-marker-icon'))).toBe(true);
@@ -163,10 +164,12 @@ describe('LeafletService', () => {
     const markers = renderedMarkers(container);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--partial')).length).toBe(2);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--full')).length).toBe(1);
-    // A row whose depth the backend does not report keeps the trust tone:
-    // graceful degradation, and the reason an older API keeps working.
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(1);
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(0);
+    // A row whose depth the backend does not report keeps the community
+    // tone: graceful degradation, and the reason an older API keeps
+    // working (the pin has no recency tone — the "Newly added" badge
+    // carries NEW, not the marker).
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(1);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(0);
 
     // Reported still wins over the verification shape (the safety affordance).
     service.renderShelters([
@@ -187,7 +190,7 @@ describe('LeafletService', () => {
     );
   });
 
-  it('a hidden or rejected USER row still pins the community green tone (only four classes exist)', () => {
+  it('a hidden or rejected USER row never renders a marker (there is no recency tone in the vocabulary)', () => {
     const reportedAway = shelter({
       id: 20,
       name: 'Reported Away Row',
@@ -225,21 +228,52 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
   });
 
-  it('community marker tone: NEW amber, CONFIRMED green (D5)', () => {
-    service.renderShelters([BASEMENT, CONFIRMED_BASEMENT]);
+  it('the pin carries verification depth, not recency: a recently-added row renders its depth, never a NEW tone (owner decision)', () => {
+    // The regression the owner reported: recency outranked verification
+    // depth, so fresh community pins read as one unverified tone. The pin
+    // now expresses depth ONLY — a freshly-added row with one confirmed
+    // channel is the partial shape, two+ is the full shape, and a fresh
+    // no-depth row keeps the community tone alongside CONFIRMED rows
+    // (the "Newly added" badge, not the pin, says NEW).
+    const freshPartial = shelter({
+      id: 40,
+      name: 'Fresh Partial',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      submitterVerification: 'PHONE',
+    });
+    const freshFull = shelter({
+      id: 41,
+      name: 'Fresh Full',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      submitterVerification: 'FULL',
+    });
+    service.renderShelters([freshPartial, freshFull, BASEMENT, CONFIRMED_BASEMENT]);
 
     const markers = renderedMarkers(container);
     expect(
       markers
+        .find((m) => m.title === 'Fresh Partial')
+        ?.classList.contains('shelter-marker--partial'),
+    ).toBe(true);
+    expect(
+      markers.find((m) => m.title === 'Fresh Full')?.classList.contains('shelter-marker--full'),
+    ).toBe(true);
+    // No recency tone anywhere: the fresh no-depth row and the CONFIRMED
+    // row share the community tone.
+    expect(
+      markers
         .find((m) => m.title === 'Community Cellar')
-        ?.classList.contains('shelter-marker--new'),
+        ?.classList.contains('shelter-marker--user'),
     ).toBe(true);
     expect(
       markers.find((m) => m.title === 'Checked Cellar')?.classList.contains('shelter-marker--user'),
     ).toBe(true);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new'))).toHaveLength(0);
   });
 
-  it('the reported override beats the trust tone (a reported NEW row is orange, not amber)', () => {
+  it('the reported override beats the trust tone (a reported NEW row is orange, not the community tone)', () => {
     const reportedNew = shelter({
       id: 9,
       name: 'Reported New Row',
@@ -274,8 +308,8 @@ describe('LeafletService', () => {
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported'))).toHaveLength(2);
     // …and the trust tones apply ONLY to the unreported rows.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry'))).toHaveLength(1); // TALLINN only
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--new'))).toHaveLength(1); // BASEMENT (NEW) only
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(0);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(1); // BASEMENT (community, no depth)
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new'))).toHaveLength(0);
     // Clicks still resolve to the shelter id on reported markers.
     const onMarkerClick = vi.fn();
     service.markerClick = onMarkerClick;
@@ -292,14 +326,71 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--registry')).toBe(false);
   });
 
+  it('an open inaccurate-information report turns the pin reported (W2-B: the OR of the two kinds)', () => {
+    const inaccurateRegistry = shelter({
+      id: 30,
+      name: 'Inaccurate Registry Row',
+      nonexistentReports: 0,
+      inaccurateReports: 2,
+    });
+    const inaccurateNew = shelter({
+      id: 31,
+      name: 'Inaccurate New Row',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      nonexistentReports: 0,
+      inaccurateReports: 1,
+    });
+    service.renderShelters([inaccurateRegistry, inaccurateNew, TALLINN]);
+
+    const markers = renderedMarkers(container);
+    expect(markers).toHaveLength(3);
+    // EITHER kind is enough: both inaccurate-only rows are orange…
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--reported')).length).toBe(2);
+    // …and the trust tones apply ONLY to the row with no open report.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(1); // TALLINN only
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(0);
+  });
+
+  it('inaccurate reports still beat the verification SHAPE (the safety affordance, W2-B)', () => {
+    const inaccurateFull = shelter({
+      id: 32,
+      name: 'Inaccurate Full Cellar',
+      source: 'USER',
+      submitterVerification: 'FULL',
+      nonexistentReports: 0,
+      inaccurateReports: 3,
+    });
+    service.renderShelters([inaccurateFull]);
+
+    const markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--reported')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--full')).toBe(false);
+  });
+
+  it('zero reports of BOTH kinds keeps the trust tone (the OR flags only open reports)', () => {
+    const clean = shelter({
+      id: 33,
+      name: 'Clean Row',
+      nonexistentReports: 0,
+      inaccurateReports: 0,
+    });
+    service.renderShelters([clean]);
+
+    const markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--reported')).toBe(false);
+    expect(markers[0].classList.contains('shelter-marker--registry')).toBe(true);
+  });
+
   it('renderShelters replaces markers — re-rendering never duplicates', () => {
     service.renderShelters([TALLINN, PERNU, BASEMENT]);
     service.renderShelters([BASEMENT]);
 
     const markers = renderedMarkers(container);
     expect(markers).toHaveLength(1);
-    // BASEMENT is a NEW community row — the amber marker class.
-    expect(markers[0].classList.contains('shelter-marker--new')).toBe(true);
+    // BASEMENT is a NEW community row — the community tone (the pin
+    // carries depth, not recency).
+    expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
   });
 
   it('a marker click invokes the markerClick callback with the shelter id', () => {
@@ -359,7 +450,8 @@ describe('LeafletService', () => {
     // interactivity).
     expect(markers[0].title).toBe(TALLINN.name);
 
-    // A NEW community row pins AMBER (the same tone as the browse map).
+    // A NEW community row pins the community tone (the same tones as the
+    // browse map — the pin carries depth, not recency).
     service.showShelter({
       latitude: BASEMENT.latitude,
       longitude: BASEMENT.longitude,
@@ -370,11 +462,27 @@ describe('LeafletService', () => {
     });
     markers = renderedMarkers(container);
     expect(markers).toHaveLength(1);
-    expect(markers[0].classList.contains('shelter-marker--new')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
 
     // Null clears the pin.
     service.showShelter(null);
     expect(renderedMarkers(container)).toHaveLength(0);
+  });
+
+  it('showShelter: an inaccurate-reported detail row pins reported (W2-B)', () => {
+    service.showShelter({
+      latitude: TALLINN.latitude,
+      longitude: TALLINN.longitude,
+      source: TALLINN.source,
+      reviewStatus: TALLINN.reviewStatus,
+      nonexistentReports: 0,
+      inaccurateReports: 4,
+      name: 'Inaccurate Detail Row',
+    });
+    const markers = renderedMarkers(container);
+    expect(markers).toHaveLength(1);
+    expect(markers[0].classList.contains('shelter-marker--reported')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--registry')).toBe(false);
   });
 
   it('a showShelter marker is static — clicking it never fires markerClick', () => {

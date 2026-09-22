@@ -82,7 +82,6 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-primary': '#ff9f1c' /* CTA/primary fill family + focus ring */,
   '--color-primary-hover': '#ffb347' /* black on it 11.79:1 */,
   '--color-brand': '#ffd400',
-  '--color-accent': '#4dd0c4',
   /* The link colour (the third theme adds a LINK token of its own:
      links must stay distinguishable from the body text, WCAG 1.4.1).
      Consumed by the global rule in the accessibility dialog's scss. */

@@ -170,6 +170,34 @@ describe('api-contract: FE response DTO fields vs the committed OpenAPI snapshot
     expect(checkedFields).toBeGreaterThanOrEqual(100);
   });
 
+  it('the W2-B reported-state input (inaccurateReports) is pinned on BOTH shelter DTOs', () => {
+    // The F2 class (reviews/stale-decisions/SD-1): the backend publishes
+    // inaccurateReports and the contract note says "the pin/badge logic is
+    // the OR of the two" — the FE must declare the field on BOTH the public
+    // and the admin DTO, or a community-flagged shelter renders clean. The
+    // subset loop above pins FE⊆OpenAPI; this pins the reverse for this one
+    // field: a FE that drops it again (or a backend that renames it) fails
+    // here instead of silently re-shipping the old single-kind rule.
+    const snapshot = loadSnapshot();
+    const models = readFileSync(MODELS_PATH, 'utf8');
+    for (const [feInterface, schemaName] of [
+      ['ShelterDto', 'ShelterDto'],
+      ['AdminShelterDto', 'AdminShelterDto'],
+    ] as const) {
+      expect(
+        Object.keys(snapshot.components.schemas[schemaName].properties ?? {}),
+        `${schemaName} no longer sends inaccurateReports — the W2-B OR rule lost its input`,
+      ).toContain('inaccurateReports');
+      const body = interfaceBody(models, feInterface);
+      expect(body, `interface ${feInterface} not found in core/models.ts`).not.toBeNull();
+      expect(
+        topLevelFields(body ?? ''),
+        `${feInterface} must declare inaccurateReports (an OR input — optional on the FE: ` +
+          `absent reads as 0 on an older backend)`,
+      ).toContain('inaccurateReports');
+    }
+  });
+
   it('the admin and public occupancy blocks pin to the SAME wire schema', () => {
     // The whole F1 class in one assertion: the admin list's occupancy block
     // and the public list's occupancy block are the same backend record

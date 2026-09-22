@@ -17,11 +17,10 @@
         </span>
         <!-- Community trust tone (community-review-queue D5): the community
              pin is still rendered — a community row whose submitter depth the
-             API does not report keeps this tone (the unified yellow, the same
-             tone as confirmed). The NEW tone is deliberately NOT a legend
-             entry (owner decision): the verification shapes carry the
-             community-row story on the map, and the row badge text still says
-             "Newly added" wherever it applies. -->
+             API does not report keeps this tone. NEW is not a marker tone and
+             not a legend entry (owner decision: the pin carries verification
+             depth, not recency — the "Newly added" badge says NEW, never the
+             pin). -->
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
           {{ 'map.legend.confirmed' | t }}
@@ -302,20 +301,20 @@
                   }
                 </span>
                 <!-- Trust badges (shelter-trust-and-reports D6): red-orange
-                     "Reported" (nonexistentReports > 0), the
-                     fresh-CLOSED reported-tone badge ("Reported closed" at one
-                     fresh report, "Closed" at two+; a fresh OPEN row
-                     renders NO badge — open is the default), and the
-                     NEUTRAL occupancy badge with recency (hedged at one
-                     fresh report, firm at two+). -->
+                     "Reported" (EITHER report kind open — the OR of
+                     nonexistentReports and inaccurateReports, W2-B), the
+                     fresh-CLOSED reported-tone badge (amber — the
+                     warning-tone pair, not the red-orange reported fill;
+                     "Reported closed" at one fresh report, "Closed" at
+                     two+; a fresh OPEN row renders NO badge — open is the
+                     default), and the NEUTRAL occupancy badge with recency
+                     (hedged at one fresh report, firm at two+). -->
                 @if (hasTrustBadges(shelter)) {
                   <span class="shelter-row__badges">
                     @if (hasReports(shelter)) {
-                      <!-- The count — the nonexistentReports subset
-                           that drives the badge (single-sourced). -->
-                      <span class="badge badge--reported">{{
-                        reportedBadgeText(shelter.nonexistentReports)
-                      }}</span>
+                      <!-- The count — the open trust-report sum that
+                           drives the badge (single-sourced). -->
+                      <span class="badge badge--reported">{{ reportedBadgeText(shelter) }}</span>
                     }
                     @if (openStatusBadgeText(shelter.openStatus); as openText) {
                       <span class="badge badge--closed">{{ openText }}</span>
@@ -359,9 +358,9 @@
        emergency service, call 112" positioning) and the last is the
        standing guarantee (quiet medium weight). The prose block is
        deliberate: a five-step example list would restate what the
-       sources/report paragraphs already say (the how.example* keys stay
-       in the catalogs, unused). It is the only i18n'd copy on this page
-       today (the rest of the map chrome is still hardcoded English);
+       sources/report paragraphs already say. It is the only i18n'd copy
+       on this page today (the rest of the map chrome is still hardcoded
+       English);
        the badge terms are quoted verbatim so the text matches what the
        map shows. -->
   <section class="map-page__how" aria-labelledby="how-title">

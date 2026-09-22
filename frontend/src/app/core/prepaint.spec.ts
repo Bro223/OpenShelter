@@ -55,10 +55,6 @@ function fakeRoot(initialLang: string = 'en'): PrePaintRoot & {
   };
 }
 
-/** The black-and-yellow token the pre-paint guarantee is pinned on
- *  (the full set is pinned in theme-store.spec.ts). */
-const BLACK_AND_YELLOW_PIN = '--color-text';
-
 /** An in-memory Storage (the test-setup.ts pattern). */
 function memoryStorage(initial: Record<string, string> = {}): Storage {
   const data = new Map(Object.entries(initial));
@@ -142,8 +138,12 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       expect(root.attributes.get('data-theme')).toBe(
         stored === HIGH_CONTRAST_VALUE || stored === BLACK_AND_YELLOW_VALUE ? stored : undefined,
       );
-      expect(root.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
-        stored === BLACK_AND_YELLOW_VALUE ? BLACK_AND_YELLOW_TOKENS[BLACK_AND_YELLOW_PIN] : undefined,
+      // The B&Y preference applies the FULL verified token set — a dropped
+      // name would flash the :root value before the app bundle paints.
+      expect([...root.styleValues.entries()].sort(), 'the applied token set').toEqual(
+        stored === BLACK_AND_YELLOW_VALUE
+          ? [...Object.entries(BLACK_AND_YELLOW_TOKENS)].sort()
+          : [],
       );
     });
   });
@@ -176,8 +176,12 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       expect(root.attributes.get('data-theme')).toBe(
         stored === HIGH_CONTRAST_VALUE || stored === BLACK_AND_YELLOW_VALUE ? stored : undefined,
       );
-      expect(root.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
-        stored === BLACK_AND_YELLOW_VALUE ? BLACK_AND_YELLOW_TOKENS[BLACK_AND_YELLOW_PIN] : undefined,
+      // The B&Y preference applies the FULL verified token set — a dropped
+      // name would flash the :root value before the app bundle paints.
+      expect([...root.styleValues.entries()].sort(), 'the applied token set').toEqual(
+        stored === BLACK_AND_YELLOW_VALUE
+          ? [...Object.entries(BLACK_AND_YELLOW_TOKENS)].sort()
+          : [],
       );
     });
   });
@@ -225,7 +229,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     const moduleRoot = fakeRoot();
     expect(() => applyPrePaint(storage, moduleRoot)).not.toThrow();
     expect(moduleRoot.attributes.get('data-theme')).toBeUndefined();
-    expect(moduleRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBeUndefined();
+    expect(moduleRoot.styleValues.size).toBe(0);
     expect(moduleRoot.lang).toBe('en');
 
     // The page half: evaluating the inline scripts must not throw either.
@@ -234,7 +238,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     expect(() => runInlineScript(THEME_SCRIPT!, themeRoot, storage)).not.toThrow();
     expect(() => runInlineScript(LOCALE_SCRIPT!, localeRoot, storage)).not.toThrow();
     expect(themeRoot.attributes.get('data-theme')).toBeUndefined();
-    expect(themeRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBeUndefined();
+    expect(themeRoot.styleValues.size).toBe(0);
     expect(localeRoot.lang).toBe('en');
   });
 });
@@ -276,10 +280,14 @@ describe('pre-paint lockstep (page vs module)', () => {
 
     expect(pageRoot.attributes.get('data-theme')).toBe(moduleRoot.attributes.get('data-theme'));
     expect(pageRoot.lang).toBe(moduleRoot.lang);
-    // The black-and-yellow token seam must agree too (a half-applied token
-    // set would flash a broken palette before the app bundle paints).
-    expect(pageRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
-      moduleRoot.styleValues.get(BLACK_AND_YELLOW_PIN),
-    );
+    // The black-and-yellow token seam must agree on EVERY token (a
+    // half-applied or dropped token would flash a broken palette before the
+    // app bundle paints — a :root value leaking through is exactly that
+    // failure mode).
+    for (const name of Object.keys(BLACK_AND_YELLOW_TOKENS)) {
+      expect(pageRoot.styleValues.get(name), `lockstep drift on ${name}`).toBe(
+        moduleRoot.styleValues.get(name),
+      );
+    }
   });
 });

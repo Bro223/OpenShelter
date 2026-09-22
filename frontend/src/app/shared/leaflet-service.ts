@@ -49,27 +49,32 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 
 /**
  * The marker tone class suffix. Reported state (shelter-trust-and-reports
- * D1) wins over everything — the orange dot is the single "reported"
- * affordance (the red-orange stays a distinct family in every theme; the
- * yellow-family unification, owner decision, did not touch it). For
+ * D1, extended by W2-B: EITHER report kind — an open does-not-exist report
+ * or an open inaccurate-information report; the OR of the two per the
+ * backend contract note) wins over everything — the orange dot is the
+ * single "reported" affordance (the red-orange stays a distinct family in
+ * every theme; the yellow-family unification, owner decision, did not touch
+ * it). For
  * community rows the SHAPE then carries the submitter's verification depth
  * (submitter-verification-badge, owner decision): `partial` is a triangle
  * at exactly one confirmed channel, `full` a circle at two or more — never
  * colour alone (WCAG 1.4.1, the same rationale as the anchor diamond). A
  * row whose depth the backend does not report (older API, deleted author)
- * keeps the trust tone (community-review-queue D5): the unified
- * verified-yellow family while NEW (the amber was merged into the yellow
- * family, owner decision — the state rides on the shape + the row's badge
- * text, never a third hue), green once CONFIRMED. Registry rows stay blue;
- * hidden rows never reach the public map.
+ * keeps the community tone. There is deliberately NO recency term (owner
+ * decision: the pin expresses verification depth, not recency — the NEW
+ * state rides on the row's "Newly added" badge, never the marker). Registry
+ * rows stay blue; hidden rows never reach the public map.
  */
 export function markerTone(shelter: {
   source: ShelterSource;
-  reviewStatus: ReviewStatus;
   nonexistentReports: number;
+  inaccurateReports?: number;
   submitterVerification?: SubmitterVerification | null;
-}): 'reported' | 'partial' | 'full' | 'new' | 'user' | 'registry' {
-  if (shelter.nonexistentReports > 0) {
+}): 'reported' | 'partial' | 'full' | 'user' | 'registry' {
+  // W2-B: EITHER report kind drives the reported state — the OR of the two
+  // (the backend contract note). `inaccurateReports` absent (an older
+  // backend) reads as 0.
+  if (shelter.nonexistentReports > 0 || (shelter.inaccurateReports ?? 0) > 0) {
     return 'reported';
   }
   if (shelter.source === 'USER') {
@@ -77,7 +82,9 @@ export function markerTone(shelter: {
     if (shape !== null) {
       return shape;
     }
-    return shelter.reviewStatus === 'NEW' ? 'new' : 'user';
+    // No recency term: NEW and CONFIRMED rows without a reported depth
+    // share the community tone (the badge says NEW, not the pin).
+    return 'user';
   }
   return 'registry';
 }
@@ -95,10 +102,10 @@ export function markerTone(shelter: {
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): the tone follows the trust
- * palette — registry blue (Päästeamet + Municipal), community NEW yellow
- * (the unified verified family), community CONFIRMED green (user family);
- * reported rows keep the orange override. The legend reuses the same
- * classes, so the visual stays single-sourced.
+ * palette — registry blue (Päästeamet + Municipal), community rows the
+ * verification-depth shapes (the verified yellow family) or the community
+ * tone when the depth is absent; reported rows keep the orange override.
+ * The legend reuses the same classes, so the visual stays single-sourced.
  */
 @Injectable()
 export class LeafletService {
@@ -165,7 +172,8 @@ export class LeafletService {
    * is cleared first, so a filter refetch never duplicates markers.
    *
    * Trust palette (community-review-queue D5): the tone follows
-   * source/reviewStatus; a shelter with `nonexistentReports > 0` renders
+   * source/reviewStatus; a shelter with an open report of EITHER kind
+   * (the OR of `nonexistentReports` and `inaccurateReports`, W2-B) renders
    * the ORANGE reported marker — the single "reported" affordance —
    * regardless of trust colour.
    */
@@ -227,6 +235,7 @@ export class LeafletService {
       source: ShelterSource;
       reviewStatus: ReviewStatus;
       nonexistentReports: number;
+      inaccurateReports?: number;
       name: string;
     } | null,
   ): void {

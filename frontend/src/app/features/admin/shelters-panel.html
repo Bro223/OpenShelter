@@ -122,7 +122,10 @@
                 <span class="admin-muted">{{ 'admin.shelters.status.active' | t }}</span>
               }
             </td>
-            <td>{{ row.nonexistentReports }}</td>
+            <!-- The open trust-report total that drives the reported state
+                 (W2-B: the OR of the two kinds — same sum as the public
+                 "Reported" badge). -->
+            <td>{{ reportedCount(row) }}</td>
             <td>
               @if (occupancyText(row.occupancy); as occ) {
                 {{ occ }}

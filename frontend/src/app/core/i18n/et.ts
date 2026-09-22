@@ -72,7 +72,6 @@ export const ET: Messages = {
   // --- consent banner (first-level data-usage notice). The app has no
   // optional cookies, trackers or analytics, so this is a necessary-only
   // acknowledgment, not an accept/reject choice.
-  'consent.aria': 'Küpsiste ja salvestusruumi teade',
   'consent.title': 'Küpsistest ja brauseri salvestusruumist',
   'consent.body':
     'OpenShelter salvestab ainult seda, mida ta toimimiseks vajab: sisselogimistunnus ning sinu keele- ja kuvamiseelistused. Me ei kasuta reklaami, analüütikat ega saitidevahelist jälgimist ega müü sinu andmeid. Need salvestatakse sinu brauseri kohalikku salvestusruumi, mitte reklaamiküpsistesse, ja on vajalikud selleks, et rakendus töötaks.',
@@ -93,13 +92,6 @@ export const ET: Messages = {
     'Nupp "Näita varjupaiku minu ümbruses" küsib brauserilt luba sinu asukoha kasutamiseks. Sinu asukohta kasutatakse ainult brauseri sees ega saadeta kunagi meie serveritesse. Võid selle asemel otsida ka aadressi järgi.',
   'how.guarantee':
     'OpenShelter ei saa tagada, et loetletud asukoht on avatud, turvaline, ligipääsetav, vaba või endiselt töökorras. Hädaolukorras järgi alati esmalt ametlikke juhiseid.',
-  'how.exampleTitle': 'Näide',
-  'how.example.1': 'Ametlik asukoht kuvatakse sinise märgisega ja sildiga "Register".',
-  'how.example.2':
-    'Kasutaja lisab võimaliku asukoha; see kuvatakse märgisega "Uus kogukonnalt" ja kinnitamata.',
-  'how.example.3': 'Teine kasutaja teatab, et asukoht on suletud või ligipääsmatu.',
-  'how.example.4': 'Administraator vaatab teate üle.',
-  'how.example.5': 'Asukoht uuendatakse või peidetakse.',
 
   // --- auth pages (login / register / reset). Brand name and official
   // agency names stay as-is, as in the rest of the catalog.
@@ -186,7 +178,6 @@ export const ET: Messages = {
   'map.title': 'Varjupaikade kaart',
   'map.subtitle': 'Leia registreeritud ja kogukonna poolt lisatud varjupaiku Eestis.',
   'map.legend.registry': 'Register (Päästeamet)',
-  'map.legend.new': 'Uus kogukonnalt',
   'map.legend.partialVerified': 'Lisanud osaliselt kinnitatud kasutaja',
   'map.legend.fullVerified': 'Lisanud täielikult kinnitatud kasutaja',
   'map.legend.confirmed': 'Kogukonna poolt kinnitatud',
@@ -547,18 +538,9 @@ export const ET: Messages = {
   'account.contrib.view': 'Vaata',
   'account.contrib.info': 'Teave',
   'account.contrib.infoClose': 'Sulge info',
-  'account.contrib.delete': 'Kusta',
+  'account.contrib.delete': 'Kustuta',
   'account.contrib.deleteConfirm': 'Kustuta see varjupaik jäädavalt?',
   'account.contrib.deleteConfirmButton': 'Kinnita kustutamine',
-  'account.contrib.nameLabel': 'Nimi',
-  'account.contrib.nameRequired': 'Nimi on kohustuslik (kuni 200 tähemärki).',
-  'account.contrib.descriptionLabel': 'Kirjeldus (valikuga)',
-  'account.contrib.descriptionTooLong': 'Kirjeldus võib olla maksimaalselt 2000 tähemärki.',
-  'account.contrib.latitudeLabel': 'Laiuskraad (−90…90)',
-  'account.contrib.latitudeError': 'Vajalik on laiuskraad vahemikus −90 kuni 90.',
-  'account.contrib.longitudeLabel': 'Pikkuskraad (−180…180)',
-  'account.contrib.longitudeError': 'Vajalik on pikkuskraad vahemikus −180 kuni 180.',
-  'account.contrib.estoniaNote': 'Asukoht peab jääma Eestisse. See kontroll toimub serveris.',
   'account.contrib.infoQuestion': 'Mooder küsib:',
   'account.contrib.replyLabel': 'Sinu vastus (kohustuslik, ühekordne)',
   'account.contrib.replyRequired': 'Vastus (kuni 2000 tähemärki) on kohustuslik.',
@@ -799,7 +781,6 @@ export const ET: Messages = {
 
   'admin.guidance.tab': 'Juhised',
   'admin.guidance.loading': 'Juhisteposte laetakse…',
-  'admin.guidance.empty': 'Juhisteposte pole veel.',
   'admin.guidance.emptyLocale': 'Keeles {locale} juhiseid pole veel.',
   'admin.guidance.shownIn':
     'Postitused keeles {locale} — teisi keeli muudetakse nende enda loenditest.',
@@ -877,7 +858,6 @@ export const ET: Messages = {
     'Säilivad ainult http, https ja mailto viited — kasuta täielikku linki, mis algab https:// või mailto:ga.',
   'admin.guidance.editor.link.noSelection': 'Vali esmalt tekst, millele viidet lisada.',
   'admin.guidance.editor.heroLabel': 'Pealtpilt',
-  'admin.guidance.editor.hero.current': 'Praegune pilt',
   'admin.guidance.editor.hero.choose': 'Vali meediakogumikust',
   'admin.guidance.editor.hero.loading': 'Meediakogumikku laetakse…',
   'admin.guidance.editor.hero.empty':
@@ -981,7 +961,7 @@ export const ET: Messages = {
   'admin.media.col.usedBy': 'Kasutavad',
   'admin.media.col.actions': 'Tegevused',
   'admin.media.library.aria': 'Meediakogumik',
-  'admin.media.delete': 'Kusta',
+  'admin.media.delete': 'Kustuta',
   'admin.media.delete.working': 'Kontrollin…',
   'admin.media.delete.inUse':
     'Seda pilti kasutab siiski juhistepost. Kustutamine eemaldab mõjutatud postidelt pealtpildi.',

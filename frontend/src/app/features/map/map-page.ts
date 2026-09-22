@@ -136,8 +136,10 @@ function nearestShelterAt(
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience: a Leaflet map with
  * divIcon markers toned by the trust palette (community-review-queue D5:
- * registry blue, community NEW amber, community CONFIRMED green, plus the
- * reported-state orange override) + a sidebar list, source-filter chips
+ * registry blue, community rows the verification-depth shapes (the
+ * unified yellow family) or the community tone when the depth is absent,
+ * plus the reported-state orange override — the pin carries depth, not
+ * recency) + a sidebar list, source-filter chips
  * that refetch server-side, the practical filter chips ("Open" /
  * "Has capacity" — see the Filters note below), a legend, and
  * loading/empty/error states.
@@ -209,8 +211,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  title is the localized `map.searched` label. */
   private readonly i18n = inject(I18nService);
   /** The active-locale resolver passed to the shared copy helpers. */
-  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
-    this.i18n.t(key, params);
+  private readonly translate = (
+    key: MessageKey,
+    params?: Record<string, string | number>,
+  ): string => this.i18n.t(key, params);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
   /** The sidebar's scroll container — the scrollRowIntoView target. Null
@@ -241,9 +245,12 @@ export class MapPage implements AfterViewInit, OnDestroy {
     openStatusBadgeTextShared(openStatus, this.translate);
   protected readonly occupancyText = (occupancy: ShelterOccupancy) =>
     occupancyTextShared(occupancy, Date.now(), this.translate);
-  /** The reported badge with its count (last-verified-meta). */
-  protected readonly reportedBadgeText = (nonexistentReports: number) =>
-    reportedBadgeTextShared(nonexistentReports, this.translate);
+  /** The reported badge with its count (last-verified-meta): the count is
+   *  the open trust-report sum — nonexistent + inaccurate (W2-B). */
+  protected readonly reportedBadgeText = (shelter: {
+    nonexistentReports: number;
+    inaccurateReports?: number;
+  }) => reportedBadgeTextShared(shelter, this.translate);
   /** The nearest result's straight-line distance line (D6 honesty). */
   protected readonly straightLineText = (km: number) => straightLineText(km, this.translate);
   /** The private-location predicate (D7) — the template stays branch-free. */

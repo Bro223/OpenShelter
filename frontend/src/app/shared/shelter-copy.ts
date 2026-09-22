@@ -271,8 +271,9 @@ export function isOpenRow(shelter: {
 
 /**
  * The list row's open/closed badge text: a fresh
- * CLOSED row carries the reported-tone badge (red-orange, the untouched
- * --color-reported) — the same copy the status row uses
+ * CLOSED row carries the reported-tone badge (amber — the warning-tone
+ * pair, not the red-orange reported fill) — the same copy the status row
+ * uses
  * ("Reported closed" at exactly one fresh report, "Closed" at two+). A
  * fresh OPEN row carries NO badge (open is the default — no noise); null
  * = nothing fresh (render nothing). Single-sourced: map rows and the
@@ -294,9 +295,18 @@ export function openStatusBadgeText(
   );
 }
 
-/** True when the DTO is in the reported state (D1: nonexistentReports > 0). */
-export function hasReports(shelter: { nonexistentReports: number }): boolean {
-  return shelter.nonexistentReports > 0;
+/**
+ * True when the DTO is in the reported state: EITHER open report kind
+ * (W2-B — the backend contract note: "the pin/badge logic is the OR of
+ * the two"): an open does-not-exist report or an open
+ * inaccurate-information report. `inaccurateReports` absent (an older
+ * backend) reads as 0, so a pre-W2-B payload renders exactly as before.
+ */
+export function hasReports(shelter: {
+  nonexistentReports: number;
+  inaccurateReports?: number;
+}): boolean {
+  return shelter.nonexistentReports > 0 || (shelter.inaccurateReports ?? 0) > 0;
 }
 
 /** True when the DTO carries at least one trust badge to render (D6) — a
@@ -304,11 +314,12 @@ export function hasReports(shelter: { nonexistentReports: number }): boolean {
  *  the fresh CLOSED one counts. */
 export function hasTrustBadges(shelter: {
   nonexistentReports: number;
+  inaccurateReports?: number;
   openStatus: OpenStatusDto | null;
   occupancy: ShelterOccupancy | null;
 }): boolean {
   return (
-    shelter.nonexistentReports > 0 ||
+    hasReports(shelter) ||
     openStatusBadgeText(shelter.openStatus) !== null ||
     shelter.occupancy !== null
   );
@@ -386,16 +397,21 @@ export function occupancyText(
 // ---------------------------------------------------------------------------
 
 /**
- * The reported badge with its count: "Reported (2)" — the count is the
- * `nonexistentReports` subset that drives the badge (not the total report
- * count). Rendered on the map row and the detail header wherever the
- * orange "Reported" badge appears.
+ * The reported badge with its count: "Reported (2)". The count is the
+ * OPEN trust-report total — `nonexistentReports` + `inaccurateReports`,
+ * the same OR of the two that drives the badge (W2-B backend contract
+ * note) — NOT the lifetime all-types `reportCount` (that reads on the
+ * separate "Community reports: N" line). `inaccurateReports` absent (an
+ * older backend) reads as 0. Rendered on the map row and the detail
+ * header wherever the orange "Reported" badge appears.
  */
 export function reportedBadgeText(
-  nonexistentReports: number,
+  shelter: { nonexistentReports: number; inaccurateReports?: number },
   translate?: ShelterTranslate,
 ): string {
-  return resolve('shelter.reportedBadge', translate, { count: nonexistentReports });
+  return resolve('shelter.reportedBadge', translate, {
+    count: shelter.nonexistentReports + (shelter.inaccurateReports ?? 0),
+  });
 }
 
 /**
@@ -485,8 +501,9 @@ export function lastVerifiedText(
  * it cannot be read as a live tally: the open/closed and how-full taps are
  * live states (one per user, latest wins) and do not change this count, and
  * the count does not move the verification stamp on the line above. (The
- * badge's "Reported (n)" stays the NON_EXISTENT subset.) M8: a separate
- * line from the verification stamp — never spliced onto it.
+ * badge's "Reported (n)" stays the open trust-report sum — nonexistent +
+ * inaccurate, W2-B.) M8: a separate line from the verification stamp —
+ * never spliced onto it.
  */
 export function communityReportsText(reportCount: number, translate?: ShelterTranslate): string {
   return resolve('shelter.communityReports', translate, { count: reportCount });

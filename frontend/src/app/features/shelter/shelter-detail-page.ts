@@ -206,11 +206,14 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     occupancyTextShared(occupancy, Date.now(), this.translate);
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
-  /** Last-verified meta: the reported badge with its count, the per-
+  /** Last-verified meta: the reported badge with its count (the open
+   *  trust-report sum — nonexistent + inaccurate, W2-B), the per-
    *  entry verification line and the community report count line. The
    *  month-abbreviation param follows the active locale (locale data). */
-  protected readonly reportedBadgeText = (nonexistentReports: number) =>
-    reportedBadgeTextShared(nonexistentReports, this.translate);
+  protected readonly reportedBadgeText = (shelter: {
+    nonexistentReports: number;
+    inaccurateReports?: number;
+  }) => reportedBadgeTextShared(shelter, this.translate);
   protected readonly lastVerifiedText = (s: {
     lastVerifiedAt: string | null;
     reviewStatus: ReviewStatus;

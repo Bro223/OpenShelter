@@ -70,7 +70,6 @@ export const EN: Messages = {
   // --- consent banner (first-level data-usage notice). The app has no
   // optional cookies, trackers or analytics, so this is a necessary-only
   // acknowledgment, not an accept/reject choice.
-  'consent.aria': 'Cookie and storage notice',
   'consent.title': 'About cookies and browser storage',
   'consent.body':
     "OpenShelter stores only what it needs to work: a sign-in token that keeps you logged in, and your language and display preferences. It does not use advertising, analytics, or cross-site tracking, and it never sells your data. These are stored in your browser's local storage, not in advertising cookies, and are required for the application to function.",
@@ -90,13 +89,6 @@ export const EN: Messages = {
     'The "Show shelters around you" button asks your browser for permission to use your location. Your position is used only inside your browser and is never sent to our servers. You can search near an address instead.',
   'how.guarantee':
     'OpenShelter cannot guarantee that a listed location is open, safe, accessible, available, or still operating. Always follow official emergency instructions first.',
-  'how.exampleTitle': 'Example',
-  'how.example.1': 'An official location appears with a blue marker and a "Registry" label.',
-  'how.example.2':
-    'A user submits a possible location; it appears as "New by community" and unverified.',
-  'how.example.3': 'Another user reports that the location is closed or inaccessible.',
-  'how.example.4': 'An administrator reviews the report.',
-  'how.example.5': 'The location is updated or hidden.',
 
   // --- auth pages (login / register / reset). Same verbatim rule as the
   // chrome: the EN strings ARE the current committed template copy.
@@ -183,7 +175,6 @@ export const EN: Messages = {
   // Legend entry for the blue registry marker: it names the primary registry
   // source (owner wording: "Registry (Päästeamet)").
   'map.legend.registry': 'Registry (Päästeamet)',
-  'map.legend.new': 'New by community',
   // The submitter-verification shapes (submitter-verification-badge).
   'map.legend.partialVerified': 'Added by a partially verified user',
   'map.legend.fullVerified': 'Added by a fully verified user',
@@ -549,16 +540,6 @@ export const EN: Messages = {
   'account.contrib.delete': 'Delete',
   'account.contrib.deleteConfirm': 'Delete this shelter permanently?',
   'account.contrib.deleteConfirmButton': 'Confirm delete',
-  'account.contrib.nameLabel': 'Name',
-  'account.contrib.nameRequired': 'A name (up to 200 characters) is required.',
-  'account.contrib.descriptionLabel': 'Description (optional)',
-  'account.contrib.descriptionTooLong': 'Description must be 2000 characters or fewer.',
-  'account.contrib.latitudeLabel': 'Latitude (−90…90)',
-  'account.contrib.latitudeError': 'A latitude between −90 and 90 is required.',
-  'account.contrib.longitudeLabel': 'Longitude (−180…180)',
-  'account.contrib.longitudeError': 'A longitude between −180 and 180 is required.',
-  'account.contrib.estoniaNote':
-    'The location must be inside Estonia. That check happens on the server.',
   'account.contrib.infoQuestion': 'A moderator is asking:',
   'account.contrib.replyLabel': 'Your reply (required, one-time)',
   'account.contrib.replyRequired': 'A reply (up to 2000 characters) is required.',
@@ -794,7 +775,6 @@ export const EN: Messages = {
 
   'admin.guidance.tab': 'Guidance',
   'admin.guidance.loading': 'Loading guidance posts…',
-  'admin.guidance.empty': 'No guidance posts yet.',
   'admin.guidance.emptyLocale': 'No guidance posts in {locale} yet.',
   'admin.guidance.shownIn':
     'Posts in {locale} — the other languages are edited from their own lists.',
@@ -873,7 +853,6 @@ export const EN: Messages = {
     'Only http, https and mailto links are kept — use a full link starting with https:// or mailto:.',
   'admin.guidance.editor.link.noSelection': 'Select the text to link first.',
   'admin.guidance.editor.heroLabel': 'Hero image',
-  'admin.guidance.editor.hero.current': 'Current image',
   'admin.guidance.editor.hero.choose': 'Choose from the media library',
   'admin.guidance.editor.hero.loading': 'Loading the media library…',
   'admin.guidance.editor.hero.empty':

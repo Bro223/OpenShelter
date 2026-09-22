@@ -102,7 +102,7 @@ const BASEMENT = shelter({
   source: 'USER',
   description: 'Neighbourhood basement',
   capacity: 12,
-  reviewStatus: 'NEW', // D3: USER rows backfill NEW (amber marker)
+  reviewStatus: 'NEW', // D3: USER rows backfill NEW (badge only — the pin carries depth, not recency)
 });
 const VERIFIED_BASEMENT = shelter({
   id: 8,
@@ -383,11 +383,15 @@ describe('MapPage', () => {
     beforeEach(() => {
       // Simulates the server-side source filter: REGISTRY keeps the
       // registry rows, USER keeps community submissions.
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(
-          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
-        ),
-      );
+      gateway.list.mockImplementation((source: ShelterSourceFilter) => {
+        let rows: ShelterDto[] = ALL_ROWS;
+        if (source === 'REGISTRY') {
+          rows = [TALLINN, PARNU];
+        } else if (source === 'USER') {
+          rows = [BASEMENT];
+        }
+        return Promise.resolve(rows);
+      });
     });
 
     it('renders rows as markers AND sidebar rows (sorted, null-address safe, no rating)', async () => {
@@ -441,16 +445,20 @@ describe('MapPage', () => {
       ]);
     });
 
-    it('renders the six-entry legend: registry, confirmed community, the two verification shapes, reported, searched address', async () => {
+    it('renders the six-entry legend: registry, community tone, the two verification shapes, reported, searched address', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull(); // registry blue
-      // The community trust tone is STILL rendered: a row whose submitter depth
-      // the API does not report keeps this tone. The amber NEW tone is not a
-      // legend entry (owner decision) — the verification shapes carry the
-      // community-row story.
+      // NEW is NOT a marker tone and NOT a legend entry (owner decision: the
+      // pin carries verification depth, not recency — the "Newly added"
+      // badge says NEW, never the pin): the legend stays six entries and
+      // carries no recency swatch (a re-added one needs the pin-tone
+      // decision first).
+      expect(legend?.querySelector('.shelter-marker--new')).toBeNull();
+      // The community trust tone is STILL rendered: a row whose submitter
+      // depth the API does not report keeps this tone.
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
       // Submitter verification depth (submitter-verification-badge): the SHAPE
       // carries it — triangle at one confirmed channel, circle at two or more.
@@ -467,7 +475,8 @@ describe('MapPage', () => {
       expect(legend?.textContent).toContain('Added by a fully verified user');
       expect(legend?.textContent).toContain('Reported');
       expect(legend?.textContent).toContain('Searched address');
-      // Exactly six entries — no partner/official/proposed wording.
+      // Exactly six entries — no partner/official/proposed wording, no
+      // recency entry.
       expect(legend?.querySelectorAll('.legend-item')).toHaveLength(6);
       expect(legend?.textContent).not.toContain('Official');
       expect(legend?.textContent).not.toContain('Partner');
@@ -1424,9 +1433,15 @@ describe('MapPage', () => {
   // ---------------------------------------------------------------------------
   describe('scroll the row into view (marker click / nearest)', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(source === 'ALL' ? ALL_ROWS : source === 'USER' ? [BASEMENT] : []),
-      );
+      gateway.list.mockImplementation((source: ShelterSourceFilter) => {
+        let rows: ShelterDto[] = [];
+        if (source === 'ALL') {
+          rows = ALL_ROWS;
+        } else if (source === 'USER') {
+          rows = [BASEMENT];
+        }
+        return Promise.resolve(rows);
+      });
     });
 
     it('a marker click scrolls the matching row into view with block: nearest (smooth)', async () => {
@@ -1523,11 +1538,15 @@ describe('MapPage', () => {
     beforeEach(() => {
       // Simulates the server-side source filter the same way the browse
       // describe does.
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(
-          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
-        ),
-      );
+      gateway.list.mockImplementation((source: ShelterSourceFilter) => {
+        let rows: ShelterDto[] = ALL_ROWS;
+        if (source === 'REGISTRY') {
+          rows = [TALLINN, PARNU];
+        } else if (source === 'USER') {
+          rows = [BASEMENT];
+        }
+        return Promise.resolve(rows);
+      });
     });
 
     /** The two toggle chips of the trust row (no rating control). */

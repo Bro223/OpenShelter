@@ -315,10 +315,16 @@ describe('recencyText (the "· X ago" suffix)', () => {
 });
 
 describe('trust-badge predicates (D6)', () => {
-  it('hasReports: > 0 non-existence reports', () => {
+  it('hasReports: EITHER open report kind drives the reported state (W2-B: the OR of the two)', () => {
     expect(hasReports({ nonexistentReports: 0 })).toBe(false);
+    expect(hasReports({ nonexistentReports: 0, inaccurateReports: 0 })).toBe(false);
     expect(hasReports({ nonexistentReports: 1 })).toBe(true);
     expect(hasReports({ nonexistentReports: 4 })).toBe(true);
+    // An open inaccurate-information report ALONE is enough — this is the
+    // W2-B behaviour change (the old rule read nonexistentReports only).
+    expect(hasReports({ nonexistentReports: 0, inaccurateReports: 1 })).toBe(true);
+    expect(hasReports({ nonexistentReports: 0, inaccurateReports: 7 })).toBe(true);
+    expect(hasReports({ nonexistentReports: 2, inaccurateReports: 3 })).toBe(true);
   });
 
   it('hasTrustBadges: any of reported / openStatus / occupancy', () => {
@@ -326,6 +332,15 @@ describe('trust-badge predicates (D6)', () => {
       false,
     );
     expect(hasTrustBadges({ nonexistentReports: 2, openStatus: null, occupancy: null })).toBe(true);
+    // An inaccurate-only report opens the badge strip too (the OR, W2-B).
+    expect(
+      hasTrustBadges({
+        nonexistentReports: 0,
+        inaccurateReports: 1,
+        openStatus: null,
+        occupancy: null,
+      }),
+    ).toBe(true);
     expect(
       hasTrustBadges({
         nonexistentReports: 0,
@@ -357,10 +372,16 @@ describe('trust-badge predicates (D6)', () => {
 // ---------------------------------------------------------------------------
 
 describe('reportedBadgeText (M8)', () => {
-  it('the badge carries the NON_EXISTENT count that drives it', () => {
-    expect(reportedBadgeText(1)).toBe('Reported (1)');
-    expect(reportedBadgeText(2)).toBe('Reported (2)');
-    expect(reportedBadgeText(4)).toBe('Reported (4)');
+  it('the badge carries the open trust-report sum — nonexistent + inaccurate (W2-B)', () => {
+    expect(reportedBadgeText({ nonexistentReports: 1 })).toBe('Reported (1)');
+    expect(reportedBadgeText({ nonexistentReports: 2 })).toBe('Reported (2)');
+    expect(reportedBadgeText({ nonexistentReports: 1, inaccurateReports: 2 })).toBe('Reported (3)');
+    expect(reportedBadgeText({ nonexistentReports: 0, inaccurateReports: 4 })).toBe('Reported (4)');
+    // Older backend: absent inaccurateReports reads as 0 (no change to the
+    // pre-W2-B count).
+    expect(reportedBadgeText({ nonexistentReports: 3, inaccurateReports: undefined })).toBe(
+      'Reported (3)',
+    );
   });
 });
 
@@ -542,7 +563,9 @@ describe('locale seam (N7 i18n-completeness)', () => {
         MONTH_ABBREVS.et,
       ),
     ).toBe(ET['shelter.noVerificationRecord']);
-    expect(reportedBadgeText(3, et)).toBe(interpolate(ET['shelter.reportedBadge'], { count: 3 }));
+    expect(reportedBadgeText({ nonexistentReports: 3 }, et)).toBe(
+      interpolate(ET['shelter.reportedBadge'], { count: 3 }),
+    );
     expect(communityReportsText(3, et)).toBe(
       interpolate(ET['shelter.communityReports'], { count: 3 }),
     );

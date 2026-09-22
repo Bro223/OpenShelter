@@ -46,10 +46,6 @@
      because it now sits ON the band, not because this token changed.
      12.53:1 on bg, 13.57:1 on the surface. */
   --color-brand: #12304a;
-  /* Accent — the selected/active state. Darkened from the owner's #168c8c
-     (4.07:1 on white — fails AA) to 6.04:1 on the surface. 5.58:1 on bg,
-     5.26:1 on the muted surface. */
-  --color-accent: #0f6e6e;
 
   /* Chrome band (header + footer + the <900 menu panel, owner decision):
      the shell's chrome stands out from the page body on a navy band.
@@ -170,7 +166,11 @@
      DOM outside Angular, so component-scoped styles cannot reach it). */
   --color-shelter-registry: #1769aa; /* registry (Päästeamet / municipality) — doubles as the badge text */
   --color-shelter-user: #2e7d32; /* user-submitted — community rows stay green */
-  --color-shelter-pick: #0f6e6e; /* selected-point pin = the accent (it was red — red now means "reported" and nothing else) */
+  /* The selected/active-state hue (it was red — red now means "reported"
+     and nothing else): darkened from the owner's #168c8c (4.07:1 on white
+     — fails AA) to this value: 6.04:1 on the surface, 5.58:1 on bg,
+     5.26:1 on the muted surface. */
+  --color-shelter-pick: #0f6e6e; /* selected-point pin = the accent */
   --color-map-placeholder: #eaf0f4; /* the muted surface, before the first tiles paint */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
   /* Focus rings use --color-primary everywhere — EXCEPT the chrome band:
@@ -342,10 +342,9 @@
   /* Brand */
   --color-primary: #7db8f0; /* link colour AND btn--primary fill (text flips to #141414) */
   --color-primary-hover: #a8d0f5;
-  /* Brand ink + accent — dark-surface twins of the light values: wordmark
-     and page titles in the brand ink, the pick pin in the accent. */
+  /* Brand ink — dark-surface twin of the light value: wordmark and page
+     titles in the brand ink. */
   --color-brand: #b9cde4;
-  --color-accent: #4dd0c4;
 
   /* Chrome band — theme-invariant: the band is the brand navy in BOTH
      themes, and its text/focus/indicator values already clear the
@@ -829,50 +828,12 @@ textarea {
   }
 }
 
-/* New community state (community-review-queue D5, W4-D shape gap): USER
- * rows in review_status NEW render the unified yellow family (--color-new
- * is ONE value with --color-verified, owner decision) — CONFIRMED rows keep
- * the green user tone. The reported override still wins over the trust
- * colour — markerTone() picks the class. The map legend deliberately
- * carries NO "new" entry (owner decision: the verification shapes carry
- * the community-row story on the map, the row's badge text says "Newly
- * added" wherever it applies); the tone class stays the single source, so
- * any swatch reuses it and matches the real marker by construction.
- *
- * The SHAPE carries the state (WCAG 1.4.1, same rationale as the anchor
- * diamond): NEW is a RING — the yellow disc with a surface-coloured hole
- * — so it is never confused with the FILLED --full circle (two+ confirmed
- * channels), which shares its hue by the unification decision. The fill
- * stays --color-new, the reported red-orange is untouched: the
- * distinction is the silhouette, not a second yellow.
- *
- * The hole is a pseudo-element disc (the same technique the triangle's
- * edge uses), so it needs a positioned ancestor: Leaflet's own
- * .leaflet-marker-icon is absolute, and the legend swatch sets
- * position: relative for exactly this. The hole is 60% of the padding
- * box, which leaves a 2px ring — the same width as every pin's 2px
- * --color-bg-surface edge, so the ring reads as the pin's own edge
- * pulled inward. */
-.shelter-marker--new {
-  background: var(--color-new);
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60%;
-    height: 60%;
-    border-radius: 50%;
-    background: var(--color-bg-surface);
-  }
-}
-
-/* Reported state (shelter-trust-and-reports D1): the single "reported"
- * marker affordance — any shelter with nonexistentReports > 0 renders this
- * orange regardless of source; trust colours apply only to unreported
- * shelters. The map legend's third swatch reuses this class. */
+/* Reported state (shelter-trust-and-reports D1, W2-B): the single
+ * "reported" marker affordance — any shelter with an OPEN report of
+ * EITHER kind (nonexistentReports OR inaccurateReports > 0) renders
+ * this orange regardless of source; trust colours apply only to
+ * shelters with no open report. The map legend's reported swatch
+ * reuses this class. */
 .shelter-marker--reported {
   background: var(--color-reported);
 }

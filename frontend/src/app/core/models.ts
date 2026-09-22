@@ -395,9 +395,24 @@ export interface ShelterDto {
   /**
    * Non-existence reports (D1): 0 when none, > 0 = the orange reported
    * state (marker + "Reported" badge). Five reach auto-hide server-side —
-   * the public list simply no longer contains the row.
+   * the public list simply no longer contains the row. W2-B: EITHER report
+   * kind drives the reported state — the pin/badge logic is the OR of this
+   * and {@link inaccurateReports} (the backend contract note); the FE ORs
+   * the two in hasReports() / markerTone().
    */
   nonexistentReports: number;
+  /**
+   * Open 'inaccurate information' reports (W2-B): the community's
+   * "this data is wrong" subset (WRONG_LOCATION + OTHER); 0 when none.
+   * Together with {@link nonexistentReports} it drives the reported state
+   * (the OR of the two — the backend contract note). Open means not
+   * dismissed — a dismissed report stops counting server-side.
+   *
+   * Optional on purpose: an older backend omits the field — absent reads
+   * as 0, so a pre-W2-B payload renders exactly as before (the
+   * submitterVerification idiom).
+   */
+  inaccurateReports?: number;
   /** Fresh open/closed; null = nothing fresh in the last 2 h. */
   openStatus: OpenStatusDto | null;
   /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
@@ -412,9 +427,11 @@ export interface ShelterDto {
   /** Submitter-declared: PRIVATE rows carry the "Private location" badge. */
   locationKind: LocationKind;
   /**
-   * TOTAL community shelter-report count, all types (last-verified-meta
-   * backend-computed) — the `nonexistentReports` subset is what drives
-   * the orange "Reported" badge; this is the whole community-signal count.
+   * TOTAL community shelter-report count, all types, lifetime
+   * (last-verified-meta backend-computed) — the open
+   * `nonexistentReports` + `inaccurateReports` sum is what drives the
+   * orange "Reported" badge (the OR of the two, W2-B); this is the whole
+   * community-signal count and is NOT what the badge shows.
    */
   reportCount: number;
   /**
@@ -571,6 +588,14 @@ export interface AdminShelterDto {
   /** Includes INACTIVE — the public list never contains them. */
   status: ShelterStatus;
   nonexistentReports: number;
+  /**
+   * Open 'inaccurate information' reports (W2-B): the OR with
+   * nonexistentReports drives the reported state — the Reports column
+   * shows the sum of the two open subsets (the same count the public
+   * "Reported" badge shows). Optional: an older backend omits the field —
+   * absent reads as 0.
+   */
+  inaccurateReports?: number;
   occupancy: AdminOccupancy | null;
   capacity: number | null;
   /** The submitting user's profile name (USER rows only). */

@@ -120,7 +120,8 @@ export class ContributionsPanel implements OnInit {
     }
   }
 
-  /** The trust badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
+  /** The trust badge tone: NEW yellow (the unified yellow family),
+   *  REJECTED danger, CONFIRMED green. */
   protected readonly communityBadgeClass = communityBadgeClassShared;
 
   /** The localized report-count phrase for the hidden-row mark

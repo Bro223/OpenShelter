@@ -149,6 +149,15 @@ export class SheltersPanel {
   protected readonly communityBadgeClass = communityBadgeClassShared;
   protected readonly isPrivateLocation = isPrivateLocationShared;
 
+  /** The Reports column: the open trust-report total that drives the
+   *  reported state — `nonexistentReports` + the open
+   *  inaccurate-information reports (W2-B: the OR of the two, the backend
+   *  contract note — the same sum the public "Reported" badge shows).
+   *  An older backend omits `inaccurateReports` — absent reads as 0. */
+  protected reportedCount(row: AdminShelterDto): number {
+    return row.nonexistentReports + (row.inaccurateReports ?? 0);
+  }
+
   /** The admin occupancy block into the shared occupancy copy — the SAME
    *  wire shape as the public list's block (`lastReportedAt` included). */
   protected occupancyText(occ: AdminOccupancy | null, now: number = Date.now()): string | null {
