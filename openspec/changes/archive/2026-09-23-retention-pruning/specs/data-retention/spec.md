@@ -1,5 +1,12 @@
 # Spec Delta: data-retention (new capability)
 
+## Purpose
+
+Data retention for the shelter service: last-activity stamping on every
+auth path, a config-gated job that erases accounts idle beyond the 24-month
+horizon (admins never), bounded moderation-audit retention, and a retention
+run audit row per run.
+
 ## ADDED Requirements
 
 ### Requirement: Last-activity stamping

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# OpenShelter local git hooks. Enable per clone (one time, recorded in the
+# README's "Local git hooks" section):
+#
+#   git config core.hooksPath .githooks
+#
+# pre-commit: the staged diff must not be empty (an empty commit cannot
+# deliver what its message names — the 9aff085 finding).
+# commit-msg: every reviews/… or docs/… path named in the message must be
+# a file the staged diff contains (15's F1 class — a message describing
+# files its diff does not touch).
+#
+# Both run scripts/commit-truthfulness-check.sh (bash + git only). See the
+# script's header for the rules and the deliberate-exception path
+# (--no-verify + reason).
+exec bash "$(git rev-parse --show-toplevel)/scripts/commit-truthfulness-check.sh" empty

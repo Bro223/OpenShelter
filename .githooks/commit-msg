@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# OpenShelter local git hooks. Enable per clone (one time, recorded in the
+# README's "Local git hooks" section):
+#
+#   git config core.hooksPath .githooks
+#
+# commit-msg receives the commit message file as $1. The check refuses a
+# message that names a reviews/… or docs/… path the staged diff does not
+# contain — a message claims what the diff delivers (review 18 F6 + 15's
+# F1). See scripts/commit-truthfulness-check.sh for the rules and the
+# deliberate-exception path (--no-verify + reason).
+exec bash "$(git rev-parse --show-toplevel)/scripts/commit-truthfulness-check.sh" message "$1"

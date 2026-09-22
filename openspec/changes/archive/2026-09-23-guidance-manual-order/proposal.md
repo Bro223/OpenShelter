@@ -82,14 +82,16 @@ backfill so deploying changes nothing visible.
 
 ### Modified Capabilities
 
-- None as a delta. The ordering clause this change supersedes lives in the
-  **in-flight, unarchived** `crisis-guidance` change (its "Public guidance
-  index" requirement), whose main spec does not exist yet in
-  `openspec/specs/`. Following the convention that change itself set — and
-  that the archived `remove-shelter-reviews` change reported (no duplicate
-  deltas against a capability with no main spec) — the new order contract
-  is specified inside this change's new capability, and the sync item is
-  recorded in Impact below.
+- `crisis-guidance` — the "Public guidance index" requirement: this
+  change's D2 supersedes its ordering clause (pinned first, then
+  `published_at` descending) with the manual order contract (`pinned DESC,
+  sort_order ASC, published_at DESC, id DESC`). Carried as a MODIFIED sync
+  delta in `specs/crisis-guidance/spec.md` (added 2026-09-22): it requires
+  `crisis-guidance` to be archived **first** — `openspec archive` refuses a
+  MODIFIED whose main spec does not exist yet — so the two deltas can never
+  apply in the wrong order. The new capability's own spec
+  (`specs/guidance-manual-order/spec.md`) states the full order contract;
+  the sync item stays recorded in Impact below.
 
 ## Impact
 

@@ -160,6 +160,220 @@ function compiledSelectorHeads(css: string): string[] {
   return heads;
 }
 
+/* --- Wave 15 — single-side accent borders (owner: the `border-left:
+ *     3px solid var(--color-primary)` bar reads machine-generated). The
+ *     guards below run over COMPILED declarations, not raw text: every
+ *     SCSS spelling of the same declaration — top-level, nested-compound,
+ *     @media-wrapped, re-spaced — compiles to the same flat `prop: value`
+ *     pair, so no nesting or re-spacing can defeat the scan (the text-
+ *     pattern class this repo already proved hollow, 15-delivery-audit
+ *     M7b/M7c). Logical-property (RTL) spellings are in the same family. --- */
+
+/**
+ * EVERY declaration of a compiled stylesheet — { head, prop, value } —
+ * the compiled-CSS companion of the raw-text scanners above. `head` is
+ * the text before the opening brace: the rule's selector list, an
+ * at-rule prelude, or a keyframe step (from / 50% / to). The walker
+ * recurses into a body only when it contains a brace — in compiled CSS a
+ * declaration can never contain one, so a braced body holds nested rules
+ * (@media / @supports / @keyframes steps) and a flat one holds
+ * declarations. Comments are stripped first (compiled output keeps them),
+ * so prose can never satisfy or mask a check, and values are tokenised
+ * by the classifier below, never matched as strings.
+ */
+function compiledDeclarations(css: string): { head: string; prop: string; value: string }[] {
+  const flat = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const out: { head: string; prop: string; value: string }[] = [];
+  const pushDecl = (decl: string, head: string) => {
+    const i = decl.indexOf(':');
+    if (i === -1) return;
+    const prop = decl.slice(0, i).trim();
+    const value = decl.slice(i + 1).trim();
+    if (prop !== '') out.push({ head, prop, value });
+  };
+  const parseDecls = (body: string, head: string) => {
+    let buf = '';
+    let depth = 0;
+    for (const ch of body) {
+      if (ch === '(') depth += 1;
+      if (ch === ')') depth -= 1;
+      if (ch === ';' && depth === 0) {
+        const decl = buf.trim();
+        buf = '';
+        if (decl !== '') pushDecl(decl, head);
+        continue;
+      }
+      buf += ch;
+    }
+    const decl = buf.trim();
+    if (decl !== '') pushDecl(decl, head);
+  };
+  const walk = (text: string) => {
+    let i = 0;
+    while (i < text.length) {
+      const open = text.indexOf('{', i);
+      if (open === -1) return;
+      let depth = 1;
+      let j = open + 1;
+      while (j < text.length && depth > 0) {
+        if (text[j] === '{') depth += 1;
+        else if (text[j] === '}') depth -= 1;
+        j += 1;
+      }
+      const head = text.slice(i, open).trim().split(';').pop()!.trim();
+      // (A preceding at-rule prelude — `@charset "UTF-8";` — ends in a
+      // semicolon and carries no declarations: cut it off so the head is
+      // the selector/at-rule it actually belongs to.)
+      const body = text.slice(open + 1, j - 1);
+      if (body.includes('{')) walk(body);
+      else parseDecls(body, head);
+      i = j;
+    }
+  };
+  walk(flat);
+  return out;
+}
+
+const BORDER_STYLE_WORDS = new Set([
+  'none',
+  'hidden',
+  'solid',
+  'dashed',
+  'dotted',
+  'double',
+  'groove',
+  'ridge',
+  'inset',
+  'outset',
+]);
+const PAINTING_STYLES = new Set([
+  'solid',
+  'dashed',
+  'dotted',
+  'double',
+  'groove',
+  'ridge',
+  'inset',
+  'outset',
+]);
+const WIDTH_KEYWORDS: Record<string, number> = { thin: 1, medium: 3, thick: 4 };
+/** The only colours the codebase's structural 1px hairlines are painted
+ *  with — the documented divider family. Anything else on ONE side is an
+ *  accent, whatever its width. */
+const NEUTRAL_DIVIDER_COLORS = new Set([
+  '--color-border',
+  '--color-border-subtle',
+  '--color-chrome-border',
+  'transparent',
+  'currentcolor',
+]);
+
+/** The px width a border-width token denotes (the plausible non-px units
+ *  converted at their CSS reference sizes; null = not a width token). */
+function borderWidthPx(token: string): number | null {
+  if (token in WIDTH_KEYWORDS) return WIDTH_KEYWORDS[token];
+  const m = token.match(/^(\d+(?:\.\d+)?)(px|em|rem|pt|pc|ex|ch|vw|vh|vmin|vmax)?$/);
+  if (m === null) return null;
+  const factor =
+    m[2] === 'em' || m[2] === 'rem' || m[2] === 'pc' ? 16 : m[2] === 'pt' ? 16 / 12 : m[2] === 'ex' || m[2] === 'ch' ? 8 : 1;
+  return Number(m[1]) * factor;
+}
+
+function isNeutralDividerColour(color: string | null): boolean {
+  if (color === null) return true;
+  const c = color.trim().toLowerCase();
+  if (NEUTRAL_DIVIDER_COLORS.has(c)) return true;
+  const m = c.match(/^var\(\s*(--[\w-]+)\s*\)$/);
+  return m !== null && NEUTRAL_DIVIDER_COLORS.has(m[1]);
+}
+
+/** Decompose a `border`-family shorthand value into the per-side widths
+ *  (1 value → all four, 2 → top/bottom + left/right, 3 → top + left/right
+ *  + bottom, 4 → top/right/bottom/left), the style word, and the leftover
+ *  colour. The token positions are order-independent, exactly as CSS. */
+function decomposeBorderShorthand(value: string): {
+  widths: number[];
+  style: string | null;
+  color: string | null;
+} {
+  let widths: number[] = [];
+  let style: string | null = null;
+  const colorParts: string[] = [];
+  for (const t of value.trim().split(/\s+/)) {
+    if (style === null && BORDER_STYLE_WORDS.has(t)) {
+      style = t;
+      continue;
+    }
+    const w = borderWidthPx(t);
+    if (w !== null && widths.length < 4) {
+      widths.push(w);
+      continue;
+    }
+    colorParts.push(t);
+  }
+  let perSide: number[];
+  if (widths.length === 1) perSide = [widths[0], widths[0], widths[0], widths[0]];
+  else if (widths.length === 2) perSide = [widths[0], widths[1], widths[0], widths[1]];
+  else if (widths.length === 3) perSide = [widths[0], widths[1], widths[2], widths[1]];
+  else if (widths.length === 4) perSide = widths;
+  else perSide = [];
+  return { widths: perSide, style, color: colorParts.length > 0 ? colorParts.join(' ') : null };
+}
+
+/** True when the property sets a single side (or the per-side set) of a
+ *  border/outline — physical AND logical (RTL) sides, shorthands and the
+ *  -width/-color longhands. A `border`/`border-width` shorthand belongs
+ *  to the family because its 2/3/4-value spellings encode single sides. */
+function isSingleSideBorderProperty(prop: string): boolean {
+  const p = prop.toLowerCase();
+  return (
+    p === 'border' ||
+    p === 'border-width' ||
+    /^(?:border|outline)-(?:top|right|bottom|left)(?:-(?:width|style|color))?$/.test(p) ||
+    /^border-inline-(?:start|end)(?:-(?:width|style|color))?$/.test(p)
+  );
+}
+
+/** The Wave 15 accent test on ONE declaration: null = no border painted,
+ *  or a structural 1px neutral hairline / full-perimeter line weight;
+ *  a string = why this is the removed accent bar. Widths are compared
+ *  per side after decomposition, so `border: 0 0 0 3px solid var(--x)`
+ *  is caught exactly like `border-left: 3px solid var(--x)`. */
+function singleSideAccentOffense(prop: string, value: string): string | null {
+  const p = prop.toLowerCase();
+  const v = value.replace(/!important$/i, '').trim().toLowerCase();
+  if (v === 'none' || v === 'hidden' || v === '0' || v === '0px') return null;
+  if (p === 'border' || p === 'border-width') {
+    const { widths, color } = decomposeBorderShorthand(v);
+    if (widths.length === 0) return null; // no width component at all
+    if (new Set(widths).size === 1) return null; // one width on all four sides = a full border (the documented line weight), not a one-side bar
+    const wide = widths.find((w) => w > 1);
+    if (wide !== undefined) return `the ${p} shorthand sets one side to ${wide}px (> 1px)`;
+    if (!isNeutralDividerColour(color)) {
+      return `the ${p} shorthand paints one side in the non-neutral colour "${color}"`;
+    }
+    return null; // unequal but every side ≤ 1px in a divider colour — an offset hairline
+  }
+  if (p.endsWith('-width')) {
+    const w = borderWidthPx(v);
+    return w !== null && w > 1 ? `a single-side border width of ${w}px` : null;
+  }
+  if (p.endsWith('-color')) {
+    return isNeutralDividerColour(v)
+      ? null
+      : `a single-side border colour that is not a neutral divider token ("${v}")`;
+  }
+  if (p.endsWith('-style')) return null; // sets neither width nor colour — the width/colour shorthands are the bar vector
+  // Single-side shorthand (border-left / border-inline-start / outline-top …):
+  // width? style? colour? in any order.
+  const { widths, style, color } = decomposeBorderShorthand(v);
+  if (style === null || !PAINTING_STYLES.has(style)) return null; // no style (or none/hidden) → nothing paints
+  const w = widths.length > 0 ? Math.max(...widths) : 3; // width omitted: the initial border-width is `medium` (3px)
+  if (w > 1) return `a single-side border of ${w}px`;
+  if (!isNeutralDividerColour(color)) return `a single-side border in the non-neutral colour "${color}"`;
+  return null;
+}
+
 /**
  * EVERY brace-balanced block whose selector line matches `selector` — the
  * all-occurrence sibling of {@link balancedBlock}. The first-match idiom it
@@ -378,6 +592,9 @@ describe('design tokens (M6)', () => {
     // Body text on every surface it actually renders on.
     ['--color-text', '--color-bg'],
     ['--color-text', '--color-bg-surface'],
+    // Wave 15: this is the proof-note's substitution pair — the border-left
+    // accent went, the subtle fill stayed, and the text on that fill is the
+    // pair this check enforces (all three themes, 4.5:1).
     ['--color-text', '--color-bg-subtle'],
     ['--color-text', '--color-surface-hover'],
     ['--color-muted', '--color-bg'],
@@ -1005,6 +1222,140 @@ describe('design tokens (M6)', () => {
       }
     }
     expect(unguarded).toEqual([]);
+  });
+
+  /* --- Wave 15 — the single-side accent border is absent, and the
+     substitution that replaced it is pinned. The scan is structural over
+     COMPILED declarations (compiledDeclarations): nesting, re-spacing,
+     and the logical (RTL) spellings all compile to the same flat pairs,
+     and a vacuous scan (no declarations found at all) fails the floor.
+     --- */
+
+  it('no single-side ACCENT border in any stylesheet (Wave 15: structural 1px neutral hairlines stay, the bar cannot return)', () => {
+    const offenders: string[] = [];
+    let sideDeclarations = 0;
+    const check = (name: string, css: string, skipLeaflet: boolean) => {
+      for (const d of compiledDeclarations(css)) {
+        // styles.scss pulls Leaflet's vendored stylesheet in via @use —
+        // those rules are third-party bytes (same status as
+        // src/vendor/**) and outside the sweep. Every APP rule in
+        // styles.scss carries a non-leaflet selector, so the head filter
+        // removes exactly the vendored rules.
+        if (skipLeaflet && d.head.includes('.leaflet-')) continue;
+        if (!isSingleSideBorderProperty(d.prop)) continue;
+        if (d.prop.toLowerCase() !== 'border' && d.prop.toLowerCase() !== 'border-width') {
+          sideDeclarations += 1;
+        }
+        const why = singleSideAccentOffense(d.prop, d.value);
+        if (why !== null) {
+          offenders.push(`${name} :: ${d.head} { ${d.prop}: ${d.value} } — ${why}`);
+        }
+      }
+    };
+    check('styles.scss', compiledStyles.css, true);
+    for (const entry of audited) {
+      if (entry[2]) continue; // styles.scss above (compiled with the leaflet load path)
+      const css = sass.compile(`${SRC_DIR}/${entry[0]}`, {
+        loadPaths: [`${process.cwd()}/node_modules`],
+        style: 'expanded',
+      }).css;
+      check(entry[0], css, false);
+    }
+    // Vacuity floor: the scan must find the structural single-side hairlines
+    // that actually exist (row separators, dividers, the border-*-none
+    // overrides) — a walker that matched nothing (broken parse, renamed
+    // props) would "pass" for the wrong reason.
+    expect(
+      sideDeclarations,
+      'the single-side border scan found no declarations at all — the guard is vacuous',
+    ).toBeGreaterThanOrEqual(10);
+    expect(offenders, 'a single-side accent border returned (the Wave 15 treatment is back)').toEqual([]);
+  });
+
+  it('account-page .proof-note — the confirmed case: the bar is gone and the subtle fill is its substitute (Wave 15, owner-confirmed)', () => {
+    const css = sass.compile(`${SRC_DIR}/app/features/account/account-page.scss`, {
+      loadPaths: [`${process.cwd()}/node_modules`],
+      style: 'expanded',
+    }).css;
+    const decls = compiledDeclarations(css).filter((d) =>
+      d.head.split(',').some((s) => s.trim() === '.proof-note'),
+    );
+    expect(
+      decls.length,
+      'no compiled .proof-note rule — the pin is vacuous (class renamed or rule deleted)',
+    ).toBeGreaterThan(0);
+    const sideDecls = decls.filter((d) => isSingleSideBorderProperty(d.prop));
+    expect(
+      sideDecls,
+      '.proof-note must carry no single-side border (the 3px primary bar is the removed treatment)',
+    ).toEqual([]);
+    const bg = decls.find((d) => d.prop === 'background' || d.prop === 'background-color');
+    expect(
+      bg?.value,
+      'the proof-note keeps the subtly different background in the border\'s place',
+    ).toBe('var(--color-bg-subtle)');
+  });
+
+  it('warning / success / info / subtle notes stay mutually distinguishable WITHOUT the border, every theme (Wave 15)', () => {
+    // The bar used to carry the semantics; now only the fill + the text do.
+    // The four note families must not share a fill or a text colour in ANY
+    // theme — a re-tint that collapses two of them fails here in that
+    // theme. (Checked between the four families, not against the page
+    // surface: black-and-yellow collapses --color-bg-subtle into the plain
+    // black surface by design, and that is documented token behaviour.)
+    const themes: [string, Map<string, string>][] = [
+      ['light', rootTokens],
+      ['high-contrast', themeTokens],
+      ['black-and-yellow', byTokens],
+    ];
+    const fills = ['--color-warning-bg', '--color-success-bg', '--color-info-bg', '--color-bg-subtle'];
+    const texts = ['--color-warning', '--color-success', '--color-info', '--color-text'];
+    const offenders: string[] = [];
+    for (const [theme, tokens] of themes) {
+      for (const [list, what] of [
+        [fills, 'fill'],
+        [texts, 'text'],
+      ] as [string[], string][]) {
+        const values = list.map((t) => tokens.get(t)?.toLowerCase());
+        if (values.some((v) => v === undefined)) {
+          offenders.push(`${theme}: a ${what} token of the note family is missing from the token block`);
+          continue;
+        }
+        for (let a = 0; a < values.length; a += 1) {
+          for (let b = a + 1; b < values.length; b += 1) {
+            if (values[a] === values[b]) {
+              offenders.push(
+                `${theme}: ${list[a]} and ${list[b]} share one ${what} value (${values[a]}) — the notes would be untellable apart without the border`,
+              );
+            }
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the Wave 15 substitution pairs sit in the ENFORCED contrast list (not in a comment)', () => {
+    // The proof-note's substitution is --color-text on --color-bg-subtle;
+    // the semantic note blocks are the severity text on its severity fill
+    // (banner + done-state chips). Every one must be a member of
+    // CONTRAST_CHECKS at the 4.5:1 text floor in all three themes — a
+    // future edit that drops a pair from the list (or from the theme
+    // loop) fails here instead of drifting.
+    const enforced = new Set(
+      CONTRAST_CHECKS.filter((c) => c.min >= 4.5).map((c) => `${c.theme}|${c.fg}|${c.bg}`),
+    );
+    const themes = ['light', 'high-contrast', 'black-and-yellow'] as const;
+    const required: [string, string, string][] = [
+      ...themes.map((theme) => [theme, '--color-text', '--color-bg-subtle'] as [string, string, string]),
+      ...themes.flatMap((theme) => [
+        [theme, '--color-warning', '--color-warning-bg'] as [string, string, string],
+        [theme, '--color-success', '--color-success-bg'] as [string, string, string],
+        [theme, '--color-info', '--color-info-bg'] as [string, string, string],
+      ]),
+    ];
+    const missing = required.filter(([t, f, b]) => !enforced.has(`${t}|${f}|${b}`));
+    expect(missing, 'a Wave 15 substitution pair is missing from the enforced contrast list').toEqual([]);
   });
 
   it('the theme layer keeps its Leaflet map-chrome overrides (light-surface links + focus ring)', () => {

@@ -41,6 +41,14 @@
 
 ## Phase 4 — Russian guidance drafts (DRAFTS, never published)
 
+> **Superseded (2026-09-22, V26).** The six RU drafts (ids 17–22) were the
+> transitional state at lane time. The RU content later shipped as per-locale
+> translation rows on the six PUBLISHED posts (ids 5,7,9,11,13,15 — the
+> `V26__guidance_post_translations.sql` model), the drafts no longer exist,
+> and the RU posts are public. The checked records below are the dated
+> history of what this change itself did (translate, create as drafts,
+> verify invisible).
+
 - [x] Read the six English guidance posts through the admin API
 - [x] Translate 1:1 (no invented guidance), each source line its own
   `<p>`, allowlisted tag set only

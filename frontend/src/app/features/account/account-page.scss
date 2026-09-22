@@ -104,10 +104,13 @@
 .proof-note {
   font-size: var(--text-md);
   color: var(--color-text);
+  /* Wave 15 (owner): the 3px primary left bar read as machine-generated —
+     the subtle fill alone carries the note's boundary (the token's
+     documented role: "the muted surface (inset notes, …)"), contrast-
+     pinned in design-tokens.spec.ts as --color-text on --color-bg-subtle. */
   background: var(--color-bg-subtle);
-  border-left: 3px solid var(--color-primary); /* line weight, not spacing */
   padding: var(--space-8) var(--space-12);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-radius: var(--radius-md);
   margin: 0 0 var(--space-16);
 }
 

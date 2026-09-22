@@ -34,6 +34,7 @@
  * original the detail page renders.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import * as sass from 'sass';
 import { describe, expect, it } from 'vitest';
 
 /** src/ — the test runner's cwd is the frontend project root. */
@@ -319,6 +320,143 @@ describe('app-wide: a fixed image box is never a stretch box', () => {
         expect(rule.decls, `${file} :: ${rule.selector}`).toContain('object-fit: cover');
       }
     }
+    expect(checked).toBeGreaterThanOrEqual(4); // the four square slots today
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The SAME invariant, compiled-first — the authority. The text-level scan
+// above reads the SCSS as WRITTEN: a box whose size lives behind a Sass
+// variable, a nested `&` block, a property split across two rules on the
+// same selector, or a case variant is invisible to it until the compiler
+// resolves it. The browser only ever sees the compiled CSS, so the audit
+// also runs against it: every app stylesheet is compiled with dart-sass
+// (the same engine Angular's build uses), the flat rules are parsed with
+// the CSS cascade applied per selector (a later declaration of the same
+// property wins, so a split `width`/`height` pair still forms a box), and
+// any selector that targets an image with a literal px width AND px height
+// must resolve object-fit: cover. Residual (documented, same as the text
+// layer): a box assembled ACROSS files (a None-encapsulation component +
+// the global stylesheet) is per-file here — a full browser-cascade model
+// is out of scope for a spec. The text scan stays as the second layer (the
+// repo's layering idiom — both are needed): it pins the source shape a
+// reviewer reads.
+// ---------------------------------------------------------------------------
+
+interface CompiledRule {
+  selector: string;
+  decls: string[];
+}
+
+/** Parse compiled (flat) CSS into rules, recursing into at-rules. */
+function compiledRules(css: string, out: CompiledRule[] = []): CompiledRule[] {
+  let i = 0;
+  while (i < css.length) {
+    const open = css.indexOf('{', i);
+    if (open === -1) {
+      break;
+    }
+    const pre = css.slice(i, open).trim();
+    let depth = 1;
+    let j = open + 1;
+    while (j < css.length && depth > 0) {
+      if (css[j] === '{') {
+        depth++;
+      } else if (css[j] === '}') {
+        depth--;
+      }
+      j++;
+    }
+    const inner = css.slice(open + 1, j - 1);
+    if (/^@(media|supports|container)\b/.test(pre)) {
+      compiledRules(inner, out);
+    } else if (!pre.startsWith('@')) {
+      // @keyframes / @font-face / other at-rules carry no slot geometry.
+      const decls = inner
+        .split(';')
+        .map((d) => d.trim())
+        .filter(Boolean);
+      for (const sel of pre.split(',')) {
+        const selector = sel.replace(/\s+/g, ' ').trim();
+        if (selector) {
+          out.push({ selector, decls });
+        }
+      }
+    }
+    i = j;
+  }
+  return out;
+}
+
+/** The CSS cascade per selector: the LAST declaration of a property wins. */
+function cascadeBySelector(rules: CompiledRule[]): Map<string, Map<string, string>> {
+  const bySelector = new Map<string, Map<string, string>>();
+  for (const rule of rules) {
+    let props = bySelector.get(rule.selector);
+    if (!props) {
+      props = new Map();
+      bySelector.set(rule.selector, props);
+    }
+    for (const decl of rule.decls) {
+      const colon = decl.indexOf(':');
+      if (colon === -1) {
+        continue;
+      }
+      const prop = decl.slice(0, colon).trim().toLowerCase();
+      const value = decl.slice(colon + 1).trim();
+      if (prop && value) {
+        props.set(prop, value);
+      }
+    }
+  }
+  return bySelector;
+}
+
+const PX_LITERAL = /^\d+(?:\.\d+)?px$/;
+
+const heroClassTargets = (selector: string, heroClasses: string[]): boolean =>
+  /\bimg\b/.test(selector) || heroClasses.some((c) => selector.includes(c));
+
+describe('app-wide (compiled): a fixed image box is never a stretch box', () => {
+  const HERO_CLASSES = [
+    'guidance-detail__hero',
+    'guidance-post__hero',
+    'guidance-post__thumb',
+    'guidance-editor__hero-thumb',
+    'admin-media-thumb',
+    'admin-guidance-thumb',
+  ];
+
+  it('every compiled fixed width+height rule on an image slot resolves object-fit: cover', () => {
+    let checked = 0;
+    const violations: string[] = [];
+    for (const file of collectScss(`${SRC}/app`)) {
+      const css = sass
+        .compile(file, {
+          loadPaths: [`${process.cwd()}/node_modules`],
+          style: 'expanded',
+        })
+        .css;
+      const resolved = cascadeBySelector(compiledRules(css));
+      for (const [selector, props] of resolved) {
+        if (!heroClassTargets(selector, HERO_CLASSES)) {
+          continue;
+        }
+        const w = props.get('width');
+        const h = props.get('height');
+        if (!w || !h || !PX_LITERAL.test(w) || !PX_LITERAL.test(h)) {
+          continue; // natural size / ratio box / single-axis — not a fixed box
+        }
+        checked++;
+        const fit = props.get('object-fit');
+        if (fit !== 'cover' && fit !== 'cover !important') {
+          violations.push(
+            `${file} :: ${selector} (width: ${w}; height: ${h}) — fixed image box without object-fit: cover`,
+          );
+        }
+      }
+    }
+    expect(violations).toEqual([]);
     expect(checked).toBeGreaterThanOrEqual(4); // the four square slots today
   });
 });

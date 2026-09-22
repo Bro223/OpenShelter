@@ -467,6 +467,30 @@ SMTP endpoint: disabled by default, JWT required, recipient allowlist
 (`DEV_SMS_TEST_ALLOWED_RECIPIENTS`, matched in E.164 form) unless
 `DEV_SMS_TEST_ALLOW_ANY=true`.
 
+## Local git hooks
+
+The repo ships two hooks (`.githooks/`) that run
+`scripts/commit-truthfulness-check.sh` — dependency-free (bash + git). They
+refuse a commit when:
+
+1. **the staged diff is empty** (`pre-commit`) — an empty commit cannot
+   deliver what its message names (the `9aff085` finding: a message
+   describing a diff that does not exist in the commit). Merge commits are
+   exempt.
+2. **the message names a report path the staged diff does not touch**
+   (`commit-msg`) — any `reviews/…` or `docs/…` path in the message must be
+   a file the commit delivers. Cite an unchanged report without its path
+   form, or use `git commit --no-verify` and record why (the exception must
+   stay visible).
+
+Enable per clone (one time):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+The hooks are local-only — CI's clean-checkout job does not run them.
+
 ## Running locally
 
 Requirements: JDK 21, Maven 3.9+, Docker (Compose), Node.js 26 + npm 11 (`frontend/package.json` `engines`).

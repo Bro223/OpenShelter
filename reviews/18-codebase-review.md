@@ -482,7 +482,7 @@ claim in the code — the one false claim found is in a commit message, not in t
 
 The review read "confirmed open: registry re-import" from `lastImport = 07:54:44Z` being earlier than the L-EST97 fix commit. That is an inference from a timestamp, and it is the same inference the delivery audit made earlier today. The served data contradicts it:
 
-```
+```text
 GET /api/shelters?limit=200  → 200 rows, 189 PAASETEAMET on page 1
 lat range 57.6148–59.4702   lng range 22.0291–28.1965   (all inside the 57.5–59.7 / 21.5–28.2 bbox)
 Pärnu Hotell LÄ23016 → 58.38523, 24.50676   (the coordinate the value-detected axis order computes)

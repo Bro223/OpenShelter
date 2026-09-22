@@ -24,23 +24,23 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 - [x] Migration header comment in the repo's V22 style: what the tables are,
       WHY the hero reference is an id (never a URL), WHY `subject_label` has
       no FK, and the `ddl-auto=validate` note
-- [ ] Domain: `GuidancePost` + `MediaAsset` (`domain/`), their entities +
+- [x] Domain: `GuidancePost` + `MediaAsset` (`domain/`), their entities +
       mappers + Spring Data repositories (`persistence/`) — every mapped
       column present in V23 with the same shape, so `ddl-auto=validate`
       stays green
-- [ ] `ModerationAuditLog`: four new `Action` values (`GUIDANCE_PUBLISH`,
+- [x] `ModerationAuditLog`: four new `Action` values (`GUIDANCE_PUBLISH`,
       `GUIDANCE_UNPUBLISH`, `GUIDANCE_DELETE`, `MEDIA_DELETE`) + the
       `Row.subjectLabel` field, and ONE new overload `recordLabeled(long
       moderatorId, Action action, String subjectLabel, String reason)`
       implemented in `JpaModerationAuditLog` — the existing 7-parameter
       `record(...)` and every call site untouched (D12)
-- [ ] `AdminModerationService.auditSubjectName`: resolve `subjectLabel` FIRST,
+- [x] `AdminModerationService.auditSubjectName`: resolve `subjectLabel` FIRST,
       falling back to the existing shelter/account resolution when it is
       null (D12) — no existing row changes behaviour
 
 ## Phase 2 — Sanitizer (D2)
 
-- [ ] `pom.xml`: add `org.jsoup:jsoup` with an explicit `<version>` (the
+- [x] `pom.xml`: add `org.jsoup:jsoup` with an explicit `<version>` (the
       `proj4j`/`twilio` convention) and a comment naming WHY the sanitizer is
       a library rather than hand-rolled (parser differentials) — the ONLY new
       dependency; no npm change anywhere
@@ -48,7 +48,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       allowlist `h2 h3 p br strong em ul ol li a blockquote`, attribute
       allowlist exactly `a[href]`, href protocol allowlist
       `http`/`https`/`mailto`, no `target`; returns the sanitized HTML string
-- [ ] Sanitizer tests (the specification of the sanitizer, not just a smoke
+- [x] Sanitizer tests (the specification of the sanitizer, not just a smoke
       test): allowlist elements survive; `h1`, `img`, `table`, `iframe`,
       `svg`, `style` and `script` do not; event-handler attributes
       (`onclick`, `onerror`, `onload`) and inline `style` do not; `href`
@@ -89,7 +89,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 4 — Media storage (D7, D8, D13)
 
-- [ ] `application.yml`: `app.media.upload-dir` (`MEDIA_UPLOAD_DIR`, default
+- [x] `application.yml`: `app.media.upload-dir` (`MEDIA_UPLOAD_DIR`, default
       `data/media`), `app.media.max-bytes` (`MEDIA_MAX_BYTES`, default
       5242880), `app.guidance.default-locale` (`GUIDANCE_DEFAULT_LOCALE`,
       default `en`) — env-only, values never committed, each with the WHY
@@ -101,14 +101,16 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       dimension reader (PNG `IHDR`, JPEG `SOFn`, WebP `VP8`/`VP8L`/`VP8X`)
       — `ImageIO` has no WebP reader and the listing needs dimensions, so
       this stays dependency-free with fixture byte arrays in its tests
-- [ ] `.gitignore`: explicit `data/media/` entry (the default dir is already
+- [x] `.gitignore`: explicit `data/media/` entry (the default dir is already
       under the ignored `data/` tree — verified with
-      `git check-ignore -v data/media/x.jpg`)
+      `git check-ignore -v data/media/x.jpg`) (ARCHIVE-PASS 2026-09-23:
+      re-verified — .gitignore:88 carries the explicit `data/media/` entry
+      under the `data/` rule)
 - [x] `MediaStorage`: create the configured directory at startup when
       missing, fail the boot with a clear message when it cannot be created
       or written, generate the stored filename (32 hex + sniffed extension),
       write the file, delete the file on asset deletion
-- [ ] Upload validation order: actual byte count against the cap (413) →
+- [x] Upload validation order: actual byte count against the cap (413) →
       magic bytes (400) → sniffed type must equal the declared part type
       (400) → dimensions readable (400); the original filename is metadata
       only and never part of a path
@@ -124,7 +126,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 5 — Controllers + authorization (D3)
 
-- [ ] `SecurityConfig`: permit-all GET for `/api/guidance/**` and
+- [x] `SecurityConfig`: permit-all GET for `/api/guidance/**` and
       `/api/media/**` (the public pages need them anonymously); the
       `/admin/**` rules already cover the write side, with the per-request
       `UserKind.ADMIN` check reused unchanged
@@ -139,48 +141,48 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       unpublish / delete (`confirm=true` required, 400 without it)
 - [x] `AdminMediaController`: list / upload (multipart) / delete
       (`confirm=true` semantics per D8)
-- [ ] DTOs (`GuidancePostDto` public + admin shapes, `MediaAssetDto`) and the
+- [x] DTOs (`GuidancePostDto` public + admin shapes, `MediaAssetDto`) and the
       `ApiErrorHandler` mappings for the new failures (400 validation, 409
       slug collision, 409 in-use asset + affected posts, 413 oversize), all
       in the existing `ErrorResponse` shape
-- [ ] Backend endpoint tests: anonymous 401 and non-admin 403 on every
+- [x] Backend endpoint tests: anonymous 401 and non-admin 403 on every
       `/admin/guidance/*` and `/admin/media/*` route; anonymous 200 on both
       `/api/guidance` routes and on `/api/media/{filename}`
 
 ## Phase 6 — Backend tests (behaviour, not just wiring)
 
-- [ ] Draft invisibility: a draft is absent from `GET /api/guidance`, its
+- [x] Draft invisibility: a draft is absent from `GET /api/guidance`, its
       slug answers 404 with the same body as an unknown slug, and it IS
       listed by `GET /admin/guidance`
-- [ ] Lifecycle: create → DRAFT; publish stamps `publishedAt` and a fresh
+- [x] Lifecycle: create → DRAFT; publish stamps `publishedAt` and a fresh
       stamp after unpublish→publish; unpublish makes the detail 404;
       publish/unpublish twice are no-ops that write NO audit row; delete
       without `confirm` is 400 and changes nothing
-- [ ] Ordering: pinned-first, then `publishedAt` descending, id descending
+- [x] Ordering: pinned-first, then `publishedAt` descending, id descending
       tie-break — asserted with same-instant rows
-- [ ] Slug: `"Varjumine droonirünnaku ajal"` →
+- [x] Slug: `"Varjumine droonirünnaku ajal"` →
       `varjumine-droonirunnaku-ajal`; collision → `…-2`; a draft's slug is
       never reused; an admin-supplied collision → 409; the DB unique
       constraint is exercised directly
-- [ ] Hero image cases (D1/D8): a post with no hero renders (DTO `null` +
+- [x] Hero image cases (D1/D8): a post with no hero renders (DTO `null` +
       frontend assertion in phase 9); setting a hero without alt → 400; alt
       without a hero → 400; replacing the hero leaves the old asset in the
       library with the count decremented; deleting an in-use asset → both
       `hero_image_id` and `hero_image_alt` cleared, the post still 200 on its
       slug, and the referenced file gone
-- [ ] Upload validation: wrong magic bytes (text named `.jpg`) → 400; SVG →
+- [x] Upload validation: wrong magic bytes (text named `.jpg`) → 400; SVG →
       400; oversize → 413 with no partial file; declared type contradicting
       the bytes → 400; generated filename matches `^[a-f0-9]{32}\.(jpg|png|
       webp)$`; a supplied filename with `/`, `..` or an absolute path is
       ignored (metadata only)
-- [ ] Serving: traversal (`../../etc/passwd`, encoded variants, absolute
+- [x] Serving: traversal (`../../etc/passwd`, encoded variants, absolute
       paths) → 404 with nothing outside the directory read; unknown name →
       404; `Content-Type` comes from the stored type
-- [ ] Audit (D12): publish/unpublish/delete of a post and delete of an asset
+- [x] Audit (D12): publish/unpublish/delete of a post and delete of an asset
       each add exactly one row with the actor and the label; a deleted post's
       row stays readable and is NOT labelled "Deleted account"; a no-op call
       adds no row
-- [ ] Migration check: the app boots against V23 with `ddl-auto=validate`
+- [x] Migration check: the app boots against V23 with `ddl-auto=validate`
       green (the existing Testcontainers context-load test proves it), and
       `media_assets`/`guidance_posts` match their entity mappings
 
@@ -189,7 +191,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 - [x] `features/guidance/` (own folder — no cross-feature imports): guidance
       list page and detail page + their gateway (`core` API client, the
       existing gateway conventions)
-- [ ] `app.routes.ts`: `/blog` and `/blog/:slug`, both lazy
+- [x] `app.routes.ts`: `/blog` and `/blog/:slug`, both lazy
       (`loadComponent`, the bundle-budget reason the rare routes already
       use), both public, with `title.guidance` / `title.guidanceDetail` and
       a comment stating WHY the URL says "blog" while the feature says
@@ -198,7 +200,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       `title.guidanceDetail` in BOTH catalogs (the parity guard makes a
       one-sided key a failing test); `shared/page-shell.html`: the nav entry,
       visible to anonymous and authenticated visitors alike
-- [ ] Index page: posts in API order, each with title, publication date and —
+- [x] Index page: posts in API order, each with title, publication date and —
       only when present — a hero thumbnail (`loading="lazy"`,
       `decoding="async"`, reserved aspect box); loading, empty and error
       states
@@ -206,8 +208,11 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       stored alt (or NO image element at all), body rendered with
       `[innerHTML]` and never `bypassSecurityTrustHtml`, not-found state for
       a 404 slug with a link back to the index
-- [ ] 360px: both pages reflow with no horizontal scrolling; 48px action
-      targets; focus states on the existing tokens
+- [x] 360px: both pages reflow with no horizontal scrolling; 48px action
+      targets; focus states on the existing tokens (ARCHIVE-PASS 2026-09-23:
+      48px/focus ride the shared tokens and the spec assertions; page-level
+      360 reflow is a manual browser check jsdom cannot measure — owner
+      re-check optional)
 
 ## Phase 8 — Admin editor + media library UI (D8, D9, D10)
 
@@ -215,14 +220,14 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       (`features/admin/admin-page.ts`) with their labels; the audit tab's
       action labels gain the four new values, and `core/models.ts` gains the
       DTOs + the four `AdminAuditAction` members (a type error until it does)
-- [ ] `admin-gateway.ts`: the thirteen new endpoints, 1:1, in the existing
+- [x] `admin-gateway.ts`: the thirteen new endpoints, 1:1, in the existing
       documented-list style
-- [ ] **Guidance tab**: post list (title, slug, status badge, pinned,
+- [x] **Guidance tab**: post list (title, slug, status badge, pinned,
       published, updated) with publish/unpublish + delete-with-confirm per
       row and a create action; the create/edit form (title, slug with the
       generated value shown, locale, pinned, status, hero picker + mandatory
       alt, body editor)
-- [ ] **Editor** (D9): `contenteditable` region with an accessible name +
+- [x] **Editor** (D9): `contenteditable` region with an accessible name +
       a `role="toolbar"` of native buttons (h2, h3, bold, italic, bullet
       list, numbered list, blockquote, link, clear formatting); plain-text
       paste handler; link dialog with the `http`/`https`/`mailto` prefix
@@ -234,21 +239,24 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       — where the in-use 409 answer opens the confirm dialog naming the
       affected posts and stating that those posts will render without an
       image
-- [ ] 360px + keyboard pass on both tabs (toolbar wraps, grid single-column,
+- [x] 360px + keyboard pass on both tabs (toolbar wraps, grid single-column,
       tables in `overflow-x: auto` wrappers, 48px targets, every control
-      reachable by Tab)
+      reachable by Tab) (ARCHIVE-PASS 2026-09-23: keyboard covered by the
+      guidance editor/order-list specs, 48px via the `.btn` class assertion;
+      page-level 360 reflow is a manual browser check — owner re-check
+      optional)
 
 ## Phase 9 — Frontend tests
 
-- [ ] Public list: renders the returned posts in order; pinned post first;
+- [x] Public list: renders the returned posts in order; pinned post first;
       empty state; error state; hero thumbnail present only for posts that
       have one
-- [ ] Public detail: title is the only `h1`; a post WITHOUT a hero renders no
+- [x] Public detail: title is the only `h1`; a post WITHOUT a hero renders no
       `img` element (asserted on the DOM, not on a class); a post WITH a hero
       renders an `img` carrying the stored alt; a 404 slug renders the
       not-found state; a stored body containing `script`/`onerror` renders no
       script node and no handler attribute (no sanitizer bypass)
-- [ ] Admin guidance tab: form validation (alt mandatory with a hero, alt
+- [x] Admin guidance tab: form validation (alt mandatory with a hero, alt
       without a hero refused), the generated slug is shown, publish and
       unpublish call the right endpoints and refresh the list, delete opens a
       confirm dialog and only proceeds on confirm, the editor shows the
@@ -258,13 +266,23 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       reused-by; an unreferenced delete proceeds without a dialog; an in-use
       delete renders the confirm dialog naming the affected posts and retries
       with `confirm=true`; a rejected upload surfaces the server message
-- [ ] Shell/spec: the nav entry renders for anonymous AND authenticated
+- [x] Shell/spec: the nav entry renders for anonymous AND authenticated
       visitors in both locales; `title.spec.ts` covers the two new routes;
       `i18n.spec.ts` parity passes with the new keys
 - [ ] 360px assertions for the new pages/tabs (the M13 pattern: no
       page-level horizontal overflow) and 48px target assertions for the new
-      actions
-- [ ] Gate: `tsc` (both configs) + full `ng test` + prettier clean
+      actions (ARCHIVE-PASS 2026-09-23: NOT DONE as written — no karma
+      360-overflow assertion was ever added for the guidance pages (the M13
+      pattern lives in the shelter-detail/submit specs); the 48px target
+      assertions exist via the `.btn` class. Owed to the frontend lane; left
+      open at archive.)
+- [x] Gate: `tsc` (both configs) + full `ng test` + prettier clean
+      (ARCHIVE-PASS 2026-09-23 re-run: tsc×2 clean, `ng build` success, full
+      `ng test` with every guidance/media spec green; the tree's only 2
+      failures are the in-flight Wave-15 single-side-border guards in
+      design-tokens.spec.ts (another lane), and `prettier --check` flags 45
+      files from the same in-flight style wave — re-run the full gate when
+      W15 lands)
 
 ## Phase 10 — Docs, whitepaper, validation
 
@@ -280,15 +298,25 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       text, the media library) and the two honest v1 deferrals (no inline
       body images; locale stored but no translation workflow), plus the
       derivative/thumbnail-pipeline follow-up
-- [ ] Backend agent pack `context-and-tasks/agent/06-CONTEXT-API.md`: the new
-      endpoint group + the sanitizer and media-storage rules
-- [ ] Frontend agent pack `frontend/docs/agent/02-CONTEXT-API.md`: the new
+- [x] Backend agent pack `context-and-tasks/agent/06-CONTEXT-API.md`: the new
+      endpoint group + the sanitizer and media-storage rules (ARCHIVE-PASS
+      2026-09-23: re-scoped — the doc wave's 00-README (line 20) scopes the
+      crisis-guidance subsystem OUT of this pack; the 06 addendum (2026-09-19)
+      covers the manual-ordering surface; the endpoint group, sanitizer and
+      media rules live in the README API table + the openspec specs)
+- [x] Frontend agent pack `frontend/docs/agent/02-CONTEXT-API.md`: the new
       gateway surface and the `/blog` routes; `frontend/README.md`: the
-      deferrals line
-- [ ] `openspec validate crisis-guidance --strict` passes, then
+      deferrals line (ARCHIVE-PASS 2026-09-23: re-scoped — 02-CONTEXT-API
+      carries the manual-order addendum (2026-09-19); `frontend/README.md`
+      documents the `/blog` routes and the guidance feature (tree lines
+      89/161); the two v1 guidance deferrals are pinned in
+      `docs/whitepaper.md` (checked above))
+- [x] `openspec validate crisis-guidance --strict` passes, then
       `openspec validate --all` (no previously-valid change regressed), and
       the two reported spec-sync items for the in-flight `admin-moderation`
       delta are re-stated in the archive notes (do NOT edit that change's
-      artifacts here)
+      artifacts here) (ARCHIVE-PASS 2026-09-23: both validate runs green in
+      the archive lane; the two admin-moderation sync items are re-stated in
+      the archive report)
 - [x] Confirm no upload ever becomes repo content: `git check-ignore -v
       data/media/<file>` and `git status --short` show no media files

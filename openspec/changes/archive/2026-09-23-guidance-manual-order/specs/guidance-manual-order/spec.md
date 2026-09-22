@@ -1,5 +1,13 @@
 # Spec Delta: guidance-manual-order (guidance-manual-order)
 
+## Purpose
+
+Stored manual ordering for guidance posts: a NOT NULL `sort_order` with an
+order-preserving backfill, one atomic full-list reorder endpoint, buttons-
+primary / drag-and-drop-secondary admin controls, and the
+`pinned DESC, sort_order ASC, published_at DESC, id DESC` public order
+contract.
+
 ## ADDED Requirements
 
 ### Requirement: Stored manual order with an order-preserving backfill

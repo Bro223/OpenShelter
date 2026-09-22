@@ -1,5 +1,12 @@
 # Spec Delta: media-library (crisis-guidance)
 
+## Purpose
+
+The admin media library that feeds guidance hero images: size / magic-byte /
+content-type-validated uploads stored under server-generated names,
+traversal-safe public serving, reused-by counts, in-use deletion confirm
+naming the affected posts, and a deletion audit row per confirmed delete.
+
 ## ADDED Requirements
 
 ### Requirement: Media upload with server-side validation

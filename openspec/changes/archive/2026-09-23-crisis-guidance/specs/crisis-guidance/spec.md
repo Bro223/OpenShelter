@@ -1,5 +1,12 @@
 # Spec Delta: crisis-guidance (crisis-guidance)
 
+## Purpose
+
+Public crisis guidance for the shelter map: pinned-first published posts
+with per-post locale, server-authoritative rich-text sanitization on every
+write, optional hero images from the media library, slug-addressed public
+pages under `/blog`, and a moderation audit row for every lifecycle action.
+
 ## ADDED Requirements
 
 ### Requirement: Public guidance index

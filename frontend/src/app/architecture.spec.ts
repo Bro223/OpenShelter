@@ -44,6 +44,24 @@ const FEATURES_DIR = `${APP}/features`;
 const MIN_FEATURE_DIRS = 7;
 const MIN_ADMIN_TABS = 9;
 
+/**
+ * Size ceiling for admin-page.ts — the file's size MEASURED at the moment
+ * this guard landed (2026-09-22, HEAD 317cf08: 2 535 lines by `wc -l`).
+ * Same idiom as the count floors above: crossing the ceiling fails the
+ * build, and RAISING it is a decision — change it in the same commit that
+ * legitimately grows the file, with the reason, never as a silent default.
+ *
+ * What comes out FIRST when the ceiling bites (BACKLOG-PLAN W3-B's
+ * continuation; review 18 F3's fix note): the shelters paged view + its
+ * search sync — the URL→state→load seam (`syncSheltersFromParams` and the
+ * `shelterQ` / `shelterPage` / `shelterSize` params, the `shelterFetchSeq`
+ * in-flight guard, the shelters table render and its row actions). It has
+ * been self-contained since the tab-scoped search fix (bd3a3c5), and it
+ * extracts as its own panel component the way the eight tab panels were
+ * split in 5473b1c (`features/admin/*-panel.ts` pattern).
+ */
+const ADMIN_PAGE_MAX_LINES = 2535;
+
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>
     statSync(`${FEATURES_DIR}/${entry}`).isDirectory(),
@@ -126,5 +144,18 @@ describe('frontend architecture guard', () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('admin-page.ts stays at or under its measured line ceiling', () => {
+    // wc -l semantics: a final newline does not start a new line.
+    const text = readFileSync(ADMIN_PAGE_TS, 'utf8');
+    const lines = text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+    expect(
+      lines,
+      `admin-page.ts is ${lines} lines — the ceiling is ${ADMIN_PAGE_MAX_LINES}. ` +
+        'Extract before adding (next seam: the shelters paged view + its ' +
+        'search sync — see the ceiling note above), or raise the ceiling ' +
+        'deliberately in this same commit with the reason.',
+    ).toBeLessThanOrEqual(ADMIN_PAGE_MAX_LINES);
   });
 });

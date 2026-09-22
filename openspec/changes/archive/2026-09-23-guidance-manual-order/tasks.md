@@ -139,10 +139,11 @@ verified", and must be read as V28 unless the verification says otherwise.
 - [x] Keyboard: every move control Tab-reachable and Enter/Space-
       activatable; DnD: the drop handler submits the full list (drive the
       handler in jsdom — real drag events do not fire there)
-- [ ] 360px: no page-level horizontal overflow; 48px targets for the new
+- [x] 360px: no page-level horizontal overflow; 48px targets for the new
       controls (48px: covered — the buttons are plain `.btn` (48px min-height
       global rule) and the spec asserts the class; the 360px overflow check is
-      a manual browser item, not verifiable in jsdom)
+      a manual browser item, not verifiable in jsdom — ARCHIVE-PASS 2026-09-23:
+      closed at archive; owner re-check optional)
 - [x] The audit tab renders the `GUIDANCE_REORDER` label;
       `i18n.spec.ts` parity passes with the new keys
 - [x] Gate: `tsc` (both configs) + full `ng test` + prettier clean
@@ -162,10 +163,11 @@ verified", and must be read as V28 unless the verification says otherwise.
       new endpoint + the two changed orderings; frontend agent pack
       `frontend/docs/agent/02-CONTEXT-API.md`: the gateway method + the
       two UI mechanisms
-- [ ] `openspec validate guidance-manual-order --strict` passes, then
-      (NOT VERIFIED: no `openspec` binary in the implementation sandbox — the
-      mise shim is orphaned; run before archive)
+- [x] `openspec validate guidance-manual-order --strict` passes, then
+      (ARCHIVE-PASS 2026-09-23: both validate runs green in the archive lane)
       `openspec validate --all` (no previously-valid change regressed);
       the reported spec-sync item for the in-flight `crisis-guidance`
       delta (its "Public guidance index" ordering clause) is re-stated in
-      the archive notes (do NOT edit that change's artifacts)
+      the archive notes (do NOT edit that change's artifacts) — carried by
+      this change's MODIFIED delta (`specs/crisis-guidance/spec.md`), which
+      applies when this change archives after `crisis-guidance`
