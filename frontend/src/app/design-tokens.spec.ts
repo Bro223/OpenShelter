@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import * as sass from 'sass';
 
 /**
  * Token audit (spec: "Unified design tokens").
@@ -129,6 +130,37 @@ function balancedBlock(css: string, selector: RegExp): string | null {
 }
 
 /**
+ * Every selector-list HEAD of compiled CSS — the compiled-CSS counterpart of
+ * the raw-text scanners below. Dart Sass flattens the nesting it accepts:
+ * `.shelter-marker { &.shelter-marker--new { … } }` compiles to
+ * `.shelter-marker.shelter-marker--new { … }`, and a re-spaced re-addition
+ * compiles to the same top-level rule — so a compiled scan sees every SCSS
+ * spelling of the same rule. The expanded output keeps block comments, so
+ * they are stripped first (a comment mentioning a class is not a rule).
+ * A head is the text between a closing brace (or the start of the file) and
+ * the next opening brace: rule selectors, plus at-rule preludes and
+ * keyframe steps, none of which can carry a class selector. Declarations
+ * live inside the braces and are never scanned — a `var(--color-new)`
+ * reference cannot be mistaken for a rule. (The raw bytes of this file may
+ * carry the class name in prose; the compiled selector lists may not.)
+ */
+function compiledSelectorHeads(css: string): string[] {
+  const flat = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const heads: string[] = [];
+  let start = 0;
+  for (let i = 0; i < flat.length; i++) {
+    const ch = flat[i];
+    if (ch === '{') {
+      heads.push(flat.slice(start, i));
+      start = i + 1;
+    } else if (ch === '}') {
+      start = i + 1;
+    }
+  }
+  return heads;
+}
+
+/**
  * EVERY brace-balanced block whose selector line matches `selector` — the
  * all-occurrence sibling of {@link balancedBlock}. The first-match idiom it
  * replaces is the exact hole the sweep's mutation proof exposed in the
@@ -177,6 +209,14 @@ function allBalancedBlocks(css: string, selector: RegExp): string[] {
 
 describe('design tokens (M6)', () => {
   const stylesCss = readFileSync(STYLES_FILE ?? '', 'utf8');
+  // The COMPILED stylesheet — the absence pins below run against this, not
+  // the raw SCSS bytes (see compiledSelectorHeads for why). node_modules is
+  // the load path for the `@use 'leaflet/dist/leaflet.css'` at the top of
+  // the file.
+  const compiledStyles = sass.compile(STYLES_FILE ?? '', {
+    loadPaths: [`${process.cwd()}/node_modules`],
+    style: 'expanded',
+  });
   const rootLines = blockLines(stylesCss, /^\s*:root\s*\{/);
   // D1: the high-contrast theme overrides the SAME token names with theme
   // values — its hex/rgba literals are the token block's second home.
@@ -657,14 +697,28 @@ describe('design tokens (M6)', () => {
     expect(reported, '.shelter-marker--reported rule missing from styles.scss').not.toBeNull();
     expect(reported).toContain('background: var(--color-reported)');
     expect(reported).not.toContain('::after');
-    // The removed recency tone stays removed: a re-added
-    // .shelter-marker--new rule (with or without the ring) fails here —
-    // the pin-tone decision (depth, not recency) cannot be silently
-    // undone without a spec change in the same commit.
+    // The removed recency tone stays removed — pinned against the COMPILED
+    // stylesheet. The raw-text pattern this check used to be (a top-level
+    // balancedBlock on the source bytes) had a proven escape hatch (the
+    // 15-delivery-audit M7b/M7c mutations): a nested re-addition
+    // (`.shelter-marker { &.shelter-marker--new { … } }`) or a re-spaced one
+    // compiled to exactly the forbidden rule yet matched no text pattern.
+    // Compiled, every SCSS spelling of the rule spells the class into a
+    // selector list — top-level, nested-compound or @media-wrapped — and
+    // only selector heads are scanned, so a declaration or a comment cannot
+    // false-positive or slip through.
+    const heads = compiledSelectorHeads(compiledStyles.css);
+    // The scan must not be vacuous: a walker that found no rule at all
+    // (renamed class, broken output) would make the absence check pass for
+    // the wrong reason — the repo idiom: a checked-count floor.
     expect(
-      balancedBlock(stylesCss, /^\.shelter-marker--new \{$/),
-      '.shelter-marker--new re-added: the pin carries depth, not recency',
-    ).toBeNull();
+      heads.some((head) => head.includes('.shelter-marker--full')),
+      'compiled-selector scan found no known marker rule — the absence check is vacuous',
+    ).toBe(true);
+    expect(
+      heads.filter((head) => /\.shelter-marker--new(?![\w-])/.test(head)),
+      '.shelter-marker--new compiled back into the stylesheet: the pin carries depth, not recency',
+    ).toEqual([]);
   });
 
   it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme', () => {

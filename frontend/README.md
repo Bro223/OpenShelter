@@ -159,14 +159,16 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   The initial budget was re-baselined at the then-measured initial total
   (`maximumWarning: 741401b` — the previous 560 kB warning budget sat under the
   measured bundle and was permanently red, so it guarded nothing). Measured
-  initial total on a fresh build (2026-09-22, after the five auth/account
-  routes went lazy): **607.60 kB raw / 156.76 kB transfer** — under the
-  741401 b warning, so a fresh build prints no initial-budget warning (ten
+  initial total on a fresh build (2026-09-22, re-measured after the five admin
+  panels landed): **610.08 kB raw / 157.31 kB transfer** — under the
+  741401 b warning, so a fresh build prints no initial-budget warning (fifteen
   component SCSS budgets warn instead, largest first, all against the 4 kB
-  warning: map-page 6.91 kB, shelter-detail-page 5.46 kB, page-shell 4.92 kB,
-  guidance-translations 4.75 kB, guidance-order-list 4.71 kB, guidance-panel
-  4.52 kB, media-panel 4.38 kB, guidance-editor 4.27 kB, shelters-panel
-  4.18 kB, submit-shelter-page 4.11 kB). The
+  warning: map-page 7.42 kB, shelter-detail-page 5.46 kB, page-shell 4.92 kB,
+  guidance-translations 4.88 kB, guidance-order-list 4.83 kB, guidance-panel
+  4.65 kB, media-panel 4.50 kB, shelters-panel 4.31 kB, guidance-editor
+  4.27 kB, submit-shelter-page 4.11 kB, alerts-panel 4.01 kB, audit-panel
+  4.01 kB, reports-panel 4.01 kB, unconfirmed-panel 4.01 kB, users-panel
+  4.01 kB). The
   `anyComponentStyle` budget
   stays at its defaults (4 kB warning / **10 kB error** — no exception, and the
   30 kB exception a previous lane added for the Quill theme was reverted

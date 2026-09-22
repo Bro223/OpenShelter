@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import {
   LeafletService,
+  markerTone,
   ESTONIA_CENTER,
   ESTONIA_ZOOM,
   SHELTER_ZOOM,
@@ -228,13 +229,29 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
   });
 
-  it('the pin carries verification depth, not recency: a recently-added row renders its depth, never a NEW tone (owner decision)', () => {
+  it('the pin carries verification depth, not recency: a freshly-added row at EVERY verification depth renders its depth tone, never a NEW tone (owner decision)', () => {
     // The regression the owner reported: recency outranked verification
     // depth, so fresh community pins read as one unverified tone. The pin
     // now expresses depth ONLY — a freshly-added row with one confirmed
     // channel is the partial shape, two+ is the full shape, and a fresh
     // no-depth row keeps the community tone alongside CONFIRMED rows
-    // (the "Newly added" badge, not the pin, says NEW).
+    // (the "Newly added" badge, not the pin, says NEW). Every depth the
+    // model carries is rendered here, so a re-introduced recency tone
+    // cannot hide in a depth nobody renders.
+    const freshEmail = shelter({
+      id: 42,
+      name: 'Fresh Email',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      submitterVerification: 'EMAIL',
+    });
+    const freshSmartId = shelter({
+      id: 43,
+      name: 'Fresh Smart-ID',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      submitterVerification: 'SMART_ID',
+    });
     const freshPartial = shelter({
       id: 40,
       name: 'Fresh Partial',
@@ -249,14 +266,31 @@ describe('LeafletService', () => {
       reviewStatus: 'NEW',
       submitterVerification: 'FULL',
     });
-    service.renderShelters([freshPartial, freshFull, BASEMENT, CONFIRMED_BASEMENT]);
+    service.renderShelters([
+      freshEmail,
+      freshSmartId,
+      freshPartial,
+      freshFull,
+      BASEMENT,
+      CONFIRMED_BASEMENT,
+    ]);
 
     const markers = renderedMarkers(container);
+    // One confirmed channel -> the partial shape, whatever the channel is.
+    expect(
+      markers.find((m) => m.title === 'Fresh Email')?.classList.contains('shelter-marker--partial'),
+    ).toBe(true);
+    expect(
+      markers
+        .find((m) => m.title === 'Fresh Smart-ID')
+        ?.classList.contains('shelter-marker--partial'),
+    ).toBe(true);
     expect(
       markers
         .find((m) => m.title === 'Fresh Partial')
         ?.classList.contains('shelter-marker--partial'),
     ).toBe(true);
+    // Two or more channels -> the full shape.
     expect(
       markers.find((m) => m.title === 'Fresh Full')?.classList.contains('shelter-marker--full'),
     ).toBe(true);
@@ -654,5 +688,49 @@ describe('LeafletService', () => {
     service.create(container);
     service.renderShelters([BASEMENT]);
     expect(renderedMarkers(container)).toHaveLength(1);
+  });
+});
+
+describe('markerTone — the tone resolution the pin is made of', () => {
+  // The behavioural home of the absence pin (the 15-delivery-audit U6
+  // hardening): the pin is asserted on what the resolution ACTUALLY
+  // produces for a freshly-added row at every verification depth, in the
+  // same currency as the behaviour — not on the stylesheet's bytes. The
+  // input type has no recency field and the range has no recency term:
+  // a re-introduced NEW tone is a signature change this suite must see.
+  const fresh = (
+    submitterVerification: 'EMAIL' | 'PHONE' | 'SMART_ID' | 'FULL' | null | undefined,
+  ) => markerTone({ source: 'USER', nonexistentReports: 0, submitterVerification });
+
+  it('a freshly-added community row resolves its depth tone for EVERY verification depth, never a recency tone (owner decision)', () => {
+    // No depth the backend reports (older API, deleted author) -> the
+    // community tone, identical to a CONFIRMED no-depth row.
+    expect(fresh(undefined)).toBe('user');
+    expect(fresh(null)).toBe('user');
+    // Exactly one confirmed channel -> the partial shape, whatever channel.
+    expect(fresh('EMAIL')).toBe('partial');
+    expect(fresh('PHONE')).toBe('partial');
+    expect(fresh('SMART_ID')).toBe('partial');
+    // Two or more channels -> the full shape.
+    expect(fresh('FULL')).toBe('full');
+  });
+
+  it('a fresh row with an open report of EITHER kind resolves reported, beating the depth tone (W2-B)', () => {
+    expect(
+      markerTone({ source: 'USER', nonexistentReports: 1, submitterVerification: 'FULL' }),
+    ).toBe('reported');
+    expect(
+      markerTone({
+        source: 'USER',
+        nonexistentReports: 0,
+        inaccurateReports: 1,
+        submitterVerification: 'FULL',
+      }),
+    ).toBe('reported');
+  });
+
+  it('registry rows resolve registry — the recency of a registry row never enters the tone', () => {
+    expect(markerTone({ source: 'PAASETEAMET', nonexistentReports: 0 })).toBe('registry');
+    expect(markerTone({ source: 'MUNICIPALITY', nonexistentReports: 0 })).toBe('registry');
   });
 });

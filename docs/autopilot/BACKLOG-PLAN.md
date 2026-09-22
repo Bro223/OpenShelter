@@ -260,6 +260,15 @@ Constraints that make this safe and the reason it is one lane:
 
 ---
 
+## Wave 8 — mobile legend placement and the filter cleanup (owner requests, queued)
+
+**Dispatch after TAIL-FIXES releases `map-page.spec.ts` and the pin specs.**
+
+1. **Bring the legend out of the map element on small screens.** On mobile and tablet the legend overlays the map heavily enough that the map itself is hard to see. At the small breakpoints it must render **outside** the map container (e.g. below it in the page flow) rather than absolutely positioned over it, while staying inside/over the map at desktop widths where there is room. Verify at the real breakpoints rather than at one width, and check the interaction with the legend-as-filter control added in Wave 7 — the control must remain reachable and keyboard-operable in both placements, and the affordance line must still be visible next to it. Bootstrap/`styles.scss` breakpoint tokens are the single source; do not invent new breakpoints.
+2. **Remove the source-kind filter chips — `Kõik` (All), `Register` (Registry), `Kasutaja` (User).** They are the leftover duplicate of the Wave 7 legend filter, which was meant to absorb them; the owner wants them gone so there is exactly one filter control. Check for anything that still reads their state (URL parameter, a spec, an empty-state message, an accessibility label) and remove it coherently rather than deleting only the markup. If the legend filter does not yet cover the registry-versus-user distinction these chips carried, say so explicitly instead of silently losing the ability to filter by source.
+
+---
+
 ## Owner-side queue
 
 1. **ET/RU review packet** — the corpus plus the 38 new strings; every Estonian defect this week
