@@ -9,6 +9,7 @@ import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
 
+import javax.sql.DataSource;
+
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +42,48 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>Measures the real DB work through {@code pg_stat_user_tables} deltas
  * around MockMvc requests (this class is deliberately NOT {@code
  * @Transactional}: every request gets a fresh persistence context, so the
- * statements you see here are the statements production runs). Because
- * the ITs share ONE Testcontainers database, every test WIPES its own
- * committed rows afterwards (the base class' {@code wipeAllTables} plus
- * the guidance tables this class seeds) — leaked corpus rows would
- * distort the statistics deltas AND poison the list-order assertions of
- * the ITs that run after this class. Two guards:
+ * statements you see here are the statements production runs).
+ *
+ * <p><strong>Dedicated database.</strong> Those deltas are only meaningful
+ * on a database nobody else writes to. On the shared database (locally the
+ * base class' Testcontainers container; in CI the service Postgres every
+ * IT is pointed at via {@code -Dit.db.url}) a neighbour IT's statement
+ * aggregated into the measured window shifts the deltas by construction,
+ * and the retry below cannot help a window that stays polluted through the
+ * whole retry budget. So this class opts out of the shared datasource:
+ * its static initialiser (which runs AFTER the base class' static block)
+ * starts its own container and points the documented {@code it.db.*} seam
+ * at it for the duration of the class — the base class' {@code
+ * datasource()} reads those properties at context start and takes its
+ * external-database branch, wiring this class' whole Spring context (app,
+ * JdbcTemplate, MockMvc) to the dedicated database. {@code @AfterAll}
+ * restores the original property values and stops the container, so every
+ * other test class resolves exactly the datasource it had before: locally
+ * the shared container, in CI the service database. The switch is proved
+ * from the test itself —
+ * {@link #theMeasurementRunsAgainstTheDedicatedDatabase()} asserts the
+ * LIVE connection's JDBC URL against the dedicated container's — and a
+ * fresh database makes the settled bands honest: the corpus is exactly
+ * this class' own rows.
+ *
+ * <p><strong>Why the class-unique {@code app.cost-measurement} property:</strong>
+ * {@code @DynamicPropertySource} values (including the datasource URL)
+ * are NOT part of the Spring test context cache key — only the
+ * annotation-level configuration is. Two classes with an otherwise
+ * identical context signature (e.g. {@code AdminSeederIT} pins this
+ * class' exact six properties) SHARE one cached context, whose
+ * datasource is frozen at whatever the FIRST owner's dynamic properties
+ * resolved to: in the full suite this class silently inherited a
+ * service/shared-database context and measured on the wrong database
+ * (caught by the live-URL test). The class-unique property below makes
+ * this class' cache key unmatchable by any other class, so it always
+ * gets its own freshly created context — and its datasource supplier
+ * is evaluated while the {@code it.db.*} properties point at the
+ * dedicated container. As with every deliberately non-transactional IT,
+ * each test still WIPES its own committed rows afterwards (the targeted
+ * wipe in {@link #wipeOwnRows()}) so a failed attempt cannot leave dead
+ * rows behind to distort the deltas of the tests that follow in this
+ * class. Two guards:
  *
  * <ul>
  * <li>the admin shelter list — before the W2-A change, every page (including
@@ -63,7 +105,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
-        "app.ratelimit.register-refill-per-second=0"
+        "app.ratelimit.register-refill-per-second=0",
+        // CLASS-UNIQUE CONTEXT CACHE SENTINEL — do not remove. The test
+        // context cache key ignores @DynamicPropertySource values, so
+        // without a property no other class can have, this class would
+        // share its cached context with any identically configured IT
+        // (AdminSeederIT pins the exact same six properties above) and
+        // silently inherit that context's frozen datasource — the shared
+        // database — instead of the dedicated one. This key-unique
+        // property guarantees a fresh context for this class; see the
+        // class javadoc. The app ignores unknown properties, so the
+        // value is inert beyond the cache key.
+        "app.cost-measurement.dedicated-database=true"
 })
 class ShelterPagingCostIT extends AbstractPersistenceIT {
 
@@ -80,6 +133,61 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
 
     /** Published posts for the guidance measurement. */
     private static final int POSTS = 6;
+
+    /**
+     * The dedicated database this class measures on — a container of its
+     * own that no other test class ever connects to, so its
+     * {@code pg_stat_user_tables} counters aggregate ONLY this class'
+     * statements. Mechanism: the base class' {@code datasource()}
+     * resolves the datasource from the {@code it.db.*} system properties
+     * AT CONTEXT START (the documented no-Docker fallback seam, the same
+     * one CI's {@code -Dit.db.url} uses), so pointing those properties at
+     * this container for the duration of the class is enough — the base
+     * class' own branch wires this class' context to it, and no other
+     * class' datasource is affected, because every other context resolves
+     * the properties at ITS OWN context start, when they hold the
+     * originals. {@link #restoreItDbPropertiesAndStopTheDedicatedDatabase()}
+     * is what makes that true.
+     */
+    static final PostgreSQLContainer<?> COST_POSTGRES = new PostgreSQLContainer<>("postgres:16")
+            .withDatabaseName("sheltermap_it_cost");
+
+    /** The it.db.* values BEFORE this class touched them (null = unset). */
+    private static final Map<String, String> IT_DB_ORIGINALS = new LinkedHashMap<>();
+
+    static {
+        // AFTER the base class' static block has already run (it starts the
+        // shared container only when it.db.url is absent — in CI it is set
+        // for the whole test JVM, so there is no shared container at all).
+        for (String key : List.of("it.db.url", "it.db.username", "it.db.password")) {
+            IT_DB_ORIGINALS.put(key, System.getProperty(key));
+        }
+        COST_POSTGRES.start();
+        System.setProperty("it.db.url", COST_POSTGRES.getJdbcUrl());
+        System.setProperty("it.db.username", COST_POSTGRES.getUsername());
+        System.setProperty("it.db.password", COST_POSTGRES.getPassword());
+    }
+
+    /**
+     * Restores the it.db.* seam to what it was and stops the dedicated
+     * container — so the classes that run after this one in the same JVM
+     * see exactly the datasource the base class would have given them
+     * (locally the shared Testcontainers container, in CI the service
+     * database). Runs even when a test method failed; it cannot run when
+     * the static initialiser itself failed, and in that case the
+     * properties were never touched.
+     */
+    @AfterAll
+    static void restoreItDbPropertiesAndStopTheDedicatedDatabase() {
+        IT_DB_ORIGINALS.forEach((key, original) -> {
+            if (original == null) {
+                System.clearProperty(key);
+            } else {
+                System.setProperty(key, original);
+            }
+        });
+        COST_POSTGRES.stop();
+    }
 
     /**
      * The settled-window tuple bands (inclusive), one per measured limit.
@@ -110,21 +218,47 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
 
     @AfterEach
     void wipeOwnRows() {
-        // The shared-container discipline for the DELIBERATELY non-
-        // transactional ITs — but TARGETED, not the base class' blanket
-        // wipe: this cleanup removes only what THIS class committed: the
-        // guidance corpus (translations first — the FK child), the corpus
-        // shelters (the class-unique name prefix — no other class seeds
-        // that shape), and the guidance author. The provisioned admin row
-        // is self-healing anyway — the base @BeforeEach re-runs the
-        // create-if-absent seeder before every test — but the minimal
-        // footprint keeps this class' rows out of other ITs' row counts.
+        // The deliberately-non-transactional IT discipline — targeted,
+        // not the base class' blanket wipe: this cleanup removes only
+        // what THIS class committed: the guidance corpus (translations
+        // first — the FK child), the corpus shelters (the class-unique
+        // name prefix — no other class seeds that shape), and the
+        // guidance author. On the dedicated database this keeps a failed
+        // attempt's dead rows out of the NEXT test's measured deltas in
+        // this same class (COUNT(*) seq scans read visibility-filtered
+        // dead tuples). The provisioned admin row is self-healing
+        // anyway — the base @BeforeEach re-runs the create-if-absent
+        // seeder before every test.
         jdbc.execute("TRUNCATE guidance_post_translations, guidance_posts RESTART IDENTITY");
         jdbc.update("DELETE FROM shelters WHERE name LIKE 'W2A-COST-%'");
         try {
             jdbc.update("DELETE FROM users WHERE id = ?", userIdByEmail("w2acost@example.ee"));
         } catch (org.springframework.dao.EmptyResultDataAccessException absent) {
             // the guidance test did not run (or already cleaned) — nothing to do
+        }
+    }
+
+    // ---------- the measurement is provably on the dedicated database ----------
+
+    @Test
+    void theMeasurementRunsAgainstTheDedicatedDatabase() throws Exception {
+        // Proof of isolation FROM THE TEST, not from configuration: the
+        // JDBC URL of the LIVE connection the app runs on (the autowired
+        // JdbcTemplate's DataSource — the same pool every MockMvc request
+        // in this class executes through) must be the dedicated
+        // container's URL. If this class ever silently ran on the
+        // shared/service database, this assertion fails and the cost
+        // measurement's isolation claim is void — a test that cannot
+        // prove where it measures is a hollow guard.
+        DataSource appDataSource = jdbc.getDataSource();
+        try (Connection c = appDataSource.getConnection()) {
+            DatabaseMetaData md = c.getMetaData();
+            String url = md.getURL();
+            System.out.println("COST dedicated database: JDBC URL=" + url + " "
+                    + md.getDatabaseProductName() + " " + md.getDatabaseProductVersion());
+            assertThat(url)
+                    .as("the cost measurement must run on its dedicated database, not the shared one")
+                    .isEqualTo(COST_POSTGRES.getJdbcUrl());
         }
     }
 
