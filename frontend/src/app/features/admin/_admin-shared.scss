@@ -15,7 +15,10 @@
   font-size: var(--text-md);
 
   &--error {
+    /* The weight is the non-colour error cue (WCAG 1.4.1): in black-and-
+       yellow this line is the theme yellow like any other text. */
     color: var(--color-danger);
+    font-weight: var(--font-weight-medium);
   }
 }
 
@@ -239,7 +242,10 @@
   }
 
   &__error {
+    /* The weight is the non-colour error cue (WCAG 1.4.1): in black-and-
+       yellow this line is the theme yellow like any other text. */
     font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
     color: var(--color-error);
   }
 
