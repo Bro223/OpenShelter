@@ -100,3 +100,6 @@ data/media/
 
 # Angular build cache (generated at the repo root when a build is run from here)
 /.angular/
+
+# The template is documentation the env-completeness guard verifies; only real secrets are ignored.
+!.env.example
