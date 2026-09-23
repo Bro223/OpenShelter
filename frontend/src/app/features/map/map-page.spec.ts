@@ -2121,7 +2121,7 @@ describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
     const legend = media.match(/\.map-legend \{[\s\S]*?\n  \}/)?.[0] ?? '';
     expect(
       legend,
-      'the legend must be re-positioned inside the narrow block (the wave-8 move out of the map)',
+      'the legend must be re-positioned inside the narrow block (the move out of the map on narrow viewports)',
     ).not.toEqual('');
     // position: static = in flow: the legend is a normal block of the stacked
     // column, its width IS the page width (320px of content at 360px). The
