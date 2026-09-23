@@ -145,22 +145,23 @@ public abstract class AbstractPersistenceIT {
      * Re-runs the env-provisioned admin seeder ({@link AdminSeeder#run}).
      *
      * <p><strong>Why per test, not only at context start:</strong> every IT
-     * context pools against the ONE shared Testcontainers Postgres, and the
-     * race ITs are deliberately NOT {@code @Transactional} — their
-     * {@link #wipeAllTables()} in {@code @AfterEach} truncates the shared
-     * {@code users} table, the provisioned admin row included. Surefire's
-     * class order is filesystem-scan-dependent, so without a per-test
-     * reseed a wipe can land between any two classes and turn the next
-     * class's admin login into a generic 401 (first observed in
-     * {@code SiteTextsApiIT}). The seeder is create-if-absent and
+     * context pools against the ONE shared database, and the race ITs are
+     * deliberately NOT {@code @Transactional} — they commit their own
+     * fixture rows and clean them up in {@code @AfterEach} (scoped deletes
+     * per the CLEANUP_CONTRACT comment below in this class). The seeder is create-if-absent and
      * idempotent, so re-running it before every test makes admin presence
-     * self-healing and the suite order-independent: a new IT class that
-     * logs in as admin inherits this protection without per-class code.
-     * In {@code @Transactional} classes the seeder joins the test
-     * transaction and rolls back with it (the INSERT is immediate —
+     * self-healing — it recreates the row if ANYTHING ever removed it —
+     * and keeps the suite order-independent: a new IT class that logs in as
+     * admin inherits this protection without per-class code. In
+     * {@code @Transactional} classes the seeder joins the test transaction
+     * and rolls back with it (the INSERT is immediate —
      * {@code UserEntity} uses IDENTITY ids — so raw-JDBC lookups in
      * {@code @BeforeEach} see the row); in the non-transactional race ITs
-     * it commits in its own transaction.
+     * it commits in its own transaction. Historically a class-order wipe of
+     * the shared {@code users} table turned the next class's admin login
+     * into a generic 401 (first observed in {@code SiteTextsApiIT}); the
+     * per-test reseed closed that, and the scoped cleanup contract below
+     * removed the destruction itself.
      */
     protected final void seedAdmin() {
         adminSeeder.run(null);
@@ -169,8 +170,9 @@ public abstract class AbstractPersistenceIT {
     /**
      * The per-test admin reseed: JUnit runs superclass
      * {@code @BeforeEach} methods first, so this runs before every test of
-     * every IT subclass, before any subclass setup or admin login. This is
-     * the shared-container hazard fix — see {@link #seedAdmin()}.
+     * every IT subclass, before any subclass setup or admin login.
+     * Self-healing backstop for the provisioned admin rows — see
+     * {@link #seedAdmin()} and the cleanup contract below.
      */
     @BeforeEach
     void reseedProvisionedAdmin() {
@@ -188,22 +190,34 @@ public abstract class AbstractPersistenceIT {
                 piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(email)));
     }
 
-    /**
-     * Wipes every table — for the ITs that are DELIBERATELY not
-     * {@code @Transactional} (race tests: the workers run in their own
-     * committed transactions, so their rows would otherwise leak into other
-     * ITs' row counts on the shared container). Call from @AfterEach.
+    /*
+     * CLEANUP_CONTRACT — the rule for the ITs that are DELIBERATELY not
+     * @Transactional (race tests: the workers run in their own committed
+     * transactions, so their rows would otherwise leak into other ITs' row
+     * counts on the shared database). Clean up in @AfterEach ONLY the rows
+     * THIS class committed — the class-unique root rows (users, shelters,
+     * guidance posts) — and nothing else:
      *
-     * <p>The TRUNCATE also removes the provisioned admin row — that is
-     * SAFE for every admin-login IT, because
-     * {@link #reseedProvisionedAdmin()} re-runs the create-if-absent
-     * seeder before the next test in ANY class. Do not "help" a sibling
-     * IT by re-adding a per-class seeder call: the base hook covers it.
+     *   1. FK children of users/shelters cascade on delete (user_credentials,
+     *      verification_claims, refresh_tokens, pending_verifications,
+     *      pending_contact_changes, password_reset_tokens, shelter_reports
+     *      and the other report tables, shelter_open_status,
+     *      shelter_info_requests), so deleting the class' own root rows is
+     *      enough for everything except the two audit-log exceptions:
+     *   2. moderation_actions has NO FK on shelter_id (dangling id = deleted
+     *      shelter, by design) and its guidance rows carry a NULL
+     *      shelter_id — a class that committed audit rows deletes them
+     *      explicitly (scoped by its own shelter ids / moderator id);
+     *   3. guidance_post_translations must be deleted before its
+     *      guidance_posts (the translation FK).
+     *
+     * NEVER wipe tables or rows the class did not write. Every context's
+     * provisioned admin row coexists in this ONE shared database, and the
+     * blanket TRUNCATE that used to live here (wipeAllTables) destroyed the
+     * admin rows the OTHER contexts had seeded — self-healed for the admin
+     * login only by reseedProvisionedAdmin(), never for anything else a
+     * class might have depended on, and with RESTART IDENTITY it also reset
+     * every identity sequence in the database. See
+     * ShelterPagingCostIT#wipeOwnRows() for the idiom.
      */
-    protected final void wipeAllTables() {
-        jdbcTemplate.execute(
-                "TRUNCATE password_reset_tokens, refresh_tokens, "
-                        + "pending_contact_changes, pending_verifications, user_credentials, "
-                        + "verification_claims, moderation_actions, shelters, users RESTART IDENTITY CASCADE");
-    }
 }

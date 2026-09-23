@@ -12,8 +12,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,7 +30,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>Each step runs in its OWN transaction (deliberately not {@code
  * @Transactional}): the reader's entity must be detached before the
- * concurrent writer commits.
+ * concurrent writer commits. {@link #cleanUpCommittedRows()} removes only
+ * THIS class' own shelters afterwards (the base cleanup contract) — the
+ * shared database keeps everyone else's state.
  */
 class ShelterOptimisticLockingIT extends AbstractPersistenceIT {
 
@@ -39,9 +45,21 @@ class ShelterOptimisticLockingIT extends AbstractPersistenceIT {
     @Autowired
     PlatformTransactionManager txManager;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /** This class' own committed shelters (the cleanup deletes exactly these). */
+    private final List<Long> ownShelterIds = new ArrayList<>();
+
     @AfterEach
     void cleanUpCommittedRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): the shelters' ids — NOT their
+        // names, which the concurrent writers change mid-test — the only
+        // rows this class commits; shelter child tables cascade.
+        for (Long id : ownShelterIds) {
+            jdbc.update("DELETE FROM shelters WHERE id = ?", id);
+        }
+        ownShelterIds.clear();
     }
 
     @Test
@@ -50,6 +68,7 @@ class ShelterOptimisticLockingIT extends AbstractPersistenceIT {
                 ShelterStatus.ACTIVE, "optlock-1", ShelterSource.PAASETEAMET);
         shelters.save(shelter);
         Long id = shelter.getId();
+        ownShelterIds.add(id);
 
         TransactionTemplate tx = new TransactionTemplate(txManager);
 
@@ -80,6 +99,7 @@ class ShelterOptimisticLockingIT extends AbstractPersistenceIT {
         Shelter shelter = new Shelter("Optimistic varjend 2", new GeoPoint(59.4, 24.7),
                 ShelterStatus.ACTIVE, "optlock-2", ShelterSource.PAASETEAMET);
         shelters.save(shelter);
+        ownShelterIds.add(shelter.getId());
 
         TransactionTemplate tx = new TransactionTemplate(txManager);
         Long before = tx.execute(status -> entities.findById(shelter.getId()).orElseThrow().getVersion());

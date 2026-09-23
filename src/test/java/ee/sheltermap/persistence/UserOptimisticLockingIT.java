@@ -10,10 +10,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,6 +36,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @Transactional}): the reader's snapshot must be detached (and stale)
  * before the concurrent writer commits — the same shape as
  * {@code ShelterOptimisticLockingIT} for V8's shelters.version.
+ * {@link #cleanUpCommittedRows()} removes only THIS class' own users
+ * afterwards (the base cleanup contract) — the shared database keeps
+ * everyone else's state, provisioned admin rows included.
  */
 class UserOptimisticLockingIT extends AbstractPersistenceIT {
 
@@ -42,14 +48,26 @@ class UserOptimisticLockingIT extends AbstractPersistenceIT {
     @Autowired
     PlatformTransactionManager txManager;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /** This class' own committed users (the cleanup deletes exactly these). */
+    private final List<Long> ownUserIds = new ArrayList<>();
+
     @AfterEach
     void cleanUpCommittedRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): credentials / claims / suspension
+        // state all cascade from users.
+        for (Long id : ownUserIds) {
+            jdbc.update("DELETE FROM users WHERE id = ?", id);
+        }
+        ownUserIds.clear();
     }
 
     @Test
     void staleWholeRowSaveCannotClobberASuspension() {
         RegisteredUser saved = saveUser(users, "stale-suspension@example.ee", "+37250009999");
+        ownUserIds.add(saved.getId());
         String originalName = saved.getData().name();
         TransactionTemplate tx = new TransactionTemplate(txManager);
 
@@ -91,6 +109,7 @@ class UserOptimisticLockingIT extends AbstractPersistenceIT {
     @Test
     void aFreshSnapshotSavesAndBumpsTheVersion() {
         RegisteredUser saved = saveUser(users, "version-bump@example.ee", "+37250009998");
+        ownUserIds.add(saved.getId());
         TransactionTemplate tx = new TransactionTemplate(txManager);
 
         Long initial = tx.execute(status -> users.findById(saved.getId()).getVersion());

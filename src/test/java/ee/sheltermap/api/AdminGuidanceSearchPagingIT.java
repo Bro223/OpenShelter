@@ -44,7 +44,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </ul>
  *
  * <p>Deliberately NOT {@code @Transactional} (the {@link GuidanceOrderIT}
- * shape): committed rows are wiped per test.
+ * shape): committed rows are cleaned up per test — scoped to THIS class' own
+ * rows only (the base cleanup contract), so the other contexts' provisioned
+ * admin rows and every other IT's fixtures survive untouched.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -72,18 +74,26 @@ class AdminGuidanceSearchPagingIT extends AbstractPersistenceIT {
     @BeforeEach
     void seed() throws Exception {
         // The provisioned admin is (re-)seeded by the base @BeforeEach
-        // (create-if-absent, immune to the @AfterEach wipe below).
+        // (create-if-absent); the @AfterEach below only removes THIS class'
+        // own rows, so the admin row itself is never touched.
         adminId = userIdByEmail("admin-search@example.ee");
         adminToken = login();
     }
 
     @AfterEach
     void cleanUpCommittedRows() {
-        // The guidance tables are not in the base wipe list — delete them
-        // first (the translation FK), then the base auth/moderation wipe.
-        jdbc.execute("DELETE FROM guidance_post_translations");
-        jdbc.execute("DELETE FROM guidance_posts");
-        wipeAllTables();
+        // Scoped (base cleanup contract): only this class' own committed
+        // rows — the posts this class-unique admin created (translations
+        // first: the translation FK), plus the guidance audit rows, which
+        // carry no FK to the posts (shelter_id is FK-less by design and the
+        // label-based rows use a dummy shelter id) and would otherwise
+        // leak. No other class' rows can match this admin's id.
+        jdbc.update("DELETE FROM guidance_post_translations WHERE post_id IN "
+                + "(SELECT id FROM guidance_posts WHERE created_by = ?)", adminId);
+        jdbc.update("DELETE FROM guidance_posts WHERE created_by = ?", adminId);
+        jdbc.update("DELETE FROM moderation_actions WHERE moderator_id = ? AND "
+                + "action IN ('GUIDANCE_REORDER', 'GUIDANCE_PUBLISH', 'GUIDANCE_UNPUBLISH', "
+                + "'GUIDANCE_DELETE')", adminId);
     }
 
     // ------------------------------------------------------------- helpers

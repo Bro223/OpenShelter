@@ -14,6 +14,7 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -41,8 +42,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Deliberately NOT {@code @Transactional}: the worker threads run in
  * their own committed transactions (the workers' rows must be visible to
  * each other's cap checks), so the race's writes are meant to persist.
- * {@link #cleanUpCommittedRaceRows()} wipes the shared container's tables
- * afterwards, the same convention as the other race ITs.
+ * {@link #cleanUpCommittedRaceRows()} removes only THIS class' own rows
+ * afterwards (the base cleanup contract) — the shared database keeps
+ * everyone else's state, provisioned admin rows included.
  *
  * <p>The PRODUCTION {@code ShelterService} bean is used (not a hand-built
  * one): the {@code @Transactional} boundary that makes the per-user lock
@@ -62,6 +64,12 @@ class ShelterSubmissionCapRaceIT extends AbstractPersistenceIT {
     @Autowired
     ShelterService service;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /** This test's own committed user (the cleanup deletes it + its shelters). */
+    private long ownUserId;
+
     /**
      * 11 submissions (9 seeds + 2 contenders) would otherwise trip the
      * default 5-per-24 h daily cap before the active-count cap — this
@@ -74,12 +82,17 @@ class ShelterSubmissionCapRaceIT extends AbstractPersistenceIT {
 
     @AfterEach
     void cleanUpCommittedRaceRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): the user's shelters first —
+        // shelters.created_by is ON DELETE SET NULL, so a user-first delete
+        // would orphan them — then the user (credentials/claims cascade).
+        jdbc.update("DELETE FROM shelters WHERE created_by = ?", ownUserId);
+        jdbc.update("DELETE FROM users WHERE id = ?", ownUserId);
     }
 
     @Test
     void twoConcurrentTenthSubmissionsExactlyOneWins() throws Exception {
         RegisteredUser user = saveUser(users, "cap-race@example.ee", "+37250008888");
+        ownUserId = user.getId();
         // canWrite() needs a verified level (the default policy grants
         // SUBMIT_SHELTER from any one claim).
         user.addVerification(new VerificationClaim(VerificationLevel.PHONE, "sms",

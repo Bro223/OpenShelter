@@ -7,8 +7,11 @@ import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,8 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>Deliberately NOT {@code @Transactional}: the fixture rows are plain
  * committed rows (the duplicate is exactly the state a racy double send
- * commits), and {@link #cleanUpCommittedRaceRows()} wipes the shared
- * container afterwards.
+ * commits). {@link #cleanUpCommittedRaceRows()} removes only THIS class' own
+ * committed rows afterwards (the base cleanup contract) — the shared
+ * database keeps everyone else's state, provisioned admin rows included.
  */
 class PendingVerificationDuplicateIT extends AbstractPersistenceIT {
 
@@ -44,14 +48,27 @@ class PendingVerificationDuplicateIT extends AbstractPersistenceIT {
     @Autowired
     VerificationService verificationService;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /** This class' own committed users (the cleanup deletes exactly these). */
+    private final List<Long> ownUserIds = new ArrayList<>();
+
     @AfterEach
     void cleanUpCommittedRaceRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): these users' rows are the only
+        // ones this class commits — pending_verifications / claims /
+        // credentials all cascade from users.
+        for (Long id : ownUserIds) {
+            jdbc.update("DELETE FROM users WHERE id = ?", id);
+        }
+        ownUserIds.clear();
     }
 
     @Test
     void twoActiveRowsForOneUserAndLevelReadAsOneInsteadOf500() {
         RegisteredUser user = saveUser(users, "dup-read@example.ee", "+37250006661");
+        ownUserIds.add(user.getId());
         Instant now = Instant.now();
         savePending(user.getId(), "111111", now.plusSeconds(300));
         savePending(user.getId(), "222222", now.plusSeconds(310));
@@ -69,6 +86,7 @@ class PendingVerificationDuplicateIT extends AbstractPersistenceIT {
     @Test
     void confirmSucceedsWithTheNewestCodeWhenDuplicatesCoexist() {
         RegisteredUser user = saveUser(users, "dup-confirm@example.ee", "+37250006662");
+        ownUserIds.add(user.getId());
         Instant now = Instant.now();
         savePending(user.getId(), "111111", now.plusSeconds(300));
         savePending(user.getId(), "222222", now.plusSeconds(310));

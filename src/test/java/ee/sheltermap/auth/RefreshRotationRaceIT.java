@@ -1,11 +1,13 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.auth.JwtTokenService;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -38,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * their own transactions and need the user + issued token committed to be
  * visible, and the race's writes are meant to persist. A unique contact
  * keeps the committed rows from colliding with other ITs' fixtures.
+ * {@link #cleanUpCommittedRaceRows()} removes only THIS class' own user
+ * afterwards (the base cleanup contract) — the shared database keeps
+ * everyone else's state, provisioned admin rows included.
  */
 class RefreshRotationRaceIT extends AbstractPersistenceIT {
 
@@ -50,14 +55,22 @@ class RefreshRotationRaceIT extends AbstractPersistenceIT {
     @Autowired
     RefreshTokenRepository refreshTokens;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
+    /** This test's own committed user (the cleanup deletes it + its tokens). */
+    private long ownUserId;
+
     @AfterEach
     void cleanUpCommittedRaceRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): refresh_tokens cascade from users.
+        jdbc.update("DELETE FROM users WHERE id = ?", ownUserId);
     }
 
     @Test
     void concurrentDoubleRefreshRedeemsTheTokenExactlyOnce() throws Exception {
         RegisteredUser user = saveUser(users, "refresh-race@example.ee", "+37250007777");
+        ownUserId = user.getId();
         TokenResponse issued = tokens.issue(user);
         String refreshToken = issued.refreshToken();
 

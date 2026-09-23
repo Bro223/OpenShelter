@@ -25,6 +25,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -118,8 +120,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * <p>Deliberately NOT {@code @Transactional}: the worker threads run in
  * their own committed transactions (the workers' rows must be visible to
  * each other's tallies), so the race's writes are meant to persist.
- * {@link #cleanUpCommittedRaceRows()} wipes the shared container's tables
- * afterwards, the same convention as the other race ITs. The PRODUCTION
+ * {@link #cleanUpCommittedRaceRows()} removes only THIS class' own rows
+ * afterwards (the base cleanup contract) — the shared database keeps
+ * everyone else's state, provisioned admin rows included. The PRODUCTION
  * service bean sits behind the MockMvc dispatch — the {@code @Transactional}
  * boundary this test proves is the production wiring.
  */
@@ -161,9 +164,34 @@ class ShelterTallyCrossingRaceIT extends AbstractPersistenceIT {
 
     private int nextContact = 1;
 
+    /** This class' own committed users (the cleanup deletes exactly these). */
+    private final List<Long> ownUserIds = new ArrayList<>();
+
+    /** This class' own committed shelters (audit rows are scoped by these). */
+    private final List<Long> ownShelterIds = new ArrayList<>();
+
     @AfterEach
     void cleanUpCommittedRaceRows() {
-        wipeAllTables();
+        // Scoped (base cleanup contract): track the ids in code — the users
+        // table stores blind-indexed contacts (the email column is the v1:
+        // hash, never the plain address), so a pattern match on it could
+        // never match. The crossing commits AUTO_CONFIRM / REVIEW_HIDE
+        // audit rows, which carry NO FK to the shelters (shelter_id is
+        // FK-less by design) — delete them scoped to the class' shelters
+        // first, then the shelters (created_by is ON DELETE SET NULL, so a
+        // user-first delete would orphan them), then the users
+        // (credentials/claims/reports/tokens cascade).
+        for (Long shelterId : ownShelterIds) {
+            jdbc.update("DELETE FROM moderation_actions WHERE shelter_id = ?", shelterId);
+        }
+        for (Long shelterId : ownShelterIds) {
+            jdbc.update("DELETE FROM shelters WHERE id = ?", shelterId);
+        }
+        for (Long userId : ownUserIds) {
+            jdbc.update("DELETE FROM users WHERE id = ?", userId);
+        }
+        ownUserIds.clear();
+        ownShelterIds.clear();
     }
 
     // ---------- the positive crossing: two racers race the 3rd distinct confirmation ----------
@@ -292,6 +320,7 @@ class ShelterTallyCrossingRaceIT extends AbstractPersistenceIT {
         author.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp",
                 email, Instant.now()));
         users.save(author);
+        ownUserIds.add(author.getId());
 
         Shelter shelter = new Shelter(name, new GeoPoint(58.30 + (nextContact % 100) * 0.01,
                 24.10 + (nextContact % 100) * 0.01),
@@ -301,6 +330,7 @@ class ShelterTallyCrossingRaceIT extends AbstractPersistenceIT {
         // is CONFIRMED for registry backfill) — set it explicitly.
         shelter.setReviewStatus(ReviewStatus.NEW);
         shelters.save(shelter);
+        ownShelterIds.add(shelter.getId());
         return shelter.getId();
     }
 
@@ -312,6 +342,7 @@ class ShelterTallyCrossingRaceIT extends AbstractPersistenceIT {
         user.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp",
                 email, Instant.now()));
         users.save(user);
+        ownUserIds.add(user.getId());
         return new Racer(user.getId(), tokens.issue(user).accessToken());
     }
 

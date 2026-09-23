@@ -70,8 +70,10 @@ class SiteTextsApiIT extends AbstractPersistenceIT {
     @BeforeEach
     void setUp() throws Exception {
         // The provisioned admin is (re-)seeded by the base @BeforeEach
-        // before this setUp — create-if-absent, immune to a preceding
-        // race IT's wipeAllTables().
+        // before this setUp — create-if-absent, and the non-transactional
+        // race ITs now clean up only their OWN rows, so the admin row
+        // survives every class-order permutation (the base reseed remains
+        // as the self-healing backstop).
         adminToken = adminToken();
         // A regular (non-admin) account for the 403 leg (the AdminAlertsIT
         // verified-user idiom: email-verified row, token issued directly).
