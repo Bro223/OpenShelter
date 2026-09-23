@@ -173,14 +173,22 @@ class AccountDeletionIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void anUnverifiedUserCannotDelete() throws Exception {
+    void anUnverifiedUserCanDelete() throws Exception {
+        // DELETE-UNVERIFIED: erasure is a right of any AUTHENTICATED user —
+        // it must not depend on passing identity verification. A freshly
+        // created (unverified) account is deletable; before the fix this was
+        // refused with 403 "requires a verified account", trapping a user who
+        // cannot verify (no phone, no smart-ID). RED-FIRST: this assertion
+        // FAILED (403) before the fix and passes (204 + full erasure) after.
         Auth user = registerUnverified("Vermata", "vermata-del@example.ee", "+3725003001", "vermata-pass");
 
         mvc.perform(delete("/account").header("Authorization", "Bearer " + user.token()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNoContent());
 
-        // nothing was erased
-        assertThat(users.findByEmail(user.email())).isNotNull();
+        // the account is fully erased, exactly like the verified path
+        assertThat(users.findById(user.id())).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM users WHERE id = ?", Long.class, user.id())).isZero();
     }
 
     @Test

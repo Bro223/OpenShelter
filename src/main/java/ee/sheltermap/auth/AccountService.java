@@ -33,9 +33,6 @@ import java.util.stream.Stream;
 @Service
 public class AccountService {
 
-    /** The verified-user gate message for the erasure (same 403 vocabulary as the submission gates). */
-    public static final String DELETE_ACCOUNT_MESSAGE = "Deleting the account requires a verified account";
-
     /**
      * The 403 refusal for the provisioned admin's self-erasure: the
      * environment-provisioned administrator is the deployment's access path,

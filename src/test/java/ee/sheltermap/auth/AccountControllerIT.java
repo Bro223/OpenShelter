@@ -230,6 +230,42 @@ class AccountControllerIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void anUnverifiedUserCannotChangeContactDetailsWithoutTheCode() throws Exception {
+        // DELETE-UNVERIFIED non-regression: erasure no longer requires a
+        // verified account, but the SENSITIVE identity change (email/phone) is
+        // still protected — in this codebase by the CROSS-CHANNEL CODE (SMS to
+        // the current phone / email to the current address), NOT by the
+        // verified-status claim. An unverified user can START the change (a
+        // code is dispatched) but cannot COMPLETE it without the code: a code
+        // they do not possess is refused, and the contact is left untouched.
+        String token = registerAndLogin(); // kontakt@example.ee — registered, unverified
+
+        // request -> the cross-channel code is dispatched to the current phone
+        mvc.perform(post("/account/email-change/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"unverified-change@example.ee\"}"))
+                .andExpect(status().isAccepted());
+        assertThat(sms.last()).isNotNull();
+        assertThat(sms.last().phone()).isEqualTo("+37250004444");
+        String code = codeFrom(sms.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        // completing it with a code the user does not possess is refused (400)
+        mvc.perform(post("/account/email-change/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + wrong + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Bad Request"));
+
+        // the contact detail is UNCHANGED — the code gate held (no verified
+        // claim was ever needed, and none was granted)
+        assertThat(users.findByEmail("kontakt@example.ee").getData().email())
+                .isEqualTo("kontakt@example.ee");
+    }
+
+    @Test
     void wrongCodesLockOutTheConfirmEndpointAndPersistAttempts() throws Exception {
         // The confirm endpoint is NOT rate-bucketed,
         // so the 5-attempt lockout on the pending row is the only

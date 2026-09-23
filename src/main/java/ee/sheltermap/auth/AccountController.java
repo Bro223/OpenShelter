@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.CommaSeparated;
-import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -211,10 +210,14 @@ public class AccountController {
      * the declared private homes are purged, the public community rows are
      * orphaned (map data outlives accounts — V7), and the DB cascades
      * credentials, claims, pending changes, tokens and reports.
-     * The verified-user gate matches the submission gates (403
-     * without a claim); a repeat call is an idempotent no-op — the JWT is
-     * valid until its expiry, but the account is already gone. The
-     * provisioned admin (kind ADMIN) is refused with 403: the account is
+     * Erasure is a right of any AUTHENTICATED user — it deliberately does NOT
+     * depend on identity verification (removing your own account must not
+     * require passing an identity check; a user who cannot verify would
+     * otherwise be trapped in the system). The verified-user gate still
+     * protects the actions it guards (submission, reports, contact changes)
+     * — only the erasure was un-gated. A repeat call is an idempotent no-op
+     * — the JWT is valid until its expiry, but the account is already gone.
+     * The provisioned admin (kind ADMIN) is refused with 403: the account is
      * the deployment's access path and de-provisioning removes the env
      * vars, not the row.
      */
@@ -224,29 +227,32 @@ public class AccountController {
             description = "The account erasure: the declared private homes are "
                     + "purged, the public community rows are orphaned (map data "
                     + "outlives accounts), and the DB cascades credentials, "
-                    + "claims, pending changes, tokens and reports. The "
-                    + "verified-user gate matches the submission gates (403 "
-                    + "without a claim); a repeat call is an idempotent no-op — "
-                    + "the JWT is valid until its expiry, but the account is "
-                    + "already gone. The environment-provisioned administrator "
-                    + "(kind ADMIN) is refused with 403 naming the environment "
-                    + "provisioning — de-provisioning is an operator action on "
-                    + "the env vars, not an in-app deletion.")
+                    + "claims, pending changes, tokens and reports. Available "
+                    + "to ANY authenticated user — it does NOT require "
+                    + "identity verification (removing your own account is a "
+                    + "right, not a privilege gated on verification). A repeat "
+                    + "call is an idempotent no-op — the JWT is valid until "
+                    + "its expiry, but the account is already gone. The "
+                    + "environment-provisioned administrator (kind ADMIN) is "
+                    + "refused with 403 naming the environment provisioning — "
+                    + "de-provisioning is an operator action on the env vars, "
+                    + "not an in-app deletion.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "The account is "
                     + "erased (an idempotent no-op on a repeat call)"),
-            @ApiResponse(responseCode = "403", description = "No verification "
-                    + "claim — or the environment-provisioned administrator "
-                    + "account (refused; the message names the env provisioning)")
+            @ApiResponse(responseCode = "403", description = "The "
+                    + "environment-provisioned administrator account (refused; "
+                    + "the message names the env provisioning)")
     })
     public void deleteAccount() {
         long userId = currentCaller.requireUserId();
         if (!(currentCaller.userOrNull(userId) instanceof RegisteredUser registered)) {
             return; // already erased — idempotent no-op
         }
-        if (!registered.canWrite()) {
-            throw new NotVerifiedException(AccountService.DELETE_ACCOUNT_MESSAGE);
-        }
+        // Erasure is a right of any authenticated user — NO verified-status
+        // gate (narrowed in the DELETE-UNVERIFIED fix): removing your own
+        // account must not require passing an identity check. The
+        // provisioned-admin refusal is enforced in AccountService.deleteAccount.
         accountService.deleteAccount(registered);
     }
 
