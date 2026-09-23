@@ -5,12 +5,13 @@ package ee.sheltermap.guidance;
  * did not resolve, the connect or the read timed out or stalled, the
  * connection failed, or the remote host answered a 5xx. Unlike
  * {@link HeroImportRefusedException} this is a TRANSIENT failure — the
- * URL may be fine and a retry may succeed — so it is mapped to 502 (the
- * same retry-later vehicle as the geo resolver's
- * {@code LocationUpstreamException}), never to a 500.
+ * URL may be fine and a retry may succeed.
  *
- * <p>As with every import failure it fails the publish that carries it:
- * the post stays a DRAFT with the URL intact.
+ * <p>Like every import failure it never blocks the save:
+ * {@code GuidanceService.resolveHeroOnSave} catches it, stores the post
+ * with this message as its {@code heroImportError} and keeps the URL,
+ * so the next save retries the import (the hero falls back to the
+ * library reference, or nothing).
  */
 public class HeroImportUnreachableException extends RuntimeException {
 

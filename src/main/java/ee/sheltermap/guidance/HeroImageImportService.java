@@ -168,15 +168,15 @@ public class HeroImageImportService {
      * @param url      the admin-supplied URL (re-validated here — the
      *                 service is the authority, the request bean is not)
      * @return the stored asset (id assigned)
-     * @throws HeroImportRefusedException     400 — scheme/credentials/address
+     * @throws HeroImportRefusedException     scheme/credentials/address
      *                                        policy, a disallowed redirect,
      *                                        the hop cap, or a remote 4xx
-     * @throws HeroImportUnreachableException 502 — DNS failure, connect/read
+     * @throws HeroImportUnreachableException DNS failure, connect/read
      *                                        timeout or stall, network
      *                                        failure, a remote 5xx, or the
      *                                        walk budget
-     * @throws MediaTooLargeException         413 — the body exceeded the cap
-     * @throws UnsupportedImageException      400 — not a readable JPEG/PNG/WebP,
+     * @throws MediaTooLargeException         the body exceeded the cap
+     * @throws UnsupportedImageException      not a readable JPEG/PNG/WebP,
      *                                        or over the pixel cap
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)

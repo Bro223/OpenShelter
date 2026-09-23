@@ -18,6 +18,7 @@ import java.util.TreeSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The OpenAPI contract gate: the document must not drift
@@ -68,6 +69,27 @@ class OpenApiContractIT extends AbstractPersistenceIT {
         // is the dev parity here.
         mvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void theServedUiResolvesItsOwnWebjarAssets() throws Exception {
+        // /swagger-ui/** is served from
+        // classpath:/META-INF/resources/webjars/swagger-ui/<springdoc.swagger-ui.version>/.
+        // If the webjar version in pom.xml drifts from the property in
+        // application.yml, the UI's own assets 404 (the regression the 5.32.7
+        // bump proved, CVE-2026-65898): the welcome page alone would not
+        // catch a property pointing at a still-present OLDER webjar, so the
+        // bundle asset is pinned, not just the page.
+        mvc.perform(get("/swagger-ui/swagger-ui-bundle.js"))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    assertThat(result.getResponse().getContentType())
+                            .as("the bundle must be served as a JS asset")
+                            .contains("javascript");
+                    assertThat(result.getResponse().getContentAsByteArray())
+                            .as("the bundle asset must not be empty")
+                            .isNotEmpty();
+                });
     }
 
     @Test

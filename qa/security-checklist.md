@@ -1,6 +1,6 @@
 # OpenShelter — Security Checklist (implemented controls, with evidence)
 
-Read-only QA pass, 2026-09-14. Every claim cites the implementing file (and the symbol where useful) in the current tree — line numbers are deliberately omitted, they drift.
+Read-only QA pass, 2026-09-14; re-verified against the live tree 2026-09-23 (reviews/17-docs pass). Every claim cites the implementing file (and the symbol where useful) in the current tree — line numbers are deliberately omitted, they drift.
 Secrets are referenced by **env-var name only** — no values. Verdicts: **implemented** / **partial** / **missing**.
 
 Legend for paths: backend = `src/main/java/ee/sheltermap/`, frontend = `frontend/src/app/`, config = `src/main/resources/`.
@@ -50,7 +50,7 @@ Legend for paths: backend = `src/main/java/ee/sheltermap/`, frontend = `frontend
 - Token-bucket primitive: `auth/TokenBucketRateLimiter.java`, tested in `test/auth/TokenBucketRateLimiterTest` (4).
 - Per-endpoint buckets + config (`config/application.yml` `app.ratelimit.*`, `config/RateLimitProperties.java`):
   - login: per-(IP,contact) 5/burst + aggregate per-IP 20/burst (credential stuffing): beans `config/SecurityConfig.java`; `auth/AuthController.java`.
-  - password-reset request 3 + confirm per-(IP,email) 5 (6-digit code anti-guess): `SecurityConfig.java`.
+  - password-reset request 3 + confirm per-(IP,email) 10 (≈12/min; the per-code 5-attempt lockout is the primary anti-guess guard): `SecurityConfig.java`.
   - register 10/IP: `SecurityConfig.java`; verify (OTP) 10/IP: `SecurityConfig.java`, call site `auth/VerificationController.java`.
   - contact-change request 5/IP: `SecurityConfig.java`.
   - geo short-link resolve 5/IP/min (server-side fetch abuse valve): `SecurityConfig.java`, call site `api/LocationController.java`.

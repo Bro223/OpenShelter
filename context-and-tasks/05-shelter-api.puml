@@ -693,8 +693,7 @@ else
   alt type = NON_EXISTENT and the trust-weighted tally crosses 5 points (shelter ACTIVE, not disarmed)
     SRS -> DB : UPDATE shelters SET status = INACTIVE (auto-hide, exactly-once trigger)
   end
-  alt the USER row is still review_status = NEW and its distinct non-submitter confirmers
-      (open OPEN_CONFIRMED reports + current OPEN taps, each user counted once) reach 3 (V11)
+  alt the USER row is still review_status = NEW and its distinct non-submitter confirmers (open OPEN_CONFIRMED reports + current OPEN taps, each user counted once) reach 3 (V11)
     SRS -> DB : UPDATE shelters SET review_status = 'CONFIRMED' (same transaction)
     SRS -> DB : INSERT moderation_actions (AUTO_CONFIRM, actor = the crossing user)
   end

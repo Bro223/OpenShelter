@@ -69,6 +69,14 @@ springdoc:
     operations-sorter: method
     tags-sorter: alpha
     try-it-out-enabled: true
+    # SWAGGER-DEP (2026-09-23, CVE-2026-65898): the webjar version the
+    # /swagger-ui/** resource handler serves from — springdoc maps it to
+    # classpath:/META-INF/resources/webjars/swagger-ui/<version>/. Must
+    # equal <swagger-ui.version> in pom.xml: springdoc 2.8.17 hardcodes
+    # this property to 5.32.2 in its own bundled springdoc.config.properties,
+    # so without this line the handler keeps serving the old path and the
+    # bumped webjar 404s every UI asset. Bump the two together.
+    version: 5.32.7
   # The document must not absorb the actuator surface (health,info only there).
   show-actuator: false
 

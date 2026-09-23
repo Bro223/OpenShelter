@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
-import ee.sheltermap.guidance.HeroImportUnreachableException;
 import jakarta.persistence.OptimisticLockException;
 import org.hibernate.StaleStateException;
 import org.junit.jupiter.api.Test;
@@ -159,16 +158,6 @@ class ApiErrorHandlerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         assertThat(response.getBody().message()).isEqualTo("Request failed due to invalid input");
-    }
-
-    @Test
-    void heroImportUnreachableMapsTo502WithTheReason() {
-        HeroImportUnreachableException ex = new HeroImportUnreachableException("connection refused");
-
-        ResponseEntity<ErrorResponse> response = handler.heroImportUnreachable(ex, request);
-
-        assertThat(response.getStatusCode().value()).isEqualTo(502);
-        assertThat(response.getBody().message()).isEqualTo("connection refused");
     }
 
     @Test

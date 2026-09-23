@@ -25,7 +25,7 @@ This task pack covers the **backend only**.
 ## 2. Tech stack (fixed — do not change without asking)
 
 - Java **21**, **Maven** (`pom.xml`)
-- **Spring Boot 3.3.x**
+- **Spring Boot 3.5.x** (pom pins 3.5.16)
 - Starters: `spring-boot-starter-web`, `spring-boot-starter-validation`,
   `spring-boot-starter-data-jpa`, `spring-boot-starter-security`, `spring-boot-starter-actuator`
 - **PostgreSQL 16** (Docker Compose for local dev), **Flyway** for migrations
@@ -69,7 +69,7 @@ This task pack covers the **backend only**.
    (`VerificationProvider`, `SmsSender`, `SmtpSender`, `TokenService`, `PasswordHasher`,
    `RateLimiter`, `ShelterRegistryClient`, `ShelterParser`, all repositories). Services depend on
    interfaces, never on concrete collaborators. Implementations are separate, swappable classes
-   (`TwilioSmsSender` vs `DevSmsSender`, `PaasteametRegistryClient` vs `DevRegistryClient`).
+   (`TwilioSmsSender` vs `DevSmsSender`, `CsvRegistryClient` vs `DevRegistryClient`).
 3. **Inheritance only for genuine is-a (TIJ Ch 1/7).** `GuestUser`, `RegisteredUser`,
    `AdminUser` extend `User` (kind is fixed at creation — `AdminUser` came back in
    admin-moderation as the third kind, the env-provisioned admin; it is never produced by the

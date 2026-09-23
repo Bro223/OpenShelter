@@ -12,7 +12,7 @@ conventions, and build order** that the diagrams don't carry.
 ## Status
 
 The build is complete through the **admin-moderation wave** (post-step-7 additions):
-steps 0–6 (core, verification, auth, ingestion, shelter API, reviews) plus the trust &
+steps 0–6 (core, verification, auth, ingestion, shelter API) plus the trust &
 reports layer (V9) and the env-provisioned admin + moderation API (V10, `/admin/*`).
 `mvn test` is green — **788 tests / 0 failures** (latest run 2026-09-15; 464 was the
 2026-09-12 count at the end of the admin-moderation wave). This pack is now also a

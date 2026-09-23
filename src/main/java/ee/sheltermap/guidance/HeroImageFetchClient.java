@@ -19,18 +19,16 @@ public interface HeroImageFetchClient {
      *                 service's entry/hop policy
      * @param maxBytes the size cap ({@code app.media.max-bytes}) — the
      *                 client stops reading past it and raises
-     *                 {@link MediaTooLargeException} (the 413 vocabulary
-     *                 the upload path already uses), aborting the
+     *                 {@link MediaTooLargeException}, aborting the
      *                 connection
      * @return the observed status + {@code Location} (redirects carry no
      *         body) or the status + the body bytes (at most
      *         {@code maxBytes})
      * @throws HeroImportUnreachableException connect/read timeout, stall,
      *                                        DNS failure or any network
-     *                                        problem — the service maps
-     *                                        it to the 502 vocabulary
+     *                                        problem
      * @throws MediaTooLargeException         the body exceeded the cap
-     *                                        mid-read (413)
+     *                                        mid-read
      */
     FetchedImage fetch(String url, long maxBytes);
 

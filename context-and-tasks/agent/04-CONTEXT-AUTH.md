@@ -97,8 +97,9 @@ env-only, fail-closed at boot, never committed, never logged). Full design:
      credential-stuffing: one IP hammering many accounts). 5/0.084 per contact, 20/0.334 per IP.
    - `/auth/password-reset/request` — per-(IP, normalized e-mail) bucket (3/0.05) **plus** the
      per-user 60 s cooldown / 5-per-UTC-day cap inside `PasswordResetService`.
-   - `/auth/password-reset/confirm` — its own per-(IP, e-mail) anti-guess bucket (5/0.084) —
-     a 6-digit code must not be brute-forceable through confirm.
+   - `/auth/password-reset/confirm` — its own per-(IP, e-mail) anti-guess bucket (10/0.2 ≈ 12/min) —
+     a 6-digit code must not be brute-forceable through confirm (the per-code 5-attempt
+     lockout in `PasswordResetService` is the primary guard; the bucket is the fat-finger valve).
    - `/auth/register` — per client IP (account-spam vector), 10/0.01.
    All capacities/refills configurable under `app.ratelimit.*`.
 6. **Controllers are thin shells.** No logic in `AuthController`.
@@ -173,9 +174,12 @@ ADMIN), never derived from any token claim.
 - `SecurityFilterChain` — the exact `permitAll` set (nothing else is open): `POST
   /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`,
   `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm`, plus
-  `GET /api/shelters/**` **except** `GET /api/shelters/mine` (author-scoped, authenticated)
-  and `GET /actuator/health` + `/actuator/info`. Everything else (all `/account/**`,
-  `/verify/**`, `/admin/**`, shelter/review writes, review `/mine` routes) requires the JWT.
+  `GET /api/shelters/**` **except** `GET /api/shelters/mine` (author-scoped, authenticated),
+  `GET /api/data-source` (provenance read), `GET /api/site-texts` (the public site copy),
+  `GET /api/guidance/**` and `GET`/`HEAD /api/media/**` (crisis-guidance public reads) and
+  `GET /actuator/health` + `/actuator/info` (the OpenAPI document routes are additionally
+  open in dev/test-only profiles). Everything else (all `/account/**`, `/verify/**`,
+  `/admin/**`, shelter writes) requires the JWT.
   `/admin/**` (admin-moderation) sits in the authenticated set — the security entry point
   answers 401 for anonymous callers; the controller's own fresh `isAdmin` lookup then answers
   403 for an authenticated non-admin (D2).

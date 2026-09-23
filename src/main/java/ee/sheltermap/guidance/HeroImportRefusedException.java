@@ -4,13 +4,14 @@ package ee.sheltermap.guidance;
  * The hero import was REFUSED by the address/scheme policy (guard 1–3 of
  * guidance-hero-import), or the remote host answered a deterministic 4xx:
  * the URL is unacceptable AS GIVEN — retrying it will never succeed, only
- * a different URL will. Mapped to 400 by
- * {@link ee.sheltermap.api.ApiErrorHandler}, the same vehicle as the
- * other admin-input 400s.
+ * a different URL will.
  *
- * <p>Every refused import fails the publish that carries it, so the post
- * stays a DRAFT with the URL intact — the admin sees this message, fixes
- * the URL, and retries.
+ * <p>Like every import failure it never blocks the save:
+ * {@code GuidanceService.resolveHeroOnSave} catches it, stores the post
+ * with this message as its {@code heroImportError} and keeps the URL —
+ * the admin sees the message against the hero field, fixes the URL, and
+ * the next save retries the import (the hero falls back to the library
+ * reference, or nothing).
  *
  * <p>The message is deliberately readable (it names the scheme, the
  * address and the reason) because the endpoint is ADMIN-ONLY and the URL

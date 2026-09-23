@@ -113,6 +113,11 @@ describe('detail hero (guidance-detail-page) — natural size', () => {
     // The above-the-fold hero: high fetch priority, async decode.
     expect(attr(tag, 'fetchpriority')).toBe('high');
     expect(attr(tag, 'decoding')).toBe('async');
+    // P2-9: the derivative srcset wiring (the null-fallback idiom leaves a
+    // derivative-less asset on plain src); sizes = the article column's
+    // 44rem cap — the widest this natural-size hero can render.
+    expect(tag).toContain('[attr.srcset]');
+    expect(attr(tag, 'sizes')).toBe('704px');
   });
 });
 
@@ -335,12 +340,32 @@ describe('app-wide: a fixed image box is never a stretch box', () => {
 // the CSS cascade applied per selector (a later declaration of the same
 // property wins, so a split `width`/`height` pair still forms a box), and
 // any selector that targets an image with a literal px width AND px height
-// must resolve object-fit: cover. Residual (documented, same as the text
-// layer): a box assembled ACROSS files (a None-encapsulation component +
-// the global stylesheet) is per-file here — a full browser-cascade model
-// is out of scope for a spec. The text scan stays as the second layer (the
-// repo's layering idiom — both are needed): it pins the source shape a
-// reviewer reads.
+// must resolve object-fit: cover.
+//
+// Cross-file assembly (CLOSED by the merged test below): in the browser
+// the cascade spans files — the element's OWN component stylesheet PLUS
+// every page-wide stylesheet (the global `src/styles.scss` and the
+// stylesheets of ViewEncapsulation.None components, whose unscoped
+// selectors match other components' DOM). A box split across that surface
+// — `width` in the slot file, `height` in the global sheet — was invisible
+// to the per-file scan. `pageWideScss()` enumerates that surface FROM
+// SOURCE (angular.json's global sheet + every None component's styleUrl),
+// so a future None component joins the audit without touching this file,
+// and the merged test runs the same check over globals-first-then-slot
+// cascades (the real bundle order: head styles precede the runtime-
+// injected component <style> tags, so on a same-selector tie the slot
+// file wins per property). The escape demo at the bottom proves both
+// halves: the split box passes the per-file scan and fails the merged one.
+//
+// Residual (what would close it): a box assembled from DIFFERENT
+// selectors on the same element (e.g. a page-wide `img { height }` plus
+// the slot's class `width`) is decided per property by specificity and
+// source order, and by whether the slot declares its own value — a full
+// selector-matching cascade, i.e. a real browser (a getComputedStyle
+// probe on the rendered slots, karma/Playwright). The order BETWEEN the
+// page-wide files themselves is likewise runtime (injection order of the
+// two None components' <style> tags); it only matters for CONFLICTING
+// object-fit values on one selector.
 // ---------------------------------------------------------------------------
 
 interface CompiledRule {
@@ -417,47 +442,184 @@ const PX_LITERAL = /^\d+(?:\.\d+)?px$/;
 const heroClassTargets = (selector: string, heroClasses: string[]): boolean =>
   /\bimg\b/.test(selector) || heroClasses.some((c) => selector.includes(c));
 
-describe('app-wide (compiled): a fixed image box is never a stretch box', () => {
-  const HERO_CLASSES = [
-    'guidance-detail__hero',
-    'guidance-post__hero',
-    'guidance-post__thumb',
-    'guidance-editor__hero-thumb',
-    'admin-media-thumb',
-    'admin-guidance-thumb',
-  ];
+/** The fixed-box check over ONE resolved cascade: violations + how many
+    candidate fixed boxes were inspected. */
+function fixedBoxViolations(
+  resolved: Map<string, Map<string, string>>,
+  heroClasses: string[],
+  label: string,
+): { violations: string[]; checked: number } {
+  const violations: string[] = [];
+  let checked = 0;
+  for (const [selector, props] of resolved) {
+    if (!heroClassTargets(selector, heroClasses)) {
+      continue;
+    }
+    const w = props.get('width');
+    const h = props.get('height');
+    if (!w || !h || !PX_LITERAL.test(w) || !PX_LITERAL.test(h)) {
+      continue; // natural size / ratio box / single-axis — not a fixed box
+    }
+    checked++;
+    const fit = props.get('object-fit');
+    if (fit !== 'cover' && fit !== 'cover !important') {
+      violations.push(
+        `${label} :: ${selector} (width: ${w}; height: ${h}) — fixed image box without object-fit: cover`,
+      );
+    }
+  }
+  return { violations, checked };
+}
 
+/** dart-sass compile, memoized (the merged test reuses the global
+    surface's compiled CSS once, not once per slot file). */
+const cssCache = new Map<string, string>();
+function compileCss(file: string): string {
+  let css = cssCache.get(file);
+  if (css === undefined) {
+    css = sass
+      .compile(file, {
+        loadPaths: [`${process.cwd()}/node_modules`],
+        style: 'expanded',
+      })
+      .css;
+    cssCache.set(file, css);
+  }
+  return css;
+}
+
+/**
+ * The page-wide cascade surface: the global `src/styles.scss` (angular.json
+ * `styles`) PLUS every ViewEncapsulation.None component's stylesheet — a
+ * None component's selectors are unscoped, so they match OTHER components'
+ * DOM (the browser cascades them with the element's own rules). Enumerated
+ * from source at spec time: a future None component joins the surface
+ * without touching this file. (Only the two known None components today:
+ * the guidance editor — Quill's runtime DOM needs unscoped rules — and the
+ * accessibility dialog, which hosts the black-and-yellow theme.)
+ */
+function pageWideScss(): string[] {
+  const out = [`${SRC}/styles.scss`];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      if (dir === `${SRC}/app` && entry === 'vendor') {
+        continue; // vendored third-party bytes are not this app's rules
+      }
+      const full = `${dir}/${entry}`;
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!entry.endsWith('.ts') || entry.endsWith('.spec.ts')) {
+        continue;
+      }
+      const source = read(full);
+      if (!/encapsulation:\s*ViewEncapsulation\.None/.test(source)) {
+        continue;
+      }
+      const styleUrl = source.match(/styleUrl:\s*'([^']+)'/);
+      if (styleUrl) {
+        const rel = styleUrl[1];
+        // A relative './x.scss' (Angular's styleUrl idiom) — the only
+        // shape this repo uses; anything else is a spec-time error, not
+        // a silently-wrong surface. (No node:path — the project's
+        // ambient node types cover node:fs only, src/node-fs.d.ts.)
+        if (rel.includes('..')) {
+          throw new Error(`pageWideScss: unsupported styleUrl ${rel} in ${full}`);
+        }
+        out.push(`${dir}/${rel.replace(/^\.\//, '')}`);
+      }
+    }
+  };
+  walk(`${SRC}/app`);
+  return out;
+}
+
+const COMPILED_HERO_CLASSES = [
+  'guidance-detail__hero',
+  'guidance-post__hero',
+  'guidance-post__thumb',
+  'guidance-editor__hero-thumb',
+  'admin-media-thumb',
+  'admin-guidance-thumb',
+];
+
+describe('app-wide (compiled): a fixed image box is never a stretch box', () => {
   it('every compiled fixed width+height rule on an image slot resolves object-fit: cover', () => {
     let checked = 0;
     const violations: string[] = [];
     for (const file of collectScss(`${SRC}/app`)) {
-      const css = sass
-        .compile(file, {
-          loadPaths: [`${process.cwd()}/node_modules`],
-          style: 'expanded',
-        })
-        .css;
-      const resolved = cascadeBySelector(compiledRules(css));
-      for (const [selector, props] of resolved) {
-        if (!heroClassTargets(selector, HERO_CLASSES)) {
-          continue;
-        }
-        const w = props.get('width');
-        const h = props.get('height');
-        if (!w || !h || !PX_LITERAL.test(w) || !PX_LITERAL.test(h)) {
-          continue; // natural size / ratio box / single-axis — not a fixed box
-        }
-        checked++;
-        const fit = props.get('object-fit');
-        if (fit !== 'cover' && fit !== 'cover !important') {
-          violations.push(
-            `${file} :: ${selector} (width: ${w}; height: ${h}) — fixed image box without object-fit: cover`,
-          );
-        }
-      }
+      const resolved = cascadeBySelector(compiledRules(compileCss(file)));
+      const result = fixedBoxViolations(resolved, COMPILED_HERO_CLASSES, file);
+      checked += result.checked;
+      violations.push(...result.violations);
     }
     expect(violations).toEqual([]);
     expect(checked).toBeGreaterThanOrEqual(4); // the four square slots today
+  });
+});
+
+describe('app-wide (compiled, page-wide cascade): a fixed image box is never a stretch box', () => {
+  it('a box assembled across the slot file and the page-wide surface still resolves cover', () => {
+    const allFiles = [...new Set([...collectScss(`${SRC}/app`), ...pageWideScss()])];
+    const globalRules = pageWideScss().flatMap((file) => compiledRules(compileCss(file)));
+    let checked = 0;
+    const violations: string[] = [];
+    for (const file of allFiles) {
+      // Globals first, the slot file last — the real bundle order (head
+      // styles precede the injected component <style>), so on a
+      // same-selector tie the slot file wins per property, like the
+      // browser.
+      const merged = cascadeBySelector([...globalRules, ...compiledRules(compileCss(file))]);
+      const result = fixedBoxViolations(merged, COMPILED_HERO_CLASSES, `${file} + page-wide`);
+      checked += result.checked;
+      violations.push(...result.violations);
+    }
+    expect(violations).toEqual([]);
+    expect(checked).toBeGreaterThanOrEqual(4); // the four square slots today
+  });
+});
+
+describe('cross-file escape demo: the split box', () => {
+  // THE form the per-file scan could not see: a page-wide stylesheet (a
+  // None component or the global sheet) declares half the box, the slot
+  // file the other half — the browser merges them into a fixed 400x300
+  // box with no object-fit (the stretch the owner reported). Proven with
+  // synthetic CSS through the SAME checker the real-tree tests run:
+  // per-file (the old residual) it passes; merged (the browser's view)
+  // it fails.
+  const SLOT_FILE_CSS = `.guidance-detail__hero { width: 400px; }`;
+  const GLOBAL_FILE_CSS = `.guidance-detail__hero { height: 300px; }`;
+
+  it('passes the per-file scan (what the pre-closure spec saw)', () => {
+    const perFileSlot = fixedBoxViolations(
+      cascadeBySelector(compiledRules(SLOT_FILE_CSS)),
+      COMPILED_HERO_CLASSES,
+      'slot file',
+    );
+    const perFileGlobal = fixedBoxViolations(
+      cascadeBySelector(compiledRules(GLOBAL_FILE_CSS)),
+      COMPILED_HERO_CLASSES,
+      'global file',
+    );
+    // One axis each — neither file alone forms a fixed box.
+    expect(perFileSlot.violations).toEqual([]);
+    expect(perFileSlot.checked).toBe(0);
+    expect(perFileGlobal.violations).toEqual([]);
+    expect(perFileGlobal.checked).toBe(0);
+  });
+
+  it('fails the merged page-wide cascade (what the browser renders)', () => {
+    const merged = cascadeBySelector([
+      ...compiledRules(GLOBAL_FILE_CSS),
+      ...compiledRules(SLOT_FILE_CSS),
+    ]);
+    const result = fixedBoxViolations(merged, COMPILED_HERO_CLASSES, 'slot file + page-wide');
+    expect(result.checked).toBe(1);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toContain('.guidance-detail__hero');
+    expect(result.violations[0]).toContain('width: 400px');
+    expect(result.violations[0]).toContain('height: 300px');
   });
 });
 

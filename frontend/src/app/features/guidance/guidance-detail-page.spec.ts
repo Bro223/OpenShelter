@@ -438,6 +438,56 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(img?.getAttribute('alt')).not.toBe('Hero without alt');
     });
 
+    // ---- P2-9: the derivative srcset (the index card's idiom) ----
+
+    it('renders the derivative srcset with the column-cap sizes when the server has one', async () => {
+      const heroUrl = '/api/media/0123456789abcdef0123456789abcdef.jpg';
+      const srcset =
+        '/api/media/0123456789abcdef0123456789abcdef-t480.jpg 480w, ' +
+        '/api/media/0123456789abcdef0123456789abcdef-t800.jpg 800w';
+      guidanceGateway.set(
+        'with-srcset',
+        guidancePost({
+          slug: 'with-srcset',
+          heroImageUrl: heroUrl,
+          heroImageAlt: 'A kettle on a camp stove',
+          heroImageSrcset: srcset,
+        }),
+      );
+      const { element } = await open('/blog/with-srcset');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img?.getAttribute('src')).toBe(heroUrl);
+      expect(img?.getAttribute('srcset')).toBe(srcset);
+      // sizes = the article column's max width (44rem = 704 px — the
+      // scss cap on this natural-size slot), so the browser picks the
+      // derivative for the width the hero can actually take.
+      expect(img?.getAttribute('sizes')).toBe('704px');
+    });
+
+    it('an asset without derivatives renders the plain src only (no srcset attribute)', async () => {
+      // The null-fallback idiom: heroImageSrcset null/absent (a WebP
+      // original or a pre-feature upload has no derivative set) → no
+      // srcset attribute, the original renders via plain src.
+      guidanceGateway.set(
+        'no-derivatives',
+        guidancePost({
+          slug: 'no-derivatives',
+          heroImageUrl: '/api/media/fedcba9876543210fedcba9876543210.webp',
+          heroImageAlt: 'A row of shelters',
+          heroImageSrcset: null,
+        }),
+      );
+      const { element } = await open('/blog/no-derivatives');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img).not.toBeNull();
+      expect(img?.hasAttribute('srcset')).toBe(false);
+      // sizes stays (it is a cost-free hint) — the srcset is what falls
+      // back, not the attribute pair.
+      expect(img?.getAttribute('sizes')).toBe('704px');
+    });
+
     // ---- Wave 13: a real non-square file (the stretch cannot come back) ----
 
     it('a real non-square hero keeps its own ratio — a portrait file declares no fixed box', async () => {

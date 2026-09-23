@@ -1,6 +1,6 @@
 # OpenShelter — Accessibility Checklist (frontend-grounded)
 
-Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative to
+Read-only QA pass, re-verified against the live tree 2026-09-23 (reviews/17-docs pass). Evidence is from `frontend/src/` (paths relative to
 `frontend/src/` unless stated otherwise). Verdicts: **verified** (code + test evidence) /
 **partial** (mechanism exists, coverage or proof incomplete) / **missing**.
 
@@ -13,7 +13,7 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 - Skip link: `<a class="skip-link" href="#main">` is the shell's first element (WCAG 2.4.1, bypass blocks) — `shared/page-shell.html`.
 - App shell landmarks on every page: `<header>` (`shared/page-shell.html`), `<main class="shell-body">` wrapping the router outlet (`page-shell.html`), `<footer>` (`page-shell.html`) with a legal `<nav aria-label="Legal">` (`page-shell.html`).
 - Primary nav: `<nav class="shell-nav" aria-label="Primary">` (`page-shell.html`).
-- Exactly one `<h1>` per page: map `features/map/map-page.html` ("Shelter map"), account `features/account/account-page.html`, admin `features/admin/admin-page.html`, detail `features/shelter/shelter-detail-page.html`, login `features/auth/login-page.html`; panels/sections use `<h2>` (e.g. `account-page.html`; `shelter-detail-page.html`).
+- Exactly one `<h1>` per page: map `features/map/map-page.html` (`{{ 'map.title' | t }}` — EN "Shelter map"), account `features/account/account-page.html`, admin `features/admin/admin-page.html`, detail `features/shelter/shelter-detail-page.html`, login `features/auth/login-page.html`; panels/sections use `<h2>` (e.g. `account-page.html`; `shelter-detail-page.html`).
 - Consent banner: `<section role="region" aria-labelledby="consent-title">` with its own `<h2 id="consent-title">` (`shared/consent-banner.component.html`).
 - Legal pages render a title + table of contents + section headings: `features/legal/privacy-policy-page.spec.ts` (renders the title, the last-updated line and a table of contents / renders the section headings), same for `terms-page.spec.ts`.
 - **Partial note**: the mobile menu panel reuses header controls; its landmark role is a plain div panel controlled by the burger (see §7) — acceptable, but not a `<nav>` duplicate (nav stays in the header).
@@ -22,7 +22,7 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 
 **Status: VERIFIED**
 
-- 37 `<label for=…>` bindings across feature templates; every form field has a programmatic label:
+- 42 `<label for=…>` bindings across feature templates (+1 dynamic `[for]` on the verify page); every form field has a programmatic label:
   - login: `features/auth/login-page.html` (contact, password)
   - register: `register-page.html` (name, email, phone, password)
   - reset: `reset-page.html` (email, code, new password, repeat)
@@ -30,8 +30,10 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
   - contributions (inline edit + reply forms): `contributions-panel.html`
   - verify: `verify-page.html` (dynamic `[for]="codeId(level)"` per channel)
   - map anchor search: `map-page.html` (`for="anchor-search-input"`)
+  - submit + detail: `submit-shelter-page.html` (6), `shelter-detail-page.html` (1)
+  - admin panels: `features/admin/guidance-editor.html` (9), `guidance-panel.html` (2), `media-panel.html` (1), `shelters-panel.html` (3), `unconfirmed-panel.html` (1)
 - Tests: `features/auth/login-page.spec.ts` ("renders the login form with real labels"), `register-page.spec.ts` ("renders all four fields with real labels"), `features/account/account-page.spec.ts` (43 cases incl. required-field error behavior).
-- **Partial note**: no automated check that *every* input has a label (a lint rule would guarantee this); the label set above is complete by manual inspection of the current tree.
+- **Partial note**: no automated check that *every* input has a label (a lint rule would guarantee this); the label set above is complete by manual inspection of the current tree (counted 2026-09-23).
 
 ## 3. Focus-visible styles
 
@@ -92,15 +94,14 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 - Viewport meta present: `src/index.html`.
 - **Partial note**: no automated small-device pass (320–430 px) beyond the reflow tests — manual device check (manual item).
 
-## 9. i18n coverage — known gap
+## 9. i18n coverage
 
-**Status: PARTIAL — known gap (some feature-page copy still English)**
+**Status: VERIFIED (coverage); translation quality still pending native review**
 
 - Switcher infrastructure: locales `['en','et','ru']` (`core/i18n/locale.ts`), typed `Messages` contract with compile-time parity + runtime parity/no-empty-value guard (`core/i18n/messages.ts`, `core/i18n/i18n.spec.ts` 10 cases incl. "en, et and ru carry exactly the same key set"), pre-paint `<html lang>` (`src/index.html`), locale group that offers only the inactive locales — the active one is never rendered (`page-shell.html`, spec tests the switch in both directions + persistence).
-- **Translated** (uses `| t`): page chrome `shared/page-shell.html` (18 uses), consent banner (4), auth pages (login 15, register 25, reset 23), map page partially (6: nav/how-to blocks, e.g. `map-page.html`), and the shelter detail + submit pages (33 and 36 `| t` uses).
-- **NOT translated** (0 `| t` uses, hardcoded English): `features/account/account-page.html`, `features/account/contributions-panel.html`, `features/account/verify-page.html`, `features/admin/admin-page.html`, `features/legal/privacy-policy-page.html`, `features/legal/terms-page.html`.
-- Catalog scope is "app chrome + route titles" by design of M14 slice 1 (`messages.ts` header comment: "Slice 2+ of M14 extends this interface with the feature-page copy") — the gap is tracked, not accidental.
-- Manual item: full Estonian pass over the untranslated feature pages (copy review + `<html lang>`/screen-reader behavior in ET mode).
+- **Translated** (every template, `| t` uses measured 2026-09-23): page chrome `shared/page-shell.html` (25), consent banner (4), auth pages (login 16, register 27, reset 25), map (45), shelter detail (56) + submit (46), account (85), contributions (25), verify (27), admin (11), legal (privacy 145, terms 79).
+- The catalog now carries the feature-page copy too (`messages.ts` header: "The interface also carries the feature-page copy (shelter trust copy, forms, errors)"), and `i18n-template-guard.spec.ts` pins that no hardcoded user-visible copy remains in any template.
+- Manual item: the ET/RU values are machine-assisted — the native-speaker review packet is `docs/i18n-review.md` (copy review + `<html lang>`/screen-reader behavior in ET/RU mode).
 
 ---
 
@@ -116,4 +117,4 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 | 6 | Contrast tokens + high-contrast theme | verified at token level; visual pass manual |
 | 7 | Keyboard navigation | partial (structure verified, full walk manual) |
 | 8 | Responsive breakpoint | verified structurally; device pass manual |
-| 9 | i18n (EN/ET/RU) | partial — **known gap: some feature-page copy still English (account, contributions, verify, admin, legal); the RU catalog is machine-assisted and awaits native-speaker review** |
+| 9 | i18n (EN/ET/RU) | verified — feature-page copy translated (measured 2026-09-23); ET/RU values are machine-assisted and await native-speaker review (`docs/i18n-review.md`) |

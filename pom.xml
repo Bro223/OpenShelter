@@ -33,6 +33,21 @@
              NoSuchMethodError from GenericResponseService, /v3/api-docs 500s),
              so the 3.4+ parent forces the move (SW-A1). -->
         <springdoc.version>2.8.17</springdoc.version>
+        <!-- SWAGGER-DEP (2026-09-23): CVE-2026-65898 (CVSS 7.2, at the
+             dependency-check gate of 7) — DOMPurify before 3.4.11: a
+             setConfig()+uponSanitizeAttribute hook can permanently mutate
+             the shared ALLOWED_ATTR allowlist (stored XSS). The webjar
+             bundles DOMPurify, so the fix IS the webjar version: 5.32.2
+             bundles 3.3.2 (vulnerable), 5.32.7 is the first 5.32.x
+             bundling 3.4.11 (the fix release per NVD). Declared directly
+             below, where it OVERRIDES the 5.32.2 the springdoc starter
+             pulls transitively. Must stay equal to
+             springdoc.swagger-ui.version in application.yml — springdoc
+             2.8.17's own springdoc.config.properties defaults that
+             property to 5.32.2, and its /swagger-ui/** resource handler
+             serves the UI from the property-named webjar path; the webjar
+             bump alone 404s every UI asset (proven, then reverted). -->
+        <swagger-ui.version>5.32.7</swagger-ui.version>
         <!-- HTML sanitizer for admin-authored guidance bodies
              (crisis-guidance D2). Bumps need review: the parser behaviour
              is part of the security boundary, not just a version number. -->
@@ -90,6 +105,17 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+        <!-- Swagger-UI webjar pinned explicitly (SWAGGER-DEP,
+             CVE-2026-65898): puts the DOMPurify 3.4.11 build on the
+             classpath by overriding the transitive 5.32.2 from the
+             springdoc starter above. Paired with
+             springdoc.swagger-ui.version in application.yml (see
+             <swagger-ui.version> for why the two move together). -->
+        <dependency>
+            <groupId>org.webjars</groupId>
+            <artifactId>swagger-ui</artifactId>
+            <version>${swagger-ui.version}</version>
         </dependency>
 
         <!-- Persistence: JPA + Flyway + PostgreSQL 16 -->

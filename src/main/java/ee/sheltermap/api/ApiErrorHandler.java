@@ -33,8 +33,6 @@ import ee.sheltermap.verification.AlreadyVerifiedException;
 import ee.sheltermap.verification.VerificationThrottledException;
 import ee.sheltermap.guidance.GuidanceNotFoundException;
 import ee.sheltermap.guidance.GuidanceValidationException;
-import ee.sheltermap.guidance.HeroImportRefusedException;
-import ee.sheltermap.guidance.HeroImportUnreachableException;
 import ee.sheltermap.guidance.MediaAssetInUseException;
 import ee.sheltermap.guidance.MediaTooLargeException;
 import ee.sheltermap.guidance.SlugAlreadyUsedException;
@@ -172,42 +170,15 @@ public class ApiErrorHandler {
     /**
      * A refused media upload (crisis-guidance D7) — magic bytes that are
      * not a readable JPEG/PNG/WebP (SVG included), unreadable dimensions,
-     * or a declared part type that contradicts the sniffed bytes.
-     * Also the 400 for a refused hero import (guidance-hero-import):
-     * a URL that does not serve a readable JPEG/PNG/WebP, or whose header
-     * claims dimensions over the pixel cap.
+     * or a declared part type that contradicts the sniffed bytes. (The
+     * hero-import path throws the same family too, but
+     * {@code GuidanceService.resolveHeroOnSave} catches it save-time and
+     * stores the failure as the post's {@code heroImportError} — it never
+     * reaches this handler.)
      */
     @ExceptionHandler(UnsupportedImageException.class)
     ResponseEntity<ErrorResponse> unsupportedImage(UnsupportedImageException ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    /**
-     * A hero import refused by the address/scheme policy
-     * (guidance-hero-import): a non-http(s) URL, a URL with credentials,
-     * a host resolving to a loopback/private/link-local/unique-local/
-     * multicast/cloud-metadata address (on the entry OR a redirect
-     * target), a disallowed redirect, the redirect hop cap, or a remote
-     * 4xx (the URL is broken — no retry will fix it). 400, readable
-     * message; the publish that carried the import fails and the post
-     * stays a DRAFT with the URL intact.
-     */
-    @ExceptionHandler(HeroImportRefusedException.class)
-    ResponseEntity<ErrorResponse> heroImportRefused(HeroImportRefusedException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    /**
-     * A hero import that could not be fetched (guidance-hero-import):
-     * DNS failure, connect/read timeout or stall, network failure, or a
-     * 5xx from the remote host — transient, a retry may succeed → 502
-     * (the same retry-later vehicle as the geo resolver's upstream
-     * failure). The publish that carried the import fails and the post
-     * stays a DRAFT with the URL intact.
-     */
-    @ExceptionHandler(HeroImportUnreachableException.class)
-    ResponseEntity<ErrorResponse> heroImportUnreachable(HeroImportUnreachableException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
     }
 
     /**

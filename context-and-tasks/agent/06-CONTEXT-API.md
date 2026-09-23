@@ -306,7 +306,7 @@ location-resolution style):
   fields (createdAt/status/source untouched) and bbox violation → 400; PUT by non-author /
   registry row / legacy row → 403 + unchanged; PUT on missing id → 404; DELETE by author removes
   the shelter (reports + occupancy cascade); DELETE by non-author → 403 + untouched.
-- V9 (in `ShelterReportServiceTest`, `ShelterQueryServiceTest`, `JpaReportActionLogTest` + the
+- V9 (in `ShelterReportServiceTest`, `ShelterQueryServiceTest`, `ReportThrottleIT` + the
   ITs): verified user reports; unverified → 403; unknown shelter → 404; duplicate (shelter, user,
   type) → 409 with no throttle budget consumed; the insert that crosses the trust-weighted
   NON_EXISTENT tally to 5 auto-hides (ACTIVE + not disarmed only) and fires exactly once

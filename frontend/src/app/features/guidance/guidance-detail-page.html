@@ -38,10 +38,17 @@
           <!-- Alt: the stored hero alt (the admin sets it; mandatory
                whenever a hero exists). A null alt with a present URL =
                decorative empty alt — never the post title. -->
+          <!-- P2-9: the derivative srcset when the server has one for
+               this hero (built from disk truth — null for a WebP
+               original / pre-feature upload, then plain src only);
+               sizes is the article column's max width — 44rem = 704 px,
+               the widest the natural-size hero can render. -->
           <img
             class="guidance-detail__hero"
             [src]="heroUrl"
             [alt]="p.heroImageAlt ?? ''"
+            [attr.srcset]="p.heroImageSrcset ?? null"
+            sizes="704px"
             fetchpriority="high"
             decoding="async"
             (error)="onHeroImageError($event)"
