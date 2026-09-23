@@ -115,6 +115,12 @@ jobs:
   clean-checkout:
     name: clean checkout (guards against git archive, not the working tree)
     runs-on: ubuntu-latest
+    env:
+      # `runner.temp` IS available in the `env` context at job level; the
+      # default RUNNER_TEMP shell variable is NOT, so `${{ env.RUNNER_TEMP }}`
+      # expanded empty and `working-directory` became "/clean" — a step that
+      # dies in seconds without ever reaching Maven.
+      CLEAN_DIR: ${{ runner.temp }}/clean
     steps:
       - uses: actions/checkout@v4
 
@@ -130,11 +136,12 @@ jobs:
           cache: maven
 
       - name: Backend file-based guards (doc facts, config overlay)
-        # `${{ env.RUNNER_TEMP }}`: a runner-defined variable, always in the
-        # `env` context — no GITHUB_ENV hop between steps. (A bare "$CLEAN_DIR"
-        # is NOT shell-expanded in a working-directory input; the step used
-        # to run in a literal `$CLEAN_DIR` directory and die before any test.)
-        working-directory: ${{ env.RUNNER_TEMP }}/clean
+        # `${{ env.CLEAN_DIR }}` is a job-level env var defined from the
+        # `runner` context, which IS resolvable in a `working-directory`
+        # input. Neither a bare "$CLEAN_DIR" nor `${{ env.RUNNER_TEMP }}` works
+        # there: the former is not shell-expanded in that input, the latter is
+        # not in the `env` context (it is a default *shell* variable).
+        working-directory: ${{ env.CLEAN_DIR }}
         run: >
           mvn -B -ntp -q test
           -Dtest='DocumentationFactsTest,TestConfigOverlayTest'
@@ -152,10 +159,10 @@ jobs:
           node-version: 26.10.0
           cache: npm
           cache-dependency-path: >-
-            ${{ env.RUNNER_TEMP }}/clean/frontend/package-lock.json
+            ${{ env.CLEAN_DIR }}/frontend/package-lock.json
 
       - name: Frontend architecture guard (from the archive)
-        working-directory: ${{ env.RUNNER_TEMP }}/clean/frontend
+        working-directory: ${{ env.CLEAN_DIR }}/frontend
         run: |
           npm ci
           npx ng test --watch=false --include='**/architecture.spec.ts'
