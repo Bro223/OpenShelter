@@ -269,13 +269,19 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 - [x] Shell/spec: the nav entry renders for anonymous AND authenticated
       visitors in both locales; `title.spec.ts` covers the two new routes;
       `i18n.spec.ts` parity passes with the new keys
-- [ ] 360px assertions for the new pages/tabs (the M13 pattern: no
+- [x] 360px assertions for the new pages/tabs (the M13 pattern: no
       page-level horizontal overflow) and 48px target assertions for the new
       actions (ARCHIVE-PASS 2026-09-23: NOT DONE as written — no karma
       360-overflow assertion was ever added for the guidance pages (the M13
       pattern lives in the shelter-detail/submit specs); the 48px target
       assertions exist via the `.btn` class. Owed to the frontend lane; left
-      open at archive.)
+      open at archive.) — CLOSED 2026-09-24: the 360px M13-mechanism
+      assertions landed in the guidance specs (guidance-list-page.spec.ts and
+      guidance-detail-page.spec.ts, "no page-level horizontal overflow at
+      360px") and the admin guidance spec (guidance-editor.spec.ts, "guidance
+      admin at 360px"), pinning the CSS mechanisms that make overflow
+      impossible (jsdom has no layout engine, so the pins read the
+      stylesheets)
 - [x] Gate: `tsc` (both configs) + full `ng test` + prettier clean
       (ARCHIVE-PASS 2026-09-23 re-run: tsc×2 clean, `ng build` success, full
       `ng test` with every guidance/media spec green; the tree's only 2

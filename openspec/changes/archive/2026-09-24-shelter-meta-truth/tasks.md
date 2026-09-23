@@ -59,11 +59,14 @@
 
 ## Slice 5 — verification (parent-owned commit)
 
-- [ ] `npx ng test --watch=false` + `npx ng build` green on the
+- [x] `npx ng test --watch=false` + `npx ng build` green on the
       combined tree (at lane completion the shared tree was red from
       another lane's in-flight i18n WIP — messages.ts keys without
       et/ru values; verified green in an isolated copy of the tree
-      with that WIP's stubs filled)
+      with that WIP's stubs filled) — VERIFIED 2026-09-24 on the
+      combined tree at HEAD: the i18n WIP landed (2026-09-23-i18n-ru
+      archived, et/ru values in place) and a local re-run is green —
+      `ng test` 1562/1562 over 65 files, production build exit 0
 - [x] backend `mvn test` NOT required — no backend copy, DTO, or
       endpoint changed (verified: the change is FE copy + markers +
       docs + specs only)
