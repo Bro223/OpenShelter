@@ -1,11 +1,16 @@
 # OpenShelter CI — the enforcement lane (W2-C, reviews/12-summary.md P2-16).
 #
-# Four jobs, four gates:
+# Five jobs, five gates:
 #
 #   backend        — the full suite (unit + IT, Postgres service container) plus
-#                    every build-time gate that `mvn verify` runs: PMD
-#                    (high severity), the JaCoCo coverage floor, and the OWASP
-#                    dependency scan. This is the gate set a push/PR must pass.
+#                    the deterministic build-time gates that `mvn verify`
+#                    runs: PMD (high severity) and the JaCoCo coverage floor.
+#                    This is the gate set a push/PR must pass. The OWASP
+#                    dependency scan is deliberately NOT here: without an NVD
+#                    API key its feed download is hundreds of MB and subject
+#                    to NVD rate limits — the one non-deterministic element in
+#                    the set, so it runs on schedule instead (see
+#                    dependency-scan below).
 #
 #   clean-checkout — re-runs the FILE-BASED guards (DocumentationFactsTest,
 #                    TestConfigOverlayTest) and the frontend architecture
@@ -22,7 +27,19 @@
 #                    Postgres, asserting /actuator/health answers UP. Proves
 #                    "the image builds and starts" on every push.
 #
-# No secrets are read or written by any job.
+#   dependency-scan — the OWASP dependency scan (the same pom.xml gate:
+#                    failBuildOnCVSS=7) against the NVD feed, on a nightly
+#                    schedule and on manual dispatch — never on push/PR, so
+#                    the unkeyed feed download can never red a push. A green
+#                    run saves the ~/.dependency-check cache, so the next run
+#                    fetches deltas only. If the repository is given an
+#                    NVD_API_KEY secret, this job picks it up automatically
+#                    (keyed NVD API access — no further workflow change).
+#
+# Secrets: none are REQUIRED. The dependency-scan job reads the OPTIONAL
+# NVD_API_KEY secret when it is present (a free key from
+# https://nvd.nist.gov/developers/request-an-api-key makes the nightly feed
+# update reliable); every other job reads nothing.
 
 name: CI
 
@@ -30,18 +47,30 @@ on:
   push:
     branches: ['**']
   pull_request:
+  # The dependency scan (the one gate that needs the NVD feed download) is
+  # scheduled, not push-gated — see the dependency-scan job.
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'  # daily, off-peak (UTC)
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # The event name is part of the group so the nightly dependency-scan run
+  # (which targets the default branch) can never cancel a push/PR run on it.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
   # The ITs can run without Docker via the it.db.* fallback
   # (AbstractPersistenceIT); here the service container below supplies them,
   # so no Testcontainers-in-Docker is needed and the job is faster.
+  # The password is deliberately NOT the published dev default ("sheltermap"):
+  # DataSourceCredentialGuard refuses to boot under a non-dev profile when
+  # the datasource password is the published default, and
+  # ApiDocsProdClosureIT boots under exactly such a profile — the old value
+  # red the backend job before any gate ever ran.
   IT_DB_URL: jdbc:postgresql://127.0.0.1:5432/sheltermap_it
   IT_DB_USER: sheltermap
-  IT_DB_PASSWORD: sheltermap
+  IT_DB_PASSWORD: sheltermap_it_pw
 
 jobs:
   backend:
@@ -53,7 +82,7 @@ jobs:
         env:
           POSTGRES_DB: sheltermap_it
           POSTGRES_USER: sheltermap
-          POSTGRES_PASSWORD: sheltermap
+          POSTGRES_PASSWORD: sheltermap_it_pw
         ports:
           - 5432:5432
         options: >-
@@ -70,23 +99,18 @@ jobs:
           java-version: 27
           cache: maven
 
-      # The OWASP scan downloads the NVD vulnerability feed into
-      # ~/.dependency-check on first run (hundreds of MB) — cache it per
-      # plugin version.
-      - name: Cache OWASP NVD data
-        uses: actions/cache@v4
-        with:
-          path: ~/.dependency-check
-          key: dependency-check-${{ hashFiles('pom.xml') }}
-          restore-keys: |
-            dependency-check-
-
-      - name: Build and test (unit + IT, PMD, coverage floor, dependency scan)
+      # The OWASP dependency scan is bound out of this job: its NVD feed
+      # download (hundreds of MB, unauthenticated) is the one
+      # non-deterministic element in the gate set — it runs in the
+      # scheduled dependency-scan job instead. The same flag the Dockerfile
+      # uses.
+      - name: Build and test (unit + IT, PMD, coverage floor)
         run: >
           mvn -B -ntp verify
           -Dit.db.url="$IT_DB_URL"
           -Dit.db.username="$IT_DB_USER"
           -Dit.db.password="$IT_DB_PASSWORD"
+          -Ddependency-check.skip=true
 
   clean-checkout:
     name: clean checkout (guards against git archive, not the working tree)
@@ -107,7 +131,10 @@ jobs:
           cache: maven
 
       - name: Backend file-based guards (doc facts, config overlay)
-        working-directory: "$CLEAN_DIR"
+        # `${{ }}` expression: a bare "$CLEAN_DIR" is NOT shell-expanded in
+        # a working-directory input — the step used to run in a literal
+        # `$CLEAN_DIR` directory and die before any test.
+        working-directory: ${{ env.CLEAN_DIR }}
         run: >
           mvn -B -ntp -q test
           -Dtest='DocumentationFactsTest,TestConfigOverlayTest'
@@ -116,10 +143,10 @@ jobs:
         with:
           node-version: 26
           cache: npm
-          cache-dependency-path: "$CLEAN_DIR/frontend/package-lock.json"
+          cache-dependency-path: ${{ env.CLEAN_DIR }}/frontend/package-lock.json
 
       - name: Frontend architecture guard (from the archive)
-        working-directory: "$CLEAN_DIR/frontend"
+        working-directory: ${{ env.CLEAN_DIR }}/frontend
         run: |
           npm ci
           npx ng test --watch=false --include='**/architecture.spec.ts'
@@ -136,7 +163,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+          # The lock file lives in frontend/, not the repo root: with
+          # `cache: npm` and no explicit path setup-node fails the job with
+          # "Dependencies lock file is not found" (working-directory
+          # defaults apply to `run:` steps only, never to action inputs).
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
 
@@ -206,3 +238,57 @@ jobs:
           docker logs sheltermap || true
           echo "health never came up" >&2
           exit 1
+
+  dependency-scan:
+    name: dependency scan (OWASP vs NVD — nightly + manual, off the push lane)
+    # The gate itself is unchanged (pom.xml: failBuildOnCVSS=7, same
+    # suppressions file). The JOB is scheduled because the NVD feed
+    # download without an API key is the one non-deterministic element in
+    # the gate set: a slow or rate-limited first download must not be able
+    # to red every push (and a red job never saves its cache, so the
+    # download would re-run cold on every push — the failure loop that
+    # made this workflow untrustworthy). A green run saves the
+    # ~/.dependency-check cache via actions/cache, so subsequent runs
+    # fetch deltas only.
+    if: >-
+      ${{ github.event_name == 'schedule'
+      || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 27
+          cache: maven
+
+      # The OWASP scan downloads the NVD vulnerability feed into
+      # ~/.dependency-check on first run (hundreds of MB) — cache it per
+      # pom hash so only the delta is fetched after the first green run.
+      - name: Cache OWASP NVD data
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check
+          key: dependency-check-${{ hashFiles('pom.xml') }}
+          restore-keys: |
+            dependency-check-
+
+      - name: Run the OWASP dependency scan
+        env:
+          # OPTIONAL. No NVD_API_KEY secret is set on this repository yet —
+          # the scan then runs against the unkeyed NVD endpoints (works,
+          # but rate-limited). Adding the free key (see the header comment)
+          # makes the nightly feed update reliable; no workflow change is
+          # needed for that.
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          # Pass the key via the environment-variable parameter (not
+          # -DnvdApiKey=...) so the secret never appears in Maven
+          # command-line logging (GHSA-qqhq-8r2c-c3f5). Only set when the
+          # secret actually exists — an empty value would be read as a key.
+          ARGS=()
+          if [ -n "$NVD_API_KEY" ]; then
+            ARGS+=(-DnvdApiKeyEnvironmentVariable=NVD_API_KEY)
+          fi
+          mvn -B -ntp dependency-check:check "${ARGS[@]}"

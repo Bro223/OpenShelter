@@ -27,9 +27,9 @@ COPY src ./src
 # -DskipTests: the full suite (unit + IT against Postgres) runs in the
 # `backend` CI job; the image build must not depend on a container runtime.
 # -Ddependency-check.skip: the OWASP scan downloads the ~400k-record NVD
-# feed and runs in the `backend` CI job instead — no NVD data cache exists
-# inside the container, so running it here would add ~30 min to every image
-# build for a result the CI job already produces.
+# feed and runs in the scheduled `dependency-scan` CI job instead — no NVD
+# data cache exists inside the container, so running it here would add
+# ~30 min to every image build for a result the CI job already produces.
 RUN mvn -B -ntp -q verify -DskipTests -Ddependency-check.skip=true
 
 # ---- Stage 2: run ---------------------------------------------------------
