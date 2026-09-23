@@ -13,12 +13,20 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-surface);
+  margin-bottom: var(--space-16);
 
   &__heading {
     margin: 0 0 var(--space-12);
     font-size: var(--text-lg);
     font-weight: var(--font-weight-semibold);
   }
+}
+
+.site-texts-actions {
+  /* The save row follows the last translations block: a top margin puts the
+     gap on the element below it, where nothing can collapse it away or
+     absorb it into a parent's gap. Token-based, like the rest of this file. */
+  margin-top: var(--space-16);
 }
 
 .site-texts-row {
