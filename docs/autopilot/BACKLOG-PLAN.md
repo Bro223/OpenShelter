@@ -353,6 +353,18 @@ Acceptance: a grep for single-side border accents returns nothing outside the ve
 
 ---
 
+## Wave 16 — the dependency-scan findings (queued; one is an owner decision)
+
+The shared failure cluster this replaced is resolved: CI is green on every push, all four jobs, and the backend's `mvn verify` now reaches the OWASP scan because PMD was fixed properly rather than suppressed. The scan itself stays red, and the honest breakdown is:
+
+**Cleared** — `postgresql` 42.7.12 and `log4j-api` 2.25.5 report zero findings.
+
+**Not clearable, proven:** `spring-core 6.2.19` (CVE-2026-47884 at 9.8, plus 11 more at or above the 7.0 gate) and `spring-security-core 6.5.11` (9.1, 7.4). The patched releases **do not exist**: `6.2.20` and `6.5.12` are 404s on Maven Central, the 6.2 and 6.5 lines both ended at the versions shipped, and Spring Boot 3.5.16 is the last 3.5.x. Clearing them requires **Spring Boot 4.x** — Spring Framework 7, **Java 25+**, and jakarta/API churn across the backend. That is a migration project, not a lane: it needs its own change, its own test budget, and it should land when nothing else is mid-flight. **Owner decision:** either open that migration deliberately, or accept a dated suppression naming the migration as the trigger — a suppressed 9.8 with no route to a fix is the legitimate case for suppression, but it must be a decision with a date on it, not an omission.
+
+**Two-line follow-up:** `swagger-ui`'s bundled DOMPurify (CVE-2026-65898, 7.2) is fixed by webjar 5.32.7, but the webjar must be paired with `springdoc.swagger-ui.version` in application config — the webjar alone 404s the API docs (proven, then reverted). Any lane that can touch application config can land it.
+
+---
+
 ## Owner-side queue
 
 1. **ET/RU review packet** — the corpus plus the 38 new strings; every Estonian defect this week
