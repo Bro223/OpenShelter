@@ -47,12 +47,19 @@ const MIN_ADMIN_TABS = 9;
 /**
  * Size ceiling for admin-page.ts — re-measured every time a seam comes
  * out. It stood at 2 535 lines (MEASURED when this guard landed,
- * 2026-09-22, HEAD 317cf08) and is lowered HERE, in the same commit, to
- * the size measured after W3-B's continuation extracted the shelters
- * paged view + its search sync — the URL→state→load seam (the `shelterQ`
- * / `source` / `shelterPage` / `shelterSize` params, the fetch-sequence
- * guard, the row actions) — into `shelters-view.ts` (review 18 F3's fix
- * note). Same idiom as the count floors above: crossing the ceiling
+ * 2026-09-22, HEAD 317cf08), was lowered to the size measured after
+ * W3-B's continuation extracted the shelters paged view + its search
+ * sync — the URL→state→load seam (the `shelterQ` / `source` /
+ * `shelterPage` / `shelterSize` params, the fetch-sequence guard, the
+ * row actions) — into `shelters-view.ts` (review 18 F3's fix note), and
+ * is RAISED HERE, in the same commit, to the size measured after
+ * admin-tab-persist made the active tab URL-backed (`tab`): the
+ * snapshot-derived tab init, the normalizer's `tab` clause, the
+ * onQueryChange URL-step branch, and the switchTab split into applyTab
+ * (the shared half) + navigateTab (the URL write). The tab vocabulary
+ * itself (parse/default/values) went to shared/admin-tab.ts; no larger
+ * seam came out, so the ceiling moves with the measured number.
+ * Same idiom as the count floors above: crossing the ceiling
  * fails the build, and RAISING it is a decision — change it in the same
  * commit that legitimately grows the file, with the reason, never as a
  * silent default; lowering it follows the same commit that legitimately
@@ -63,7 +70,7 @@ const MIN_ADMIN_TABS = 9;
  * translation rows) — the page's largest remaining tab, the same
  * pattern.
  */
-const ADMIN_PAGE_MAX_LINES = 2067;
+const ADMIN_PAGE_MAX_LINES = 2126;
 
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>

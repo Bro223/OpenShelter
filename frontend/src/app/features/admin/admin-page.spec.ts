@@ -2,7 +2,7 @@ import { Component, type DebugElement } from '@angular/core';
 import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { NavigationStart, provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { AccountGateway } from '../../gateways/account-gateway';
@@ -23,6 +23,7 @@ import type {
 } from '../../core/models';
 import { AdminPage } from './admin-page';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { ADMIN_TABS } from '../../shared/admin-tab';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
 
@@ -3219,10 +3220,10 @@ describe('AdminPage', () => {
         .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }); // cleared page 1
       const { element, fixture } = await openAdmin();
       await switchTab('Guidance', element, fixture);
-      // Defaults are omitted from the URL (page 1, size 20) — and the
-      // admin's params are NAMESPACEd (never bare page/size — the tabs
-      // share one route).
-      expect(router.url).toBe('/admin');
+      // Defaults are omitted from the URL (page 1, size 20) — the tab
+      // param is the switch's own state; the admin's paging params stay
+      // NAMESPACEd (never bare page/size — the tabs share one route).
+      expect(router.url).toBe('/admin?tab=guidance');
       expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
         locale: 'en',
         limit: 20,
@@ -3294,8 +3295,9 @@ describe('AdminPage', () => {
         .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }); // the cleared page 1
       const { element, fixture } = await openAdmin();
       await toShelters(element, fixture);
-      // Defaults are omitted from the URL (page 1, size 20, no search).
-      expect(router.url).toBe('/admin');
+      // Defaults are omitted from the URL (page 1, size 20, no search);
+      // the tab param is the switch's own state.
+      expect(router.url).toBe('/admin?tab=shelters');
       // Page 2 through the shared control.
       nextButton(element).click();
       await settle(fixture);
@@ -3319,7 +3321,7 @@ describe('AdminPage', () => {
         new Event('submit', { bubbles: true, cancelable: true }),
       );
       await settle(fixture);
-      expect(router.url).toBe('/admin');
+      expect(router.url).toBe('/admin?tab=shelters');
       expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
     });
 
@@ -3654,10 +3656,15 @@ describe('AdminPage', () => {
       await router.navigate(['/admin'], { queryParams: { source: 'ALL' } });
       await settle(fixture);
       expect(router.url).toBe('/admin');
-      // A LEGAL value is untouched (the filter keeps working from a link).
+      // A LEGAL value is untouched (the filter keeps working from a
+      // link): the link carries no tab, so the default tab opens and the
+      // filter applies when the Shelters tab is opened (off-tab params
+      // are inert until the tab reads them).
       await router.navigate(['/admin'], { queryParams: { source: 'REGISTRY' } });
       await settle(fixture);
       expect(router.url).toContain('source=REGISTRY');
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      await toShelters(element, fixture);
       expect(admin.listShelters).toHaveBeenLastCalledWith({
         source: 'REGISTRY',
         limit: 20,
@@ -3678,10 +3685,12 @@ describe('AdminPage', () => {
       const { element, fixture } = await openAdmin();
 
       buttonByText(element, 'Shelters')!.click();
-      fixture.detectChanges();
-      // The paged load is in flight (rows nulled, no error) — the window the
-      // old `!live` guard turned into a dead end. The Community chip clicks
-      // through it.
+      await settle(fixture); // the tab's URL write settles first — the
+      // chip's snapshot merge below reads it with the tab in it
+      // (the tabs share one route).
+      // The paged load is STILL in flight (rows nulled, no error) — the
+      // window the old `!live` guard turned into a dead end. The
+      // Community chip clicks through it.
       buttonByText(element, 'Community')!.click();
       await settle(fixture);
       // The URL is the state: the chip's filter is in it…
@@ -3833,7 +3842,7 @@ describe('AdminPage', () => {
       await switchTab('Shelter reports', element, fixture);
       // The default view: the 'All' chip is pressed and the request carries
       // NO excludeDismissed (the param's absence is the 'All' default).
-      expect(router.url).toBe('/admin');
+      expect(router.url).toBe('/admin?tab=reports');
       expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
       const allChip = element.querySelector('.admin-chips button[aria-pressed="true"]')!;
       expect(allChip.textContent).toContain('All');
@@ -3892,6 +3901,197 @@ describe('AdminPage', () => {
       await settle(fixture);
       expect(element.querySelectorAll('.admin-queue-row')).toHaveLength(0);
       expect(element.textContent).toContain('No open reports.');
+    });
+
+    // ---- the active tab in the URL (admin-tab-persist) ----------------------
+    // The tab was the one admin state the page held in memory only: a
+    // reload dropped it back to the first tab. It is URL-backed now — the
+    // same omit-defaults + clamp discipline as the lists' params: absent
+    // = the default (the first tab), the default's value normalizes to
+    // absence, an illegal value is dropped and the page reads the default
+    // (the fallback is a tab, never a blank page).
+
+    /** Boot like the real app but land at /admin WITH the query params
+     *  BEFORE the page exists — a reload, a bookmark, a shared link.
+     *  (openAdmin lands at the bare /admin first; this is the fresh-load
+     *  shape.) */
+    async function freshLoadAt(queryParams: Record<string, string>) {
+      account.me.mockResolvedValue(ADMIN_PROFILE);
+      auth.login.mockResolvedValue(PAIR);
+      await store.init();
+      await store.login(ADMIN_PROFILE.email, 's3cret');
+      await router.navigate(['/admin'], { queryParams });
+      await fixture.whenStable();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      fixture.detectChanges();
+      const debug: DebugElement = fixture.debugElement.query(By.directive(AdminPage));
+      if (!debug) {
+        throw new Error('AdminPage not rendered');
+      }
+      return debug.nativeElement as HTMLElement;
+    }
+
+    it('a fresh load with ?tab=… opens that tab (the reload case — the tab is derived from the URL)', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      const element = await freshLoadAt({ tab: 'shelters' });
+      // The Shelters tab is active (the default Unconfirmed queue is not)
+      // — today (pre-fix) a fresh load always opens the first tab.
+      expect(buttonByText(element, 'Shelters')!.getAttribute('aria-pressed')).toBe('true');
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('false');
+      expect(element.querySelector('#admin-search')).not.toBeNull();
+      // And its paged view loaded from the URL's view (the queue leg
+      // loads separately in ngOnInit — the paged call is the proof).
+      expect(admin.listShelters).toHaveBeenCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('a fresh load with an illegal ?tab falls back to the default tab and normalizes the URL', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      const element = await freshLoadAt({ tab: 'BOGUS' });
+      // The fallback is the default tab (the review queue renders)…
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(element.querySelector('#admin-search')).toBeNull();
+      // …and the stray value is normalized OUT of the URL — the same
+      // replaceUrl discipline as the lists' params (the URL never keeps a
+      // tab the page does not render).
+      expect(router.url).toBe('/admin');
+    });
+
+    it('a fresh load with the default tab spelled out (?tab=unconfirmed) opens it and normalizes the URL to absence', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      const element = await freshLoadAt({ tab: 'unconfirmed' });
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      // Omit-defaults: the default's URL form is the param's ABSENCE.
+      expect(router.url).toBe('/admin');
+    });
+
+    it('a user-initiated tab switch is ONE navigation (a real history entry in the browser) and keeps the other tabs\' params', async () => {
+      admin.listShelters.mockResolvedValue({ rows: [USER_ROW], total: 25 });
+      admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
+      const { element, fixture } = await openAdmin();
+      await toShelters(element, fixture);
+      // Page 2 of the shelters scope — the state that must survive the
+      // switch to another tab (the tabs share one route).
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('shelterPage=2');
+      // The switch is ONE navigation (the repo's rule — in a real browser
+      // that is one history entry, back-navigable; the normalizer's
+      // cosmetic fixes are the replaceUrl half and never add an entry of
+      // their own).
+      let navigations = 0;
+      const navSub = router.events.subscribe((e) => {
+        if (e instanceof NavigationStart) {
+          navigations++;
+        }
+      });
+      buttonByText(element, 'Shelter reports')!.click();
+      await settle(fixture);
+      navSub.unsubscribe();
+      expect(navigations).toBe(1);
+      // The tab is in the URL (a link or a refresh keeps it)…
+      expect(router.url).toContain('tab=reports');
+      // …and the other tab's paging params survive the switch.
+      expect(router.url).toContain('shelterPage=2');
+      // The switch back re-applies the shelters view (page 2 — the view
+      // round-trips through the URL).
+      buttonByText(element, 'Shelters')!.click();
+      await settle(fixture);
+      expect(router.url).toContain('tab=shelters');
+      expect(router.url).toContain('shelterPage=2');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    });
+
+    it('a URL step back to the tab-less URL (the back button\'s step) returns the previous tab', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      const { element, fixture } = await openAdmin();
+      buttonByText(element, 'Shelters')!.click();
+      await settle(fixture);
+      expect(router.url).toContain('tab=shelters');
+      // The back button's step, at the router level: the previous history
+      // entry — the URL WITHOUT the tab param — arrives as a queryParams
+      // emission, and the page applies the tab the URL says.
+      await router.navigate(['/admin']);
+      await settle(fixture);
+      // The previous tab (the default — its URL form is absence) is
+      // active again.
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(router.url).toBe('/admin');
+    });
+
+    it('an illegal ?tab normalizes in the SAME pass as the lists\' params (one atomic pass, the fix is the only second navigation)', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      const { element, fixture } = await openAdmin();
+      let navigations = 0;
+      const navSub = router.events.subscribe((e) => {
+        if (e instanceof NavigationStart) {
+          navigations++;
+        }
+      });
+      // Two strays at once: an illegal tab AND a non-numeric page.
+      await router.navigate(['/admin'], { queryParams: { tab: 'BOGUS', shelterPage: 'abc' } });
+      await settle(fixture);
+      navSub.unsubscribe();
+      // Both strays drop in ONE atomic normalize pass: the navigation
+      // itself, plus the replaceUrl fix (a replace — no history entry of
+      // its own in a real browser; the normalizer is the page's only
+      // replaceUrl writer).
+      expect(navigations).toBe(2);
+      // The URL reads the canonical default view…
+      expect(router.url).toBe('/admin');
+      // …and nothing stray loaded: the default tab's queue loaded once in
+      // ngOnInit (the normalization re-emission is a no-op there).
+      expect(admin.listShelters).toHaveBeenCalledTimes(1);
+      // The page reads the default tab (the fallback, never a blank page).
+      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('every tab value is URL-addressable: a URL step to ?tab=… applies that tab (back/forward, a hand-edited link)', async () => {
+      admin.listShelters.mockResolvedValue(paged([USER_ROW]));
+      admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
+      admin.listUsers.mockResolvedValue(paged([]));
+      admin.listAudit.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      const labels: Record<string, string> = {
+        unconfirmed: 'Unconfirmed',
+        shelters: 'Shelters',
+        reports: 'Shelter reports',
+        alerts: 'Alerts',
+        users: 'Users',
+        guidance: 'Guidance',
+        media: 'Media library',
+        settings: 'Settings',
+        audit: 'Audit log',
+      };
+      for (const tab of ADMIN_TABS) {
+        await router.navigate(['/admin'], { queryParams: { tab } });
+        await settle(fixture);
+        // The URL's tab is the active tab — the URL step applied the
+        // switch (back/forward and a hand-edited link take this path).
+        const pressed = buttonByText(element, labels[tab]);
+        expect(pressed, `?tab=${tab}: no tab button '${labels[tab]}'`).not.toBeNull();
+        expect(pressed!.getAttribute('aria-pressed'), `?tab=${tab} not active`).toBe('true');
+      }
+    });
+
+    it('the URL vocabulary spells every AdminTab value (set equality — a new tab lands in both spellings)', () => {
+      // The architecture guard pins the union against the template; this
+      // pins the union against the URL vocabulary: a tab that exists in
+      // the union but not in ADMIN_TABS would be unaddressable by URL
+      // (the parse rejects it) while its button still renders.
+      const source = readFileSync(
+        `${process.cwd()}/src/app/features/admin/admin-page.ts`,
+        'utf8',
+      );
+      const start = source.indexOf('export type AdminTab =');
+      const end = source.indexOf(';', start);
+      const values: string[] = [];
+      for (const match of source.slice(start, end).matchAll(/\|\s*'([a-z][a-z0-9-]*)'/g)) {
+        values.push(match[1]);
+      }
+      expect(values, 'AdminTab union not found in admin-page.ts — fix the parse').not.toEqual([]);
+      expect([...values].sort()).toEqual([...ADMIN_TABS].sort());
     });
   });
 });

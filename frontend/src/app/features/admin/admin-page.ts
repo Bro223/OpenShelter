@@ -34,6 +34,7 @@ import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '../../shared/paging';
+import { ADMIN_TAB_DEFAULT, parseAdminTab } from '../../shared/admin-tab';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { Locale } from '../../core/i18n/locale';
@@ -56,7 +57,9 @@ registerLocaleData(localeEnGB, 'en-GB');
 /** The moderation tabs: the review queue FIRST, the audit trail LAST
  *  (community-review-queue); the Users tab sits before the authoring tabs;
  *  the guidance (crisis-guidance D8) and media-library tabs sit before the
- *  audit. */
+ *  audit. URL-backed as the `tab` param (admin-tab-persist): shared/
+ *  admin-tab.ts's ADMIN_TABS is this union spelled as data — a new tab
+ *  lands in BOTH spellings (the admin spec pins set equality). */
 export type AdminTab =
   | 'unconfirmed'
   | 'shelters'
@@ -179,13 +182,24 @@ export class AdminPage implements OnInit, OnDestroy {
    *  its callbacks. */
   private readonly injector = inject(Injector);
   /** The admin tabs share ONE route — the paged lists' view (page, size,
-   *  the guidance search, the shelters source) lives in its query params
-   *  (the URL is the state: a link or a refresh keeps the view). */
+   *  the guidance search, the shelters source) AND the active tab (`tab`)
+   *  live in its query params (the URL is the state: a link or a refresh
+   *  keeps the view — and the tab). */
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   // ---- tabs ----------------------------------------------------------------
-  protected readonly tab = signal<AdminTab>('unconfirmed');
+  /** The active tab — the URL's `tab` (admin-tab-persist): the one admin
+   *  state the page held in memory only — a reload, a bookmark and a
+   *  shared link open the same tab. Parsed from the route snapshot at
+   *  construction (the initial queryParams emission then syncs this
+   *  tab's list; the default tab's queue still loads in ngOnInit).
+   *  Absent or illegal reads the default — the normalizer drops an
+   *  illegal value, so the signal only ever holds a legal member (the
+   *  template's comparisons are injection-safe by construction). */
+  protected readonly tab = signal<AdminTab>(
+    parseAdminTab(this.route.snapshot.queryParams['tab']) ?? ADMIN_TAB_DEFAULT,
+  );
 
   // ---- unconfirmed (review-queue) tab ------------------------------------------
   /** The queue's source: the FULL un-paged shelters list — the queue is a
@@ -527,6 +541,16 @@ export class AdminPage implements OnInit, OnDestroy {
     if (this.normalizeListParams(params)) {
       return; // the normalized URL re-emits and loads there
     }
+    // The active tab (the URL's `tab` — absent reads the default; an
+    // illegal value was just normalized out): a URL step that lands on
+    // another tab (back/forward, a hand-edited link) applies the same
+    // switch a click does — minus the URL write (we are already where
+    // the URL says).
+    const tab = parseAdminTab(params['tab']) ?? ADMIN_TAB_DEFAULT;
+    if (tab !== this.tab()) {
+      this.applyTab(tab);
+      return;
+    }
     if (this.tab() === 'guidance') {
       this.syncGuidanceFromParams(params, false);
     } else if (this.tab() === 'shelters') {
@@ -612,6 +636,16 @@ export class AdminPage implements OnInit, OnDestroy {
     const excludeRaw = params['excludeDismissed'] ?? null;
     if (excludeRaw !== null && excludeRaw !== 'true') {
       delete canonical['excludeDismissed'];
+      dirty = true;
+    }
+    // `tab`: the active tab (admin-tab-persist). The default's URL form
+    // is the param's ABSENCE (omit-defaults) and anything outside the
+    // tabs' vocabulary is dropped — the page falls back to the default
+    // tab and the URL reads it back clean (the same discipline as
+    // `source` and `excludeDismissed`).
+    const tabRaw = params['tab'] ?? null;
+    if (tabRaw !== null && (tabRaw === ADMIN_TAB_DEFAULT || parseAdminTab(tabRaw) === null)) {
+      delete canonical['tab'];
       dirty = true;
     }
     if (dirty) {
@@ -758,17 +792,33 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // The default tab (Unconfirmed) filters the FULL shelters list, so
-    // that list loads immediately; the Shelters tab's paged view and the
-    // other tabs load lazily on first switch (a visit after a load keeps
-    // the in-memory rows — the queue does not refetch itself).
+    // The Unconfirmed tab (the default) filters the FULL shelters list —
+    // that list loads immediately (the queue stays warm for every active
+    // tab); the Shelters tab's paged view and the other tabs load lazily
+    // on first switch (a visit after a load keeps the in-memory rows —
+    // the queue does not refetch itself).
     this.loadQueue();
   }
 
   // -------------------------------------------------------------------------
   // Tabs
   // -------------------------------------------------------------------------
+  /** The tab button's intent: apply the switch, then write the active
+   *  tab to the URL — a PUSH (a user-initiated switch is back-
+   *  navigable; the back button returns the previous tab and its view).
+   *  The clamping of a hand-typed `tab` is the normalizer's replaceUrl
+   *  half — no history entry for the cosmetic fix. */
   switchTab(tab: AdminTab): void {
+    this.applyTab(tab);
+    this.navigateTab(tab);
+  }
+
+  /** The switch's shared half — a click and a URL step (back/forward,
+   *  a hand-edited link) both apply it: the UI-state reset (feedback,
+   *  the inline panels, the armed confirms) and the tab's list sync
+   *  (firstVisit — the lazy-load rule). The URL step does not write the
+   *  URL back (it already says where we are). */
+  private applyTab(tab: AdminTab): void {
     this.tab.set(tab);
     this.clearFeedback();
     this.shelters.closeHistory();
@@ -805,6 +855,21 @@ export class AdminPage implements OnInit, OnDestroy {
       case 'unconfirmed':
         break; // filters the full list, which loaded in ngOnInit
     }
+  }
+
+  /** Write the active tab to the URL (merging the other tabs' params —
+   *  they survive the switch; the tabs share one route). The default
+   *  tab's form is the param's ABSENCE (omit-defaults); a click on the
+   *  already-active tab lands on the same URL — the router skips a
+   *  same-URL navigation, so a no-op click adds no history entry. */
+  private navigateTab(tab: AdminTab): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (tab === ADMIN_TAB_DEFAULT) {
+      delete params['tab'];
+    } else {
+      params['tab'] = tab;
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
   }
 
   // -------------------------------------------------------------------------
