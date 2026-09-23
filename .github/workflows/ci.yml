@@ -115,19 +115,18 @@ jobs:
   clean-checkout:
     name: clean checkout (guards against git archive, not the working tree)
     runs-on: ubuntu-latest
-    env:
-      # `runner.temp` IS available in the `env` context at job level; the
-      # default RUNNER_TEMP shell variable is NOT, so `${{ env.RUNNER_TEMP }}`
-      # expanded empty and `working-directory` became "/clean" — a step that
-      # dies in seconds without ever reaching Maven.
-      CLEAN_DIR: ${{ runner.temp }}/clean
     steps:
       - uses: actions/checkout@v4
 
       - name: Extract a pristine tree (no local bytes, no gitignored files)
         run: |
-          mkdir -p "$RUNNER_TEMP/clean"
-          git archive HEAD | tar -x -C "$RUNNER_TEMP/clean"
+          # A workspace-relative directory: `working-directory` inputs take
+          # plain paths, and neither `${{ env.RUNNER_TEMP }}` (a default
+          # *shell* variable, absent from the `env` context) nor a bare
+          # "$VAR" (not expanded in that input) resolves there. The `runner`
+          # context is also step-only, so a job-level env could not use it.
+          mkdir -p .clean-tree
+          git archive HEAD | tar -x -C .clean-tree
 
       - uses: actions/setup-java@v4
         with:
@@ -136,12 +135,12 @@ jobs:
           cache: maven
 
       - name: Backend file-based guards (doc facts, config overlay)
-        # `${{ env.CLEAN_DIR }}` is a job-level env var defined from the
-        # `runner` context, which IS resolvable in a `working-directory`
-        # input. Neither a bare "$CLEAN_DIR" nor `${{ env.RUNNER_TEMP }}` works
-        # there: the former is not shell-expanded in that input, the latter is
-        # not in the `env` context (it is a default *shell* variable).
-        working-directory: ${{ env.CLEAN_DIR }}
+        # `working-directory` takes a plain path: ".\.clean-tree" is the
+        # directory the extract step creates inside the workspace. No
+        # expression is involved, which is the point — both
+        # `${{ env.RUNNER_TEMP }}` and a bare "$VAR" have silently expanded
+        # empty in that input and produced a step that dies in seconds.
+        working-directory: .clean-tree
         run: >
           mvn -B -ntp -q test
           -Dtest='DocumentationFactsTest,TestConfigOverlayTest'
@@ -159,10 +158,10 @@ jobs:
           node-version: 26.10.0
           cache: npm
           cache-dependency-path: >-
-            ${{ env.CLEAN_DIR }}/frontend/package-lock.json
+            ./.clean-tree/frontend/package-lock.json
 
       - name: Frontend architecture guard (from the archive)
-        working-directory: ${{ env.CLEAN_DIR }}/frontend
+        working-directory: .clean-tree/frontend
         run: |
           npm ci
           npx ng test --watch=false --include='**/architecture.spec.ts'
