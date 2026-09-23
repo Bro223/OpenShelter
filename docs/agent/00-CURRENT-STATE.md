@@ -78,8 +78,8 @@ Anchors, row by row:
 - **The shape distinction carries depth separately from colour** (WCAG 1.4.1 — never colour
   alone): unverified = triangle, partial = circle, full = circle with the verified green
   (`frontend/src/styles.scss:796-798,842-854`). Separately, the browse anchor is a diamond
-  against shelter circles "on SHAPE, not colour alone"
-  (`frontend/src/styles.scss:885-886`; `frontend/src/app/shared/leaflet-service.ts:317,337`; the
+  against shelter circles on shape — the code's own words are "not a circle — the shape IS the distinction"
+  (`frontend/src/styles.scss:915-920`; `frontend/src/app/shared/leaflet-service.ts:317,337`; the
   pick pin is `frontend/src/app/shared/leaflet-service.ts:285`).
 - The legend swatches reuse these exact marker classes, so map and legend can never drift
   (`frontend/src/styles.scss:782-785`). Legend copy: `frontend/src/app/core/i18n/en.ts:177,
