@@ -102,11 +102,14 @@
   }
 }
 
+/* The save row is the button-row role: space-8 everywhere a row of
+   buttons wraps (the panel actions, the admin action rows, the picker
+   rows). This was the one space-12 holdout outside the dialog footers. */
 .site-texts-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-12);
+  gap: var(--space-8);
   flex-wrap: wrap;
 }
 

@@ -130,7 +130,9 @@
   font-size: var(--text-base);
 
   &__title {
-    margin: 0 0 var(--space-12);
+    /* The edit-mode card titles: the sibling .edit-not-found__title is
+       space-8 — the same card idiom, one value. */
+    margin: 0 0 var(--space-8);
     font-size: var(--text-lg);
     font-weight: var(--font-weight-medium);
   }
@@ -170,7 +172,9 @@
     display: block;
     font-size: var(--text-md);
     font-weight: var(--font-weight-medium);
-    margin-bottom: var(--space-6);
+    /* The label-above-control role: the global .field label and every
+       other feature caption (guidance, site texts) are space-4. */
+    margin-bottom: var(--space-4);
   }
 
   .location-smart-row {
@@ -202,7 +206,9 @@
     display: block;
     font-size: var(--text-md);
     font-weight: var(--font-weight-medium);
-    margin-bottom: var(--space-6);
+    /* The label-above-control role: the global .field label and every
+       other feature caption (guidance, site texts) are space-4. */
+    margin-bottom: var(--space-4);
   }
 
   .location-search-row {

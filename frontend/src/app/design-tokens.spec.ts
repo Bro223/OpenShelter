@@ -275,7 +275,13 @@ function borderWidthPx(token: string): number | null {
   const m = token.match(/^(\d+(?:\.\d+)?)(px|em|rem|pt|pc|ex|ch|vw|vh|vmin|vmax)?$/);
   if (m === null) return null;
   const factor =
-    m[2] === 'em' || m[2] === 'rem' || m[2] === 'pc' ? 16 : m[2] === 'pt' ? 16 / 12 : m[2] === 'ex' || m[2] === 'ch' ? 8 : 1;
+    m[2] === 'em' || m[2] === 'rem' || m[2] === 'pc'
+      ? 16
+      : m[2] === 'pt'
+        ? 16 / 12
+        : m[2] === 'ex' || m[2] === 'ch'
+          ? 8
+          : 1;
   return Number(m[1]) * factor;
 }
 
@@ -341,7 +347,10 @@ function isSingleSideBorderProperty(prop: string): boolean {
  *  is caught exactly like `border-left: 3px solid var(--x)`. */
 function singleSideAccentOffense(prop: string, value: string): string | null {
   const p = prop.toLowerCase();
-  const v = value.replace(/!important$/i, '').trim().toLowerCase();
+  const v = value
+    .replace(/!important$/i, '')
+    .trim()
+    .toLowerCase();
   if (v === 'none' || v === 'hidden' || v === '0' || v === '0px') return null;
   if (p === 'border' || p === 'border-width') {
     const { widths, color } = decomposeBorderShorthand(v);
@@ -370,7 +379,8 @@ function singleSideAccentOffense(prop: string, value: string): string | null {
   if (style === null || !PAINTING_STYLES.has(style)) return null; // no style (or none/hidden) → nothing paints
   const w = widths.length > 0 ? Math.max(...widths) : 3; // width omitted: the initial border-width is `medium` (3px)
   if (w > 1) return `a single-side border of ${w}px`;
-  if (!isNeutralDividerColour(color)) return `a single-side border in the non-neutral colour "${color}"`;
+  if (!isNeutralDividerColour(color))
+    return `a single-side border in the non-neutral colour "${color}"`;
   return null;
 }
 
@@ -1301,7 +1311,10 @@ describe('design tokens (M6)', () => {
       sideDeclarations,
       'the single-side border scan found no declarations at all — the guard is vacuous',
     ).toBeGreaterThanOrEqual(10);
-    expect(offenders, 'a single-side accent border returned (the Wave 15 treatment is back)').toEqual([]);
+    expect(
+      offenders,
+      'a single-side accent border returned (the Wave 15 treatment is back)',
+    ).toEqual([]);
   });
 
   it('account-page .proof-note — the confirmed case: the bar is gone and the subtle fill is its substitute (Wave 15, owner-confirmed)', () => {
@@ -1324,7 +1337,7 @@ describe('design tokens (M6)', () => {
     const bg = decls.find((d) => d.prop === 'background' || d.prop === 'background-color');
     expect(
       bg?.value,
-      'the proof-note keeps the subtly different background in the border\'s place',
+      "the proof-note keeps the subtly different background in the border's place",
     ).toBe('var(--color-bg-subtle)');
   });
 
@@ -1340,7 +1353,12 @@ describe('design tokens (M6)', () => {
       ['high-contrast', themeTokens],
       ['black-and-yellow', byTokens],
     ];
-    const fills = ['--color-warning-bg', '--color-success-bg', '--color-info-bg', '--color-bg-subtle'];
+    const fills = [
+      '--color-warning-bg',
+      '--color-success-bg',
+      '--color-info-bg',
+      '--color-bg-subtle',
+    ];
     const texts = ['--color-warning', '--color-success', '--color-info', '--color-text'];
     const offenders: string[] = [];
     for (const [theme, tokens] of themes) {
@@ -1350,7 +1368,9 @@ describe('design tokens (M6)', () => {
       ] as [string[], string][]) {
         const values = list.map((t) => tokens.get(t)?.toLowerCase());
         if (values.some((v) => v === undefined)) {
-          offenders.push(`${theme}: a ${what} token of the note family is missing from the token block`);
+          offenders.push(
+            `${theme}: a ${what} token of the note family is missing from the token block`,
+          );
           continue;
         }
         for (let a = 0; a < values.length; a += 1) {
@@ -1379,7 +1399,9 @@ describe('design tokens (M6)', () => {
     );
     const themes = ['light', 'high-contrast', 'black-and-yellow'] as const;
     const required: [string, string, string][] = [
-      ...themes.map((theme) => [theme, '--color-text', '--color-bg-subtle'] as [string, string, string]),
+      ...themes.map(
+        (theme) => [theme, '--color-text', '--color-bg-subtle'] as [string, string, string],
+      ),
       ...themes.flatMap((theme) => [
         [theme, '--color-warning', '--color-warning-bg'] as [string, string, string],
         [theme, '--color-success', '--color-success-bg'] as [string, string, string],
@@ -1387,7 +1409,10 @@ describe('design tokens (M6)', () => {
       ]),
     ];
     const missing = required.filter(([t, f, b]) => !enforced.has(`${t}|${f}|${b}`));
-    expect(missing, 'a Wave 15 substitution pair is missing from the enforced contrast list').toEqual([]);
+    expect(
+      missing,
+      'a Wave 15 substitution pair is missing from the enforced contrast list',
+    ).toEqual([]);
   });
 
   it('the theme layer keeps its Leaflet map-chrome overrides (light-surface links + focus ring)', () => {
@@ -1781,10 +1806,9 @@ describe('design tokens (M6)', () => {
       'no ::placeholder rule in styles.scss — the UA placeholder is back',
     ).toBeGreaterThan(0);
     for (const d of ph) {
-      expect(
-        `${d.prop}: ${d.value}`,
-        'the placeholder colour must be the muted token',
-      ).toBe('color: var(--color-muted)');
+      expect(`${d.prop}: ${d.value}`, 'the placeholder colour must be the muted token').toBe(
+        'color: var(--color-muted)',
+      );
       expect(d.head, 'the placeholder rule must cover the search inputs').toContain('input');
       expect(d.head, 'the placeholder rule must cover the form textareas').toContain('textarea');
     }
@@ -1799,7 +1823,10 @@ describe('design tokens (M6)', () => {
       'the black-and-yellow muted placeholder must be yellow-band (45-65°)',
     ).toBeGreaterThanOrEqual(45);
     expect(hueOf(muted!)).toBeLessThanOrEqual(65);
-    expect(contrast(muted!, surface!), 'muted placeholder on the black surface').toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrast(muted!, surface!),
+      'muted placeholder on the black surface',
+    ).toBeGreaterThanOrEqual(4.5);
     // The pair belongs in the ENFORCED list at the text threshold — the
     // placeholder is text on the input surface, not a comment.
     const enforced = new Set(CONTRAST_CHECKS.map((c) => `${c.theme}|${c.fg}|${c.bg}|${c.min}`));
@@ -1872,5 +1899,196 @@ describe('design tokens (M6)', () => {
     expect(stylesCss).toMatch(
       /input,\s*textarea \{\s*background-color: var\(--color-bg-surface\);\s*\}/,
     );
+  });
+});
+
+/* =====================================================================
+   Spacing literals — the owner's "the same element, the same spacing
+   everywhere" guard. The scale is the --space-* set in the :root token
+   block (styles.scss); every margin/padding/gap declaration in the app's
+   stylesheets must ride it. The ALLOW-LIST is deliberately narrow and
+   stated here, because a guard with no allow-list gets disabled within a
+   week and one that flags legitimate hairlines gets ignored:
+
+   * 0 (any unit) and auto — the UA-reset and the centring idioms
+     (margin: 0 0 var(--space-8), margin: 0 auto, margin-left: auto);
+   * 1px/2px — the documented line-weight family, in spacing properties
+     it is the hairline offset (the visually-hidden margin: -1px);
+   * negative values — offsets that pull an element onto its neighbour
+     (the -1px hairline, the negative row join);
+   * values wrapped in calc()/clamp() — derived geometry (the negative
+     space-8 row join, the burger cross distance) where the math, not a
+     scale step, is the point;
+   * %/em/ch — relative measures where a relative measure is the correct
+     unit; and
+   * src/vendor/** — vendored third-party bytes, outside the sweep
+     (collectScss skips the directory, as the colour guards do).
+
+   NOT allowed: any other px number (16px — the value this guard exists
+   for), rem/pt/... measures, and var() FALLBACKS — the global :root
+   block always ships the tokens, so a fallback never fires, and a
+   fallback that differs from the token's value is a wrong value (the
+   two var(--space-4, 0.5rem) spellings were exactly that: the token is
+   4px, the fallback was 8px).
+
+   The scan runs over COMPILED declarations (compiledDeclarations), not
+   raw text: every SCSS spelling of the same declaration — top-level,
+   nested-compound, @media-wrapped, re-spaced — compiles to the same
+   flat prop/value pair, so no spelling can defeat it (the text-pattern
+   class this repo already proved hollow, 15-delivery-audit M7b/M7c).
+   The matched-count floor keeps a reformat from silently reducing the
+   scan to checking nothing (the repo idiom, applied to every guard in
+   this file). The role-by-role audit behind the fixes this guard
+   polices: reviews/19-spacing-audit.md.
+   ===================================================================== */
+
+describe('design tokens — spacing literals', () => {
+  /** The margin/padding/gap family — physical AND logical (RTL) sides,
+   *  shorthands and longhands alike, so a re-spelling cannot dodge the
+   *  scan. */
+  const SPACING_PROPS = new Set([
+    'margin',
+    'margin-top',
+    'margin-right',
+    'margin-bottom',
+    'margin-left',
+    'margin-inline',
+    'margin-inline-start',
+    'margin-inline-end',
+    'margin-block',
+    'margin-block-start',
+    'margin-block-end',
+    'padding',
+    'padding-top',
+    'padding-right',
+    'padding-bottom',
+    'padding-left',
+    'padding-inline',
+    'padding-inline-start',
+    'padding-inline-end',
+    'padding-block',
+    'padding-block-start',
+    'padding-block-end',
+    'gap',
+    'row-gap',
+    'column-gap',
+  ]);
+
+  /** A declaration value as top-level tokens — whitespace at parenthesis
+   *  depth 0 only, so `calc(var(--space-8) * -1)` stays one token while
+   *  `0 0 var(--space-8)` splits into three. */
+  function valueTokens(value: string): string[] {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of value) {
+      if (ch === '(') depth += 1;
+      if (ch === ')') depth -= 1;
+      if (ch === ' ' && depth === 0) {
+        if (cur !== '') {
+          out.push(cur);
+          cur = '';
+        }
+        continue;
+      }
+      cur += ch;
+    }
+    if (cur !== '') out.push(cur);
+    return out;
+  }
+
+  /** One token of a spacing value: null = the allow-list above covers it,
+   *  a string = why this is a spacing literal. */
+  function spacingLiteralOffense(token: string): string | null {
+    const t = token.trim();
+    if (t === '') return null;
+    // 0 in any unit, and auto (centring / margin-left: auto house style).
+    if (t === 'auto' || /^0(px|em|rem|%|ex|ch|vw|vh)?$/.test(t)) return null;
+    // calc()/clamp(): derived offsets — the owner-stated exemption.
+    if (/^(calc|clamp)\(/.test(t)) return null;
+    // var(): a reference to the scale. A fallback is scanned as its own
+    // tokens — the :root block always ships --space-*, so a fallback
+    // never fires, and a fallback that differs from the token's value is
+    // a wrong value anyway.
+    const v = t.match(/^var\((--[\w-]+)\s*(?:,\s*(.*))?\)$/);
+    if (v !== null) {
+      if (!v[1].startsWith('--space-')) {
+        return `var(${v[1]}) is not a --space-* token`;
+      }
+      if (v[2] !== undefined && v[2].trim() !== '') {
+        const fb = valueTokens(v[2])
+          .map((tok) => spacingLiteralOffense(tok))
+          .find((r) => r !== null);
+        return fb !== undefined
+          ? `var(${v[1]}, ${v[2].trim()}) carries a literal fallback (${fb})`
+          : `var(${v[1]}, ${v[2].trim()}) carries a fallback the scale already guarantees`;
+      }
+      return null;
+    }
+    // px: hairlines (1px/2px) and negative offsets are the owner-stated
+    // exemptions; any other px number is a literal.
+    const px = t.match(/^(-?)(\d+(?:\.\d+)?)px$/);
+    if (px !== null) {
+      if (px[1] === '-' || Number(px[2]) <= 2) return null;
+      return `${t} — a px value off the --space-* scale`;
+    }
+    // Relative measures where a relative measure is correct: %, em, ch.
+    if (/^\d+(?:\.\d+)?(%|em|ch)$/.test(t)) return null;
+    // Anything else: a literal measure (rem, pt, ...) that should be a
+    // --space-* token.
+    return `${t} — a literal measure off the --space-* scale`;
+  }
+
+  it('no spacing literal in any app stylesheet (margin/padding/gap ride the --space-* scale)', () => {
+    // The COMPILED stylesheet — same load path as the guards above (the
+    // @use 'leaflet/dist/leaflet.css' at the top of styles.scss).
+    const stylesCss = sass.compile(STYLES_FILE ?? '', {
+      loadPaths: [`${process.cwd()}/node_modules`],
+      style: 'expanded',
+    }).css;
+    const offenders: string[] = [];
+    let checked = 0;
+    const check = (name: string, css: string, skipLeaflet: boolean) => {
+      for (const d of compiledDeclarations(css)) {
+        // styles.scss pulls Leaflet's vendored stylesheet in via @use —
+        // third-party bytes, outside the sweep (the same head filter the
+        // Wave 15 border guard uses).
+        if (skipLeaflet && d.head.includes('.leaflet-')) continue;
+        const p = d.prop.toLowerCase();
+        if (!SPACING_PROPS.has(p)) continue;
+        checked += 1;
+        const value = d.value.replace(/!important$/i, '').trim();
+        const bad = valueTokens(value)
+          .map((tok) => spacingLiteralOffense(tok))
+          .filter((r): r is string => r !== null);
+        if (bad.length > 0) {
+          offenders.push(`${name} :: ${d.head} { ${d.prop}: ${d.value} } — ${bad.join('; ')}`);
+        }
+      }
+    };
+    check('styles.scss', stylesCss, true);
+    for (const f of collectScss(SRC_DIR)) {
+      if (f === STYLES_FILE) continue; // styles.scss above (compiled with the leaflet load path)
+      const name = f.slice(SRC_DIR.length + 1);
+      const css = sass.compile(f, {
+        loadPaths: [`${process.cwd()}/node_modules`],
+        style: 'expanded',
+      }).css;
+      check(name, css, false);
+    }
+    // Vacuity floor: the scan must find the app's real spacing
+    // declarations (measured on this tree: 641 — the count includes the
+    // _admin-shared partial inside each of its @using panels, so a
+    // refactor that restructures the partials must re-measure and
+    // re-declare the floor on purpose). A walker that matched nothing —
+    // broken parse, renamed props, a reformat that hollowed the
+    // stylesheets — would "pass" for the wrong reason.
+    expect(
+      checked,
+      'the spacing scan found only ' +
+        checked +
+        ' declarations (< 500) — the guard is close to vacuous',
+    ).toBeGreaterThanOrEqual(500);
+    expect(offenders, 'a spacing literal off the --space-* scale').toEqual([]);
   });
 });

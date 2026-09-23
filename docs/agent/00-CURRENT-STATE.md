@@ -27,7 +27,12 @@ sentence. If an anchor no longer matches, re-derive from the code and report the
 - Design tokens: `frontend/src/styles.scss` — the `:root` block is the single source of truth
   (`frontend/src/styles.scss:3`), with one `[data-theme='high-contrast']` override block
   (`frontend/src/styles.scss:279`); the black-and-yellow theme is a runtime token map in
-  `frontend/src/app/core/theme-tokens.ts:71`.
+  `frontend/src/app/core/theme-tokens.ts:71`. Spacing rides the `--space-*` scale the same
+  way: the spacing-literal guard in `frontend/src/app/design-tokens.spec.ts` fails the build
+  on any margin/padding/gap value off-scale, with a stated allow-list (zero/auto resets,
+  1–2px hairlines, negative offsets, calc/clamp, %/em/ch measures, vendored bytes) and a
+  matched-count floor. The role-by-role audit behind it — 44 roles, 13 fixed declarations,
+  the documented exceptions — is `reviews/19-spacing-audit.md`.
 
 ---
 

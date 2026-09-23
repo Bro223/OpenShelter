@@ -34,7 +34,10 @@
      --radius-md and --color-bg-surface. */
   select {
     min-height: 48px;
-    padding: 0 var(--space-4);
+    /* The 48px touch-target control idiom: the map's anchor-search input
+       carries space-6 space-10 with the same 48px minimum — this select
+       sat at 0/space-4 in the same role. */
+    padding: var(--space-6) var(--space-10);
     font: inherit;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);

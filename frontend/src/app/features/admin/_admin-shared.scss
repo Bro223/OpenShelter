@@ -98,7 +98,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
-  margin-top: var(--space-4);
+  /* No margin-top: the row's own space-8 gap owns the separation, and the
+     action-row role sits space-8 below its content everywhere else.
+     (The old extra space-4 margin double-counted the gap to 12px.) */
 }
 
 /* A dismissed report row: dimmed — the badge says WHY, the row shows
