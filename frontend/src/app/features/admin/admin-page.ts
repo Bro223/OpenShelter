@@ -33,13 +33,7 @@ import { bannerMessage } from '../../shared/error-copy';
 import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
-import {
-  PAGE_SIZE_DEFAULT,
-  clampPage,
-  lastPage,
-  parsePage,
-  parseSize,
-} from '../../shared/paging';
+import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '../../shared/paging';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { Locale } from '../../core/i18n/locale';

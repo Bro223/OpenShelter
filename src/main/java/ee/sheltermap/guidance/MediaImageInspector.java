@@ -337,13 +337,13 @@ public final class MediaImageInspector {
      * same swap the browsers apply when they render the original.
      */
     private static Optional<ImageInfo> dimensions(String contentType, int width, int height, int orientation) {
+        int w = width, h = height;
         if (orientation >= 5 && orientation <= 8) {
-            int swapped = width;
-            width = height;
-            height = swapped;
+            w = height;
+            h = width;
         }
-        return (width > 0 && height > 0)
-                ? Optional.of(new ImageInfo(contentType, width, height, orientation))
+        return (w > 0 && h > 0)
+                ? Optional.of(new ImageInfo(contentType, w, h, orientation))
                 : Optional.empty();
     }
 

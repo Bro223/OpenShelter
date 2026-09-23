@@ -128,12 +128,10 @@ describe('frontend architecture guard', () => {
   });
 
   it('every feature directory is referenced by the routing table', () => {
-    const unrouted = features.filter(
-      (dir) => !routes.includes(`features/${dir}/`),
+    const unrouted = features.filter((dir) => !routes.includes(`features/${dir}/`));
+    expect(unrouted.map((dir) => `features/${dir}/ — add a route or delete the directory`)).toEqual(
+      [],
     );
-    expect(
-      unrouted.map((dir) => `features/${dir}/ — add a route or delete the directory`),
-    ).toEqual([]);
   });
 
   it('every AdminTab value has a tab button and a rendered panel', () => {

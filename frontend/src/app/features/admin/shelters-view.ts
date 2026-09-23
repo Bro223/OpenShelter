@@ -115,9 +115,7 @@ export class SheltersView {
    *  notice, never a bare empty list. */
   readonly total = signal(0);
   readonly pages = computed(() => lastPage(this.total(), this.size()));
-  readonly outOfRange = computed(
-    () => this.total() > 0 && this.page() > this.pages(),
-  );
+  readonly outOfRange = computed(() => this.total() > 0 && this.page() > this.pages());
   /** The selectable sizes — the range the endpoint serves (limit 1..200
    *  honours all of 10..100 step 10, so the control never offers a size
    *  the backend would refuse). */
@@ -601,9 +599,7 @@ export class SheltersView {
    *  the in-memory row (no full refetch). Public: the reports tab's
    *  "Restore shelter" shortcut patches the row cross-tab. */
   patchShelter(id: number, patch: Partial<AdminShelterDto>): void {
-    this.rows.update((rows) =>
-      (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
-    );
+    this.rows.update((rows) => (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 }
 

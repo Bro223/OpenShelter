@@ -444,11 +444,13 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       // The project's ambient node:fs types only cover the utf8 overload —
       // the cast (the specs' `as unknown as` idiom) reaches the base64 one.
       const readBase64 = readFileSync as unknown as (path: string, encoding: 'base64') => string;
-      const portrait = 'data:image/png;base64,' +
+      const portrait =
+        'data:image/png;base64,' +
         readBase64(`${process.cwd()}/test/fixtures/hero/portrait-64x96.png`, 'base64');
       // A REAL 64x96 file (2:3) — the browser decodes its intrinsic ratio;
       // a landscape twin of the same fixture family (3:2) is the control.
-      const landscape = 'data:image/png;base64,' +
+      const landscape =
+        'data:image/png;base64,' +
         readBase64(`${process.cwd()}/test/fixtures/hero/landscape-96x64.png`, 'base64');
 
       guidanceGateway.set(

@@ -303,7 +303,9 @@ function listButton(root: HTMLElement, kind: 'bullet' | 'ordered'): HTMLButtonEl
 function pickHeader(h: EditorHarness, value: string): void {
   const item =
     value === ''
-      ? h.element.querySelector<HTMLSpanElement>('.ql-header.ql-picker .ql-picker-item:not([data-value])')
+      ? h.element.querySelector<HTMLSpanElement>(
+          '.ql-header.ql-picker .ql-picker-item:not([data-value])',
+        )
       : h.element.querySelector<HTMLSpanElement>(
           `.ql-header.ql-picker .ql-picker-item[data-value="${value}"]`,
         );
@@ -541,7 +543,10 @@ describe('GuidanceEditor', () => {
   // payloads, not the new copy text.
 
   it('heroImportUrlValidator: blank passes; absolute http(s) with a host passes; non-http(s), hostless, credentialed and relative fail', () => {
-    const control = new FormControl('', { nonNullable: true, validators: [heroImportUrlValidator] });
+    const control = new FormControl('', {
+      nonNullable: true,
+      validators: [heroImportUrlValidator],
+    });
     // Blank = no pending import (always allowed).
     expect(heroImportUrlValidator(control)).toBeNull();
     for (const good of [
@@ -668,7 +673,9 @@ describe('GuidanceEditor', () => {
     const errors = Array.from(block.querySelectorAll('.field-error')).map((el) =>
       el.textContent?.trim(),
     );
-    expect(errors).toContain('The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:');
+    expect(errors).toContain(
+      'The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:',
+    );
     expect(errors).toContain(
       'The hero image URL answered HTTP 404 (the URL is broken — no retry will fix it)',
     );
@@ -884,8 +891,8 @@ describe('GuidanceEditor', () => {
       {
         ...MEDIA_ASSETS[0]!,
         srcset:
-          '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
-          + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w',
+          '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, ' +
+          '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w',
       },
       MEDIA_ASSETS[1]!, // no srcset (e.g. a WebP original)
     ];
@@ -1094,7 +1101,10 @@ describe('GuidanceEditor', () => {
   });
 
   it('a stored blockquote still round-trips (the normalizer keeps it even without a toolbar choice)', () => {
-    const h = createHost({ ...EDIT_POST, bodyHtml: '<p>a</p><blockquote>quoted</blockquote><p>b</p>' });
+    const h = createHost({
+      ...EDIT_POST,
+      bodyHtml: '<p>a</p><blockquote>quoted</blockquote><p>b</p>',
+    });
     const root = rootOf(h);
     // The stored blockquote loads as markup (the normalizer does not unwrap it).
     expect(root.innerHTML).toBe('<p>a</p><blockquote>quoted</blockquote><p>b</p>');
@@ -1112,16 +1122,16 @@ describe('GuidanceEditor', () => {
 
     // The header picker offers the default paragraph plus levels 2 and 3
     // only (no H1 — the page owns it; no H4-h6 — not on the allowlist).
-    const headerValues = [...h.element.querySelectorAll<HTMLElement>('.ql-header.ql-picker .ql-picker-item')].map(
-      (i) => i.getAttribute('data-value') ?? '',
-    );
+    const headerValues = [
+      ...h.element.querySelectorAll<HTMLElement>('.ql-header.ql-picker .ql-picker-item'),
+    ].map((i) => i.getAttribute('data-value') ?? '');
     expect(headerValues).toEqual(['2', '3', '']);
 
     // The remaining controls, in DOM order: the two list buttons and the
     // three inline buttons — the standard control classes, nothing else.
     expect(
-      [...h.element.querySelectorAll<HTMLButtonElement>('.ql-toolbar button')].map(
-        (b) => b.getAttribute('aria-label'),
+      [...h.element.querySelectorAll<HTMLButtonElement>('.ql-toolbar button')].map((b) =>
+        b.getAttribute('aria-label'),
       ),
     ).toEqual(['list: bullet', 'list: ordered', 'bold', 'italic', 'link']);
 
@@ -1384,9 +1394,7 @@ describe('GuidanceEditor', () => {
     // (jsdom creates the <link> regardless of whether the URL resolves)
     // while the BUILT app's editor loses its theme (404) — the exact bug
     // this guard class exists to catch.
-    const config = JSON.parse(
-      readFileSync(`${process.cwd()}/angular.json`, 'utf8'),
-    ) as {
+    const config = JSON.parse(readFileSync(`${process.cwd()}/angular.json`, 'utf8')) as {
       projects: Record<
         string,
         {
@@ -1414,19 +1422,20 @@ describe('GuidanceEditor', () => {
     // itself is pinned by the bytes test below, which fails if the
     // 2.0.3/dist path goes away.)
     const quillEntry = options.assets.find(
-      (
-        a,
-      ): a is { glob: string; input: string; output: string } =>
-        typeof a === 'object' && a.input === 'src/vendor/quill' && a.glob === '**/dist/quill.snow.css',
+      (a): a is { glob: string; input: string; output: string } =>
+        typeof a === 'object' &&
+        a.input === 'src/vendor/quill' &&
+        a.glob === '**/dist/quill.snow.css',
     );
     expect(
       quillEntry,
       'angular.json must copy the vendored quill snow theme into the build output — the editor links SNOW_THEME_HREF, and without the copy the built editor is unstyled (404) while this suite stays green',
     ).toBeDefined();
     expect(quillEntry!.output, 'the quill copy output root').toBe('/vendor/quill');
-    expect(`${quillEntry!.output}/2.0.3/dist/quill.snow.css`, 'the copied asset must land on the URL the editor links').toBe(
-      SNOW_THEME_HREF,
-    );
+    expect(
+      `${quillEntry!.output}/2.0.3/dist/quill.snow.css`,
+      'the copied asset must land on the URL the editor links',
+    ).toBe(SNOW_THEME_HREF);
   });
 
   it('initialising the editor loads the snow stylesheet (one versioned link, never global)', () => {
@@ -1798,7 +1807,7 @@ describe('translation authoring (bilingual-guidance)', () => {
     expect(h.element.textContent).not.toContain('home language');
   });
 
-  it('a hero post with a CLEARED alt blocks Save (the pairing rule follows the post\'s shared hero)', () => {
+  it("a hero post with a CLEARED alt blocks Save (the pairing rule follows the post's shared hero)", () => {
     const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
     typeValue(inputById(h.element, 'ge-alt')!, '', h.fixture);
     h.editor.onSave();
@@ -1900,7 +1909,7 @@ describe('translation editing (bilingual-guidance)', () => {
     expect(h.element.textContent).not.toContain('home language');
   });
 
-  it('a hero post with a CLEARED alt blocks Save (the pairing rule follows the post\'s shared hero)', () => {
+  it("a hero post with a CLEARED alt blocks Save (the pairing rule follows the post's shared hero)", () => {
     const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
     typeValue(inputById(h.element, 'ge-alt')!, '', h.fixture);
     h.editor.onSave();
@@ -1979,25 +1988,22 @@ describe('guidance admin at 360px (M13: no page-level horizontal overflow)', () 
     const scss = readAdminScss('guidance-editor.scss');
     const name = scss.match(/\.hero-picker__name \{[\s\S]*?\n\}/)?.[0] ?? '';
     expect(name, 'the picker name rule must exist').not.toEqual('');
-    expect(
-      name,
-      'filenames are unbounded server strings — the wrap is the mechanism',
-    ).toContain('overflow-wrap: anywhere');
+    expect(name, 'filenames are unbounded server strings — the wrap is the mechanism').toContain(
+      'overflow-wrap: anywhere',
+    );
     const heroName = scss.match(/\.guidance-editor__hero-name \{[\s\S]*?\n\}/)?.[0] ?? '';
-    expect(
-      heroName,
-      'the selected-hero name line wraps the same way',
-    ).toContain('overflow-wrap: anywhere');
+    expect(heroName, 'the selected-hero name line wraps the same way').toContain(
+      'overflow-wrap: anywhere',
+    );
   });
 
   it('the post table scrolls horizontally INSIDE its wrapped region — at 360px the 7-column table (180px title floor + 220px actions floor) is wider than the 288px content, so the scrollable element is the table region, never the document', () => {
     const shared = readAdminScss('_admin-shared.scss');
     const wrap = shared.match(/\.admin-table-wrap \{[\s\S]*?\n\}/)?.[0] ?? '';
     expect(wrap, 'the table wrap rule must exist').not.toEqual('');
-    expect(
-      wrap,
-      'the wrap must scroll horizontally (the table keeps its column floors)',
-    ).toContain('overflow-x: auto');
+    expect(wrap, 'the wrap must scroll horizontally (the table keeps its column floors)').toContain(
+      'overflow-x: auto',
+    );
     // The move buttons inside the actions cell wrap too — they are the
     // PRIMARY reorder mechanism (guidance-manual-order D6) and must stay
     // reachable on a phone.

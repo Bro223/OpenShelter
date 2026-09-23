@@ -248,9 +248,7 @@ describe('GuidanceListPage (/blog)', () => {
 
       // The switcher sets the I18nService locale signal; the server then
       // answers the other language's posts, which the fake serves back.
-      guidanceGateway.rows = [
-        guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' }),
-      ];
+      guidanceGateway.rows = [guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })];
       TestBed.inject(I18nService).setLocale('et');
       await settle(fixture);
 
@@ -310,7 +308,8 @@ describe('GuidanceListPage (/blog)', () => {
   it('renders the hero thumbnail with the stored URL and alt', async () => {
     // A data: URI — the row renders the stored URL verbatim, and no
     // network fetch races the assertions.
-    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const heroUrl =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     guidanceGateway.rows = [
       guidancePost({ heroImageUrl: heroUrl, heroImageAlt: 'A kettle on a camp stove' }),
     ];
@@ -339,12 +338,13 @@ describe('GuidanceListPage (/blog)', () => {
   // ---- P2-9: the derivative srcset on the 400 px card thumbnail ------------
 
   it('the card thumbnail carries the derivative srcset when the server has one (sizes = 400px)', async () => {
-    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const heroUrl =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     const srcset =
-      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
-      + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w, '
-      + '/api/media/0123456789abcdef0123456789abcdef-t480.jpg 480w, '
-      + '/api/media/0123456789abcdef0123456789abcdef-t800.jpg 800w';
+      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, ' +
+      '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w, ' +
+      '/api/media/0123456789abcdef0123456789abcdef-t480.jpg 480w, ' +
+      '/api/media/0123456789abcdef0123456789abcdef-t800.jpg 800w';
     guidanceGateway.rows = [
       guidancePost({
         heroImageUrl: heroUrl,
@@ -390,7 +390,8 @@ describe('GuidanceListPage (/blog)', () => {
     // the cast (the specs' `as unknown as` idiom) reaches the base64 one.
     const readBase64 = readFileSync as unknown as (path: string, encoding: 'base64') => string;
     const dataUrl = (name: string): string =>
-      'data:image/png;base64,' + readBase64(`${process.cwd()}/test/fixtures/hero/${name}`, 'base64');
+      'data:image/png;base64,' +
+      readBase64(`${process.cwd()}/test/fixtures/hero/${name}`, 'base64');
     const landscape = dataUrl('landscape-96x64.png'); // a real 96x64 file (3:2)
     const portrait = dataUrl('portrait-64x96.png'); // a real 64x96 file (2:3)
     guidanceGateway.rows = [
@@ -410,7 +411,10 @@ describe('GuidanceListPage (/blog)', () => {
       expect(img.getAttribute('src')).toMatch(/^data:image\/png;base64,/);
       expect(img.getAttribute('width')).toBe('400');
       expect(img.getAttribute('height')).toBe('300');
-      expect(Number(img.getAttribute('width')!) / Number(img.getAttribute('height')!)).toBeCloseTo(4 / 3, 6);
+      expect(Number(img.getAttribute('width')!) / Number(img.getAttribute('height')!)).toBeCloseTo(
+        4 / 3,
+        6,
+      );
     }
   });
 
@@ -449,7 +453,8 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   it('renders the thumbnail above the title in DOM order (card, not row)', async () => {
-    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const heroUrl =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     guidanceGateway.rows = [
       guidancePost({ heroImageUrl: heroUrl, heroImageAlt: 'A kettle on a camp stove' }),
     ];
@@ -470,7 +475,8 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   it('falls back to an empty (decorative) alt when the stored alt is null', async () => {
-    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const heroUrl =
+      'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     guidanceGateway.rows = [guidancePost({ heroImageUrl: heroUrl, heroImageAlt: null })];
     const { element } = await open('/blog');
 
@@ -585,7 +591,9 @@ describe('GuidanceListPage (/blog)', () => {
       expect(router.url).toBe('/blog?page=2');
       expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 20);
       // Page two shows the REMAINDER (5 of 25) and prev is now enabled.
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(5);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post'),
+      ).toHaveLength(5);
       const [prev] = navButtons(fixture.nativeElement as HTMLElement);
       expect(prev.disabled).toBe(false);
     });
@@ -608,7 +616,9 @@ describe('GuidanceListPage (/blog)', () => {
       button.click();
       await settle(fixture);
       expect(TestBed.inject(Router).url).toBe('/blog');
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(20);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post'),
+      ).toHaveLength(20);
     });
 
     it('keeps a non-default size in the URL and fetches with it', async () => {
@@ -636,7 +646,9 @@ describe('GuidanceListPage (/blog)', () => {
       // 90 rows at 50 = 2 pages: page 9 clamps to page 2 — never a dead page.
       expect(TestBed.inject(Router).url).toBe('/blog?page=2&size=50');
       expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 50);
-      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(40);
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post'),
+      ).toHaveLength(40);
     });
 
     it('normalizes a hand-typed size off the 10..100 step to the nearest member (replaceUrl)', async () => {
@@ -668,7 +680,9 @@ describe('GuidanceListPage (/blog)', () => {
       // ...and 12 rows at 20 = 1 page: page 2 is now past the end, so the
       // honest out-of-range state shows (in the NEW active locale — the
       // switcher changed it to Estonian), not a bare empty list.
-      expect((fixture.nativeElement as HTMLElement).querySelector('.list-state--oob')).not.toBeNull();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.list-state--oob'),
+      ).not.toBeNull();
       expect(text(fixture)).toContain('Lehe 2 ei ole — nimestik lõppeb lehel 1.');
     });
   });

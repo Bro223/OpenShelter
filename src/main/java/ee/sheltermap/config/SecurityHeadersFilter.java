@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 
 /**
@@ -95,12 +96,14 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (forwarded == null || forwarded.isBlank()) {
             return false;
         }
-        for (String entry : forwarded.split(",")) {
-            if (entry.trim().isEmpty()) {
-                continue;
-            }
-            return "https".equalsIgnoreCase(entry.trim());
-        }
-        return false;
+        // The leftmost NON-EMPTY entry decides (PMD: a branching statement
+        // as the loop's last statement is error-prone, so the "first
+        // non-empty" shape is expressed as a stream instead of a loop).
+        return Arrays.stream(forwarded.split(","))
+                .map(String::trim)
+                .filter(entry -> !entry.isEmpty())
+                .findFirst()
+                .map(entry -> "https".equalsIgnoreCase(entry))
+                .orElse(false);
     }
 }

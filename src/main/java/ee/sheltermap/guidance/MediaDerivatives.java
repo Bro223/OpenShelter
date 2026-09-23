@@ -166,7 +166,7 @@ public final class MediaDerivatives {
             int targetHeight = Math.max(1, Math.round(sourceHeight * (float) width / sourceWidth));
             byte[] out = encode(contentType, stagedDownscale(source, width, targetHeight),
                     width, targetHeight);
-            if (out == null) {
+            if (out.length == 0) {
                 continue; // the encoder refused — skip this width
             }
             if (!passesGate(out, contentType, width)) {
@@ -287,7 +287,7 @@ public final class MediaDerivatives {
         return out;
     }
 
-    /** Encode at the target; null when the JDK cannot write the format. */
+    /** Encode at the target; an empty array when the JDK cannot write the format. */
     private static byte[] encode(String contentType, BufferedImage image, int width, int height) {
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -309,11 +309,11 @@ public final class MediaDerivatives {
                     writer.dispose();
                 }
             } else if (!ImageIO.write(image, "png", out)) {
-                return null; // no PNG writer on this JDK
+                return new byte[0]; // no PNG writer on this JDK
             }
             return out.toByteArray();
         } catch (IOException | UncheckedIOException ex) {
-            return null;
+            return new byte[0];
         }
     }
 }
