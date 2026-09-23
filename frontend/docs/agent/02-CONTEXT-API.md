@@ -236,6 +236,8 @@ interface CreateShelterRequest {
   longitude: number;
   description?: string;
   capacity?: number;
+  locationKind?: LocationKind; // PUBLIC (default) | PRIVATE — the submitter's
+  // private-home declaration; null = public (display-only badge, no gating)
 }
 
 interface LocationResolved {
@@ -249,6 +251,8 @@ interface UpdateShelterRequest {
   longitude: number;
   description?: string;
   capacity?: number;
+  locationKind?: LocationKind; // same semantics as on create (full replace —
+  // omit to keep the row's current value)
 }
 interface ReviewShelterRequest {
   action: 'CONFIRM' | 'REJECT';
@@ -358,10 +362,11 @@ interface CommunityPulse {
 }
 
 interface InfoRequestDto {
-  // the moderator→submitter exchange — the /mine projection only (null on the public
-  // list and detail reads); the admin's own copy is AdminShelterDto.infoRequest
+  // the moderator→submitter exchange — ONE backend record shared by the /mine
+  // projection and the admin list (field-for-field on both surfaces)
   message: string;
   requestedAt: string; // ISO-8601
+  requestedByName: string; // the asking admin's profile name ("Unknown" after erasure)
   replyMessage: string | null; // null until the submitter answers (one-time reply)
   repliedAt: string | null;
 }
@@ -375,12 +380,11 @@ interface ApiError {
 }
 
 interface AdminOccupancy {
-  // the fresh (<= 2 h) occupancy block of the ADMIN shelter list — the same
-  // contract shape as ShelterOccupancy, except the field is reportedAt
-  // (what the public projection calls lastReportedAt); same window, same
-  // semantics (reportCount 1 = hedged copy, >= 2 = firm)
+  // the fresh (<= 2 h) occupancy block of the ADMIN shelter list — the SAME
+  // record as the public projection (ShelterDto.Occupancy: band + reportCount
+  // + lastReportedAt; one backend record, one field name on both surfaces)
   band: OccupancyBand;
-  reportedAt: string; // ISO-8601
+  lastReportedAt: string; // ISO-8601
   reportCount: number;
 }
 
@@ -441,6 +445,9 @@ interface AdminShelterReportDto {
   reporterEmail: string | null;
   createdAt: string; // ISO-8601
   dismissed: boolean; // dismissed rows stay in the queue, dimmed (the audit trail)
+  damped: boolean; // the self-interested-negative marker: the reporter already
+  // has an open report of the other kind — recorded and shown, contributing 0
+  // to the weighted auto-hide tally (community self-moderation)
 }
 ```
 

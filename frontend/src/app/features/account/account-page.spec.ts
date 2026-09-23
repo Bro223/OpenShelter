@@ -1,4 +1,5 @@
 import { Component, type DebugElement } from '@angular/core';
+import { readFileSync } from 'node:fs';
 import { HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -1021,5 +1022,34 @@ describe('AccountPage', () => {
       expect(store.name()).toBe('Kontakt Muutus');
       expect(router.url).toBe('/account');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+// overflow on the proof notes (wave 15 changed their boundary today — the
+// 3px left accent border is gone, the subtle background fill is the note's
+// boundary now; the boundary itself is pinned in design-tokens.spec.ts,
+// this is the 360px half). jsdom cannot measure a 360px viewport (no layout
+// engine), so — like the M13 pins in shelter-detail-page.spec.ts — the
+// mechanism is pinned against the stylesheet. 360px viewport − 2 × 20px
+// .shell-body padding (page-shell.scss) = 320px of content on /account.
+// ---------------------------------------------------------------------------
+describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+  it('the proof note is a full-width wrapping block — no fixed width, no nowrap: the channel-proof line wraps inside the 320px content column instead of outgrowing the viewport', () => {
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/features/account/account-page.scss`,
+      'utf8',
+    );
+    const note = scss.match(/\.proof-note \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(note, 'the proof note rule must exist').not.toEqual('');
+    expect(
+      note,
+      'a fixed px width past 320px is wider than the 360px content — the note is a plain block of its column',
+    ).not.toMatch(/^\s*width:\s*\d/m);
+    expect(
+      note,
+      'the note text is a translated string in three locales — a nowrap would make the longest one the page-level overflow',
+    ).not.toMatch(/white-space:\s*nowrap/);
   });
 });

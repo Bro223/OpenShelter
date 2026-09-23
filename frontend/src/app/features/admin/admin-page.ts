@@ -21,14 +21,11 @@ import type {
   AdminAuditRow,
   AdminGuidancePostDto,
   AdminShelterDto,
-  AdminShelterHistoryEvent,
   AdminShelterReportDto,
   AdminUserDto,
   GuidanceStatus,
   GuidanceTranslationDto,
   MediaAssetDto,
-  ShelterSourceFilter,
-  ShelterStatus,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
@@ -38,7 +35,6 @@ import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import {
   PAGE_SIZE_DEFAULT,
-  PAGE_SIZES,
   clampPage,
   lastPage,
   parsePage,
@@ -56,6 +52,7 @@ import { GuidancePanel } from './guidance-panel';
 import { MediaPanel } from './media-panel';
 import { ReportsPanel } from './reports-panel';
 import { SheltersPanel } from './shelters-panel';
+import { REJECT_REASON_MAX, SheltersView } from './shelters-view';
 import { SiteTextsPanel } from './site-texts-panel';
 import { UnconfirmedPanel } from './unconfirmed-panel';
 import { UsersPanel } from './users-panel';
@@ -77,21 +74,16 @@ export type AdminTab =
   | 'settings'
   | 'audit';
 
-/** The reject reason's hard limit — mirrored by the backend contract
- *  (community-review-queue): required, at most 500 characters. */
-export const REJECT_REASON_MAX = 500;
-
-/** The info-request question's hard limit — mirrored by the backend
- *  contract (V19 column bound): required, at most 2000. */
-export const INFO_REQUEST_MAX = 2000;
-
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
  * non-admins are redirected home by the guard, mirroring the backend's
  * 401/403 per request). Nine tabs, each one queue; every tab is an
  * extracted presentational panel component (the extracted-panel contract —
  * the page owns the state, the URL-backed views and the gateway calls;
- * the panels render and emit intents):
+ * the panels render and emit intents). The Shelters tab's URL→state→load
+ * seam (view signals, the in-flight fetch guard, the row actions) is one
+ * level down in SheltersView (shelters-view.ts, W3-B's continuation) —
+ * the page-owned state object the template feeds the panel through:
  *
  *  - UNCONFIRMED (first, default) — the community review queue: every USER
  *    row in the NEW state (client-side filter of the FULL shelters list —
@@ -104,9 +96,11 @@ export const INFO_REQUEST_MAX = 2000;
  *  - SHELTERS — every row incl. hidden; USER rows actionable (Hide/Activate,
  *    Delete with a two-tap inline confirm), registry rows read-only (D4:
  *    import-owned — the UI never offers actions for them). Name/address
- *    search (submit-on-enter), the source chips, the shared page + size
- *    control (the first adopter of the admin's list-page-paging
- *    follow-up).
+ *    search (submit-on-enter, URL-backed as the tab-scoped `shelterQ`),
+ *    the source chips, the shared page + size control (the first adopter
+ *    of the admin's list-page-paging follow-up). Its state lives in
+ *    SheltersView (shelters-view.ts) — the URL→state→load seam, with the
+ *    page keeping the queue and the cross-tab review-action refetch.
  *  - SHELTER REPORTS — the report queue: shelter link, type, reporter, age,
  *    dismiss. The hide-dismissed filter is the queue's first-class control
  *    (a chip group, URL-backed as `excludeDismissed`): the DEFAULT is 'All'
@@ -224,69 +218,24 @@ export class AdminPage implements OnInit, OnDestroy {
   });
 
   // ---- shelters tab ----------------------------------------------------------
-  /** The Shelters tab's current PAGE (server-paged — the owner's
-   *  list-page-paging follow-up): null = loading; [] = loaded and empty.
-   *  The un-paged queue lives in queueRows (the Unconfirmed tab). */
-  protected readonly shelterRows = signal<AdminShelterDto[] | null>(null);
-  protected readonly shelterLoadError = signal<string | null>(null);
-  /** The APPLIED name/address search term — the URL's `shelterQ` (the
-   *  tab-scoped param: the guidance tab keeps its own `q` on the shared
-   *  route — each tab's list filters on its OWN search, so a shelters
-   *  search never narrows the guidance list and vice versa): set by
-   *  syncSheltersFromParams from the URL, the server does the substring
-   *  match. The paged view's URL-backed params are the search term,
-   *  source filter, page and size. */
-  protected readonly shelterQuery = signal('');
-  /** Search input (public so specs can drive it — page convention). */
-  readonly searchQuery = new FormControl('', { nonNullable: true });
-  /** The source filter chip (All / Registry / Community — the
-   *  frontend-facing grouping the backend speaks), URL-backed (`source`). */
-  protected readonly shelterSource = signal<ShelterSourceFilter>('ALL');
-  protected readonly shelterPage = signal(1);
-  protected readonly shelterSize = signal(PAGE_SIZE_DEFAULT);
-  /** The un-paged (filtered) total (X-Total-Count) and the derived page
-   *  count / out-of-range flag — a past-the-end page renders an explicit
-   *  notice, never a bare empty list. */
-  protected readonly shelterTotal = signal(0);
-  protected readonly shelterPages = computed(() =>
-    lastPage(this.shelterTotal(), this.shelterSize()),
-  );
-  protected readonly shelterOutOfRange = computed(
-    () => this.shelterTotal() > 0 && this.shelterPage() > this.shelterPages(),
-  );
-  /** The selectable sizes — the range the endpoint serves (limit 1..200
-   *  honours all of 10..100 step 10, so the control never offers a size
-   *  the backend would refuse). */
-  protected readonly pageSizes = PAGE_SIZES;
-
-  // ---- shelter history ---------------------------------------------------------
-  /** The row whose inline history panel is open (null = closed). */
-  protected readonly historyFor = signal<number | null>(null);
-  /** The open panel's events — null = loading, [] = loaded and empty. */
-  protected readonly historyEvents = signal<AdminShelterHistoryEvent[] | null>(null);
-
-  // ---- info request ---------------------------------------------------------------
-  /** The row whose inline info-request panel is open (null = closed). */
-  protected readonly infoFor = signal<number | null>(null);
-  /** The question editor: required (non-blank — the shared blank validator),
-   *  at most 2000 characters (the V19 bound). */
-  readonly requestMessage = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, nameBlankValidator, Validators.maxLength(INFO_REQUEST_MAX)],
-  });
-
-  // ---- mark inaccurate -------------------------------------------------------------
-  /** The row whose inline mark-inaccurate editor is open (null = closed).
-   *  Only opened for UNMARKED USER rows — a marked row shows the clear
-   *  action directly, no editor. */
-  protected readonly inaccurateFor = signal<number | null>(null);
-  /** The optional reason editor (at most 500 characters — the
-   *  moderation_actions.reason bound; blank/absent stores NULL on the
-   *  audit row). */
-  readonly inaccurateReason = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.maxLength(REJECT_REASON_MAX)],
-  });
+  // The Shelters tab's state — the URL→state→load seam (the applied
+  // shelterQ/source/page/size, the inline-panel and delete-confirm state,
+  // the in-flight fetch-sequence guard and every row action) — lives in
+  // SheltersView (shelters-view.ts, W3-B's continuation): a page-owned
+  // state object the template feeds the panel through, one level below
+  // the page so the loaded rows survive tab switches (the lazy-load
+  // rule). Its field is declared with the shared UI state below, where
+  // the feedback signals it joins are initialized first.
+  /** The search input (public so specs can drive it — page convention;
+   *  the view owns the control). */
+  get searchQuery(): FormControl<string> {
+    return this.shelters.searchQuery;
+  }
+  /** The info-request question editor (public so specs can drive it —
+   *  page convention; the view owns the control). */
+  get requestMessage(): FormControl<string> {
+    return this.shelters.requestMessage;
+  }
 
   // ---- shelter-report tab ----------------------------------------------------
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
@@ -441,11 +390,6 @@ export class AdminPage implements OnInit, OnDestroy {
   /** The monotonic guidance-list fetch sequence — a stale (out-of-order)
    *  response is dropped (the detail page's pattern). */
   private guidanceFetchSeq = 0;
-  /** The monotonic shelters-list fetch sequence (the guidance path's
-   *  guard, applied to this list too): a superseded response must not
-   *  win — the last response to ARRIVE is not the last view to be asked
-   *  for (a chip/search change during an in-flight load). */
-  private shelterFetchSeq = 0;
   /** The monotonic report-queue fetch sequence (the same guard — a
    *  filter/page change during an in-flight load supersedes). */
   private reportFetchSeq = 0;
@@ -541,8 +485,24 @@ export class AdminPage implements OnInit, OnDestroy {
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
 
-  /** Two-tap delete confirm: the armed shelter id (no window.confirm). */
-  protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
+  /** The Shelters tab's URL→state→load seam (W3-B's continuation):
+   *  constructed here — with the shared UI state — because it joins the
+   *  page's feedback (one in-flight mutation, one banner) and the
+   *  cross-tab review-action refetch coordinates through it. The
+   *  template feeds the panel through it; see shelters-view.ts for the
+   *  URL contract. */
+  protected readonly shelters = new SheltersView({
+    admin: this.admin,
+    i18n: this.i18n,
+    route: this.route,
+    router: this.router,
+    host: this.host.nativeElement,
+    busy: this.busy,
+    error: this.error,
+    success: this.success,
+    clearFeedback: () => this.clearFeedback(),
+    reviewRefetch: () => this.refreshShelters(),
+  });
 
   /** The view IS the URL (admin-page-size / admin-guidance-search):
    *  every emission (the initial navigation and every query change — a
@@ -562,7 +522,6 @@ export class AdminPage implements OnInit, OnDestroy {
    *  re-loads only when the ACTIVE tab's own params (or the local search
    *  term, for the shelters list) differ from the last load. */
   private guidanceViewKey = '';
-  private sheltersViewKey = '';
   private reportsViewKey = '';
   private usersViewKey = '';
   private mediaViewKey = '';
@@ -577,7 +536,7 @@ export class AdminPage implements OnInit, OnDestroy {
     if (this.tab() === 'guidance') {
       this.syncGuidanceFromParams(params, false);
     } else if (this.tab() === 'shelters') {
-      this.syncSheltersFromParams(params, false);
+      this.shelters.syncFromParams(params, false);
     } else if (this.tab() === 'reports') {
       this.syncReportsFromParams(params, false);
     } else if (this.tab() === 'users') {
@@ -709,45 +668,6 @@ export class AdminPage implements OnInit, OnDestroy {
     this.loadGuidance();
   }
 
-  /** The Shelters tab's view (the URL's shelterQ + source +
-   *  shelterPage/shelterSize) into the signals, loading when `firstVisit`
-   *  (the lazy-load rule) or the view actually changed. The search term is
-   *  URL-BACKED (the tab-scoped `shelterQ` — the guidance tab's `q` is a
-   *  DIFFERENT param, so a shelters search never filters the guidance
-   *  list): a hand-opened /admin?shelterQ=… or a refresh re-applies it
-   *  instead of silently widening to the full list. The input follows the
-   *  APPLIED term (one source of truth); an unchanged term (a page/size
-   *  step) leaves the field alone — an unsubmitted draft is user state,
-   *  not view state. */
-  private syncSheltersFromParams(params: Params, firstVisit: boolean): void {
-    const q = (params['shelterQ'] ?? '').trim();
-    const source = parseSourceFilter(params['source'] ?? null);
-    const page = parsePage(params['shelterPage'] ?? null);
-    const size = parseSize(params['shelterSize'] ?? null);
-    const key = [q, source, page, size].join('|');
-    // In-flight window included: a chip/page/search change that lands
-    // while a fetch is running re-loads with the new view (the sequence
-    // guard drops the superseded response — see shelterFetchSeq).
-    if (!firstVisit && key === this.sheltersViewKey) {
-      return;
-    }
-    this.sheltersViewKey = key;
-    // One source of truth (the URL's `shelterQ`): when the APPLIED term
-    // changes, the input (the filter's editor) follows it — a hand-opened
-    // /admin?shelterQ=… or a history step pre-fills the field instead of
-    // leaving it disagreeing with the filter. An unchanged term leaves the
-    // field alone. emitEvent: false — a view write, not user input.
-    const prevQ = this.shelterQuery();
-    this.shelterQuery.set(q);
-    if (q !== prevQ) {
-      this.searchQuery.setValue(q, { emitEvent: false });
-    }
-    this.shelterSource.set(source);
-    this.shelterPage.set(page);
-    this.shelterSize.set(size);
-    this.loadShelters();
-  }
-
   /** The Reports tab's view (the URL's reportPage/reportSize +
    *  excludeDismissed) into the signals, loading when `firstVisit` (the
    *  lazy-load rule) or the view actually changed (the sequence guard
@@ -857,16 +777,16 @@ export class AdminPage implements OnInit, OnDestroy {
   switchTab(tab: AdminTab): void {
     this.tab.set(tab);
     this.clearFeedback();
-    this.closeHistory();
-    this.closeInfo();
-    this.closeInaccurate();
+    this.shelters.closeHistory();
+    this.shelters.closeInfo();
+    this.shelters.closeInaccurate();
     this.closeGuidanceEditor();
     this.guidanceDeleteConfirm.disarm();
     this.mediaDeleteInUse.disarm();
     this.userActionConfirm.disarm();
     switch (tab) {
       case 'shelters':
-        this.syncSheltersFromParams(this.route.snapshot.queryParams, true);
+        this.shelters.syncFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'reports':
         this.syncReportsFromParams(this.route.snapshot.queryParams, true);
@@ -902,12 +822,12 @@ export class AdminPage implements OnInit, OnDestroy {
    *  (one endpoint, one banner). */
   loadQueue(): void {
     this.queueRows.set(null);
-    this.shelterLoadError.set(null);
+    this.shelters.loadError.set(null);
     this.admin
       .listShelters()
       .then((page) => this.queueRows.set(page.rows))
       .catch((error: unknown) =>
-        this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))),
+        this.shelters.loadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))),
       );
   }
   /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
@@ -970,400 +890,20 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Shelters tab
+  // Review-action refetch (cross-tab)
   // -------------------------------------------------------------------------
-  /** The Shelters tab's current page: the (source, q) filtered slice —
-   *  the server does the filtering AND the slicing (no client-side fake
-   *  pagination), the un-paged total arrives as X-Total-Count. */
-  loadShelters(): void {
-    this.shelterRows.set(null);
-    this.shelterLoadError.set(null);
-    const q = this.shelterQuery().trim();
-    const size = this.shelterSize();
-    const seq = ++this.shelterFetchSeq;
-    this.admin
-      .listShelters({
-        source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
-        q: q === '' ? undefined : q,
-        limit: size,
-        offset: (this.shelterPage() - 1) * size,
-      })
-      .then((paged) => {
-        if (seq !== this.shelterFetchSeq) {
-          return; // a newer load superseded this response
-        }
-        this.shelterTotal.set(paged.total);
-        this.shelterRows.set(paged.rows);
-      })
-      .catch((error: unknown) => {
-        if (seq !== this.shelterFetchSeq) {
-          return;
-        }
-        this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-      });
-  }
-
-  /** The review actions' refetch: the queue's full list always (the
-   *  action changed the queue's scope), the Shelters tab's page when it
-   *  is loaded (both views of the same endpoint — kept quiet, no
-   *  loading flash over an already-rendered list). */
+  /** The review actions' refetch — the Unconfirmed tab's confirm/reject,
+   *  and the Shelters tab's request-info / mark-inaccurate /
+   *  clear-inaccurate row actions (which trigger it through the view):
+   *  the queue's full list always (the action changed the queue's
+   *  scope), the Shelters tab's page when it is loaded (both views of
+   *  the same endpoint — kept quiet, no loading flash over an
+   *  already-rendered list; the paged leg's fetch-sequence guard lives
+   *  with the view, so a URL-driven load in flight supersedes it). */
   private async refreshShelters(): Promise<void> {
     const page = await this.admin.listShelters();
     this.queueRows.set(page.rows);
-    if (this.shelterRows() !== null || this.shelterLoadError() !== null) {
-      const q = this.shelterQuery().trim();
-      const size = this.shelterSize();
-      // The shared fetch-sequence guard: a URL-driven loadShelters that
-      // started while this refresh's page leg was in flight supersedes it
-      // (its view is the newer one — the stale page is dropped).
-      const seq = this.shelterFetchSeq;
-      const paged = await this.admin.listShelters({
-        source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
-        q: q === '' ? undefined : q,
-        limit: size,
-        offset: (this.shelterPage() - 1) * size,
-      });
-      if (seq !== this.shelterFetchSeq) {
-        return;
-      }
-      this.shelterTotal.set(paged.total);
-      this.shelterRows.set(paged.rows);
-    }
-  }
-
-  /** Search submit: the term goes to the URL (`shelterQ`) — that emission
-   * is what re-loads with the new term (the server does the name/address
-   * substring match — no client-side filtering). A new filter has its own
-   * page 1 (keeping the old page number would often land out-of-range).
-   * An empty term removes the param, so the full list comes back with the
-   * unfiltered total. The form's native submit is prevented in the panel
-   * (a reload would be the only thing between the in-SPA state and the
-   * URL). */
-  onSearchSubmit(): void {
-    const term = this.searchQuery.value.trim();
-    this.shelterQuery.set(term);
-    this.clearFeedback();
-    this.shelterDeleteConfirm.disarm();
-    this.closeHistory();
-    this.closeInfo();
-    this.closeInaccurate();
-    this.navigateShelters({ page: 1, q: term });
-  }
-
-  /** The source chip (admin Shelters tab): write `source` to the URL
-   *  (a link or refresh keeps the filter), which composes with the
-   *  status filter and the search (AND on the server). The chip starts
-   *  at page 1. */
-  onSourceChip(source: ShelterSourceFilter): void {
-    if (source === this.shelterSource()) {
-      return;
-    }
-    this.clearFeedback();
-    this.shelterDeleteConfirm.disarm();
-    this.closeHistory();
-    this.closeInfo();
-    this.closeInaccurate();
-    this.navigateShelters({ source, page: 1 });
-  }
-
-  /** Write the Shelters tab's view to the URL (merging the other tab's
-   *  params — the tabs share one route); the query emission re-loads via
-   *  the sync. Defaults are omitted from the URL (page 1, size 20, no
-   *  source filter, no search). */
-  private navigateShelters(view: {
-    page?: number;
-    size?: number;
-    source?: ShelterSourceFilter;
-    q?: string;
-  }): void {
-    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
-    if (view.q !== undefined) {
-      if (view.q === '') {
-        delete params['shelterQ'];
-      } else {
-        params['shelterQ'] = view.q;
-      }
-    }
-    if (view.source !== undefined) {
-      if (view.source === 'ALL') {
-        delete params['source'];
-      } else {
-        params['source'] = view.source;
-      }
-    }
-    if (view.page !== undefined) {
-      if (view.page > 1) {
-        params['shelterPage'] = String(view.page);
-      } else {
-        delete params['shelterPage'];
-      }
-    }
-    if (view.size !== undefined) {
-      if (view.size !== PAGE_SIZE_DEFAULT) {
-        params['shelterSize'] = String(view.size);
-      } else {
-        delete params['shelterSize'];
-      }
-    }
-    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
-  }
-
-  /** The pagination control's intent (prev/next/size): a SIZE change
-   *  that would strand the current page past the last one clamps the
-   *  page to the last page AT THE NEW SIZE (the total is known whenever
-   *  the control is visible), so a size flip never lands on a dead page.
-   */
-  onSheltersNavigate({ page, size }: { page: number; size: number }): void {
-    this.navigateShelters({ page: clampPage(page, this.shelterTotal(), size), size });
-  }
-
-  /** The out-of-range notice's action: back to the first page (the
-   *  current size and source are kept). */
-  gotoSheltersFirstPage(): void {
-    this.navigateShelters({ page: 1 });
-  }
-
-  /** Hide a USER row (POST /admin/shelters/{id}/status INACTIVE). */
-  hideShelter(row: AdminShelterDto): void {
-    void this.setShelterStatus(row, 'INACTIVE');
-  }
-
-  /** Restore a hidden USER row (POST …status ACTIVE). The backend's restore
-   *  also disarms auto-hide — the manual-change marker is server-side. */
-  activateShelter(row: AdminShelterDto): void {
-    void this.setShelterStatus(row, 'ACTIVE');
-  }
-
-  private async setShelterStatus(row: AdminShelterDto, status: ShelterStatus): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.setShelterStatus(row.id, status);
-      this.patchShelter(row.id, { status });
-      this.success.set(
-        this.i18n.t(
-          status === 'INACTIVE'
-            ? 'admin.shelters.success.hidden'
-            : 'admin.shelters.success.restored',
-        ),
-      );
-    } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /** Step 1 of the two-tap delete: arm the confirm strip for the row. */
-  requestDelete(id: number): void {
-    this.clearFeedback();
-    this.shelterDeleteConfirm.arm(id);
-  }
-
-  cancelDelete(): void {
-    this.shelterDeleteConfirm.cancel();
-  }
-
-  /** Step 2: DELETE /admin/shelters/{id} (204). The row is removed in place;
-   *  reports/occupancy cascade server-side. */
-  async confirmDelete(id: number): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.deleteShelter(id);
-      this.shelterRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
-      // The (filtered) total shrinks — the page count follows (the
-      // control hides itself at one page; a page left past the end shows
-      // the out-of-range notice with its first-page action).
-      this.shelterTotal.update((t) => Math.max(0, t - 1));
-      this.success.set(this.i18n.t('admin.shelters.success.deleted'));
-    } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      if (this.historyFor() === id) {
-        this.closeHistory();
-      }
-      if (this.infoFor() === id) {
-        this.closeInfo();
-      }
-      if (this.inaccurateFor() === id) {
-        this.closeInaccurate();
-      }
-      this.shelterDeleteConfirm.disarm();
-      this.busy.set(false);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Info request
-  // -------------------------------------------------------------------------
-  /**
-   * Toggle the inline info-request panel for a USER row. A row WITHOUT a
-   * request shows the question editor (required, ≤2000) and the send
-   * action; a row WITH one shows the exchange read-only — the question
-   * with the requester, and the submitter's answer once given (the row is
-   * kept after the reply — audit posture; a second request is a server-
-   * side 409, one exchange per shelter).
-   */
-  toggleInfo(row: AdminShelterDto): void {
-    if (this.infoFor() === row.id) {
-      this.closeInfo();
-      return;
-    }
-    this.clearFeedback();
-    this.requestMessage.reset('');
-    this.infoFor.set(row.id);
-  }
-
-  /** Close the open info panel (tab switch, search, delete, toggle). */
-  closeInfo(): void {
-    this.infoFor.set(null);
-  }
-
-  /**
-   * "Send": POST /admin/shelters/{id}/request-info (204). The shelters
-   * list refetches afterwards — the server resolves the requester name
-   * and the timestamp, which the 204 body does not carry (the
-   * review-action refetch precedent).
-   */
-  async sendInfoRequest(row: AdminShelterDto): Promise<void> {
-    const message = this.requestMessage.value.trim();
-    if (message === '' || message.length > INFO_REQUEST_MAX) {
-      this.requestMessage.markAsTouched();
-      return;
-    }
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.requestInfo(row.id, message);
-      this.success.set(this.i18n.t('admin.shelters.success.questionSent'));
-      await this.refreshShelters();
-      this.closeInfo();
-    } catch (error) {
-      // The panel STAYS open on failure (the admin keeps the question).
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /**
-   * Toggle the inline mark-inaccurate editor for an UNMARKED USER row.
-   * A marked row never opens the editor — it shows the Clear action
-   * directly (the flag's state, not a question). A second click on the
-   * open row closes the editor.
-   */
-  toggleInaccurate(row: AdminShelterDto): void {
-    if (this.inaccurateFor() === row.id) {
-      this.closeInaccurate();
-      return;
-    }
-    this.clearFeedback();
-    this.inaccurateReason.reset('');
-    this.inaccurateFor.set(row.id);
-  }
-
-  /** Close the open mark-inaccurate editor (tab switch, search, delete, toggle). */
-  closeInaccurate(): void {
-    this.inaccurateFor.set(null);
-  }
-
-  /**
-   * "Mark": POST /admin/shelters/{id}/mark-inaccurate {reason?} (204).
-   * The reason is optional — blank/absent stores NULL on the audit row.
-   * The shelters list refetches afterwards (the server stamps the flag;
-   * the 204 carries no body, the request-info refetch precedent).
-   */
-  async markInaccurateAction(row: AdminShelterDto): Promise<void> {
-    const reason = this.inaccurateReason.value.trim();
-    if (reason.length > REJECT_REASON_MAX) {
-      this.inaccurateReason.markAsTouched();
-      return;
-    }
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.markInaccurate(row.id, reason);
-      this.success.set(this.i18n.t('admin.shelters.success.inaccurateMarked'));
-      await this.refreshShelters();
-      this.closeInaccurate();
-    } catch (error) {
-      // The editor STAYS open on failure (the admin keeps the reason).
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /**
-   * "Clear inaccurate": POST /admin/shelters/{id}/clear-inaccurate (204,
-   * idempotent). The list refetches — the flag is server state.
-   */
-  async clearInaccurateAction(row: AdminShelterDto): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.clearInaccurate(row.id);
-      this.success.set(this.i18n.t('admin.shelters.success.inaccurateCleared'));
-      await this.refreshShelters();
-    } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Shelter history
-  // -------------------------------------------------------------------------
-  /**
-   * Toggle the inline edit-history panel for a USER row. The panel lists
-   * the row's lifecycle events ascending (Created / Edited — with the
-   * server-parsed field changes / Deleted); a second click closes it.
-   * History is a USER-row promise only — registry rows never get the
-   * button (the import keeps its own data_imports audit and writes no
-   * history rows).
-   */
-  async openHistory(row: AdminShelterDto): Promise<void> {
-    if (this.historyFor() === row.id) {
-      this.closeHistory();
-      return;
-    }
-    this.historyFor.set(row.id);
-    this.historyEvents.set(null);
-    try {
-      this.historyEvents.set(await this.admin.listShelterHistory(row.id));
-    } catch (error) {
-      this.closeHistory();
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    }
-  }
-
-  /** Close the open history panel (tab switch, search, delete, toggle). */
-  closeHistory(): void {
-    this.historyFor.set(null);
-    this.historyEvents.set(null);
-  }
-
-  private patchShelter(id: number, patch: Partial<AdminShelterDto>): void {
-    this.shelterRows.update((rows) =>
-      (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
-    );
+    await this.shelters.refreshPagedView();
   }
 
   // -------------------------------------------------------------------------
@@ -1503,7 +1043,7 @@ export class AdminPage implements OnInit, OnDestroy {
           r.shelterId === shelterId ? { ...r, shelterStatus: 'ACTIVE' } : r,
         ),
       );
-      this.patchShelter(shelterId, { status: 'ACTIVE' });
+      this.shelters.patchShelter(shelterId, { status: 'ACTIVE' });
       this.success.set(this.i18n.t('admin.shelters.success.restored'));
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
@@ -2524,12 +2064,4 @@ export class AdminPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.success.set(null);
   }
-}
-
-/** source chip: a legal grouping or 'ALL' (a stray hand-typed value is
- *  the no-filter default — the server would 400 an illegal one, and
- *  normalizeListParams drops it from the URL before it can reach a
- *  link — the URL and the rendered filter stay in agreement). */
-function parseSourceFilter(raw: string | null): ShelterSourceFilter {
-  return raw === 'REGISTRY' || raw === 'USER' ? raw : 'ALL';
 }

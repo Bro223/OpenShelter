@@ -2102,3 +2102,73 @@ describe('MapPage', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+// overflow on the recently-moved filter surfaces. jsdom cannot measure a
+// 360px viewport (no layout engine — every offsetWidth/scrollWidth is 0), so
+// — like the M13 pins in shelter-detail-page.spec.ts — the mechanisms that
+// make overflow impossible are pinned against the stylesheet. 360px viewport
+// − 2 × 20px .shell-body padding (page-shell.scss) = 320px of content.
+// ---------------------------------------------------------------------------
+describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+  const readMapScss = (): string =>
+    readFileSync(`${process.cwd()}/src/app/features/map/map-page.scss`, 'utf8');
+
+  it('below 900px the legend is IN FLOW (position: static) — the filter entries render between the map and the sidebar at the page width, never as an absolute overlay escaping the 360px layout (wave 8: the entries moved out of the map element)', () => {
+    const media = readMapScss().match(/@media \(max-width: 900px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
+    expect(media, 'the narrow-viewport media block must exist').not.toEqual('');
+    const legend = media.match(/\.map-legend \{[\s\S]*?\n  \}/)?.[0] ?? '';
+    expect(
+      legend,
+      'the legend must be re-positioned inside the narrow block (the wave-8 move out of the map)',
+    ).not.toEqual('');
+    // position: static = in flow: the legend is a normal block of the stacked
+    // column, its width IS the page width (320px of content at 360px). The
+    // desktop absolute placement is unconstrained in width — a long entry
+    // would escape the right edge instead of wrapping; in-flow it cannot.
+    expect(
+      legend,
+      'in-flow = container-bound (the entries cannot outgrow the page width)',
+    ).toContain('position: static');
+  });
+
+  it('the legend carries no fixed width and no nowrap — an in-flow legend hugs the column, and a long entry label wraps inside its row instead of escaping it', () => {
+    const scss = readMapScss();
+    const base = scss.match(/\.map-legend \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(base, 'the base legend rule must exist').not.toEqual('');
+    // Top-level declarations only: the nested swatch rules carry the 14px
+    // marker geometry (the 1:1 key, pinned separately) — the CONTAINER is
+    // what must not be pinned. A fixed container width past 320px is wider
+    // than the 360px content; the desktop overlay is shrink-to-fit, the
+    // mobile legend is container width.
+    const topLevel = scss.match(/\.map-legend \{([^{}]*)/)?.[1] ?? '';
+    expect(topLevel, 'no fixed width on the legend container').not.toMatch(/^\s*width:/m);
+    expect(
+      base,
+      'the entry labels are translated strings in three locales — a nowrap anywhere in the legend would make the longest one the page-level overflow',
+    ).not.toMatch(/white-space:\s*nowrap/);
+  });
+
+  it('the practical chip row wraps and each chip may shrink below its label (flex-wrap: wrap + min-width: 0) — at 320px of content the chips share the row instead of forcing it wider, and the chip label itself stays wrappable', () => {
+    const scss = readMapScss();
+    const row = scss.match(/\.filter-trust \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(row, 'the chip row rule must exist').not.toEqual('');
+    expect(row, 'the row must wrap (a longer label wraps to the next line)').toContain(
+      'flex-wrap: wrap',
+    );
+    const chip = row.match(/\.trust-chip \{[\s\S]*?\n  \}/)?.[0] ?? '';
+    expect(chip, 'the chip rule must exist').not.toEqual('');
+    expect(
+      chip,
+      'each chip grows to share the row (flex: 1 1 0) and may shrink below its label (min-width: 0)',
+    ).toContain('min-width: 0');
+    // The shared pill (styles.scss) carries the chip styling: its label must
+    // keep its break opportunities, or a long label is unbreakable inside
+    // even a shrinking chip.
+    const global = readFileSync(`${process.cwd()}/src/styles.scss`, 'utf8');
+    const pill = global.match(/\.chip \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(pill, 'the shared .chip rule must exist').not.toEqual('');
+    expect(pill, 'no nowrap on the shared pill').not.toMatch(/white-space:\s*nowrap/);
+  });
+});

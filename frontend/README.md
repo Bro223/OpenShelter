@@ -156,7 +156,7 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   tooling keeps the rationale here, not in the file): the default route `/map` is a
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
   500 kB default warning is unreachable without dropping the map from first paint.
-  Twelve routes are `loadComponent`-lazy: the five auth/account routes (login,
+  12 routes are `loadComponent`-lazy: the five auth/account routes (login,
   register, reset, verify, account — none is needed for first paint), admin,
   shelter detail, submit, privacy, terms and the two /blog guidance routes.
   The initial budget was re-baselined at the then-measured initial total

@@ -672,4 +672,68 @@ describe('GuidanceListPage (/blog)', () => {
       expect(text(fixture)).toContain('Lehe 2 ei ole — nimestik lõppeb lehel 1.');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+  // overflow. jsdom cannot measure a 360px viewport (it has no layout engine —
+  // every offsetWidth/scrollWidth is 0), so — exactly like the M13 pins in
+  // shelter-detail-page.spec.ts / submit-shelter-page.scss — the mechanisms
+  // that make overflow impossible are pinned against the stylesheet instead
+  // of a viewport measurement. 360px viewport − 2 × 20px .shell-body padding
+  // (page-shell.scss) = 320px of content on /blog.
+  // ---------------------------------------------------------------------------
+  describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+    const readListScss = (): string =>
+      readFileSync(`${process.cwd()}/src/app/features/guidance/guidance-list-page.scss`, 'utf8');
+
+    it('the card grid derives its column count from the container width, and the 200px card floor is ≤ the 320px of content at 360px — one column always fits, a wider floor would make even ONE card wider than the viewport', () => {
+      const scss = readListScss();
+      const grid = scss.match(/\.guidance-list__posts \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(grid, 'the post grid rule must exist').not.toEqual('');
+      // auto-fill computes the column COUNT from the container width. A fixed
+      // count (repeat(4, …)) would force four tracks and overflow every
+      // viewport narrower than 4 × the floor + the gaps.
+      expect(
+        grid,
+        'the column count must derive from the container (auto-fill), with a px floor',
+      ).toMatch(/repeat\(auto-fill,\s*minmax\(\d+px,\s*1fr\)\)/);
+      const floor = Number(grid.match(/minmax\((\d+)px/)?.[1]);
+      expect(
+        floor,
+        'the card floor must be ≤ 320px (the /blog content width at 360px)',
+      ).toBeLessThanOrEqual(320);
+    });
+
+    it('a card may shrink below its content size (min-width: 0) — a long unbreakable title stretches its text, never the grid track it sits in', () => {
+      const scss = readListScss();
+      const card = scss.match(/\.guidance-post \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(card, 'the card rule must exist').not.toEqual('');
+      // Without min-width: 0 the grid item's automatic minimum is its
+      // min-content size: a title without a break opportunity (a long URL-ish
+      // word) would push the 200px track past 320px and the page scrolls
+      // horizontally.
+      expect(card, 'the card must be allowed to shrink below its min-content width').toContain(
+        'min-width: 0',
+      );
+    });
+
+    it('the hero thumbnail is the card width (width: 100%), never the 400px the <img> attributes declare — at 320px of content the attribute width would be 180px wider than the viewport content', () => {
+      const scss = readListScss();
+      const thumb = scss.match(/\.guidance-post__hero,([\s\S]*?)\n\}/)?.[0] ?? '';
+      expect(thumb, 'the hero/thumb rule must exist').not.toEqual('');
+      // The template pins width="400" height="300" on the <img> (the layout-
+      // shift budget: the box is reserved before the image loads). The CSS
+      // width: 100% is what re-bounds that box to the card — remove it and
+      // the thumbnail is its attribute width, 400px, in a 320px column.
+      expect(thumb, 'the thumbnail must be re-bounded to the card width').toContain('width: 100%');
+    });
+
+    it('no element on the index forbids a line break (no nowrap anywhere — every text line keeps its break opportunities)', () => {
+      const scss = readListScss();
+      expect(
+        scss,
+        'titles and dates are unbounded server strings — a nowrap would turn the first long one into page-level overflow',
+      ).not.toMatch(/white-space:\s*nowrap/);
+    });
+  });
 });

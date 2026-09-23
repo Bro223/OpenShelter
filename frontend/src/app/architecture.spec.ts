@@ -45,22 +45,25 @@ const MIN_FEATURE_DIRS = 7;
 const MIN_ADMIN_TABS = 9;
 
 /**
- * Size ceiling for admin-page.ts — the file's size MEASURED at the moment
- * this guard landed (2026-09-22, HEAD 317cf08: 2 535 lines by `wc -l`).
- * Same idiom as the count floors above: crossing the ceiling fails the
- * build, and RAISING it is a decision — change it in the same commit that
- * legitimately grows the file, with the reason, never as a silent default.
+ * Size ceiling for admin-page.ts — re-measured every time a seam comes
+ * out. It stood at 2 535 lines (MEASURED when this guard landed,
+ * 2026-09-22, HEAD 317cf08) and is lowered HERE, in the same commit, to
+ * the size measured after W3-B's continuation extracted the shelters
+ * paged view + its search sync — the URL→state→load seam (the `shelterQ`
+ * / `source` / `shelterPage` / `shelterSize` params, the fetch-sequence
+ * guard, the row actions) — into `shelters-view.ts` (review 18 F3's fix
+ * note). Same idiom as the count floors above: crossing the ceiling
+ * fails the build, and RAISING it is a decision — change it in the same
+ * commit that legitimately grows the file, with the reason, never as a
+ * silent default; lowering it follows the same commit that legitimately
+ * shrinks the file.
  *
- * What comes out FIRST when the ceiling bites (BACKLOG-PLAN W3-B's
- * continuation; review 18 F3's fix note): the shelters paged view + its
- * search sync — the URL→state→load seam (`syncSheltersFromParams` and the
- * `shelterQ` / `shelterPage` / `shelterSize` params, the `shelterFetchSeq`
- * in-flight guard, the shelters table render and its row actions). It has
- * been self-contained since the tab-scoped search fix (bd3a3c5), and it
- * extracts as its own panel component the way the eight tab panels were
- * split in 5473b1c (`features/admin/*-panel.ts` pattern).
+ * What comes out FIRST when the ceiling bites next: the guidance tab's
+ * state (the post list + its search, the editor lifecycle, the
+ * translation rows) — the page's largest remaining tab, the same
+ * pattern.
  */
-const ADMIN_PAGE_MAX_LINES = 2535;
+const ADMIN_PAGE_MAX_LINES = 2067;
 
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>
@@ -153,9 +156,9 @@ describe('frontend architecture guard', () => {
     expect(
       lines,
       `admin-page.ts is ${lines} lines — the ceiling is ${ADMIN_PAGE_MAX_LINES}. ` +
-        'Extract before adding (next seam: the shelters paged view + its ' +
-        'search sync — see the ceiling note above), or raise the ceiling ' +
-        'deliberately in this same commit with the reason.',
+        'Extract before adding (next seam: the guidance tab’s state — see ' +
+        'the ceiling note above), or raise the ceiling deliberately in ' +
+        'this same commit with the reason.',
     ).toBeLessThanOrEqual(ADMIN_PAGE_MAX_LINES);
   });
 });

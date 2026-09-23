@@ -1925,3 +1925,102 @@ describe('translation editing (bilingual-guidance)', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 360px viewport (M13, mobile-responsive-polish): the admin guidance
+// surfaces (the editor form, the post list, the panel chrome) carry no
+// page-level horizontal overflow. jsdom cannot measure a 360px viewport
+// (no layout engine), so — like the M13 pins in shelter-detail-page.spec.ts —
+// the mechanisms that make overflow impossible are pinned against the
+// stylesheets. 360px viewport − 2 × 20px .shell-body padding (page-shell.scss)
+// − 2 × 16px .admin padding (admin-page.scss) = 288px of content on /admin.
+// ---------------------------------------------------------------------------
+describe('guidance admin at 360px (M13: no page-level horizontal overflow)', () => {
+  const readAdminScss = (name: string): string =>
+    readFileSync(`${process.cwd()}/src/app/features/admin/${name}`, 'utf8');
+
+  it('the editor form caps its width (max-width 720px) instead of fixing it — at 360px it hugs the 288px content column', () => {
+    const scss = readAdminScss('guidance-editor.scss');
+    const form = scss.match(/\.guidance-editor \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(form, 'the form rule must exist').not.toEqual('');
+    expect(
+      form,
+      'the 720px must stay a MAX (a cap) — a fixed width would pin the form past the 360px viewport',
+    ).toMatch(/max-width:\s*720px/);
+    expect(form, 'no fixed width on the form').not.toMatch(/^\s*width:\s*\d/m);
+  });
+
+  it('the save/cancel action row wraps — the buttons stack instead of forcing a row wider than the form', () => {
+    const scss = readAdminScss('guidance-editor.scss');
+    const actions = scss.match(/\.guidance-editor__actions \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(actions, 'the actions rule must exist').not.toEqual('');
+    expect(actions, 'the action row must wrap on narrow widths').toContain('flex-wrap: wrap');
+  });
+
+  it('the hero picker grid derives its columns from the container, floor ≤ 288px — it reflows to one column on a phone with no breakpoint', () => {
+    const scss = readAdminScss('guidance-editor.scss');
+    const picker = scss.match(/\.hero-picker \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(picker, 'the picker rule must exist').not.toEqual('');
+    // A fixed column count (or a floor past the 288px content) would make
+    // the picker wider than the viewport; auto-fill + a small floor reflows
+    // instead.
+    expect(
+      picker,
+      'the column count must derive from the container (auto-fill), with a px floor',
+    ).toMatch(/repeat\(auto-fill,\s*minmax\(\d+px,\s*1fr\)\)/);
+    const floor = Number(picker.match(/minmax\((\d+)px/)?.[1]);
+    expect(
+      floor,
+      'the picker floor must be ≤ 288px (the /admin content width at 360px)',
+    ).toBeLessThanOrEqual(288);
+  });
+
+  it('an unbounded media filename wraps inside its card (overflow-wrap: anywhere) instead of widening the card past the grid track — the picker name AND the selected-hero name line', () => {
+    const scss = readAdminScss('guidance-editor.scss');
+    const name = scss.match(/\.hero-picker__name \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(name, 'the picker name rule must exist').not.toEqual('');
+    expect(
+      name,
+      'filenames are unbounded server strings — the wrap is the mechanism',
+    ).toContain('overflow-wrap: anywhere');
+    const heroName = scss.match(/\.guidance-editor__hero-name \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(
+      heroName,
+      'the selected-hero name line wraps the same way',
+    ).toContain('overflow-wrap: anywhere');
+  });
+
+  it('the post table scrolls horizontally INSIDE its wrapped region — at 360px the 7-column table (180px title floor + 220px actions floor) is wider than the 288px content, so the scrollable element is the table region, never the document', () => {
+    const shared = readAdminScss('_admin-shared.scss');
+    const wrap = shared.match(/\.admin-table-wrap \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(wrap, 'the table wrap rule must exist').not.toEqual('');
+    expect(
+      wrap,
+      'the wrap must scroll horizontally (the table keeps its column floors)',
+    ).toContain('overflow-x: auto');
+    // The move buttons inside the actions cell wrap too — they are the
+    // PRIMARY reorder mechanism (guidance-manual-order D6) and must stay
+    // reachable on a phone.
+    const list = readAdminScss('guidance-order-list.scss');
+    const move = list.match(/\.admin-guidance-move \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(move, 'the move-button row must wrap').toContain('flex-wrap: wrap');
+  });
+
+  it('the panel chrome is capped at the container: the search form is min(420px, 100%), the content-language block max-width 420px (a cap, not a floor) — neither is a bare 420px, which is wider than the 360px viewport', () => {
+    const shared = readAdminScss('_admin-shared.scss');
+    const search = shared.match(/\.admin-search \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(search, 'the search rule must exist').not.toEqual('');
+    expect(
+      search,
+      'the 420px must be a MIN() cap — a bare `width: 420px` is 60px wider than the 360px viewport',
+    ).toMatch(/width:\s*min\(420px,\s*100%\)/);
+    const panel = readAdminScss('guidance-panel.scss');
+    const lang = panel.match(/\.admin-guidance-language \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(lang, 'the content-language rule must exist').not.toEqual('');
+    expect(
+      lang,
+      'the 420px must be a MAX (the block hugs the 288px content column below it)',
+    ).toMatch(/max-width:\s*420px/);
+    expect(lang, 'no fixed width on the language block').not.toMatch(/^\s*width:\s*\d/m);
+  });
+});

@@ -658,4 +658,65 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(element.querySelector('.guidance-detail__fallback')).toBeNull();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+  // overflow. jsdom cannot measure a 360px viewport (no layout engine — every
+  // offsetWidth/scrollWidth is 0), so — like the M13 pins in
+  // shelter-detail-page.spec.ts — the mechanisms that make overflow impossible
+  // are pinned against the stylesheet. 360px viewport − 2 × 20px .shell-body
+  // padding (page-shell.scss) = 320px of content on /blog/:slug.
+  // ---------------------------------------------------------------------------
+  describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+    const readDetailScss = (): string =>
+      readFileSync(`${process.cwd()}/src/app/features/guidance/guidance-detail-page.scss`, 'utf8');
+
+    it('the hero is capped by the article column (max-width: 100%) at its own aspect ratio — a stored photo (arbitrary natural width) never stretches the page wider than the viewport', () => {
+      const scss = readDetailScss();
+      const hero = scss.match(/\.guidance-detail__hero \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(hero, 'the hero rule must exist').not.toEqual('');
+      expect(hero, 'the hero must be capped by its column').toContain('max-width: 100%');
+      // A fixed px width would pin the photo past the 320px column at 360px
+      // viewports; the natural width (width: auto) + the 100% cap is the
+      // mechanism (height: auto keeps the ratio honest — nothing stretched).
+      expect(hero, 'the hero keeps its natural width (width: auto)').toContain('width: auto');
+    });
+
+    it('the article column caps its width (max-width 44rem) and never floors it — at 360px the article hugs the 320px content column instead of a fixed 704px', () => {
+      const scss = readDetailScss();
+      const col = scss.match(/\.guidance-detail \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(col, 'the article column rule must exist').not.toEqual('');
+      expect(
+        col,
+        'the 44rem must stay a MAX (a cap) — the column shrinks with the viewport',
+      ).toMatch(/max-width:\s*44rem/);
+      expect(
+        col,
+        'a fixed width would pin the article wider than 320px at 360px viewports',
+      ).not.toMatch(/^\s*width:\s*\d/m);
+    });
+
+    it('an image inside the stored body (the one element the column can be exceeded by) is re-bounded by the column (max-width: 100%, height auto)', () => {
+      const scss = readDetailScss();
+      const body = scss.match(/\.guidance-detail__body \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(body, 'the body rule must exist').not.toEqual('');
+      const img = body.match(/img \{([\s\S]*?)\}/)?.[0] ?? '';
+      expect(
+        img,
+        'the body img rule must exist (defensive: the body allowlist is text-only today — pinned by BodySanitizerTest — and this keeps the column bound if an img ever joins it)',
+      ).not.toEqual('');
+      expect(img, 'a body image at its natural width would overflow the 320px column').toContain(
+        'max-width: 100%',
+      );
+      expect(img, 'the ratio stays honest (no stretched image)').toContain('height: auto');
+    });
+
+    it('no element on the article page forbids a line break (no nowrap anywhere — the title, the fallback notice and the stored body keep their break opportunities)', () => {
+      const scss = readDetailScss();
+      expect(
+        scss,
+        'titles and stored body text are unbounded server strings — a nowrap would turn the first long one into page-level overflow',
+      ).not.toMatch(/white-space:\s*nowrap/);
+    });
+  });
 });
