@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -65,6 +66,13 @@ import org.junit.jupiter.api.Test;
  * paths and ranges that a machine can re-derive from the tree. The count guard is
  * the one exception: it cannot re-derive anything from the tree, it FORBIDS a
  * class of claim ("the suites currently have N tests") that only rot can disprove.
+ *
+ * <p>Current-state anchor pin ({@link #theCurrentStateDocAnchorsStillPointAtTheCode()})
+ * — guards the {@code file:line} citations in {@code docs/agent/00-CURRENT-STATE.md},
+ * the single current-state entry point the lanes read first. A drifted anchor is
+ * the most damaging kind of stale doc: a lane following it reads the wrong code
+ * and trusts it. The same matched-count-floor discipline applies: a reformat that
+ * silently breaks the citation pattern must go red, not shrink the check to zero.
  */
 class DocumentationFactsTest {
 
@@ -1518,6 +1526,316 @@ class DocumentationFactsTest {
         assertThat(n)
                 .as("only %d navigate deep links were checked; at least 2 expected", n)
                 .isGreaterThanOrEqualTo(2);
+    }
+
+    // ------------------ 17. 00-CURRENT-STATE.md anchors ------------------
+
+    /** The single current-state entry point the lanes read first. */
+    private static final Path CURRENT_STATE_DOC = Path.of("docs", "agent", "00-CURRENT-STATE.md");
+
+    /** A backticked {@code path:lines} citation in the current-state doc. */
+    private static final Pattern CS_CITATION = Pattern.compile(
+            "`((?:src|frontend|docs|reviews|qa|openspec)/[A-Za-z0-9_./{}*-]+):([0-9][0-9,\\s\\-]*)`");
+
+    /** A relative {@code :lines} citation — resolved against the previous full one. */
+    private static final Pattern CS_RELATIVE =
+            Pattern.compile("`:(\\d+(?:-\\d+)?(?:,\\s*\\d+(?:-\\d+)?)*)`");
+
+    /** A backticked repository path WITHOUT a line spec (e.g. `frontend/src/`). */
+    private static final Pattern CS_BARE_PATH = Pattern.compile(
+            "`((?:src|frontend|docs|reviews|qa|openspec)/[A-Za-z0-9_./{}*-]+)`");
+
+    private static final Pattern CS_TOKEN_SPAN = Pattern.compile("`([^`\\n]+)`");
+    private static final Pattern CS_ID_RUN = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]{3,}");
+    private static final Pattern CS_HEX = Pattern.compile("#[0-9a-fA-F]{6}");
+    /** A verbatim quoted phrase: the doc quotes the code's own comment/message. */
+    private static final Pattern CS_QUOTED_PHRASE = Pattern.compile("\"([^\"\\n]{12,80})\"");
+
+    /** Every citation the doc currently carries (a pattern that silently matches
+     *  nothing would drop this to zero and fail the floor instead of the doc). */
+    private static final int MIN_CS_CITATIONS = 107;
+    /** Citations whose sentence names a code identifier or a verbatim quote, so the
+     *  cited lines must actually contain it — the content half of the anchor check. */
+    private static final int MIN_CS_TOKENED_CITATIONS = 26;
+    /** Distinct source files the doc anchors into (a reformat that strips the
+     *  anchors out of the doc shrinks this). */
+    private static final int MIN_CS_CITED_FILES = 35;
+    /** Distinct bare backticked repository paths that must exist. */
+    private static final int MIN_CS_BARE_PATH_MENTIONS = 4;
+
+    /**
+     * docs/agent/00-CURRENT-STATE.md is the single current-state entry point the
+     * lanes read first, and every claim in it carries a {@code file:line} anchor.
+     * A drifted anchor is the most damaging kind of stale doc: a lane following
+     * it reads the wrong code and trusts it. Each citation is re-checked against
+     * the tree:
+     *
+     * <ul>
+     *   <li>the cited file exists and every cited range is inside it, and the
+     *       cited lines carry content (a range pointing past EOF or at blank
+     *       lines is a dead anchor, not a live one);</li>
+     *   <li>when the clause holding the citation names a code identifier
+     *       (a backticked symbol, a {@code #hex}, or a verbatim quoted phrase
+     *       of the code's own comment), the cited lines must contain one of
+     *       them — a shift that moves the code out from under the citation
+     *       fails loudly, while a prose rewrite that keeps the code
+     *       vocabulary stays green;</li>
+     *   <li>every backticked bare repository path in the doc exists.</li>
+     * </ul>
+     *
+     * <p>Quoted phrases are matched case-insensitively against the cited lines
+     * with comment-continuation asterisks, javadoc leaders and Java
+     * string-concatenation seams normalized away (the doc quotes wrapped
+     * comments), so a quote must be VERBATIM — a loose paraphrase in quotes
+     * is a quote the code never made. A citation whose clause names no
+     * machine-derivable token degrades to the structural check; the floors
+     * keep that degradation from hiding a broken pattern.
+     */
+    @Test
+    void theCurrentStateDocAnchorsStillPointAtTheCode() throws IOException {
+        String doc = Files.readString(CURRENT_STATE_DOC);
+        List<String> problems = new ArrayList<>();
+        List<CsAnchor> anchors = csAnchors(doc, problems);
+        Map<String, List<String>> sources = new HashMap<>();
+        Set<String> files = new TreeSet<>();
+        int tokened = 0;
+        for (CsAnchor anchor : anchors) {
+            files.add(anchor.file());
+            List<String> lines = csLines(sources, anchor.file(), problems);
+            if (lines == null) {
+                continue;
+            }
+            List<int[]> ranges = csSpecRanges(anchor.spec());
+            if (!csRangeCheck(anchor, lines, ranges, problems)) {
+                continue;
+            }
+            Set<String> tokens = new TreeSet<>();
+            Set<String> phrases = new TreeSet<>();
+            csWindowTokens(doc, anchors, anchor, tokens, phrases);
+            if (tokens.isEmpty() && phrases.isEmpty()) {
+                continue; // structural check only
+            }
+            tokened++;
+            String content = csCitedContent(lines, ranges);
+            String contentLower = content.toLowerCase();
+            boolean hit = tokens.stream().anyMatch(content::contains)
+                    || phrases.stream().anyMatch(ph -> contentLower.contains(ph.toLowerCase()));
+            if (!hit) {
+                problems.add(anchor.file() + ":" + anchor.spec().replace('\n', ' ') + " — none of "
+                        + "the clause's code tokens " + tokens + " (or quoted phrases " + phrases
+                        + ") appear at the cited lines — the code moved and the anchor did not");
+            }
+        }
+        Set<String> barePaths = new TreeSet<>();
+        for (Matcher m = CS_BARE_PATH.matcher(doc); m.find(); ) {
+            barePaths.add(m.group(1));
+        }
+        for (String path : barePaths) {
+            if (!Files.exists(Path.of(path))) {
+                problems.add("bare path " + path + " cited in 00-CURRENT-STATE.md does not exist");
+            }
+        }
+        assertThat(problems)
+                .as("stale anchors in docs/agent/00-CURRENT-STATE.md — re-derive the drifted "
+                        + "ranges from the code; the entry point a lane reads first must not "
+                        + "point at the wrong lines")
+                .isEmpty();
+        assertThat(anchors.size())
+                .as("00-CURRENT-STATE.md carries %d citations; at least %d expected — fewer "
+                        + "means the citation pattern broke and this pin checks nothing",
+                        anchors.size(), MIN_CS_CITATIONS)
+                .isGreaterThanOrEqualTo(MIN_CS_CITATIONS);
+        assertThat(tokened)
+                .as("only %d citations carried a code token to check at the cited lines; at "
+                        + "least %d expected — fewer means the token extraction broke", tokened,
+                        MIN_CS_TOKENED_CITATIONS)
+                .isGreaterThanOrEqualTo(MIN_CS_TOKENED_CITATIONS);
+        assertThat(files.size())
+                .as("the doc anchors into %d distinct files; at least %d expected",
+                        files.size(), MIN_CS_CITED_FILES)
+                .isGreaterThanOrEqualTo(MIN_CS_CITED_FILES);
+        assertThat(barePaths.size())
+                .as("the doc names %d distinct bare repository paths; at least %d expected",
+                        barePaths.size(), MIN_CS_BARE_PATH_MENTIONS)
+                .isGreaterThanOrEqualTo(MIN_CS_BARE_PATH_MENTIONS);
+    }
+
+    /** One citation: the file it points into and its line spec (may wrap). */
+    private record CsAnchor(int start, int end, String file, String spec) {
+    }
+
+    /** Full + relative citations in document order; a relative one resolves
+     *  against the previous full citation (the doc's own convention). */
+    private static List<CsAnchor> csAnchors(String doc, List<String> problems) {
+        List<CsAnchor> found = new ArrayList<>();
+        for (Matcher m = CS_CITATION.matcher(doc); m.find(); ) {
+            found.add(new CsAnchor(m.start(), m.end(), m.group(1), m.group(2)));
+        }
+        for (Matcher m = CS_RELATIVE.matcher(doc); m.find(); ) {
+            found.add(new CsAnchor(m.start(), m.end(), null, m.group(1)));
+        }
+        found.sort(Comparator.comparingInt(CsAnchor::start));
+        List<CsAnchor> resolved = new ArrayList<>();
+        String lastFile = null;
+        for (CsAnchor anchor : found) {
+            if (anchor.file() != null) {
+                lastFile = anchor.file();
+            } else if (lastFile == null) {
+                problems.add("a relative ':lines' citation at offset " + anchor.start()
+                        + " has no preceding full citation to resolve against");
+            } else {
+                anchor = new CsAnchor(anchor.start(), anchor.end(), lastFile, anchor.spec());
+            }
+            resolved.add(anchor);
+        }
+        return resolved;
+    }
+
+    /** The cited file's lines, cached — or a problem and null when it is not there. */
+    private static List<String> csLines(Map<String, List<String>> cache, String file,
+                                        List<String> problems) {
+        List<String> lines = cache.get(file);
+        if (lines == null) {
+            Path path = Path.of(file);
+            if (!Files.isRegularFile(path)) {
+                problems.add(file + " (cited by 00-CURRENT-STATE.md) does not exist");
+                return null;
+            }
+            try {
+                lines = Files.readAllLines(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException("cannot read cited file " + file, e);
+            }
+            cache.put(file, lines);
+        }
+        return lines;
+    }
+
+    /** "78-79", "126,134", "177, 179-180,185-186,190" (wrapped) → [lo, hi] pairs. */
+    private static List<int[]> csSpecRanges(String spec) {
+        List<int[]> ranges = new ArrayList<>();
+        for (String part : spec.split(",")) {
+            part = part.strip();
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (part.contains("-")) {
+                String[] loHi = part.split("-");
+                ranges.add(new int[]{Integer.parseInt(loHi[0].strip()), Integer.parseInt(loHi[1])});
+            } else {
+                int n = Integer.parseInt(part);
+                ranges.add(new int[]{n, n});
+            }
+        }
+        return ranges;
+    }
+
+    /** The structural half: every range inside the file, and the cited lines
+     *  carry content (not just blanks, braces or EOF). */
+    private static boolean csRangeCheck(CsAnchor anchor, List<String> lines,
+                                        List<int[]> ranges, List<String> problems) {
+        boolean ok = true;
+        for (int[] range : ranges) {
+            if (range[0] < 1 || range[1] > lines.size()) {
+                problems.add(anchor.file() + ":" + range[0] + "-" + range[1] + " — the file "
+                        + "has " + lines.size() + " lines; the anchor outlived the code it points at");
+                ok = false;
+            }
+        }
+        if (ok) {
+            boolean anyLetter = false;
+            for (int[] range : ranges) {
+                for (int i = range[0]; i <= range[1]; i++) {
+                    if (Pattern.compile("[A-Za-z]").matcher(lines.get(i - 1)).find()) {
+                        anyLetter = true;
+                        break;
+                    }
+                }
+            }
+            if (!anyLetter) {
+                problems.add(anchor.file() + ":" + anchor.spec().replace('\n', ' ')
+                        + " — the cited lines are blank; the code they pointed at is gone");
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
+    /**
+     * The clause the citation belongs to: back to the previous newline or the
+     * previous citation's closing backtick (whichever is later), extended one
+     * wrapped line at a time when the citation opens a continuation line —
+     * markdown wraps mid-clause. From that window: backticked code identifiers
+     * (path spans excluded) and verbatim quoted phrases.
+     */
+    private static void csWindowTokens(String doc, List<CsAnchor> anchors, CsAnchor anchor,
+                                       Set<String> tokens, Set<String> phrases) {
+        int lastCiteEnd = 0;
+        for (CsAnchor other : anchors) {
+            if (other.end() <= anchor.start()) {
+                lastCiteEnd = other.end();
+            } else {
+                break;
+            }
+        }
+        int ws = Math.max(anchor.start() == 0 ? -1 : doc.lastIndexOf('\n', anchor.start() - 1),
+                lastCiteEnd);
+        for (int i = 0; i < 4; i++) {
+            String seg = doc.substring(ws, anchor.start()).strip();
+            if (seg.isEmpty() || seg.matches("[();,\\s`]*")) {
+                int pn = ws == 0 ? -1 : doc.lastIndexOf('\n', ws - 1);
+                if (pn < 0) {
+                    break;
+                }
+                int ws2 = Math.max(pn, lastCiteEnd);
+                if (ws2 >= ws) {
+                    break;
+                }
+                ws = ws2;
+            } else {
+                break;
+            }
+        }
+        String window = doc.substring(ws, anchor.start());
+        for (Matcher m = CS_TOKEN_SPAN.matcher(window); m.find(); ) {
+            String span = m.group(1);
+            if (span.startsWith(":") || csIsPathSpan(span)) {
+                continue;
+            }
+            if (CS_HEX.matcher(span).matches()) {
+                tokens.add(span.toLowerCase());
+                continue;
+            }
+            for (Matcher id = CS_ID_RUN.matcher(span); id.find(); ) {
+                tokens.add(id.group());
+            }
+        }
+        for (Matcher m = CS_QUOTED_PHRASE.matcher(window); m.find(); ) {
+            String phrase = m.group(1);
+            if (!phrase.contains("`")) {
+                phrases.add(phrase);
+            }
+        }
+    }
+
+    private static boolean csIsPathSpan(String span) {
+        return span.startsWith("src/") || span.startsWith("frontend/") || span.startsWith("docs/")
+                || span.startsWith("reviews/") || span.startsWith("qa/")
+                || span.startsWith("openspec/");
+    }
+
+    /** The cited lines as matchable text: wrapped lines joined, leading comment
+     *  characters (javadoc asterisks, comment slashes) and Java
+     *  string-concatenation seams (quote-plus-quote) dropped, whitespace
+     *  collapsed — the doc quotes wrapped comments verbatim. */
+    private static String csCitedContent(List<String> lines, List<int[]> ranges) {
+        StringBuilder sb = new StringBuilder();
+        for (int[] range : ranges) {
+            for (int i = range[0]; i <= range[1]; i++) {
+                sb.append(lines.get(i - 1).strip().replaceFirst("^[/*]+", "")).append(' ');
+            }
+        }
+        return sb.toString().replace("\" + \"", " ").replaceAll("\\s+", " ").strip();
     }
 
     // --------------------------- shared helpers ---------------------------

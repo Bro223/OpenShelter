@@ -68,18 +68,18 @@ Anchors, row by row:
   the *same* `#ffd400` in every theme
   (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:152-153`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner decision,
-  enforced in a spec: `frontend/src/app/design-tokens.spec.ts:654`). Light
+  enforced in a spec: `frontend/src/app/design-tokens.spec.ts:871`). Light
   `frontend/src/styles.scss:102,115`; high-contrast `frontend/src/styles.scss:393,398`;
   black-and-yellow `frontend/src/app/core/theme-tokens.ts:117-118,122`.
 - **Red-orange is reserved for reported**: no other state uses the red family
-  (`frontend/src/styles.scss:874-875`); it "stays a distinct family in every theme"
-  (`frontend/src/app/design-tokens.spec.ts:654`). The pin palette has no grey
-  (`frontend/src/app/core/i18n/en.ts:181-184`).
+  (`frontend/src/styles.scss:874-875`); the marker-meaning pin keeps it a distinct
+  family in every theme (`frontend/src/app/design-tokens.spec.ts:907`). The pin palette
+  has no grey (`frontend/src/app/core/i18n/en.ts:181-184`).
 - **The shape distinction carries depth separately from colour** (WCAG 1.4.1 — never colour
   alone): unverified = triangle, partial = circle, full = circle with the verified green
   (`frontend/src/styles.scss:796-798,842-854`). Separately, the browse anchor is a diamond
   against shelter circles "on SHAPE, not colour alone"
-  (`frontend/src/styles.scss:894`; `frontend/src/app/shared/leaflet-service.ts:317,337`; the
+  (`frontend/src/styles.scss:885-886`; `frontend/src/app/shared/leaflet-service.ts:317,337`; the
   pick pin is `frontend/src/app/shared/leaflet-service.ts:285`).
 - The legend swatches reuse these exact marker classes, so map and legend can never drift
   (`frontend/src/styles.scss:782-785`). Legend copy: `frontend/src/app/core/i18n/en.ts:177,
@@ -87,8 +87,8 @@ Anchors, row by row:
 - Server-side states: the community trust lifecycle is `ReviewStatus` NEW / CONFIRMED /
   REJECTED (`src/main/java/ee/sheltermap/domain/ReviewStatus.java:20-23`); new rows publish
   as NEW, and registry rows are backfilled CONFIRMED (the field default,
-  `src/main/java/ee/sheltermap/domain/Shelter.java:74`). The standing "where does this row
-  come from" answer is the derived `Provenance` (never stored, derived on read):
+  `src/main/java/ee/sheltermap/domain/Shelter.java:74`). The standing where-does-this-row
+  come-from question is the derived `Provenance` (never stored, derived on read):
   `src/main/java/ee/sheltermap/domain/Provenance.java:59-80`.
 - The submitter-verification depth is **derived on every read** from the author's current
   active claims — a row added while its submitter had one channel upgrades itself the moment
@@ -102,22 +102,22 @@ Anchors, row by row:
 
 A USER row in review state NEW is promoted NEW→CONFIRMED automatically when it reaches
 **three distinct community confirmers** — the only automatic promotion path
-(`src/main/java/ee/sheltermap/app/ShelterReportService.java:300-319`, the threshold check at
-`:312`):
+(`src/main/java/ee/sheltermap/app/ShelterReportService.java:348-358`, the threshold check at
+`:351`):
 
 - Threshold = 3: `AUTO_CONFIRM_THRESHOLD`
   (`src/main/java/ee/sheltermap/domain/ShelterReport.java:30`).
 - A confirmer is a **distinct verified user** who either filed an open (non-dismissed)
   `OPEN_CONFIRMED` report or whose current live open/closed tap is OPEN — each distinct user
   counts once, report and tap alike
-  (`src/main/java/ee/sheltermap/app/ShelterReportService.java:321-333,335-346`; the OPEN tap
-  runs the same tally: `:220-227`).
+  (`src/main/java/ee/sheltermap/app/ShelterReportService.java:375-379`; the OPEN tap
+  runs the same tally: `:264-266`).
 - **The submitter's own reports and taps are always excluded** — a self-confirm is never a
   verification, not even as the third
   (`src/main/java/ee/sheltermap/domain/ShelterReport.java:26-28`; the removal is
-  `src/main/java/ee/sheltermap/app/ShelterReportService.java:341-344`). Guests and unverified
+  `src/main/java/ee/sheltermap/app/ShelterReportService.java:380-383`). Guests and unverified
   registered users cannot file reports or taps at all (403,
-  `src/main/java/ee/sheltermap/app/ShelterReportService.java:91,136`).
+  `src/main/java/ee/sheltermap/app/ShelterReportService.java:161,213,250-252`).
 
 **How it differs from the auto-hide tally** (do not conflate the two):
 
@@ -128,10 +128,10 @@ A USER row in review state NEW is promoted NEW→CONFIRMED automatically when it
 | Submitter | excluded | n/a |
 | Dismissed reports | excluded by the query | excluded by the query |
 | Threshold | **3** (`ShelterReport.java:30`) | **5** (`ShelterReport.java:41`) |
-| Effect | NEW → CONFIRMED | ACTIVE → INACTIVE (`ShelterReportService.java:287-298`) |
+| Effect | NEW → CONFIRMED | ACTIVE → INACTIVE (`ShelterReportService.java:309-314`) |
 
 The hide tally is the weighted sum over distinct `NON_EXISTENT` reporters
-(`src/main/java/ee/sheltermap/app/ShelterReportService.java:253-264`), and both tallies read
+(`src/main/java/ee/sheltermap/app/ShelterReportService.java:276-280`), and both tallies read
 their inputs from the same dismissed-excluded store query
 (`src/main/java/ee/sheltermap/persistence/SpringDataShelterReportRepository.java:17-20`).
 
@@ -156,7 +156,7 @@ their inputs from the same dismissed-excluded store query
     rows dimmed (dismissal records the resolution, it never deletes the report); the
     moderator's "hide dismissed" scope (`excludeDismissed=true`,
     `src/main/java/ee/sheltermap/api/AdminController.java:397`) drops the dismissed rows in
-    the domain (`src/main/java/ee/sheltermap/api/AdminModerationService.java:369-382,415`) —
+    the domain (`src/main/java/ee/sheltermap/api/AdminModerationService.java:382-406,408-425`) —
     and its X-Total-Count *is* the sum of the per-shelter open counts the pins read
     (`src/main/java/ee/sheltermap/api/AdminModerationService.java:311-315`).
   - So: the count/tally filter lives in the store queries (`dismissedAt is null`); the list
@@ -169,18 +169,18 @@ their inputs from the same dismissed-excluded store query
   legend's `tones` param "is the SINGLE source of truth (URL-only persistence — no
   localStorage)" (`frontend/src/app/features/map/map-page.ts:330-336`); the admin page
   carries the same idiom ("the view IS the URL",
-  `frontend/src/app/features/admin/admin-page.ts:193-194`). Public surfaces use page-level
+  `frontend/src/app/features/admin/admin-page.ts:515`). Public surfaces use page-level
   routes, admin tab panels use tab-namespaced query params
   (`frontend/src/app/shared/list-state.ts:16-20`).
 - **Clamp/normalize discipline.** A hand-typed illegal value is sanitized to the nearest
   legal value — never an error — and the URL is normalized in place (`replaceUrl`, no history
   entry), so the control and the URL can never quietly disagree
   (`frontend/src/app/features/map/map-page.ts:80-95,504-505`;
-  `frontend/src/app/features/admin/admin-page.ts:594-598`).
+  `frontend/src/app/features/admin/admin-page.ts:575-602,651-656`).
 - **Per-list namespaced parameters.** Each admin paged list owns its own `{list}Page` /
   `{list}Size` pair — `guidancePage/guidanceSize`, `shelterPage/shelterSize`,
   `reportPage/reportSize`, `userPage/userSize`, `mediaPage/mediaSize`, `auditPage/auditSize`
-  (`frontend/src/app/features/admin/admin-page.ts:626-641`).
+  (`frontend/src/app/features/admin/admin-page.ts:603-618`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
   (`frontend/src/app/shared/paging.ts:1-13`); constants at `:20,24,27,31`;
@@ -205,9 +205,9 @@ their inputs from the same dismissed-excluded store query
   (`frontend/src/app/features/map/map-page.ts:66-68`). The old source-kind chips (All /
   Registry / User) were removed as the duplicate of the legend filter, and the `?source=`
   refetch went with them — the list always fetches all sources
-  (`frontend/src/app/features/map/map-page.ts:70-75,240-241`). The two remaining chips compose
+  (`frontend/src/app/features/map/map-page.ts:70-75,242-244`). The two remaining chips compose
   with the legend: "Open" is client-side (the backend has no open/closed param), "Has
-  capacity" is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:238-241`).
+  capacity" is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:238-243`).
 
 ## 5. The guidance hero — imported when the post is SAVED
 
@@ -280,7 +280,7 @@ their inputs from the same dismissed-excluded store query
    constraint set and passes vacuously — it never guarded the `api` request bounds it was
    written for" (`docs/autopilot/findings/LEDGER.md:265`), and the literal-token audit being
    blind to computed `color-mix()` fills — "the token pairs above pass while the mix can
-   still fail" (`frontend/src/app/design-tokens.spec.ts:596-599`). Lesson: a green guard
+   still fail" (`frontend/src/app/design-tokens.spec.ts:813-817`). Lesson: a green guard
    proves the guard ran, not that the behaviour exists — verify the path the guard was
    written for, then trust the guard.
 
@@ -289,8 +289,9 @@ their inputs from the same dismissed-excluded store query
 - The RU and ET legend/map copy are **MACHINE DRAFTs in the source, awaiting native
   speaker review** — do not treat them as final
   (`frontend/src/app/core/i18n/ru.ts:198-204`; `frontend/src/app/core/i18n/et.ts:87-88`).
-- The backend suite's status on **JDK 27** was flagged "do not treat as green until decided"
-  in the 2026-09-21 review (`reviews/run1-2026-09-21/12-summary.md:183`); that decision's
+- The backend suite's status on **JDK 27** was flagged that one must not "treat the suite
+  as green for CI until this is decided" in the 2026-09-21 review
+  (`reviews/run1-2026-09-21/12-summary.md:183`); that decision's
   outcome is not re-verified in this file — check before relying on a red/green suite run on
   JDK 27.
 
