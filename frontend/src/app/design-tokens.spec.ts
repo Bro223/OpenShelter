@@ -517,6 +517,27 @@ describe('design tokens (M6)', () => {
     return (hi + 0.05) / (lo + 0.05);
   }
 
+  /** Hue (0-360) of a #rrggbb colour — the yellow-band check for the
+   *  black-and-yellow muted token (the same 45-65° band the marker-meaning
+   *  test holds the yellow pin tone to). */
+  function hueOf(hex: string): number {
+    const v = hex.replace('#', '').trim();
+    const r = Number.parseInt(v.slice(0, 2), 16) / 255;
+    const g = Number.parseInt(v.slice(2, 4), 16) / 255;
+    const b = Number.parseInt(v.slice(4, 6), 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0;
+    if (d !== 0) {
+      if (max === r) h = 60 * (((g - b) / d) % 6);
+      else if (max === g) h = 60 * ((b - r) / d + 2);
+      else h = 60 * ((r - g) / d + 4);
+    }
+    if (h < 0) h += 360;
+    return h;
+  }
+
   /** CSS color-mix(in srgb, A p%, B): the per-channel sRGB blend the
    *  browser computes, rounded to 8-bit per channel (the browser paints
    *  8-bit sRGB, so the spec models the painted value, not the float). */
@@ -603,6 +624,13 @@ describe('design tokens (M6)', () => {
     ['--color-muted', '--color-surface-hover'],
     // Banner text on its own fill (BannerComponent severity backgrounds).
     ['--color-danger', '--color-danger-bg'],
+    // Error text on the page background and on the card surface (.field-error,
+    // .anchor-search__error, .admin-reason__error and kin): the surfaces the
+    // reported "error messages still red in black-and-yellow" render on. BY
+    // 14.67:1 (the danger voice is the theme yellow there), light 5.41/5.86:1,
+    // high-contrast 8.64/8.04:1.
+    ['--color-danger', '--color-bg'],
+    ['--color-danger', '--color-bg-surface'],
     ['--color-warning', '--color-warning-bg'],
     ['--color-info', '--color-info-bg'],
     ['--color-success', '--color-success-bg'],
@@ -697,13 +725,17 @@ describe('design tokens (M6)', () => {
     // so its edges clear 3:1 here (divider + ghost-button edge 4.58:1,
     // the ghost's resting/hover fills are the documented exemptions
     // below) — where the other two themes document the navy band's edges
-    // as decorative sub-3:1 pairs.
+    // as decorative sub-3:1 pairs. The danger border joins the set in this
+    // theme alone: it is the error surfaces' FULL border — the non-colour
+    // error cue (7.40:1 on black), while light/high-contrast keep the
+    // soft decorative banner border.
     ...(
       [
         ['--color-border', '--color-chrome-bg'],
         ['--color-border', '--color-bg-surface'],
         ['--color-border', '--color-bg'],
         ['--color-chrome-border', '--color-chrome-bg'],
+        ['--color-danger-border', '--color-bg'],
       ] as [string, string][]
     ).map(([fg, bg]) => ({ theme: 'black-and-yellow' as const, fg, bg, min: 3 })),
     // HC-only text pairs (not checked in light, where the value is a
@@ -1725,6 +1757,105 @@ describe('design tokens (M6)', () => {
     // — that leaves <a> buttons' labels left/top-aligned, because only
     // <button> elements get the UA button face's self-centring.
     expect(stylesCss).toMatch(/\.btn--block \{[^}]*display: flex/s);
+  });
+
+  /* --- Theme fidelity for black-and-yellow (owner wave): the search
+     placeholder and the map search button must follow the theme instead
+     of the UA stylesheet. jsdom cannot measure computed style (the repo's
+     established pattern), so these pins assert the token declarations that
+     make the element theme-driven AND run the contrast math on the runtime
+     black-and-yellow tokens the page actually applies. --- */
+
+  it('form placeholders take --color-muted (theme yellow in black-and-yellow — the UA placeholder follows the OS scheme, not [data-theme])', () => {
+    // Before this pin: no project ::placeholder rule existed, so Chromium's
+    // UA placeholder (a light-dark grey) painted the map search + admin
+    // search hints grey on the black black-and-yellow input surface (4.56:1
+    // in the light-OS case) — a hint the theme does not own, and not the
+    // theme's yellow. The owner wants the hint in the theme's yellow; the
+    // muted token is that tier in every theme.
+    const ph = compiledDeclarations(compiledStyles.css).filter((d) =>
+      d.head.includes('::placeholder'),
+    );
+    expect(
+      ph.length,
+      'no ::placeholder rule in styles.scss — the UA placeholder is back',
+    ).toBeGreaterThan(0);
+    for (const d of ph) {
+      expect(
+        `${d.prop}: ${d.value}`,
+        'the placeholder colour must be the muted token',
+      ).toBe('color: var(--color-muted)');
+      expect(d.head, 'the placeholder rule must cover the search inputs').toContain('input');
+      expect(d.head, 'the placeholder rule must cover the form textareas').toContain('textarea');
+    }
+    // Black-and-yellow: the muted token IS the theme's yellow (the repo's
+    // 45-65° yellow band) and holds the text floor on the input's surface
+    // token (10.47:1 on the black surface).
+    const muted = byTokens.get('--color-muted');
+    const surface = byTokens.get('--color-bg-surface');
+    expect(muted, '--color-muted missing from the black-and-yellow map').toBeDefined();
+    expect(
+      hueOf(muted!),
+      'the black-and-yellow muted placeholder must be yellow-band (45-65°)',
+    ).toBeGreaterThanOrEqual(45);
+    expect(hueOf(muted!)).toBeLessThanOrEqual(65);
+    expect(contrast(muted!, surface!), 'muted placeholder on the black surface').toBeGreaterThanOrEqual(4.5);
+    // The pair belongs in the ENFORCED list at the text threshold — the
+    // placeholder is text on the input surface, not a comment.
+    const enforced = new Set(CONTRAST_CHECKS.map((c) => `${c.theme}|${c.fg}|${c.bg}|${c.min}`));
+    expect(
+      enforced.has('black-and-yellow|--color-muted|--color-bg-surface|4.5'),
+      'the black-and-yellow placeholder pair must sit in the enforced contrast list at 4.5:1',
+    ).toBe(true);
+  });
+
+  it('the map anchor-search button is theme-driven (enabled state, black-and-yellow): token background + border + text, measured — the UA ButtonFace is gone', () => {
+    // Before this pin: .anchor-search__button was a bare .btn with no
+    // background of its own — the UA ButtonFace, which does not follow
+    // [data-theme]. With the OS in light mode that is a light-grey fill
+    // under the theme's bright text: the black-and-yellow text on it
+    // measured 1.24:1 (the owner's "bright on bright" in the ENABLED state
+    // after typing; disabled is worse at 1.15:1), the high-contrast white
+    // 1.15:1 — unreadable in both dark themes. The token trio makes the
+    // button theme-driven in all three themes; the enabled-state ratios
+    // are measured against the actual black-and-yellow background below.
+    const map = withoutCssComments(
+      readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8'),
+    );
+    const block = balancedBlock(map, /\.anchor-search__button \{/);
+    expect(block, '.anchor-search__button rule missing from map-page.scss').not.toBeNull();
+    expect(
+      block,
+      'the button must take the theme background (black in black-and-yellow)',
+    ).toContain('background: var(--color-bg)');
+    expect(
+      block,
+      'the button must take the theme border (the theme gold in black-and-yellow)',
+    ).toContain('border-color: var(--color-border)');
+    expect(
+      block,
+      'the button must take the theme text (the theme yellow in black-and-yellow)',
+    ).toContain('color: var(--color-text)');
+    // The enabled-state pairs sit in the ENFORCED list at their thresholds
+    // (text 4.5:1, border 3:1) — not described in a comment — and they
+    // hold on the runtime tokens the page actually applies.
+    const enforced = new Set(CONTRAST_CHECKS.map((c) => `${c.theme}|${c.fg}|${c.bg}|${c.min}`));
+    expect(
+      enforced.has('black-and-yellow|--color-text|--color-bg|4.5'),
+      'the black-and-yellow button text pair must sit in the enforced contrast list at 4.5:1',
+    ).toBe(true);
+    expect(
+      enforced.has('black-and-yellow|--color-border|--color-bg|3'),
+      'the black-and-yellow button border pair must sit in the enforced contrast list at 3:1',
+    ).toBe(true);
+    expect(
+      contrast(byTokens.get('--color-text')!, byTokens.get('--color-bg')!),
+      'enabled-state text on the actual black background',
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrast(byTokens.get('--color-border')!, byTokens.get('--color-bg')!),
+      'enabled-state border against the actual black background',
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it('form controls and links carry explicit token colours (UA defaults do not follow [data-theme])', () => {

@@ -311,6 +311,18 @@
 
   .anchor-search__button {
     flex-shrink: 0;
+    /* The bare .btn has no background of its own — the UA ButtonFace,
+       which does not follow [data-theme] and lands light-grey under the
+       dark themes' bright text (the owner's "bright on bright": 1.24:1
+       enabled in black-and-yellow, 1.15:1 in high-contrast, OS light
+       scheme). The token trio keeps the button theme-driven in all three
+       themes: black + the theme gold + the theme yellow in black-and-
+       yellow (the enabled-state pairs are enforced in design-tokens.
+       spec.ts), the page background in light, the dark background in
+       high-contrast. */
+    background: var(--color-bg);
+    border-color: var(--color-border);
+    color: var(--color-text);
   }
 
   .anchor-search__attribution {
@@ -325,8 +337,11 @@
   }
 
   .anchor-search__error {
+    /* The weight is the non-colour error cue (WCAG 1.4.1): in black-and-
+       yellow this line is the theme yellow like any other text. */
     margin: 0;
     font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
     color: var(--color-danger);
   }
 
@@ -419,7 +434,10 @@
   }
 
   &--error {
+    /* The weight is the non-colour error cue (WCAG 1.4.1) — in black-and-
+       yellow this line is the theme yellow like any other text. */
     color: var(--color-danger);
+    font-weight: var(--font-weight-medium);
   }
 
   /* The community unverified warning under a community nearest row:

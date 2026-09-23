@@ -37,8 +37,19 @@ export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
  *   primary                                  family; see the note below)
  *   primary #ffd400   black on it    14.67:1 (btn--primary INVERTS:
  *   button   (the --color-text value, the .btn--primary override rule)
- *   reported #ff6b4d  black on it /  7.46:1  (stays red-family)
- *   danger   as text on #000
+ *   reported #ff6b4d  black on it    7.46:1  (stays red-family — the pin +
+ *                                     the reported badge/marker; a
+ *                                     separate, deliberate owner decision)
+ *   danger   #ffd400   on #000        14.67:1 (= --color-text: the theme has
+ *   error                              ONE voice — yellow — so hue cannot
+ *                                     distinguish an error from a note;
+ *                                     the non-colour cue is the weight, the
+ *                                     full border, the wording)
+ *   danger-  #ffd400   on #2a2408     10.83:1 (banner text on the dark
+ *   bg                                   amber tint)
+ *   danger-  #b89600   vs #000        7.40:1  (the banner/confirm FULL
+ *   border                                 border — the visible non-colour
+ *                                          error cue, enforced at 3:1)
  *   success #7fd49a   on #000        11.79:1
  *   registry #7ab8ff  on badge #14263a  7.4:1 (the badge fill reuses the
  *                                        high-contrast dark tint — the
@@ -124,10 +135,16 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-border': '#8a7400',
   '--color-border-subtle': '#6b5900' /* decorative divider (≈3:1) */,
   /* Status palette */
-  '--color-danger': '#ff6b4d',
-  '--color-danger-bg': '#2a120d' /* danger on it 6.3:1 */,
-  '--color-danger-border': '#7a3a2d',
-  '--color-error': '#ff6b4d',
+  /* Error/danger follow the theme's ONE voice — yellow (owner decision:
+     in this theme hue cannot distinguish an error or a destructive action
+     from ordinary text, so the non-colour cue carries it: the weight on
+     the error lines, the full border on the banner/confirm surfaces,
+     the explicit wording). The reported state keeps its red family —
+     --color-reported above, a separate owner decision. */
+  '--color-danger': '#ffd400',
+  '--color-danger-bg': '#2a2408' /* danger on it 10.83:1 (dark amber tint) */,
+  '--color-danger-border': '#b89600' /* on #000 7.40:1 — the full border, the non-colour error cue */,
+  '--color-error': '#ffd400' /* = --color-danger (one voice, like the light theme's red) */,
   '--color-warning': '#ffb84d',
   '--color-warning-bg': '#292008' /* warning on it 9.37:1 */,
   '--color-warning-border': '#6e5a1e',

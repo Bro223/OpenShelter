@@ -539,6 +539,19 @@ textarea {
   background-color: var(--color-bg-surface);
 }
 
+/* Placeholder text follows the theme like the control text does: the UA
+   placeholder (Chromium: a light-dark grey) follows the OS colour
+   scheme, NOT [data-theme] — on the black black-and-yellow input surface
+   it is a grey hint (4.56:1 in the light-OS case), not the theme's
+   yellow. The muted token is the theme's hint tier in every theme
+   (black-and-yellow: the theme gold, 10.47:1 on the black surface;
+   light: slate; high-contrast: light grey) and the black-and-yellow pair
+   is enforced in design-tokens.spec.ts. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-muted);
+}
+
 /* Page titles — the brand ink on the heading type styles.scss owns.
    Headings sit on the LIGHT page surface, so they keep the brand ink;
    the chrome band (header/footer) is the --color-chrome-* family and
@@ -608,8 +621,14 @@ textarea {
 }
 
 .field-error {
+  /* The non-colour error cue (WCAG 1.4.1): in black-and-yellow the danger
+     voice IS the theme yellow — the same hue as the body text — so the
+     weight (the body is 400) + the message wording separate an error line
+     from a note; the bordered error surfaces (banner, confirm strip) carry
+     the same cue as their full border. */
   color: var(--color-danger);
   font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
   margin: var(--space-4) 0 0;
 }
 
@@ -677,10 +696,15 @@ textarea {
 }
 
 /* Shared danger button: the destructive-action variant, used by the admin
-   moderation tables (Delete/Reject) and the contributions panel's Delete. */
+   moderation tables (Delete/Reject) and the contributions panel's Delete.
+   The non-colour destructive cue (WCAG 1.4.1): the FULL border (the theme
+   danger border — a bright, enforced edge in black-and-yellow) + the
+   semibold weight (the ordinary .btn is medium) + the explicit
+   destructive label, so colour is never the only tell. */
 .btn--danger {
   border-color: var(--color-danger-border);
   color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
 
   &:hover:not(:disabled) {
     background: var(--color-danger-bg);
