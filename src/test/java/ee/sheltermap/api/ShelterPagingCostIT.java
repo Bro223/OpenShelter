@@ -20,7 +20,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -78,6 +81,18 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
     /** Published posts for the guidance measurement. */
     private static final int POSTS = 6;
 
+    /**
+     * The settled-window tuple bands (inclusive), one per measured limit.
+     * SINGLE SOURCE OF TRUTH: the assertions below read these, and the
+     * retry detector ({@link #windowSettled}) gates on the very same
+     * numbers — a measurement window is only accepted when the tuple
+     * delta is in the band the request's two statements can produce.
+     */
+    private static final long LIMIT1_TUPLES_LO = SHELTERS + 1L;
+    private static final long LIMIT1_TUPLES_HI = SHELTERS + 20L;
+    private static final long LIMIT100_TUPLES_LO = SHELTERS + 50L;
+    private static final long LIMIT100_TUPLES_HI = 2L * SHELTERS + 50L;
+
     @Autowired
     MockMvc mvc;
 
@@ -132,8 +147,8 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         String admin = adminToken();
         jdbc.execute("VACUUM (ANALYZE) shelters");
 
-        Map<String, long[]> delta1 = measurePage(admin, "1", "0");
-        Map<String, long[]> delta100 = measurePage(admin, "100", "0");
+        Map<String, long[]> delta1 = measurePage(admin, "1", "0", LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI);
+        Map<String, long[]> delta100 = measurePage(admin, "100", "0", LIMIT100_TUPLES_LO, LIMIT100_TUPLES_HI);
 
         print("admin shelters limit=1", delta1);
         print("admin shelters limit=100", delta100);
@@ -143,9 +158,10 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         // Invariant 1 — the STATEMENT count does not grow with page size:
         // both measured windows ran exactly the same two statements (the
         // mandated X-Total-Count count twin + the page read). The exact-
-        // scans check is enforced in measurePage (a window that shows any
-        // other count was contaminated by a neighbor IT's delayed stats and
-        // was re-measured), so equality here holds by construction.
+        // scans check AND the tuple band are enforced in measurePage (a
+        // window that showed any other shape was partially aggregated or
+        // contaminated by a neighbor IT's delayed stats and was re-measured),
+        // so equality here holds by construction.
         assertThat(d1[0]).isEqualTo(2L);
         assertThat(d100[0])
                 .as("the admin list runs the same statements for a limit=100 page as for a limit=1 page")
@@ -156,7 +172,7 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         // the PK index: 1 tuple, measured.)
         assertThat(d1[1])
                 .as("a limit=1 page reads the count scan + its single row, not the corpus projection")
-                .isBetween((long) SHELTERS + 1L, (long) SHELTERS + 20L);
+                .isBetween(LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI);
         // Invariant 3 — the page-size work is real and bounded: limit=100
         // does genuinely MORE work than limit=1 (the pre-W2-A shape read
         // the identical corpus for both — the counts were literally equal),
@@ -165,7 +181,7 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         // top of the count.
         assertThat(d100[1])
                 .as("a limit=100 page does more DB work than a limit=1 page, bounded by one extra scan")
-                .isBetween((long) SHELTERS + 50L, (long) 2 * SHELTERS + 50L)
+                .isBetween(LIMIT100_TUPLES_LO, LIMIT100_TUPLES_HI)
                 .isGreaterThan(d1[1]);
     }
 
@@ -203,6 +219,62 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         assertThat(guidancePosts[0])
                 .as("a guidance page costs the index scan + ONE batched read, not one read per row")
                 .isLessThanOrEqualTo(2L);
+    }
+
+    // ---------- the retry gate is honest: it covers every measured number ----------
+
+    @Test
+    void theSettlednessGateCoversEveryNumberTheAssertionReads() {
+        // Genuinely settled windows, at both limits — band edges inclusive.
+        assertThat(windowSettled(2, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isTrue();
+        assertThat(windowSettled(2, LIMIT1_TUPLES_HI, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isTrue();
+        assertThat(windowSettled(2, LIMIT100_TUPLES_LO, LIMIT100_TUPLES_LO, LIMIT100_TUPLES_HI)).isTrue();
+        assertThat(windowSettled(2, LIMIT100_TUPLES_HI, LIMIT100_TUPLES_LO, LIMIT100_TUPLES_HI)).isTrue();
+        // The reported flake's exact shape: BOTH statements counted
+        // (scans = 2) while the tuple delta is out of band — the page
+        // read's tuples not yet aggregated, and a neighbor IT's delayed
+        // 1-scan flush having filled the window instead. The OLD detector
+        // (scans == 2 only) declared this clean and failed the assertion
+        // on production-healthy behaviour; the widened gate re-measures.
+        assertThat(windowSettled(2, LIMIT1_TUPLES_LO - 1, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+        assertThat(windowSettled(2, LIMIT1_TUPLES_HI + 1, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+        assertThat(windowSettled(2, 53_001, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+        assertThat(windowSettled(2, LIMIT100_TUPLES_HI + 1, LIMIT100_TUPLES_LO, LIMIT100_TUPLES_HI)).isFalse();
+        // Neighbor contamination of the scan count — caught before, still caught.
+        assertThat(windowSettled(1, LIMIT1_TUPLES_LO + 1, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+        assertThat(windowSettled(3, LIMIT1_TUPLES_LO + 1, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+        // A window that missed the table entirely (own flush not landed yet).
+        assertThat(windowSettled(0, 0, LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI)).isFalse();
+    }
+
+    @Test
+    void theRetryReclaimsThePartiallyAggregatedWindow() throws Exception {
+        // Drives the REAL retry loop with the flake's exact arithmetic:
+        // window 1 has both statements counted (scans = 2) but an
+        // out-of-band tuple delta (a neighbor's delayed flush landed,
+        // the page read's own tuples did not); window 2 is the settled
+        // shape. The loop must REJECT window 1 — the retry fires — and
+        // return window 2, which passes the assertions the real test runs.
+        String admin = adminToken();
+        long mid = (LIMIT1_TUPLES_LO + LIMIT1_TUPLES_HI) / 2;
+        Map<String, long[]> partial = new LinkedHashMap<>();
+        partial.put("shelters", new long[]{2, 53_001});
+        Map<String, long[]> settled = new LinkedHashMap<>();
+        settled.put("shelters", new long[]{2, mid});
+        List<Map<String, long[]>> windows = List.of(partial, settled);
+        AtomicInteger windowReads = new AtomicInteger();
+        Map<String, long[]> result = measurePage(admin, "1", "0", LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI,
+                () -> Map.of(),
+                () -> windows.get(Math.min(windowReads.getAndIncrement(), windows.size() - 1)));
+        assertThat(windowReads.get())
+                .as("the partially-aggregated window was rejected and the window re-measured")
+                .isEqualTo(2);
+        assertThat(result.get("shelters"))
+                .as("the settled window was the one the loop returned")
+                .containsExactly(2L, mid);
+        // And the reclaimed window passes the very assertions the real test makes:
+        assertThat(result.get("shelters")[0]).isEqualTo(2L);
+        assertThat(result.get("shelters")[1]).isBetween(LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI);
     }
 
     // ---------- helpers ----------
@@ -251,34 +323,76 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
 
     /**
      * Measure one admin-page request's stats delta, RETRYING the window once
-     * when a neighbor IT's delayed stats bleed into it. The contamination
-     * detector is exact: this request issues exactly TWO statements on the
-     * shelters table (the count twin + the page read) — any other scan
-     * count in the window is another class' late-aggregated stats, not
-     * this request's work. A retry re-settles (three cycles instead of
-     * two) and re-requests; if BOTH windows are contaminated the test
-     * fails with the raw evidence — the assertion is never weakened to
-     * absorb the noise.
+     * when it does not show the settled shape. The settledness gate covers
+     * EVERY measurement the assertions depend on — the scan count AND the
+     * tuple band, not the scan count alone. The scan count alone was a
+     * hole: a window whose tuple delta had not yet absorbed the page
+     * read's tuples — or had been polluted by a neighbor IT's delayed
+     * flush — could still read exactly TWO scans (the neighbor's late
+     * statement filling the slot the page read's flush had not landed in).
+     * The old detector then declared the window clean, the assertion
+     * failed on the tuple band, and production behaviour was fully intact.
+     * Gating on scans AND tuples makes "accepted window ⟹ passing
+     * assertions" structural: once both windows are accepted, every
+     * per-window assertion holds, and the cross-window comparison
+     * (limit=100 reads more than limit=1) holds because the bands do not
+     * overlap. A retry re-settles (three cycles instead of two) and
+     * re-requests; if BOTH windows are unsettled the test fails with the
+     * raw evidence printed — the assertion is never weakened to absorb
+     * the noise.
      */
-    private Map<String, long[]> measurePage(String admin, String limit, String offset) throws Exception {
+    private Map<String, long[]> measurePage(String admin, String limit, String offset,
+            long tuplesLo, long tuplesHi) throws Exception {
+        return measurePage(admin, limit, offset, tuplesLo, tuplesHi,
+                this::freshBefore, this::settleAndStat);
+    }
+
+    /**
+     * The measurement seam: the same loop, but the before/after
+     * snapshots come from the given sources instead of the live database.
+     * It exists so the retry path can be driven deterministically
+     * (theRetryReclaimsThePartiallyAggregatedWindow feeds it a partial
+     * window and a settled one): the settledness DECISION is where the
+     * flake lived, and it is a pure function of the measurement — the
+     * loop itself is two attempts and nothing else.
+     */
+    private Map<String, long[]> measurePage(String admin, String limit, String offset,
+            long tuplesLo, long tuplesHi,
+            Supplier<Map<String, long[]>> beforeSource,
+            Supplier<Map<String, long[]>> afterSource) throws Exception {
         Map<String, long[]> last = null;
         for (int attempt = 1; attempt <= 2; attempt++) {
-            Map<String, long[]> before = freshBefore();
+            Map<String, long[]> before = beforeSource.get();
             mvc.perform(get("/admin/shelters").header("Authorization", "Bearer " + admin)
                             .param("limit", limit).param("offset", offset))
                     .andExpect(status().isOk());
-            last = delta(before, settleAndStat());
-            if (last.getOrDefault("shelters", new long[2])[0] == 2L) {
+            last = delta(before, afterSource.get());
+            long[] s = last.getOrDefault("shelters", new long[2]);
+            if (windowSettled(s[0], s[1], tuplesLo, tuplesHi)) {
                 return last;
             }
-            System.out.println("COST limit=" + limit + ": window " + attempt
-                    + " contaminated (shelters scans=" + last.getOrDefault("shelters", new long[2])[0]
-                    + ") — re-measuring");
+            System.out.println("COST limit=" + limit + ": window " + attempt + " unsettled"
+                    + " (shelters scans=" + s[0] + ", tuples=" + s[1]
+                    + ", expected scans=2, tuples in [" + tuplesLo + ", " + tuplesHi
+                    + "]) — re-measuring");
             settle();
             settle();
             settle();
         }
         return last;
+    }
+
+    /**
+     * A measured window is SETTLED only when every number the assertions
+     * read shows the settled shape: exactly the two statements this
+     * request issues (the count twin + the page read) AND the tuple delta
+     * inside the band those two statements can produce. Checking the scan
+     * count alone would accept a partially aggregated window — scans
+     * reading exactly 2 while the rows were far outside the band — and
+     * fail the assertion on production-healthy behaviour.
+     */
+    static boolean windowSettled(long scans, long tuples, long tuplesLo, long tuplesHi) {
+        return scans == 2L && tuples >= tuplesLo && tuples <= tuplesHi;
     }
 
     /** A table→(scan count, rows read) snapshot of the catalog counters. */
