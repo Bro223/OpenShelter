@@ -236,10 +236,15 @@ jobs:
         run: |
           PII_AES=$(openssl rand -base64 32)
           PII_HMAC=$(openssl rand -base64 32)
+          # `localhost` inside a container is the container itself, so the
+          # service Postgres published on the runner host is unreachable by
+          # that name — Flyway then fails at boot and the healthcheck times
+          # out. `host-gateway` is the runner host as seen from the container.
           docker run -d --name sheltermap \
             -p 8080:8080 \
+            --add-host=host.docker.internal:host-gateway \
             -e SPRING_PROFILES_ACTIVE=dev \
-            -e DB_URL=jdbc:postgresql://localhost:5432/sheltermap \
+            -e DB_URL=jdbc:postgresql://host.docker.internal:5432/sheltermap \
             -e DB_USERNAME=sheltermap \
             -e DB_PASSWORD=sheltermap \
             -e PII_AES_KEY="$PII_AES" \
