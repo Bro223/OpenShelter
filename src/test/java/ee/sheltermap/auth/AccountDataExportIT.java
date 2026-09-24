@@ -26,8 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for {@code GET /account/export} (legal-recovery): anonymous 401; the authenticated user's document carries the
- * DECRYPTED profile (pii-at-rest — the persistence boundary hands the
+ * Acceptance IT for {@code GET /account/export}: anonymous 401; the authenticated user's document carries the
+ * DECRYPTED profile (the persistence boundary hands the
  * domain plaintext), exactly the user's own shelter rows (all statuses);
  * another user's rows stay out; a user without contributions gets empty
  * lists. Full-stack MockMvc against real services, security chain, JWT
@@ -89,7 +89,7 @@ class AccountDataExportIT extends AbstractPersistenceIT {
 
         mvc.perform(get("/account/export").header("Authorization", "Bearer " + user.token()))
                 .andExpect(status().isOk())
-                // profile: decrypted e-mail/phone (pii-at-rest boundary) + verified level
+                // profile: decrypted e-mail/phone (persistence boundary hands plaintext) + verified level
                 .andExpect(jsonPath("$.profile.name").value("Ekspordi Kasutaja"))
                 .andExpect(jsonPath("$.profile.email").value("ekspordi@example.ee"))
                 .andExpect(jsonPath("$.profile.phone").value("+372500001"))

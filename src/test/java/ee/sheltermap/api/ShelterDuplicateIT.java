@@ -26,8 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for near-duplicate shelter-submission detection
- * (abuse-limits): an ACTIVE USER row with the same normalized
+ * Acceptance IT for near-duplicate shelter-submission detection:
+ * an ACTIVE USER row with the same normalized
  * name within {@code app.limits.duplicate-coord-meters} (100 m) haversine
  * already existing makes the next submission a 409 whose message carries
  * the existing row id. The check is CROSS-USER (the throwaway-account

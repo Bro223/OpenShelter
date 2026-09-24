@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the admin moderation API (admin-moderation) —
+ * Acceptance IT for the admin moderation API —
  * full-stack MockMvc against the real services, security chain, JWT filter
  * and Postgres: authorization (fresh kind lookup, no JWT claim), the admin
  * shelter list (all statuses, trust fields, submitter), manual

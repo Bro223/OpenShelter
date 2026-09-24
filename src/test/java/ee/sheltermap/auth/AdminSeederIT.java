@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the env-provisioned admin (admin-moderation) —
+ * Acceptance IT for the env-provisioned admin —
  * real security chain, real JWT, real Postgres. The context boots WITH
  * {@code app.admin.email}/{@code app.admin.password} set, so the seeder
  * runs at startup exactly like a prod boot; the tests then verify the

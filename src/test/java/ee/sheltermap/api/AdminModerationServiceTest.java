@@ -48,8 +48,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the admin moderation surface's community-review part
- * (community-review-queue v2): the CONFIRM/REJECT decisions, the
+ * Unit tests for the admin moderation surface's community-review part:
+ * the CONFIRM/REJECT decisions, the
  * restore-of-a-rejected-row reverting to NEW, and the audit rows every
  * admin write leaves in the (in-memory) moderation audit log — including
  * that idempotent no-ops record nothing.

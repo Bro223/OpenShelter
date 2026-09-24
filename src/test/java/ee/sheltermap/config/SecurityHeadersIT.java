@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The hardening response headers (abuse-limits) + the cookie
+ * The hardening response headers + the cookie
  * audit: EVERY response — 200, 400, 401, 404 — carries
  * X-Content-Type-Options / X-Frame-Options / Referrer-Policy /
  * Content-Security-Policy, and NO response sets a cookie (the app is

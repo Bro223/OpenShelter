@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Resolver behaviour against a scripted {@link RedirectClient} fake —
- * no network (shelter-location-input, design decision 4): host whitelist
+ * no network: host whitelist
  * (entry pinned to a default-port {@code maps.app.goo.gl}), the ≤3-hop cap
  * (read off the {@code Location} header, one fetch per hop), hop-target
  * re-validation (non-Google hosts, scheme changes, protocol-relative and

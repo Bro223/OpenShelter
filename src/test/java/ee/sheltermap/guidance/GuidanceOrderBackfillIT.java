@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V28 backfill test (guidance-manual-order) — the safety property the
+ * V28 backfill test — the safety property the
  * migration's comment is written around: the backfill must rank every row
  * in the order the public index produced BEFORE the change (pinned first,
  * then published_at DESC, id DESC — drafts, invisible today, ranked after

@@ -121,7 +121,7 @@ public class InMemoryGuidanceTranslationRepository implements GuidanceTranslatio
 
     @Override
     public List<GuidanceTranslation> findPublishedInLocale(String locale) {
-        // The public index order (guidance-manual-order): the post's
+        // The public index order: the post's
         // pinned first, then the post's stored manual order (sortOrder
         // asc), then the publishedAt / post-id tie-breakers — read off
         // the owning post.

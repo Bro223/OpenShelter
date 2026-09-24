@@ -67,7 +67,7 @@ class CurrentCallerTest {
 
     @Test
     void anErasedRowDegradesToTheGuestProjection() {
-        // The erasure contract (legal-recovery): a token-valid caller whose
+        // The erasure contract: a token-valid caller whose
         // row was deleted degrades to the null caller — the column-only
         // probe must not throw and must not pay the domain mapping.
         users.save(ALICE);

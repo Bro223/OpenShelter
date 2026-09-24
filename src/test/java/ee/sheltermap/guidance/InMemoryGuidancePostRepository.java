@@ -22,7 +22,7 @@ import java.util.Optional;
  * <p>Ordering rules (the ordering tests assert through this fake):
  * <ul>
  *   <li>admin list — {@code sortOrder} ascending, {@code id} descending
- * (the live preview of the public order, guidance-manual-order —
+ * (the live preview of the public order —
  *       locale-blind, the admin sees every language);</li>
  *   <li>public list — the ONE requested locale, pinned first, then
  *       {@code sortOrder} ascending, then {@code publishedAt} descending

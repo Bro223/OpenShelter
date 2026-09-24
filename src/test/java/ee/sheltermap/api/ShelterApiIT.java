@@ -282,7 +282,7 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .content("not-json")), 400, "Bad Request");
     }
 
-    // ---------- author-scoped shelters (user-contributions, V7) ----------
+    // ---------- author-scoped shelters (V7) ----------
 
     private static String updateBody(String name, double latitude, double longitude) {
         return "{\"name\":\"" + name + "\",\"latitude\":" + latitude

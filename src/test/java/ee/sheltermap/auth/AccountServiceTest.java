@@ -177,7 +177,7 @@ class AccountServiceTest {
     @Test
     void deleteAccountStillWorksForAnOrdinaryAccount() {
         // The refusal is scoped to the ADMIN kind — a REGISTERED account
-        // keeps the full legal-recovery erasure.
+        // keeps the full erasure.
         RegisteredUser user = saveVerifiedUser("Mari", "mari@example.ee");
 
         service.deleteAccount(user);

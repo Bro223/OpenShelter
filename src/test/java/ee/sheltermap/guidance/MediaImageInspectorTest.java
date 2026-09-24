@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Fixture byte arrays for the magic-byte sniffing + header dimension
- * reader (crisis-guidance) — the fixtures encode real header layouts,
+ * reader — the fixtures encode real header layouts,
  * so a regression in the byte offsets of any format shows up here.
  */
 class MediaImageInspectorTest {

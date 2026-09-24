@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Report-throttle acceptance (shelter-trust-and-reports): 10 report-type
+ * Report-throttle acceptance: 10 report-type
  * actions (shelter reports, occupancy reports) per user per
  * rolling hour → the 11th is 429. Window expiry frees budget; the limit is
  * per user, not global. The open-status tap is NOT a report-type action

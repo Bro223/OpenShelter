@@ -33,7 +33,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit test for the retention prune (retention-pruning): the owner's
+ * Unit test for the retention prune: the owner's
  * 24/24-month horizons, the admin carve-out, the erasure-reuse rule, and
  * the disabled-job no-op. Hand-written fakes only (the project has no
  * mocking framework); the run time is a fixed instant, no sleeping.

@@ -34,18 +34,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Trust layer acceptance (shelter-trust-and-reports,
- * community-self-moderation) — full-stack MockMvc against the real
- * services, security chain, JWT filter and Postgres, covering EVERY
- * scenario in specs/shelter-reports/spec.md plus the map-browse filter
- * scenarios and the shelter-submission cap: typed reports + derived
- * state, the trust-weighted five-point auto-hide (five baseline
- * reporters still hide on the fifth report; trusted reporters faster;
- * dampened reports count zero; no re-hide after a manual restore),
- * duplicate dampening of the self-interested rival's negative vote (the
- * endpoint answers {"damped": true|false}), occupancy (upsert, hedge/firm,
- * 2 h staleness) and the live open/closed state (upsert, latest tap wins,
- * 2 h staleness, auto-confirm on a cross-user OPEN tap), the per-user
+ * Trust layer acceptance — full-stack MockMvc against the real services,
+ * security chain, JWT filter and Postgres, covering EVERY scenario in
+ * specs/shelter-reports/spec.md plus the map-browse filter scenarios and
+ * the shelter-submission cap: typed reports + derived state, the
+ * trust-weighted five-point auto-hide (five baseline reporters still
+ * hide on the fifth report; trusted reporters faster; dampened reports
+ * count zero; no re-hide after a manual restore), duplicate dampening of
+ * the self-interested rival's negative vote (the endpoint answers
+ * {"damped": true|false}), occupancy (upsert, hedge/firm, 2 h staleness)
+ * and the live open/closed state (upsert, latest tap wins, 2 h
+ * staleness, auto-confirm on a cross-user OPEN tap), the per-user
  * submission cap and the trust list filters.
  */
 @AutoConfigureMockMvc
@@ -57,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0",
         // The active-cap tests submit 11 shelters in one window — lift the
-        // daily submission cap (abuse-limits) so it cannot fire first.
+        // daily submission cap so it cannot fire first.
         "app.limits.daily-submissions-per-user=100"
 })
 @Transactional
@@ -353,7 +352,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
         assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.INACTIVE);
 
-        // admin restore (the admin-moderation change owns the write path —
+        // admin restore (the admin moderation API owns the write path —
         // simulate its resulting status change here)
         Shelter restored = shelters.findById(shelterId).orElseThrow();
         restored.setStatus(ShelterStatus.ACTIVE);

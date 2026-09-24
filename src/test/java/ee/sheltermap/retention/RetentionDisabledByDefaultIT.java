@@ -8,7 +8,7 @@ import org.springframework.context.ApplicationContext;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Retention job gating (retention-pruning): in this repository's dev
+ * Retention job gating: in this repository's dev
  * configuration the job is OFF — the scheduler bean does not exist, so
  * no daily prune is ever scheduled. The service bean is present
  * (a direct call with the flag off is a no-op — unit-tested in

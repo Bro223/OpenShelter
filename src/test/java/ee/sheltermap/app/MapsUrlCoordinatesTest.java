@@ -8,8 +8,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Fixture table for URL → coordinate extraction (shelter-location-input,
- * design decision 4). The table mirrors the URL shapes the frontend spec
+ * Fixture table for URL → coordinate extraction. The table mirrors
+ * the URL shapes the frontend spec
  * ({@code shared/location-input.spec.ts}) covers — the two parsers must
  * agree on every case, so a pinned location can never drift between the
  * sides.

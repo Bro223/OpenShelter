@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for {@code DELETE /account} (legal-recovery):
+ * Acceptance IT for {@code DELETE /account}:
  * the split erasure rule — declared PRIVATE homes are purged, public
  * community rows are orphaned (created_by NULL, trust state untouched),
  * the DB cascades credentials/claims/tokens/reports, audit rows

@@ -37,8 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Crisis-guidance endpoint authorization over the REAL security chain
- * (crisis-guidance): anonymous /admin/guidance/* and /admin/media/* is
+ * Crisis-guidance endpoint authorization over the REAL security chain:
+ * anonymous /admin/guidance/* and /admin/media/* is
  * a 401, a registered non-admin a 403, the env-provisioned admin gets
  * through; and the two public guidance routes plus the hero-image serving
  * path answer anonymously (200 on a published post / a stored file — whose

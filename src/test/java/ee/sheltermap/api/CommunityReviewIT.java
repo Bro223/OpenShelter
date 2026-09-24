@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the community trust lifecycle without a blocking
- * queue (community-review-queue v2) — full-stack MockMvc
- * against the real services, security chain, JWT filter and Postgres:
+ * queue — full-stack MockMvc against the real services, security chain,
+ * JWT filter and Postgres:
  * new USER rows publish IMMEDIATELY as NEW (public list + /mine); three
  * DISTINCT community confirmers promote NEW→CONFIRMED (the crossing
  * action writes the AUTO_CONFIRM audit row; the submitter's own

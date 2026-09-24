@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The hero-import walk and store (guidance-hero-import) against a scripted
+ * The hero-import walk and store against a scripted
  * {@link HeroImageFetchClient} and a scripted {@link HeroAddressResolver}:
  * the entry validation (guards 1–2), the address policy on the entry AND
  * every redirect target (guard 3 — the "public host redirects to

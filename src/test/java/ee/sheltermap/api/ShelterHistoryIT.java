@@ -35,8 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the shelter edit history (moderation-dashboard-completion
- *) — full-stack MockMvc against the real services, security chain, JWT
+ * Acceptance IT for the shelter edit history — full-stack MockMvc against
+ * the real services, security chain, JWT
  * filter and Postgres: the CREATED row on submission, the EDITED row with
  * exactly the moved fields (a no-op PUT records nothing), the DELETED row on
  * the admin hard delete, the history of a deleted shelter surviving (the

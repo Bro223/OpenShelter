@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The SSRF address classifier (guidance-hero-import, guard 3) against REAL
+ * The SSRF address classifier (guard 3) against REAL
  * {@link InetAddress} literals (no DNS): every family the import must
  * refuse — loopback, RFC 1918 private, link-local (incl. the cloud-
  * metadata 169.254.169.254 and its IPv4-mapped IPv6 form), unique-local

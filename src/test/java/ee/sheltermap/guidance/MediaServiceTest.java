@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * MediaService behaviour (crisis-guidance) against the in-memory
+ * MediaService behaviour against the in-memory
  * repository fakes and a REAL {@link MediaStorage} on a temp dir (so "no
  * partial file" and "the file is gone" are asserted on disk): the upload
  * validation ORDER (byte count → magic bytes / dimensions → declared

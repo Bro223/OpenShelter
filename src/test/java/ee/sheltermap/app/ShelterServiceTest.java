@@ -313,7 +313,7 @@ class ShelterServiceTest {
         assertThat(repo.findByCreatedBy(1L)).isEmpty();
     }
 
-    // ---------- edit history (moderation-dashboard-completion) ----------
+    // ---------- edit history ----------
 
     @Test
     void addPlaceRecordsCreatedHistoryAttributedToTheSubmitter() {
@@ -416,7 +416,7 @@ class ShelterServiceTest {
         assertThat(repo.findAll()).isEmpty();
     }
 
-    // ---------- per-user active-shelter cap (shelter-trust-and-reports) ----------
+    // ---------- per-user active-shelter cap ----------
 
     @Test
     void eleventhActiveShelterIsRejected() {
@@ -473,7 +473,7 @@ class ShelterServiceTest {
         assertThat(repo.findAll()).hasSize(11);
     }
 
-    // ---------- near-duplicate detection (abuse-limits) ----------
+    // ---------- near-duplicate detection ----------
 
     @Test
     void sameNameSamePointIsRejectedWithTheExistingRowId() {

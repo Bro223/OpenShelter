@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the admin alerts (abuse-limits): the cap
+ * Acceptance IT for the admin alerts: the cap
  * + duplicate detectors append their throttled (429) and repeat-report
  * (409) events to the in-memory ring, and {@code GET /admin/alerts} serves
  * them newest first behind the fresh-lookup admin guard (401 anonymous,

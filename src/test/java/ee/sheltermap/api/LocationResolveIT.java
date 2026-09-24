@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Endpoint acceptance for the short-link resolver (shelter-location-input)
+ * Endpoint acceptance for the short-link resolver
  * — full-stack MockMvc against the real security chain, JWT filter and the
  * per-IP token bucket, with the upstream stubbed at the
  * {@link RedirectClient} seam (the real client cannot be pointed at a local

@@ -142,7 +142,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
     void thePublicAndAuthenticatedSplitIsDocumented() throws Exception {
         JsonNode doc = doc();
         // Genuinely public: the two shelter reads, the provenance read,
-        // the crisis-guidance reads (index, detail and hero-image serving —
+        // the guidance reads (index, detail and hero-image serving —
         // the /blog pages read them anonymously) and the six /auth
         // operations (all permitAll in SecurityConfig).
             for (String operation : new String[]{

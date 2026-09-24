@@ -125,7 +125,7 @@ class ShelterControllerDetailReadTest {
 
     @Test
     void detailReadWithATokenForADeletedAccountStaysGuestLike() {
-        // The erasure contract (legal-recovery): the JWT stays valid until
+        // The erasure contract: the JWT stays valid until
         // expiry after the row is deleted — the read must degrade to the
         // guest projection exactly as it always has.
         RegisteredUser caller = new RegisteredUser("Moot", "moot@example.ee", "+3725100002");

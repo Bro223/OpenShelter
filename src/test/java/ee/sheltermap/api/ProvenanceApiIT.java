@@ -34,8 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the provenance taxonomy (shelter-provenance-taxonomy)
- * — full-stack MockMvc against the real services, security chain, JWT
+ * Acceptance IT for the provenance taxonomy —
+ * full-stack MockMvc against the real services, security chain, JWT
  * filter and Postgres: every one of the six taxonomy values is derived
  * server-side on the DTOs (public list, detail, /mine, admin list), the
  * optional {@code ?provenance=} filter narrows the public list, and an

@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The viewport filter and paging of the public list (shelter-bbox-paging):
+ * The viewport filter and paging of the public list:
  * the parameters are optional and backward compatible, the box is
  * inclusive, the pages are deterministic over the stable id-ascending
  * order and tile the filtered list without overlap or skips, and every

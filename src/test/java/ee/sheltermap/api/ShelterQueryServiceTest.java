@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Unit tests for the read side of the shelter API: source-filter mapping
  * (REGISTRY/USER/ALL → repository source sets), DTO mapping that never leaks
  * the entity, and the trust-layer
- * derivations (shelter-trust-and-reports): report counts, the
+ * derivations: report counts, the
  * fresh open/closed block, the fresh occupancy block, the ACTIVE-only
  * public list and the in-memory trust filters.
  */
@@ -155,7 +155,7 @@ class ShelterQueryServiceTest {
         assertThat(mine.status()).isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    // ---------- trust derivations (shelter-trust-and-reports) ----------
+    // ---------- trust derivations ----------
 
     @Test
     void nonexistentReportsDefaultToZero() {
@@ -788,7 +788,7 @@ class ShelterQueryServiceTest {
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
     }
 
-    // ---------- viewport + paging (shelter-bbox-paging) ----------
+    // ---------- viewport + paging ----------
 
     /** A fixture row at explicit coordinates (the default fixtures sit at (59.4, 24.7)). */
     private Shelter saveAt(String name, ShelterSource source, double lat, double lng) {

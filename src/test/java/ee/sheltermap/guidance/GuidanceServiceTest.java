@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
- * GuidanceService behaviour (crisis-guidance) against
+ * GuidanceService behaviour against
  * the in-memory repository fakes: draft invisibility, the publish /
  * unpublish / delete lifecycle (a no-op writes NO audit row), the pinned-
  * first public ordering with same-instant tie-breaks, slug transliteration /
@@ -396,7 +396,7 @@ class GuidanceServiceTest {
                 .containsExactly(b.getId(), a.getId());
     }
 
-    // --------------------------------------------- manual order (guidance-manual-order)
+    // --------------------------------------------- manual order
 
     @Test
     void aNewDraftAppendsAtTheEndOfTheManualOrder() {
@@ -1267,7 +1267,7 @@ class GuidanceServiceTest {
                 .containsExactly(en2.getId(), en1.getId());
     }
 
-    // ------------------------------------------------------------- hero import (guidance-hero-import, at save time)
+    // ------------------------------------------------------------- hero import (at save time)
 
     @Test
     void aSuccessfulImportStoresTheAssetAndKeepsTheUrlAsProvenance() {

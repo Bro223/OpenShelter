@@ -70,8 +70,8 @@ public class InMemoryUserRepository implements UserRepository {
 
     @Override
     public boolean isAdmin(long userId) {
-        // The in-memory domain hierarchy now HAS an admin kind (AdminUser,
-        // admin-moderation) — answer from the domain class, the mirror
+        // The in-memory domain hierarchy now HAS an admin kind (AdminUser) —
+        // answer from the domain class, the mirror
         // of the JPA impl's users.kind-column check.
         return store.get(userId) instanceof AdminUser;
     }
@@ -79,7 +79,7 @@ public class InMemoryUserRepository implements UserRepository {
     @Override
     public boolean isSuspended(long userId) {
         // Unknown ids are false (the JPA convention): a deleted account's
-        // token keeps authenticating until expiry (legal-recovery).
+        // token keeps authenticating until expiry.
         User user = store.get(userId);
         return user != null && user.isSuspended();
     }

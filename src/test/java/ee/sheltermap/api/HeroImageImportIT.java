@@ -49,8 +49,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Endpoint acceptance for the hero-image import (guidance-hero-import,
- * at SAVE time — the trigger) — full-stack MockMvc against the
+ * Endpoint acceptance for the hero-image import (at SAVE time —
+ * the trigger) — full-stack MockMvc against the
  * REAL security chain and the REAL {@link JdkHeroImageFetchClient}
  * (real streaming, real redirects, real size-cap abort, real read-stall
  * watchdog) pointed at a local {@link HttpServer}.

@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * guidance-manual-order (V28) over the REAL persistence chain
+ * The manual guidance ordering (V28) over the REAL persistence chain
  * (Testcontainers Postgres + Flyway + the Spring Data / native queries):
  * <ul>
  *   <li>{@code PUT /admin/guidance/order} — the atomic full-list reorder:

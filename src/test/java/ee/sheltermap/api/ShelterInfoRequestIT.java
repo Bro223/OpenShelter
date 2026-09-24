@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the moderator→submitter information request
- * (moderation-dashboard-completion) — full-stack MockMvc
+ * — full-stack MockMvc
  * against the real services, security chain, JWT filter and Postgres:
  * the admin request (204, USER rows only — registry 409, unknown 404),
  * the pending request on the submitter's /mine rows (never on the public

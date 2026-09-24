@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for user suspension (moderation-dashboard-completion)
- * — full-stack MockMvc against the real services, security chain,
+ * Acceptance IT for user suspension — full-stack MockMvc against the
+ * real services, security chain,
  * JWT filter and Postgres: the admin suspend/unsuspend endpoints
  * (idempotent, REGISTERED-only, audited with the account as subject), and
  * enforcement at all three credential doors — login refuses AFTER the

@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Acceptance IT for the retention prune (retention-pruning) against
+ * Acceptance IT for the retention prune against
  * real Postgres + the JPA seams: the 24/24-month horizons, the
  * DELETE /account erasure semantics on pruned accounts, the admin
  * carve-out, the audit-row horizon, and the durable run row.

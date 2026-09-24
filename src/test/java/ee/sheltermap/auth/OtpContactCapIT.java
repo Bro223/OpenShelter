@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The per-contact rolling OTP cap (abuse-limits) over HTTP:
+ * The per-contact rolling OTP cap over HTTP:
  * cap 2 per contact per rolling window. The per-IP token buckets are raised
  * so they never fire, and the per-(user, level) throttle is loosened
  * (cooldown off, daily cap 10) so only the CONTACT cap fires. A throttled

@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V24 backfill test (retention-pruning) — the safety property the
+ * V24 backfill test — the safety property the
  * migration's comment is written around: the job prunes by comparing
  * {@code last_activity_at} against the horizon, so a NULL there reads as
  * "inactive since forever" and the FIRST enabled run would delete every

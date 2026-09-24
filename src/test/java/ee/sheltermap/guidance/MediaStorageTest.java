@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
 /**
- * The file store behind the media library (crisis-guidance): the
+ * The file store behind the media library: the
  * generated-name contract, the parent-equality resolve gate and
  * idempotent deletion.
  */

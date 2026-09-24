@@ -9,7 +9,7 @@ import org.springframework.test.context.TestPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Retention job gating (retention-pruning): with
+ * Retention job gating: with
  * {@code app.retention.enabled=true} (RETENTION_ENABLED in a deployment)
  * the scheduler bean exists and the daily cron is armed. The cron
  * (default 03:30 Europe/Tallinn) will not fire during a test run, so

@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the data provenance read (official-dataset-csv):
+ * Acceptance IT for the data provenance read:
  * an import run appends its data_imports audit row, and
  * {@code GET /api/data-source} surfaces the publisher, the official
  * open-data link, and the last import's facts — publicly, no auth.

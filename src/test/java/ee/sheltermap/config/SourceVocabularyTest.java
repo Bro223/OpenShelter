@@ -30,11 +30,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  * that a comment either spells the reason out in words or points at the
  * durable specification path that owns the rule.
  *
- * <p>A second check refuses a different dead reference: a main-source
- * comment that cites an archived change by name. Its refused list is
+ * <p>A second check refuses a different dead reference: a source comment
+ * that cites an archived change by name. Its refused list is
  * derived at runtime from the openspec change archive, so it stays in step
  * as changes are archived — see
- * {@link #mainSourceCommentsContainNoArchivedChangeNames()}.
+ * {@link #sourceCommentsContainNoArchivedChangeNames()}.
  *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
  * stays in the fast unit tier.
@@ -184,7 +184,7 @@ class SourceVocabularyTest {
     }
 
     /**
-     * Fails when a MAIN-source comment cites an archived change by name.
+     * Fails when a comment in either Java tree cites an archived change by name.
      *
      * <p>A change name is resolvable while its directory sits in
      * {@code openspec/changes/} — the reader can open the proposal it names.
@@ -202,19 +202,21 @@ class SourceVocabularyTest {
      * pruned archive that would silently shrink the list is a failure, not a
      * pass.
      *
-     * <p>Scope: {@code src/main/java} comment text only. String and char
-     * literals do not count — an OpenAPI description is public contract, not
-     * a comment, and regenerating the snapshot it pins is a separate
-     * decision. The test tree and the frontend still carry historical
-     * citations of archived names in separate in-flight sweeps; this check
-     * covers the tree that sweep has cleaned, and the other trees join it as
-     * those sweeps land. A match must be a whole kebab token (a slug inside a
-     * longer identifier is a coincidental substring, not a citation), and a
-     * path token containing {@code /} is exempt: a comment that cites an
-     * archive document by path still resolves.
+     * <p>Scope: {@code src/main/java} and {@code src/test/java} comment text
+     * only. String and char literals do not count — an OpenAPI description is
+     * public contract, not a comment, and regenerating the snapshot it pins
+     * is a separate decision; a test name, a {@code @DisplayName} text and a
+     * fixture string are the same class of pinned surface. Text blocks are
+     * skipped whole (the test tree's JSON fixtures live in them). The
+     * frontend tree is not walked: its comments span TS/SCSS and HTML syntax
+     * this Java scanner does not parse, and it joins when an HTML/TS-aware
+     * scan says the tree is clean. A match must be a whole kebab token (a
+     * slug inside a longer identifier is a coincidental substring, not a
+     * citation), and a path token containing {@code /} is exempt: a comment
+     * that cites an archive document by path still resolves.
      */
     @Test
-    void mainSourceCommentsContainNoArchivedChangeNames() {
+    void sourceCommentsContainNoArchivedChangeNames() {
         Path root = moduleRoot();
         if (!Files.isDirectory(root.resolve(ARCHIVE_DIR))) {
             fail("No archive walk was executed: " + ARCHIVE_DIR + " is missing under " + root
@@ -228,13 +230,31 @@ class SourceVocabularyTest {
                     + ") — the archive is pruned or mislocated, and a shrunken list would let this "
                     + "guard pass silently.");
         }
-        Path start = root.resolve("src").resolve("main").resolve("java");
-        if (!Files.isDirectory(start)) {
-            fail("No main-source walk was executed: the scan started in the wrong directory "
-                    + start + ". Anchor it at the real module root, not a build copy.");
-        }
         List<String> hits = new ArrayList<>();
         int[] scannedFiles = { 0 };
+        for (String javaRoot : List.of("src/main/java", "src/test/java")) {
+            Path tree = root.resolve(javaRoot);
+            if (!Files.isDirectory(tree)) {
+                fail("No " + javaRoot + " walk was executed: the scan started in the wrong "
+                        + "directory " + tree + ". Anchor it at the real module root, not a "
+                        + "build copy.");
+            }
+            walkTreeForRefusedNames(root, tree, refusedNames, hits, scannedFiles);
+        }
+        if (scannedFiles[0] == 0) {
+            fail("The source walk found no .java files — the scan is reading the wrong tree.");
+        }
+        if (!hits.isEmpty()) {
+            fail(renderRefusedNameFailure(hits, refusedNames.size()));
+        }
+    }
+
+    /**
+     * Walks one Java tree and records every comment line carrying a refused
+     * name, counting the .java files scanned along the way.
+     */
+    private static void walkTreeForRefusedNames(Path root, Path start, List<String> names,
+                                                List<String> hits, int[] scannedFiles) {
         try {
             Files.walkFileTree(start, new SimpleFileVisitor<>() {
                 @Override
@@ -248,7 +268,7 @@ class SourceVocabularyTest {
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
                     if (file.toString().endsWith(".java")) {
                         scannedFiles[0] += 1;
-                        hits.addAll(refusedNameHits(root, file, refusedNames));
+                        hits.addAll(refusedNameHits(root, file, names));
                     }
                     return FileVisitResult.CONTINUE;
                 }
@@ -261,12 +281,6 @@ class SourceVocabularyTest {
             });
         } catch (IOException e) {
             // A subtree that disappears mid-walk is not evidence either.
-        }
-        if (scannedFiles[0] == 0) {
-            fail("The main-source walk found no .java files — the scan is reading the wrong tree.");
-        }
-        if (!hits.isEmpty()) {
-            fail(renderRefusedNameFailure(hits, refusedNames.size()));
         }
     }
 
@@ -506,7 +520,7 @@ class SourceVocabularyTest {
         return List.copyOf(names);
     }
 
-    /** The comment lines of one main-source file that carry a refused name, rendered for failure output. */
+    /** The comment lines of one Java source file that carry a refused name, rendered for failure output. */
     private static List<String> refusedNameHits(Path root, Path file, List<String> names) {
         List<String> lines;
         try {
@@ -580,11 +594,14 @@ class SourceVocabularyTest {
 
     /**
      * The comment text of a Java source, one entry per source line. A minimal
-     * state machine tracks line comments, block comments, string literals and
-     * char literals, so a slug-shaped word inside a string literal is not
-     * reported and a comment marker inside a string (a URL) does not confuse
-     * the scan. The scanned tree contains no text blocks; if one is
-     * introduced, teach this scanner before relying on it.
+     * state machine tracks line comments, block comments, string literals,
+     * char literals and text blocks, so a slug-shaped word inside a literal
+     * is not reported and a comment marker inside a string (a URL) does not
+     * confuse the scan. Text blocks are skipped whole (the test tree's JSON
+     * fixtures live in them); the closing delimiter is the last three quotes
+     * of its quote run, so block content that itself ends in a quote does
+     * not end the block early, and a line-continuation backslash still ends
+     * the source line.
      */
     private static List<String> commentTextByLine(String content) {
         List<String> result = new ArrayList<>();
@@ -601,6 +618,11 @@ class SourceVocabularyTest {
                 else if (c == '/' && next == '*') {
                     state = BLOCK_COMMENT;
                     i++;
+                }
+                else if (c == '"' && next == '"'
+                        && i + 2 < content.length() && content.charAt(i + 2) == '"') {
+                    state = TEXT_BLOCK;
+                    i += 2;
                 }
                 else if (c == '"') {
                     state = STRING;
@@ -636,6 +658,33 @@ class SourceVocabularyTest {
                     current.append(c);
                 }
             }
+            else if (state == TEXT_BLOCK) {
+                // skipped whole, with escape handling
+                if (c == '\\') {
+                    // a line-continuation backslash still ends the source line
+                    if (next == '\n') {
+                        result.add(current.toString());
+                        current.setLength(0);
+                    }
+                    i++;
+                }
+                else if (c == '"') {
+                    int run = 1;
+                    while (i + run < content.length() && content.charAt(i + run) == '"') {
+                        run++;
+                    }
+                    // the closing delimiter is the last three quotes of the run:
+                    // a run of four is block content ending in one quote
+                    if (run >= 3) {
+                        state = CODE;
+                    }
+                    i += run - 1;
+                }
+                else if (c == '\n') {
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+            }
             else { // STRING and CHAR literals: skipped, with escape handling
                 if (c == '\\') {
                     i++;
@@ -660,6 +709,7 @@ class SourceVocabularyTest {
     private static final int BLOCK_COMMENT = 2;
     private static final int STRING = 3;
     private static final int CHAR = 4;
+    private static final int TEXT_BLOCK = 5;
 
     /** Renders the refused-name hit list plus the one-sentence fix a reader needs. */
     private static String renderRefusedNameFailure(List<String> hits, int nameCount) {
