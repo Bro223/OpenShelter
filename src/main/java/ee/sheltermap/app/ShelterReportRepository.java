@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for {@link ShelterReport} (shelter-trust-and-reports).
+ * Persistence seam for {@link ShelterReport}.
  * Implementations live in {@code ee.sheltermap.persistence}; tests use
  * in-memory fakes.
  */
@@ -34,7 +34,7 @@ public interface ShelterReportRepository {
 
     /**
      * One distinct reporter of a given type for one shelter, with the
-     * stored damp flag (community-self-moderation) — the input of
+     * stored damp flag — the input of
      * the weighted auto-hide tally. The (shelter, user, type) uniqueness
      * makes one row per reporter.
      */
@@ -65,15 +65,15 @@ public interface ShelterReportRepository {
     /** Batched newest OPEN_CONFIRMED per (shelter, reporter) — the "last verified" input. */
     List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds);
 
-    /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation). */
+    /** Reads one report by id (admin queue dismissal); empty when unknown. */
     Optional<ShelterReport> findById(Long id);
 
     /**
      * One shelter's reports, newest first, the page starting at {@code
-     * offset} with at most {@code limit} rows (the admin queue,
-     * admin-moderation, paged since the cap is applied in the
-     * store, not by trimming in memory; the queue's table is
-     * append-only, so an unbounded read grows with the backlog).
+     * offset} with at most {@code limit} rows — the admin queue, paged
+     * since the cap is applied in the store, not by trimming in memory;
+     * the queue's table is append-only, so an unbounded read grows with
+     * the backlog.
      */
     List<ShelterReport> findLatestByShelterId(long shelterId, long offset, int limit);
 

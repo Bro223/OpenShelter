@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * The admin media-library API (crisis-guidance) — thin shell:
+ * The admin media-library API — thin shell:
  * parse, authorize, delegate to {@link MediaService}.
  *
  * <p>Authorization is the shared fresh per-request ADMIN kind lookup

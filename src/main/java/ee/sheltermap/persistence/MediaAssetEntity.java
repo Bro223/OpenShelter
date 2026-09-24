@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code media_assets} (V23, crisis-guidance). The
+ * JPA entity for {@code media_assets} (V23). The
  * unique stored filename ({@code uq_media_assets_filename}), the
  * content-type allowlist and the positive dimension/size bounds are
  * enforced by the database; every mapped column exists in V23 with the

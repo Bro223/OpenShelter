@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Public provenance read (official-dataset-csv): the map is built from
+ * Public provenance read: the map is built from
  * the Päästeamet open-data shelter dataset, and the app says so — source,
  * link to the official open-data page, and when the last import ran.
  */

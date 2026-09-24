@@ -117,7 +117,7 @@ public class GuidanceOrderingService {
     }
 
     /**
-     * The atomic LOCALE-SCOPED reorder (admin-locale-scope): the admin UI
+     * The atomic LOCALE-SCOPED reorder: the admin UI
      * reorders the FILTERED list (the posts visible in ONE locale — a
      * subset of every post, so a permutation-of-all validation cannot
      * apply). The {@code postIds} list must be exactly the posts visible

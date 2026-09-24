@@ -48,7 +48,7 @@ final class GuidanceValidation {
     }
 
     /**
-     * The OPTIONAL admin locale (admin-locale-scope): {@code null} when
+     * The OPTIONAL admin locale: {@code null} when
      * the parameter is ABSENT (the admin read stays locale-blind — the
      * legacy all-languages behaviour), a 400 when present but blank or
      * over-long. The admin UI always sends the active UI language; the

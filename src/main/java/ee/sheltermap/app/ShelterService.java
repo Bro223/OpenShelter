@@ -70,7 +70,7 @@ public class ShelterService {
             "Only the author may modify this shelter";
 
     /**
-     * 409 message for import-owned rows (admin-moderation) — moved
+     * 409 message for import-owned rows — moved
      * here from {@code api.AdminModerationService}: the hard-delete
      * boundary below enforces it in the service layer too, so the
      * constant travels with the guard. the admin service's
@@ -81,17 +81,17 @@ public class ShelterService {
             "Registry shelters are import-owned and cannot be moderated here";
 
     /**
-     * Per-user spam floor (shelter-trust-and-reports): the max shelters
+     * Per-user spam floor: the max shelters
      * one user may have with {@code source = USER} and {@code status =
      * ACTIVE}; the 11th submission is a 409. Deletions and auto-hidden
      * shelters free the cap; ADMIN-kind users are exempt.
      */
     public static final int MAX_ACTIVE_SHELTERS_PER_USER = 10;
 
-    /** The daily submission window (abuse-limits): a rolling 24 h. */
+    /** The daily submission window: a rolling 24 h. */
     static final Duration DAILY_SUBMISSION_WINDOW = Duration.ofHours(24);
 
-    /** Earth mean radius in metres (haversine, abuse-limits). */
+    /** Earth mean radius in metres (haversine). */
     static final double EARTH_RADIUS_METERS = 6_371_000;
 
     private final ShelterRepository shelterRepository;
@@ -182,7 +182,7 @@ public class ShelterService {
                 throw new ShelterLimitExceededException();
             }
         }
-        // Daily rate cap (abuse-limits): sliding 24 h window on the
+        // Daily rate cap: sliding 24 h window on the
         // SUBMITTING act, independent of the active count. Deleting a row
         // frees its slot (the row is gone) — the churn vector stays bounded
         // by the active cap + the admin surface.
@@ -198,7 +198,7 @@ public class ShelterService {
                 throw new ShelterSubmissionThrottledException(retryAfter);
             }
         }
-        // Near-duplicate detection (abuse-limits): an ACTIVE USER
+        // Near-duplicate detection: an ACTIVE USER
         // row with the same normalized name within the coordinate tolerance
         // means the place is already on the map — 409 with the existing row
         // id (the client can point at it or edit it via PUT). Cross-user by
@@ -228,7 +228,7 @@ public class ShelterService {
         // is unchanged, the UI shows the "newly added" treatment.
         place.setReviewStatus(ReviewStatus.NEW);
         shelterRepository.save(place);
-        // Edit history (moderation-dashboard-completion):
+        // Edit history:
         // CREATED joins this transaction, actor = the submitting account.
         history.record(place.getId(), place.getName(), user.getId(),
                 ShelterHistoryLog.Action.CREATED, null);
@@ -236,7 +236,7 @@ public class ShelterService {
 
     /**
      * The first ACTIVE USER row that is a near-duplicate of
-     * {@code candidate} (abuse-limits): the same normalized name
+     * {@code candidate}: the same normalized name
      * AND within {@code duplicateCoordMeters} haversine. USER rows carry no
      * address (a registry-only field), so name + coordinates are the whole
      * identity signal; fuzzier re-reports (same place, reworded name) stay
@@ -331,9 +331,9 @@ public class ShelterService {
     }
 
     /**
-     * (admin-moderation): only USER-source rows are admin-manageable;
-     * registry rows are import-owned. The ONE guard every admin write on
-     * a shelter row goes through (the source check was inlined in
+     * Only USER-source rows are admin-manageable; registry rows are
+     * import-owned. The ONE guard every admin write on a shelter row
+     * goes through (the source check was inlined in
      * {@link #deletePlaceByAdmin} AND copied as a private guard in
      * {@code api.AdminModerationService}; the constant now travels with
      * the single guard, and the admin service's forwarder is gone).
@@ -379,8 +379,8 @@ public class ShelterService {
     /**
      * The admin hard-delete boundary (the guard now enforced in
      * the service layer too): the row must exist (404) and be USER-source
-     * (409, import-owned, admin-moderation — the registry import
-     * rebuilds its rows as ACTIVE on every run, so an admin delete would
+     * (409, import-owned — the registry import rebuilds its rows as
+     * ACTIVE on every run, so an admin delete would
      * silently revert). The delete itself is {@link #deletePlace} — the
      * same choke point as the author route (the DELETED history row,
      * actor-attributed to the moderating admin, joins the transaction).
@@ -438,7 +438,7 @@ public class ShelterService {
      * never a 500. Mapped by re-reading the row (observable state, not
      * message parsing); the repository keeps its internal guard.
      *
-     * <p>Edit history (moderation-dashboard-completion):
+     * <p>Edit history:
      * the old row is read FIRST (the diff needs it) — which tightens the
      * race: an absent row is a plain 404 before any diff, not only at the
      * save-time guard. An EDITED row is appended (this transaction) only

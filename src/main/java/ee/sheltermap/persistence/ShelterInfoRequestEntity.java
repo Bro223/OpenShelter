@@ -10,8 +10,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code shelter_info_requests} (V19,
- * moderation-dashboard-completion) — the moderator→submitter
+ * JPA entity for {@code shelter_info_requests} (V19) — the
+ * moderator→submitter
  * information request: ONE row per shelter (the UNIQUE bound), kept after
  * the reply (audit posture).
  */

@@ -1,13 +1,13 @@
 package ee.sheltermap.app;
 
 /**
- * The caller hit the per-user DAILY shelter-submission cap (abuse-limits)
+ * The caller hit the per-user DAILY shelter-submission cap
  * — {@code app.limits.daily-submissions-per-user} submissions within
  * the rolling 24 h window. Maps to HTTP 429 (uniform {@code ErrorResponse})
  * via the global exception handler.
  *
  * <p>Distinct from {@link ShelterLimitExceededException} (the 409
- * active-shelter cap, shelter-trust-and-reports): this one is a rate
+ * active-shelter cap): this one is a rate
  * limit on the SUBMITTING act, not a conflict on the row count. When the
  * thrower can compute when the window slides, {@link #retryAfterSeconds()}
  * carries the exact seconds until a retry may succeed and the handler adds

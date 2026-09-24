@@ -1,7 +1,7 @@
 package ee.sheltermap.guidance;
 
 /**
- * The hero image could not be FETCHED (guidance-hero-import): the host
+ * The hero image could not be FETCHED: the host
  * did not resolve, the connect or the read timed out or stalled, the
  * connection failed, or the remote host answered a 5xx. Unlike
  * {@link HeroImportRefusedException} this is a TRANSIENT failure — the

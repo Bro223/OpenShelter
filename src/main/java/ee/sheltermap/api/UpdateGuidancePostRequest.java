@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code PUT /admin/guidance/{id}} body (crisis-guidance) — a FULL
+ * {@code PUT /admin/guidance/{id}} body — a FULL
  * replace of the editable fields, same mirror-of-the-service-rules
  * constraints as {@link CreateGuidancePostRequest}.
  *
@@ -14,7 +14,7 @@ import jakarta.validation.constraints.Size;
  * the publication state moves only through the publish/unpublish
  * endpoints (their stamps own {@code publishedAt}).
  * {@code heroImageId} {@code null} clears the hero (the previous asset
- * stays in the library). {@code heroImportUrl} (guidance-hero-import)
+ * stays in the library). {@code heroImportUrl}
  * {@code null} clears the import URL; a non-null URL is fetched, validated
  * and stored AT SAVE, draft or published alike (the trigger) — a
  * failed import never blocks the update (the response's

@@ -5,8 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * GET /api/data-source — where the map's official shelter data comes from
- * (official-dataset-csv). The FE footer line renders the publisher, the
+ * GET /api/data-source — where the map's official shelter data comes from.
+ * The FE footer line renders the publisher, the
  * link to the official open-data page, and the last import's date.
  *
  * @param sourceName   the publisher (e.g. "Päästeamet")

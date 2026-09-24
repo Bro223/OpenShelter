@@ -19,7 +19,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /**
- * Imports a remote image into the media library (guidance-hero-import):
+ * Imports a remote image into the media library:
  * the admin pastes an http(s) URL into a post's hero field, and this
  * service — called at SAVE time (create and update, draft or published
  * alike) — downloads, validates and stores the image under a generated

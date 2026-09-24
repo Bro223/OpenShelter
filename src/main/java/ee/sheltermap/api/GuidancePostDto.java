@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * The public guidance post (crisis-guidance).
+ * The public guidance post.
  *
  * <p>Served by {@code GET /api/guidance} (the index) and
  * {@code GET /api/guidance/{slug}} (the detail). The index does NOT

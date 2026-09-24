@@ -4,7 +4,7 @@ import java.io.IOException;
 
 /**
  * One-hop redirect fetcher — the seam between
- * {@link LocationResolveService} and real HTTP (shelter-location-input).
+ * {@link LocationResolveService} and real HTTP.
  *
  * <p>Implementations send ONE request to {@code url} WITHOUT following
  * redirects and report the response status plus the {@code Location}

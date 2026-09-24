@@ -140,7 +140,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Rolling per-contact OTP cap (abuse-limits): max OTP events
+     * Rolling per-contact OTP cap: max OTP events
      * (a real code send, or a registration attempt) per normalized e-mail /
      * E.164 phone within a rolling window, across users — the volume valve
      * on Twilio/SMTP cost on top of the per-(user, level) throttle. Binds
@@ -155,7 +155,7 @@ public class SecurityConfig {
     }
 
     /**
-     * The admin alert ring (abuse-limits): the throttle caps and the
+     * The admin alert ring: the throttle caps and the
      * duplicate detectors append their throttled (429) and repeat-report
      * (409) events here; {@code GET /admin/alerts} reads it newest first.
      * In-memory, same single-instance constraint as the limiters;
@@ -246,11 +246,11 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST,
                             "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
                             "/auth/password-reset/request", "/auth/password-reset/confirm").permitAll()
-                    // Author-scoped (user-contributions): /mine lists the CALLER's shelters,
+                    // Author-scoped: /mine lists the CALLER's shelters,
                     // so it is NOT part of the public shelter GETs below.
                     .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
                     .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
-                    // Public provenance read (official-dataset-csv): the app-wide
+                    // Public provenance read: the app-wide
                     // footer shows source + official link + last import to everyone.
                     .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
                     // Public site-text read (site_texts): the admin overrides for
@@ -258,7 +258,7 @@ public class SecurityConfig {
                     // copy every visitor sees. The write side is /admin/** (the
                     // ADMIN-kind rule below), not /api/**.
                     .requestMatchers(HttpMethod.GET, "/api/site-texts").permitAll()
-                    // Public crisis-guidance reads: the /blog pages are
+                    // Public crisis guidance reads: the /blog pages are
                     // pages are readable anonymously. GETs ONLY — the write
                     // side is /admin/** (ADMIN kind, per-request lookup),
                     // already covered by the rule below.

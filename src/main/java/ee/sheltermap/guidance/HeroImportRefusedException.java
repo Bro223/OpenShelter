@@ -1,8 +1,8 @@
 package ee.sheltermap.guidance;
 
 /**
- * The hero import was REFUSED by the address/scheme policy (guard 1–3 of
- * guidance-hero-import), or the remote host answered a deterministic 4xx:
+ * The hero import was REFUSED by the address/scheme policy (guards
+ * 1–3), or the remote host answered a deterministic 4xx:
  * the URL is unacceptable AS GIVEN — retrying it will never succeed, only
  * a different URL will.
  *

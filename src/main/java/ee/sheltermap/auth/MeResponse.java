@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  * frontend adopts it as the single source of truth for its verification
  * labels as the single source of truth.
  *
- * <p>{@code isAdmin} is always present (admin-moderation): the frontend
+ * <p>{@code isAdmin} is always present: the frontend
  * gates the admin route and nav item on it. It reflects the freshly loaded
  * user's KIND (kind is the truth) — {@code true} only for the ADMIN-kind
  * account, never derived from any token claim.

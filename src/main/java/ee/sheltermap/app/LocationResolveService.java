@@ -12,8 +12,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /**
- * Resolves {@code maps.app.goo.gl} short links to coordinates
- * (shelter-location-input).
+ * Resolves {@code maps.app.goo.gl} short links to coordinates.
  *
  * <p>The resolver is deliberately narrow:
  * <ul>

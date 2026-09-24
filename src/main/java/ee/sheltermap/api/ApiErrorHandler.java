@@ -171,7 +171,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * Short-link resolver not-found (shelter-location-input): ONE generic
+     * Short-link resolver not-found: ONE generic
      * 400 for invalid input / non-whitelisted host / no extractable pair /
      * outside Estonia — the service never enumerates the reason.
      */
@@ -389,7 +389,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * Short-link resolver upstream failure (shelter-location-input):
+     * Short-link resolver upstream failure:
      * connect/read timeout, network failure or a 5xx from the short-link
      * service → ONE generic 502 retry-later message, no upstream detail.
      */
@@ -409,7 +409,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * The per-user DAILY shelter-submission cap (abuse-limits): 429, with
+     * The per-user DAILY shelter-submission cap: 429, with
      * the exact {@code Retry-After} countdown (when the thrower knows when
      * the oldest in-window submission leaves the 24 h window), and one WARN.
      */

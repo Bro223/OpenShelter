@@ -22,7 +22,7 @@ import java.util.stream.Stream;
  * {@code PUT /account/profile}: the authenticated user's real profile
  * (name, email, phone + the real verified claim set) and the
  * password-confirmed name edit. Also the data export and the account
- * erasure (legal-recovery).
+ * erasure.
  *
  * <p>Email/phone are NOT editable here — they stay on the cross-channel
  * change flows ({@link ContactChangeService}). Identity fields have no
@@ -90,7 +90,7 @@ public class AccountService {
     }
 
     /**
-     * GET /account/export (legal-recovery): the caller's own data in one
+     * GET /account/export: the caller's own data in one
      * document — the profile (name/e-mail/phone decrypted at the
      * persistence boundary + verified levels) and EVERY author-scoped
      * shelter row, all statuses: the export mirrors what the account
@@ -124,7 +124,7 @@ public class AccountService {
     }
 
     /**
-     * DELETE /account (legal-recovery) — the account erasure, one
+     * DELETE /account — the account erasure, one
      * transaction.
      *
      * <p>Declared private homes are PURGED — the submitter's personal data

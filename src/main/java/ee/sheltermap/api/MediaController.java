@@ -25,7 +25,7 @@ import java.time.Duration;
 import java.util.regex.Pattern;
 
 /**
- * Serving of stored hero images (crisis-guidance) — permit-all: the
+ * Serving of stored hero images — permit-all: the
  * public guidance pages show them to anonymous visitors.
  *
  * <p>The stored name is matched against the generated shape

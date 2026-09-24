@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * The append-only shelter edit history (moderation-dashboard-completion)
- * — one immutable row per USER-shelter lifecycle event:
+ * The append-only shelter edit history — one immutable row per
+ * USER-shelter lifecycle event:
  * CREATED on submission, EDITED on an owner PUT that moved at least one
  * editable field, DELETED on a user or admin hard delete. The row is written
  * in the SAME transaction as the event it records (the moderation-audit

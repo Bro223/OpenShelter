@@ -39,7 +39,7 @@ public class ModerationActionEntity {
     @Column(name = "subject_user_id")
     private Long subjectUserId;
 
-    /** The human-readable subject snapshot (crisis-guidance): a
+    /** The human-readable subject snapshot: a
      *  guidance post or a media asset named for the admin read. NO FK in
      *  the DB: a deleted target must stay readable in the trail (the
      *  label is a snapshot, like the dangling shelter_id). NULL for every
@@ -48,7 +48,7 @@ public class ModerationActionEntity {
     @Column(name = "subject_label", length = 300)
     private String subjectLabel;
 
-    /** The acting user (V11). Nullable since V14 (legal-recovery): when
+    /** The acting user (V11). Nullable since V14: when
      *  the actor's account is erased the audit row survives
      *  and this reference dangles (ON DELETE SET NULL) — the admin read
      *  renders "Unknown" for it, like a deleted shelter. */

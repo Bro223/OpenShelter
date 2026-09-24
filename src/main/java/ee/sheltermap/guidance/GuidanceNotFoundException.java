@@ -1,7 +1,7 @@
 package ee.sheltermap.guidance;
 
 /**
- * A crisis-guidance resource id or slug that does not resolve —
+ * A crisis guidance resource id or slug that does not resolve —
  * the 404 family, same plain-spoken vocabulary
  * as {@code ShelterNotFoundException}.
  *

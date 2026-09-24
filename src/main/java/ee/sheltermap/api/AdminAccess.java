@@ -40,8 +40,8 @@ public class AdminAccess {
      * Anonymous → 401 (same fallback convention as the security entry
      * point, which answers anonymous requests first), an authenticated
      * non-admin → 403. Returns the moderator's user id — every admin WRITE
-     * is recorded in the moderation audit trail under it (community-review-
-     * queue, crisis-guidance); read endpoints ignore it.
+     * is recorded in the moderation audit trail under it — the standing
+     * record of every manual moderation action; read endpoints ignore it.
      */
     public long requireAdmin() {
         long userId = currentCaller.requireUserId();

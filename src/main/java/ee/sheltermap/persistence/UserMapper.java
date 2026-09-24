@@ -119,7 +119,7 @@ final class UserMapper {
         // AdminUser BEFORE the RegisteredUser check (it IS-A RegisteredUser):
         // the kind column is fixed at creation and must survive every save
         // of a loaded admin (a name/profile edit must not flip it to
-        // REGISTERED — kind is the truth, admin-moderation).
+        // REGISTERED — kind is the truth).
         if (user instanceof AdminUser) {
             return UserKind.ADMIN;
         }

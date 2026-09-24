@@ -3,7 +3,7 @@ package ee.sheltermap.retention;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Data-retention horizons + job switch (retention-pruning), bound from
+ * Data-retention horizons + job switch, bound from
  * {@code app.retention.*} in application.yml (env: RETENTION_ENABLED,
  * RETENTION_INACTIVE_ACCOUNT_MONTHS, RETENTION_AUDIT_MONTHS).
  *

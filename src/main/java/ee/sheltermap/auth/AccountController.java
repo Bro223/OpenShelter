@@ -153,7 +153,7 @@ public class AccountController {
     }
 
     /**
-     * GET /account/export (legal-recovery) — the caller's own
+     * GET /account/export — the caller's own
      * data (profile + every author-scoped shelter row) as
      * one JSON document. Same auth rule as {@code /me} (valid JWT, user
      * from the token) and, like {@code /me}, no rate bucket (cheap read).
@@ -174,7 +174,7 @@ public class AccountController {
     }
 
     /**
-     * DELETE /account (legal-recovery) — the account erasure. Any
+     * DELETE /account — the account erasure. Any
      * authenticated user may delete their own account: it deliberately does
      * NOT depend on identity verification (removing your own account is a
      * right, not a privilege gated on verification) — the verified-user

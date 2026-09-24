@@ -1,8 +1,8 @@
 package ee.sheltermap.app;
 
 /**
- * The per-user active-shelter cap is reached (shelter-trust-and-reports
- *): the caller already owns {@link ShelterService#MAX_ACTIVE_SHELTERS_PER_USER}
+ * The per-user active-shelter cap is reached: the caller already owns
+ * {@link ShelterService#MAX_ACTIVE_SHELTERS_PER_USER}
  * shelters with {@code source = USER} and {@code status = ACTIVE}
  * (deletions and auto-hidden shelters free the cap; ADMIN-kind users are
  * exempt). Mapped to 409 by

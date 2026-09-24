@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.util.Objects;
 
 /**
- * The env-provisioned admin (admin-moderation): an {@link ApplicationRunner}
+ * The env-provisioned admin: an {@link ApplicationRunner}
  * that creates the ADMIN-kind account at startup — and ONLY then.
  *
  * <p>Semantics (create-if-absent, the whole contract):

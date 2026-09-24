@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Objects;
 
 /**
- * JPA implementation of {@link RetentionRunLog} (retention-pruning).
+ * JPA implementation of {@link RetentionRunLog}.
  * A plain JPA save in the caller's context — the run row is written
  * outside any prune transaction (a single-row save, no wrapping needed;
  * the same-transaction guarantee of the action logs does not apply to a

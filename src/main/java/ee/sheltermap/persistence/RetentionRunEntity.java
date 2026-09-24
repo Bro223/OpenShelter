@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code retention_runs} (V24, retention-pruning) — one
+ * JPA entity for {@code retention_runs} (V24) — one
  * row per retention run, written by {@link JpaRetentionRunLog}.
  */
 @Entity

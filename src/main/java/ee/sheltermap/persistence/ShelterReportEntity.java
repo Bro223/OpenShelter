@@ -42,11 +42,11 @@ public class ShelterReportEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /** When an admin dismissed the report (V10, admin-moderation); NULL while unresolved. */
+    /** When an admin dismissed the report (V10); NULL while unresolved. */
     @Column(name = "dismissed_at")
     private Instant dismissedAt;
 
-    /** Dampened flag (V16, community-self-moderation). */
+    /** Dampened flag (V16). */
     @Column(nullable = false)
     private boolean damped;
 

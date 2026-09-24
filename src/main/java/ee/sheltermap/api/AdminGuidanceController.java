@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The admin guidance authoring API (crisis-guidance) — thin shell:
+ * The admin guidance authoring API — thin shell:
  * parse, validate, authorize, delegate to {@link GuidanceService}.
  *
  * <p>Authorization is the shared fresh per-request ADMIN kind lookup
@@ -54,7 +54,7 @@ import java.util.Objects;
  *
  * <p>Surface: the list (every post, drafts included, in the stored
  * manual order — the live preview of the public order; scoped to ONE
- * locale via {@code ?locale=} — admin-locale-scope — only the posts that
+ * locale via {@code ?locale=} — only the posts that
  * have content in it are returned, in the active UI language's content),
  * the id-keyed detail (the admin form edits by id; the same optional
  * {@code ?locale=} serves that locale's content), create (DRAFT by
@@ -100,7 +100,7 @@ public class AdminGuidanceController {
 
     /**
      * The admin guidance list: every post, drafts included, in the
-     * stored manual order. With {@code ?locale=} (admin-locale-scope) only
+     * stored manual order. With {@code ?locale=} only
      * the posts that HAVE content in that locale — a translation row there,
      * or the post's home locale being it — are returned, carrying that
      * locale's title/slug/body/alt (the DTO's {@code locale} names it, and
@@ -232,8 +232,8 @@ public class AdminGuidanceController {
      * body makes it a one-shot "write and publish". 200 with the created
      * post; 400 validation; 409 an admin-supplied slug collision naming
      * the slug; 404 a heroImageId with no such asset. A hero import URL
-     * (guidance-hero-import) is fetched, validated and stored AT SAVE
-     * (draft and one-shot PUBLISHED alike): a failed import never blocks
+     * is fetched, validated and stored AT SAVE (draft and one-shot
+     * PUBLISHED alike): a failed import never blocks
      * the create — the post is stored anyway and the 200 body's
      * {@code heroImportError} names the failure (the URL is kept for a
      * retry on the next save).
@@ -280,7 +280,7 @@ public class AdminGuidanceController {
      * update — the 200 body's {@code heroImportError} names it and the
      * URL is kept for a retry on the next save.
      *
-     * <p>With {@code ?locale=} (admin-locale-scope) the content fields
+     * <p>With {@code ?locale=} the content fields
      * (title, slug, body, hero alt) are written to THAT locale's
      * translation row while the post-level fields (pinned, the hero
      * reference, the import URL) stay shared on the post. Editing in
@@ -333,7 +333,7 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Reorder (guidance-manual-order + admin-locale-scope). UNSCOPED: the
+     * Reorder — UNSCOPED: the
      * FULL ordered list of every post id (drafts and published alike) — a
      * strict permutation of every current post — renumbered 1..N in ONE
      * transaction. SCOPED ({@code ?locale=}): the FULL ordered list of the

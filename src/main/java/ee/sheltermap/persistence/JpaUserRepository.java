@@ -36,7 +36,7 @@ public class JpaUserRepository implements UserRepository {
     private final SpringDataUserRepository users;
     private final SpringDataVerificationClaimRepository claims;
     private final PiiCrypto piiCrypto;
-    /** Last-resort last-activity backstop in {@link #save} (retention-pruning). */
+    /** Last-resort last-activity backstop in {@link #save}. */
     private final Clock clock;
 
     public JpaUserRepository(SpringDataUserRepository users,
@@ -158,8 +158,8 @@ public class JpaUserRepository implements UserRepository {
         // Canonicalize lower-case — the blind index is only deterministic
         // for the canonical form.
         // REGISTERED and ADMIN rows are returned (kind is restored by the
-        // mapper): the admin logs in through the normal /auth/login
-        // (admin-moderation), and the registration pre-check must see
+        // mapper): the admin logs in through the normal /auth/login,
+        // and the registration pre-check must see
         // the admin's email as in use (409), not as free. GUEST rows have
         // no email to begin with.
         if (email == null || email.isBlank()) {

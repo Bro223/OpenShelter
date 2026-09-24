@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * File store for the crisis-guidance media library.
+ * File store for the crisis guidance media library.
  *
  * <p>Uploads land under the configured directory
  * ({@code app.media.upload-dir}) as

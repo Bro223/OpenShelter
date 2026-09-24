@@ -13,10 +13,10 @@ import java.util.List;
 /** Spring Data repository for {@link ModerationActionEntity} — internal to the persistence layer. */
 public interface SpringDataModerationActionRepository extends JpaRepository<ModerationActionEntity, Long> {
 
-    /** The reporter's own rows of one action — derived trust input (community-self-moderation). */
+    /** The reporter's own rows of one action — derived trust input. */
     long countByModeratorIdAndAction(Long moderatorId, ModerationAuditLog.Action action);
 
-    /** Erasure redaction (legal-recovery) — rows survive, only the free text goes. */
+    /** Erasure redaction — rows survive, only the free text goes. */
     @Modifying
     @Query("update ModerationActionEntity e set e.reason = null "
             + "where e.shelterId in :shelterIds and e.reason is not null")

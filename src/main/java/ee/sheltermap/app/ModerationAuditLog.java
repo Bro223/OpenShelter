@@ -32,23 +32,23 @@ public interface ModerationAuditLog {
         CONFIRM,
         AUTO_CONFIRM,
         REJECT,
-        // User-scoped rows (moderation-dashboard-completion):
+        // User-scoped rows:
         // the action has no shelter (shelterId null) and names the target
         // account in subjectUserId.
         USER_SUSPEND,
         USER_UNSUSPEND,
-        // Mark-inaccurate pair (moderation-dashboard-completion):
+        // Mark-inaccurate pair:
         // shelter-scoped actions on the public `inaccurate` flag (the stamp
         // itself lives on the shelter row, the trail records the decision).
         MARK_INACCURATE,
         CLEAR_INACCURATE,
-        // Guidance/media rows (crisis-guidance): the action names its
+        // Guidance/media rows: the action names its
         // subject in the row's subjectLabel (a snapshot — no FK to the new
         // tables); both shelterId and subjectUserId are null for these rows.
         GUIDANCE_PUBLISH,
         GUIDANCE_UNPUBLISH,
         GUIDANCE_DELETE,
-        // guidance-manual-order: the atomic full-list reorder — the
+        // The atomic full-list reorder — the
         // subject is the fixed label "Guidance post order" (a reorder has
         // no single subject post, and the label stays readable).
         GUIDANCE_REORDER,
@@ -57,8 +57,8 @@ public interface ModerationAuditLog {
 
     /**
      * One audit row as read by the admin projection. {@code subjectLabel}
-     * (crisis-guidance) is the human-readable subject snapshot of a
-     * guidance/media row (e.g. {@code Guidance post "…" (slug)}); NULL for
+     * is the human-readable subject snapshot of a guidance/media row
+     * (e.g. {@code Guidance post "…" (slug)}); NULL for
      * every pre-V23 row, and resolved FIRST at read time when present
      * (shelter/account fallback only when it is null).
      */
@@ -95,10 +95,10 @@ public interface ModerationAuditLog {
                 ReviewStatus previousStatus, ReviewStatus newStatus);
 
     /**
-     * Records one guidance/media action in the caller's transaction
-     * (crisis-guidance): a row with NO shelter and NO subject account
-     * — the subject is the {@code subjectLabel} snapshot (e.g. {@code
-     * Guidance post "…" (slug)}) that outlives the deleted target, exactly
+     * Records one guidance/media action in the caller's transaction:
+     * a row with NO shelter and NO subject account — the subject is the
+     * {@code subjectLabel} snapshot (e.g. {@code Guidance post "…"
+     * (slug)}) that outlives the deleted target, exactly
      * like a dangling {@code shelter_id} renders "Deleted shelter". The
      * {@code reason} is the free-text note, when one is given. The
      * existing {@link #record} signature and every call site of it stay
@@ -108,13 +108,13 @@ public interface ModerationAuditLog {
 
     /**
      * The reporter's own rows of one action — the second input of the
-     * derived trust weight (community-self-moderation): how many of
+     * derived trust weight: how many of
      * the reporter's positive reports caused an AUTO_CONFIRM promotion.
      */
     long countByModeratorAndAction(long moderatorId, Action action);
 
     /**
-     * Erasure redaction (legal-recovery): nulls the free-text
+     * Erasure redaction: nulls the free-text
      * {@code reason} on the rows for the given shelters — the note is
      * written to the (possibly erased) submitter and may echo their
      * contacts. The action rows themselves survive (audit integrity).

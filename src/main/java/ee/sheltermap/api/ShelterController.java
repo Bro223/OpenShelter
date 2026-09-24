@@ -50,16 +50,16 @@ import java.util.List;
  * without an account). POST requires a Bearer JWT and a {@code canWrite()}
  * user; the shelter is saved ACTIVE/USER and answered with 201 + Location.
  *
- * <p>Author-scoped mutations (user-contributions, V7 author link): the
+ * <p>Author-scoped mutations (V7 author link): the
  * submitting user can list ({@code GET /mine}), update ({@code PUT /{id}})
  * and delete ({@code DELETE /{id}}) their own USER-source shelters. 404 if
  * the shelter is absent; 403 if it exists but is not the caller's (registry
  * and legacy rows are unmanageable by anyone) — ids are public (public
  * GET), so 403-vs-404 leaks nothing.
  *
- * <p>Viewport + paging (shelter-bbox-paging, the 06-CONTEXT-API.md
- * decision-2 deferral now built): the list accepts an optional bbox
- * (minLat/minLng/maxLat/maxLng — all four together or none) and offset/
+ * <p>Viewport + paging (the 06-CONTEXT-API.md decision-2 deferral
+ * now built): the list accepts an optional bbox (minLat/minLng/
+ * maxLat/maxLng — all four together or none) and offset/
  * limit paging over the stable id-ascending order. No PostGIS and no
  * GeoService by design (a (latitude, longitude) B-tree index plus the
  * bbox predicate is enough at Estonia scale — V23.1). What STAYS deferred:
@@ -67,7 +67,7 @@ import java.util.List;
  * client-side (the map ranks the loaded list; the "around you" action
  * adds no backend call by spec).
  *
- * <p>Trust layer (shelter-trust-and-reports): the public list is
+ * <p>Trust layer: the public list is
  * ACTIVE-only and accepts the optional trust filters; the detail
  * read carries the caller's own occupancy band; the report/occupancy
  * POSTs require a verified registered user (same gate and error
@@ -121,7 +121,7 @@ public class ShelterController {
      * removed in V21 with the rating model — an unknown {@code minRating}
      * param is ignored for API compatibility, not an error.)
      *
-     * <p>{@code provenance} (shelter-provenance-taxonomy): optional
+     * <p>{@code provenance}: optional
      * taxonomy filter — keeps rows whose server-derived provenance matches
      * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW are
      * the only values reachable in the ACTIVE-only list; REPORTED_INACTIVE
@@ -129,7 +129,7 @@ public class ShelterController {
      * provenance filter; combines with every other filter. A value outside
      * the enum is a 400 (Spring enum binding, same as {@code source}).
      *
-     * <p>Viewport + paging (shelter-bbox-paging): the optional
+     * <p>Viewport + paging: the optional
      * {@code minLat}/{@code minLng}/{@code maxLat}/{@code maxLng} box (ALL
      * four together or none; inclusive edges) restricts the SQL read, and
      * {@code limit} (1…200) / {@code offset} (≥ 0) page the stably
@@ -310,7 +310,7 @@ public class ShelterController {
 
     /**
      * POST /api/shelters/{id}/reports — one typed report per user per
-     * shelter per type (shelter-trust-and-reports). Verified users
+     * shelter per type. Verified users
      * only (same 403 vocabulary as submissions); 404 unknown shelter;
      * 409 duplicate (shelter, user, type); 429 report throttle. The
      * body answers the dampening outcome:
@@ -454,7 +454,7 @@ public class ShelterController {
     }
 
     /**
-     * The optional viewport box (shelter-bbox-paging): ALL four edges
+     * The optional viewport box: ALL four edges
      * together or none. The friendly 400 messages are thrown HERE (the
      * existing {@link InvalidShelterException} → 400 mapping, the same
      * vocabulary as the POST/PUT Estonia gate); {@link BoundingBox}'s own

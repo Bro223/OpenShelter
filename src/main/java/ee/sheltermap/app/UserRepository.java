@@ -17,7 +17,7 @@ public interface UserRepository {
     void save(User user);
 
     /**
-     * Deletes the user row (legal-recovery — account erasure).
+     * Deletes the user row — the account erasure.
      * The JPA implementation relies on the DB FK policy — every child
      * {@code user_id} is ON DELETE CASCADE and {@code shelters.created_by}
      * is ON DELETE SET NULL (the erasure service orphans the public rows
@@ -45,8 +45,8 @@ public interface UserRepository {
 
     /**
      * Whether the row behind {@code userId} is of ADMIN kind (the
-     * per-user active-shelter cap is skipped for admins —
-     * shelter-trust-and-reports). v1 has no admin accounts (the domain
+     * per-user active-shelter cap is skipped for admins). v1 has no admin
+     * accounts (the domain
      * hierarchy predates them), so the JPA impl answers from the
      * {@code users.kind} column and every other impl answers {@code false};
      * unknown ids are {@code false}.
@@ -58,7 +58,7 @@ public interface UserRepository {
      * the COLUMN-ONLY read the JWT filter uses per token-bearing request
      * (no domain mapping, no PII decrypt; unknown ids are {@code false},
      * the same convention as {@link #isAdmin} — a deleted account's token
-     * keeps authenticating, the erasure contract from legal-recovery: the
+     * keeps authenticating, the erasure contract: the
      * JWT stays valid until expiry). Suspension is the only
      * case where a valid token authenticates nothing.
      */
@@ -70,14 +70,14 @@ public interface UserRepository {
      * request (no domain mapping, no PII decrypt, no claims load — the
      * projection only ever needs the caller's id). Unknown ids are
      * {@code false}, the same convention as {@link #isSuspended} — a
-     * deleted account's token keeps authenticating (legal-recovery), and
+     * deleted account's token keeps authenticating, and
      * the read degrades to the guest projection for it.
      */
     boolean existsById(long userId);
 
     /**
-     * Every user row (moderation-dashboard-completion — the
-     * admin Users tab lists REGISTERED + ADMIN accounts; the projection
+     * Every user row — the admin Users tab lists REGISTERED + ADMIN
+     * accounts; the projection
      * filters the kinds, the seam returns all of them so the "the list is
      * the whole account population" invariant stays in one place).
      * Ordered by id for a stable tab.
@@ -102,7 +102,7 @@ public interface UserRepository {
     long countAccounts();
 
     /**
-     * Stamps sign-in activity (retention-pruning): a registration,
+     * Stamps sign-in activity: a registration,
      * a successful login, or a refresh rotation. Column-only write —
      * the auth paths must not pay a full aggregate re-save (PII
      * re-encryption, claim diff) on every credential use. Unknown ids

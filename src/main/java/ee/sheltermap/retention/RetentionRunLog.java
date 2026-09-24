@@ -3,7 +3,7 @@ package ee.sheltermap.retention;
 import java.time.Instant;
 
 /**
- * Durable audit log for retention runs (retention-pruning) — one row per
+ * Durable audit log for retention runs — one row per
  * run of {@link RetentionService#prune}, the house pattern for background
  * mutations (the registry import's {@code data_imports} log,
  * {@code app.DataImportLog}): a successful run (OK) and an aborted one

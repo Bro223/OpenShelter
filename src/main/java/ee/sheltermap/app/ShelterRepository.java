@@ -30,7 +30,7 @@ public interface ShelterRepository {
     List<Shelter> findAll();
 
     /**
-     * The public list projection (shelter-trust-and-reports): only
+     * The public list projection: only
      * {@code ACTIVE} rows — auto-hidden shelters disappear from the map
      * and list. Owner ({@link #findByCreatedBy}) and admin listings keep
      * all statuses.
@@ -38,9 +38,9 @@ public interface ShelterRepository {
     List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources);
 
     /**
-     * The public list projection restricted to a viewport
-     * (shelter-bbox-paging): {@code ACTIVE} rows of the given sources
-     * whose coordinates fall inside the inclusive {@code bbox} — the same
+     * The public list projection restricted to a viewport:
+     * {@code ACTIVE} rows of the given sources whose coordinates fall
+     * inside the inclusive {@code bbox} — the same
      * stable id-ascending order as {@link #findAllActiveBySourceIn}.
      */
     List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox);
@@ -81,13 +81,13 @@ public interface ShelterRepository {
 
     /**
      * The caller's shelters with the given source/status — the input of
-     * the per-user active-shelter cap (shelter-trust-and-reports).
+     * the per-user active-shelter cap.
      */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
     /**
-     * The user's USER submissions created since {@code createdAtAfter}
-     * (abuse-limits) — the input of the per-user DAILY submission cap.
+     * The user's USER submissions created since {@code createdAtAfter} —
+     * the input of the per-user DAILY submission cap.
      * Deletions free the count (rows are gone); the active cap and the
      * admin surface cover the churn vector.
      */
@@ -96,7 +96,7 @@ public interface ShelterRepository {
 
     /**
      * The user's USER submissions in one review state — the first input of
-     * the derived reporter trust weight (community-self-moderation).
+     * the derived reporter trust weight.
      */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);

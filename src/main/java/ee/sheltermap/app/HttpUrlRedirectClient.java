@@ -9,8 +9,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 
 /**
- * The real {@link RedirectClient} over {@link HttpURLConnection}
- * (shelter-location-input):
+ * The real {@link RedirectClient} over {@link HttpURLConnection}:
  *
  * <ul>
  *   <li>3 s connect / 5 s read timeouts;</li>

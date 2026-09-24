@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * The response of {@code GET /account/export} (legal-recovery):
+ * The response of {@code GET /account/export}:
  * the caller's own data in one self-describing JSON document — profile
  * (name/e-mail/phone are decrypted at the persistence boundary, the domain
  * carries plaintext) and every author-scoped shelter row (ALL statuses —
@@ -22,8 +22,7 @@ public record DataExportResponse(
 
     /**
      * The account's identity anchor + verified levels. {@code phone} is
-     * {@code null} for the provisioned admin (no phone route —
-     * admin-moderation).
+     * {@code null} for the provisioned admin (no phone route).
      */
     public record ExportedProfile(String name, String email, String phone,
                                   List<VerificationLevel> levels) {

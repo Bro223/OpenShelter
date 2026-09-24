@@ -1,7 +1,7 @@
 package ee.sheltermap.app;
 
 /**
- * Near-duplicate shelter submission (abuse-limits): an
+ * Near-duplicate shelter submission: an
  * {@code ACTIVE} USER row with the same normalized name within
  * {@code app.limits.duplicate-coord-meters} haversine already exists.
  * Maps to HTTP 409 via the global exception handler — the plain-spoken

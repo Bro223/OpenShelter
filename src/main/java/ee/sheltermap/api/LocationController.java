@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Thin shell for the short-link resolver (shelter-location-input):
+ * Thin shell for the short-link resolver:
  * parse, validate, delegate, map.
  *
  * <p>{@code POST /api/geo/resolve} is JWT-protected (inside the

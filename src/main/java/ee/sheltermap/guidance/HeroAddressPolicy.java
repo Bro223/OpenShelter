@@ -5,7 +5,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 /**
- * The SSRF address classifier (guard 3 of guidance-hero-import — the core
+ * The SSRF address classifier (guard 3 of the hero import — the core
  * of the feature's security).
  *
  * <p>Given ONE resolved address it answers whether it is importable, and

@@ -22,7 +22,7 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
                                                                ShelterStatus status);
 
     /**
-     * Public list with the viewport filter (shelter-bbox-paging): inclusive
+     * Public list with the viewport filter: inclusive
      * BETWEEN on both coordinates, the same stable id-ascending order. Backed
      * by the V23.1 composite index on (latitude, longitude) — no PostGIS
      * (a B-tree is enough at Estonia scale).
@@ -34,11 +34,11 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     /** Per-user active-shelter cap count (V9). */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
-    /** Per-user daily submission cap count (abuse-limits). */
+    /** Per-user daily submission cap count. */
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
                                                     java.time.Instant createdAtAfter);
 
-    /** Derived reporter trust input (community-self-moderation). */
+    /** Derived reporter trust input. */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);
 

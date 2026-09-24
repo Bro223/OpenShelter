@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.Objects;
 
 /**
- * JPA implementation of {@link DataImportLog} (official-dataset-csv).
+ * JPA implementation of {@link DataImportLog}.
  * A plain JPA save in the caller's context — the import apply phase runs in
  * its own transaction, and the FAILED / overlap-skip rows are written
  * outside any import transaction (a single-row save, no wrapping needed).

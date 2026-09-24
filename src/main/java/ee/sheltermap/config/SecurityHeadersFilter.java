@@ -12,7 +12,7 @@ import java.util.Arrays;
 import java.util.Set;
 
 /**
- * The hardening response headers (abuse-limits), set on EVERY
+ * The hardening response headers, set on EVERY
  * response — success, 4xx, 5xx and the security 401/403 error bodies —
  * before any other filter writes:
  *

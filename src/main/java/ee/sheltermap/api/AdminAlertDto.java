@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the admin alerts (abuse-limits) — newest first.
+ * One row of the admin alerts — newest first.
  *
  * <p>{@code kind} is the closed vocabulary of {@code ThrottleAlert}
  * (submission daily cap / OTP contact cap / near-duplicate); {@code

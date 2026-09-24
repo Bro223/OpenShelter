@@ -35,7 +35,7 @@ import java.util.Set;
  * for login/reset, per contact. Login additionally passes a per-IP aggregate
  * bucket (anti credential-stuffing) and reset-confirm a per-(IP, email)
  * anti-guess bucket. Registration additionally passes the rolling
- * per-e-mail cap (abuse-limits), and its 429s land in the
+ * per-e-mail cap, and its 429s land in the
  * admin alert ring.
  */
 @Tag(name = "Auth",

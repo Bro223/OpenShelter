@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code POST /api/geo/resolve} body (shelter-location-input).
+ * {@code POST /api/geo/resolve} body.
  *
  * <p>{@code url} is expected to be a {@code maps.app.goo.gl} short link —
  * the only host the client ever sends. The

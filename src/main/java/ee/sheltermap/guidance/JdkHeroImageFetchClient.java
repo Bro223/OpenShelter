@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * The real {@link HeroImageFetchClient} over the JDK
- * {@link HttpClient} (guidance-hero-import — no new dependency, the same
+ * The real {@link HeroImageFetchClient} over the JDK {@link HttpClient}
+ * (no new dependency, the same
  * outbound discipline as {@code CsvRegistryClient}):
  *
  * <ul>

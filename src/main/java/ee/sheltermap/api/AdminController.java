@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The admin moderation API (admin-moderation) — thin shell: parse,
+ * The admin moderation API — thin shell: parse,
  * validate, authorize, delegate to {@link AdminModerationService}.
  *
  * <p>Authorization: a FRESH user lookup per request — the JWT's
@@ -47,11 +47,11 @@ import java.util.Map;
  * to NEW), hard delete (USER rows only — registry rows are import-
  * owned, 409), the shelter-report queue with idempotent dismiss, the
  * community
- * review decisions (community-review-queue v2: CONFIRM/REJECT — the
- * rare manual override), the moderation audit trail (v2), and the
- * throttle-abuse alerts (abuse-limits: the in-memory ring the
- * caps + duplicate detector append to). All writes are single-row; no
- * bulk endpoints. Reporter identity is served from this API ONLY.
+ * review decisions (CONFIRM/REJECT — the rare manual override), the
+ * moderation audit trail, and the throttle-abuse alerts (the
+ * in-memory ring the caps + duplicate detector append to). All
+ * writes are single-row; no bulk endpoints. Reporter identity is
+ * served from this API ONLY.
  */
 @Tag(name = "Admin moderation",
         description = "Every operation requires a valid Bearer JWT AND an "
@@ -317,7 +317,7 @@ public class AdminController {
     }
 
     /**
-     * The throttle-abuse alerts (abuse-limits), newest first:
+     * The throttle-abuse alerts, newest first:
      * the daily submission cap (429), the per-contact OTP cap (429) and the
      * near-duplicate rejection (409). The ring is IN-MEMORY (it
      * clears on a backend restart), so this is a triage view, not a durable

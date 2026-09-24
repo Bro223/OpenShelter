@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One crisis-guidance post.
+ * One crisis guidance post.
  *
  * <p>The hero image is a <b>reference</b> ({@code heroImageId}), never an
  * image URL or a copy: the reference is always either a live media asset

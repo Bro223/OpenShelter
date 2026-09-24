@@ -2,7 +2,7 @@ package ee.sheltermap.guidance;
 
 /**
  * One request, no redirect following — the seam between
- * {@link HeroImageImportService} and real HTTP (guidance-hero-import).
+ * {@link HeroImageImportService} and real HTTP.
  *
  * <p>Implementations send ONE GET to {@code url} with
  * redirects NOT auto-followed (the service reads each {@code Location}

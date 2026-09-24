@@ -57,7 +57,7 @@ public final class CurrentCaller {
      * projection only ever needs the caller's id — it must not pay the
      * caller's full domain mapping (PII decrypt of the e-mail/phone
      * envelopes + the claims query) for a read. A token-valid caller
-     * whose row was DELETED keeps the erasure contract (legal-recovery):
+     * whose row was DELETED keeps the erasure contract:
      * unknown ids degrade to the guest projection, exactly the behavior
      * the old {@code findById}-and-{@code null-check} had.
      */

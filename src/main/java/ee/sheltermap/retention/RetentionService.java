@@ -17,7 +17,7 @@ import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**
- * The retention prune (retention-pruning): one pass over the two owner
+ * The retention prune: one pass over the two owner
  * horizons —
  * <ol>
  *   <li>accounts with no sign-in activity for

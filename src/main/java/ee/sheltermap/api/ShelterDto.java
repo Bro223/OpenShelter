@@ -20,11 +20,11 @@ import java.util.List;
  * what the map needs. {@code description}/{@code capacity} are
  * USER-submission details (stored since the V3 migration).
  * {@code submitterVerified} is {@code true} when the shelter's creator exists
- * and has a completed verification, {@code false} for registry shelters (no
- * author) and for creators whose account no longer exists
- * (accessibility-and-provenance).
+ * and has a completed verification, {@code false} for registry shelters
+ * (no author) and for creators whose account no longer exists —
+ * a deleted row carries no verification claims to derive from.
  *
- * <p>Trust layer (shelter-trust-and-reports):
+ * <p>Trust layer:
  * {@code nonexistentReports} is 0 when none — the UI's orange "Reported"
  * affordance fires at {@code > 0}; {@code openStatus} is the live
  * open/closed block (same level as capacity) — the fresh (≤ 2 h) latest
@@ -52,7 +52,7 @@ import java.util.List;
  * the public surfaces: it is carried only by the /mine projection and the
  * submitter's own detail read, never by an anonymous or other-user read.
  *
- * <p>Provenance taxonomy (shelter-provenance-taxonomy): {@code provenance}
+ * <p>Provenance taxonomy: {@code provenance}
  * is the server-derived single answer to "where does this row come from"
  * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW /
  * REPORTED_INACTIVE / REJECTED — see {@link Provenance} for the derivation
@@ -70,14 +70,14 @@ import java.util.List;
  * action. {@code null} = never verified (the UNDER_REVIEW "not yet verified"
  * signal on the UI).
  *
- * <p>Information request (moderation-dashboard-completion):
+ * <p>Information request:
  * {@code infoRequest} is the moderator→submitter exchange for this row —
  * set on the {@code /mine} projection ONLY (the submitter's own surface);
  * {@code null} on the public list and detail reads (the exchange is
  * private between the admin and the author). The admin's own view carries
  * it on {@link AdminShelterDto} instead, with the requester's name.
  *
- * <p>Mark inaccurate (moderation-dashboard-completion):
+ * <p>Mark inaccurate:
  * {@code inaccurate} is the server-derived moderator flag (the V20 stamp on
  * the row is set — idempotent mark/clear behind the admin endpoints). A
  * marked row stays visible with status and provenance untouched; the UI
@@ -248,8 +248,8 @@ public record ShelterDto(
      * the recent-report log. Plain counts are the UNWEIGHTED fresh counts
      * (the "general count" + the accessible text); the shares are
      * TRUST-WEIGHTED with the same derived weight the auto-hide tally uses
-     * (community-self-moderation baseline 1, +1 a cross-verified own
-     * submission, +1 two own AUTO_CONFIRM actions, capped at 3) and drive
+     * (baseline 1, +1 a cross-verified own submission, +1 two own
+     * AUTO_CONFIRM actions, capped at 3) and drive
      * the gauge arrow (0.5 = an exact equal split = straight up). Taps and
      * bands carry no damp flag (damping is a NON_EXISTENT-report concept),
      * so every fresh report contributes at least the baseline weight. The

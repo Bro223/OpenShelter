@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code guidance_posts} (V23, crisis-guidance).
+ * JPA entity for {@code guidance_posts} (V23).
  * The unique slug ({@code uq_guidance_posts_slug} — across drafts and
  * published posts alike), the hero/alt pairing and the
  * status/{@code published_at} pairing are enforced by the database
@@ -62,7 +62,7 @@ public class GuidancePostEntity {
     private String heroImportUrl;
 
     /**
-     * The stored manual position (V28, guidance-manual-order). NOT
+     * The stored manual position (V28). NOT
      * uniqueness-constrained on purpose — the atomic renumber must not
      * transiently violate a uniqueness check, and the public order
      * contract's tie-breakers make a duplicate harmless. The V28 partial

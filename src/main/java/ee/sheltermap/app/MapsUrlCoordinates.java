@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 
 /**
  * Extracts the first coordinate pair from a map URL — the backend mirror
- * of the frontend {@code shared/location-input.ts} pattern list
- * (shelter-location-input). Both parsers are unit
+ * of the frontend {@code shared/location-input.ts} pattern list. Both
+ * parsers are unit
  * tested against the same fixture table ({@code MapsUrlCoordinatesTest}
  * and the frontend spec) so a pinned location can never drift between
  * the two sides.

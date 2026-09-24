@@ -34,7 +34,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The admin moderation surface (admin-moderation) — manual
+ * The admin moderation surface — manual
  * hide/restore of user shelters, hard delete of user shelters, and the two
  * report queues with their single-row moderation actions.
  *
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  *       rows as ACTIVE on every run, so an admin edit would silently
  *       revert);</li>
  *   <li>a restore (INACTIVE → ACTIVE) is the manual status change that
- * DISARMS auto-hide (shelter-trust-and-reports — once a human has
+ * DISARMS auto-hide (once a human has
  *       set the status, the 5th NON_EXISTENT report never re-hides);</li>
  *   <li>all writes are single-row transactions; no bulk endpoints; every
  *       unknown id is a 404.</li>
@@ -172,7 +172,7 @@ public class AdminModerationService {
         }
         ReviewStatus previousReview = shelter.getReviewStatus();
         if (target == ShelterStatus.ACTIVE) {
-            // The restore (shelter-trust-and-reports): once a human
+            // The restore: once a human
             // has set the status, the NON_EXISTENT reports increment
             // their count but never re-hide this shelter.
             shelter.setAutoHideDisarmed(true);
@@ -487,7 +487,7 @@ public class AdminModerationService {
      * mechanism), and the reason, when given, becomes the note.
      *
      * <p>Deliberately NOT a manual status change: CONFIRM does not
-     * disarm auto-hide (shelter-trust-and-reports) — the row is
+     * disarm auto-hide — the row is
      * community-reported and unverified, so the trust layer may hide it
      * on the 5th NON_EXISTENT report just like any other community row.
      *
@@ -585,8 +585,8 @@ public class AdminModerationService {
     }
 
     /**
-     * GET /admin/shelters/{id}/history — the shelter's edit history, ASCENDING
-     * (moderation-dashboard-completion): CREATED on
+     * GET /admin/shelters/{id}/history — the shelter's edit history, ASCENDING:
+     * CREATED on
      * submission, EDITED on an owner PUT that moved fields (server-parsed
      * {@code {field, from, to}} tuples — the FE renders, never parses),
      * DELETED on a user or admin hard delete. Actor names resolve in ONE
@@ -637,9 +637,9 @@ public class AdminModerationService {
      * the shelter name (or "Deleted shelter" once the row is gone); a
      * user-scoped row renders "Account: name (email)" (or "Deleted
      * account" after the target's erasure). A guidance/media row
-     * (crisis-guidance) resolves its stored {@code subjectLabel}
-     * FIRST — the label snapshot that outlives the deleted target; only
-     * a NULL label (every pre-V23 row) falls through to the shelter /
+     * resolves its stored {@code subjectLabel} FIRST — the label snapshot
+     * that outlives the deleted target; only a NULL label (every pre-V23
+     * row) falls through to the shelter /
      * account resolution, so no existing row changes behaviour. The DTO
      * shape is unchanged — this text occupies the existing shelter-name
      * slot, which the frontend labels "Subject".

@@ -13,8 +13,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code shelter_history} (V18,
- * moderation-dashboard-completion) — one immutable row per
+ * JPA entity for {@code shelter_history} (V18) — one immutable
+ * row per
  * USER-shelter lifecycle event, written in the same transaction as the
  * event it records.
  */

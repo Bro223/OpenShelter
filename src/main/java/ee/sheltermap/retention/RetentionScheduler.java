@@ -9,7 +9,7 @@ import java.time.Clock;
 import java.util.Objects;
 
 /**
- * Daily retention run (retention-pruning). Mirrors the registry sync's
+ * Daily retention run. Mirrors the registry sync's
  * scheduling choice — Spring's built-in {@code @Scheduled} (the app is a
  * single instance with no clustering or distributed-lock needs) — with
  * the default INVERTED: {@code matchIfMissing = false} means the bean,

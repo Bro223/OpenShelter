@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The crisis-guidance authoring surface.
+ * The crisis guidance authoring surface.
  *
  * <p>Lifecycle: a post is created DRAFT (PUBLISHED when the create call
  * explicitly asks, so a one-shot "write and publish" is possible);

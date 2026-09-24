@@ -4,7 +4,7 @@ import ee.sheltermap.domain.ShelterStatus;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Manual hide/restore body (admin-moderation):
+ * Manual hide/restore body:
  * {@code {"status": "ACTIVE" | "INACTIVE"}}. A missing value is a 400
  * validation failure; an unknown value is a 400 malformed body — both
  * through the standard vocabulary.

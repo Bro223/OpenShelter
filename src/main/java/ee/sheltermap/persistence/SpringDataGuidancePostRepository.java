@@ -24,7 +24,7 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
 
     /**
      * Every post, drafts included, in the GLOBAL stored manual order
-     * (admin-locale-scope): sort_order asc, published_at desc with
+     * sort_order asc, published_at desc with
      * NULLS LAST (a draft's NULL stamp ranks after any stamped instant —
      * the V28 backfill's tie-break rule), id desc.
      */
@@ -42,7 +42,7 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
     List<Object[]> countsByHeroImageId();
 
     /** The highest stored manual position, or null when there are no posts
-     * (guidance-manual-order: create appends max + 1). */
+     * (create appends max + 1). */
     @Query("select max(p.sortOrder) from GuidancePostEntity p")
     Integer maxSortOrder();
 }

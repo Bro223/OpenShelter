@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The public crisis-guidance reads (crisis-guidance) — permit-all
+ * The public crisis guidance reads — permit-all
  * (no JWT): the public {@code /blog} pages read these anonymously.
  *
  * <p>The PUBLISHED-only filter lives in the QUERY, not in this mapping

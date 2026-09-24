@@ -33,16 +33,16 @@ import java.util.List;
  * explicitly in the filter chain to avoid double execution as a servlet
  * filter.
  *
- * <p>Suspension (moderation-dashboard-completion): a VALID token
+ * <p>Suspension: a VALID token
  * of a SUSPENDED account authenticates nothing — a fresh {@code
  * UserRepository.isSuspended} column-only read per token-bearing request
- * (the admin-moderation idiom: the DB is the truth, never a token claim)
+ * (the DB is the truth, never a token claim)
  * leaves the context empty, so the entry point answers 401 and the
  * suspension takes effect on the very next request. Column-only on purpose:
  * the filter runs on every token-bearing request and must not pay the
  * domain mapping (PII decrypt) or trip a demoted admin's null phone. A
  * DELETED account is the opposite case and keeps the erasure contract
- * (legal-recovery): unknown ids answer false, the JWT stays
+ * — unknown ids answer false, the JWT stays
  * valid until expiry (the repeat DELETE /account stays a 204 no-op).
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {

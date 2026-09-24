@@ -5,7 +5,7 @@ import ee.sheltermap.domain.GuidanceStatus;
 import java.time.Instant;
 
 /**
- * The admin guidance post (crisis-guidance) — the full field set
+ * The admin guidance post — the full field set
  * behind {@code GET /admin/guidance} (every post, drafts included, in the
  * stored manual order) and {@code GET /admin/guidance/{id}}.
  *
@@ -14,7 +14,7 @@ import java.time.Instant;
  * full reference: {@code heroImageId} (the media-library picker's key),
  * the serving {@code heroImageUrl} and the stored alt — all three
  * {@code null} when the post has no hero. {@code heroImportUrl} is the
- * hero's source URL (guidance-hero-import): the admin-supplied remote
+ * hero's source URL: the admin-supplied remote
  * URL, fetched at SAVE time (draft or published). Kept after a successful
  * import as provenance (the imported asset's {@code source_url} records
  * the same origin); retryable after a failed one. {@code heroImportError}
@@ -23,7 +23,7 @@ import java.time.Instant;
  * the post was still stored, the URL kept for a retry on the next save
  * (a failed import never blocks a save).
  *
- * <p>Locale scope (admin-locale-scope): the content fields ({@code title},
+ * <p>Locale scope: the content fields ({@code title},
  * {@code slug}, {@code bodyHtml}, {@code heroImageAlt}) are served in ONE
  * locale — {@code locale} names it. The UNscoped read (no {@code ?locale=})
  * serves the post's HOME-locale content, so {@code locale} equals
@@ -33,9 +33,9 @@ import java.time.Instant;
  * post's home locale — the one whose content lives in the post row's own
  * columns — is always {@code homeLocale}.
  *
- * <p>{@code sortOrder} is the post's stored manual position
- * (guidance-manual-order): the shared slot every translation of the
- * post sorts by (the public index orders by it ascending, with the
+ * <p>{@code sortOrder} is the post's stored manual position: the
+ * shared slot every translation of the post sorts by (the public
+ * index orders by it ascending, with the
  * {@code publishedAt}/{@code id} tie-breakers).
  *
  * <p>{@code heroImageSrcset} (additive) is the hero's derivative
@@ -55,7 +55,7 @@ public record AdminGuidancePostDto(
         String homeLocale,
         GuidanceStatus status,
         boolean pinned,
-        /** The stored manual position (the shared slot, guidance-manual-order). */
+        /** The stored manual position — the shared slot. */
         int sortOrder,
         Long heroImageId,
         String heroImageUrl,

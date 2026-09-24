@@ -57,7 +57,7 @@ public class UserEntity {
     private Instant suspendedAt;
 
     /**
-     * Last sign-in-activity stamp (retention-pruning, V24). NOT NULL —
+     * Last sign-in-activity stamp (V24). NOT NULL —
      * the retention job prunes accounts by this column, and a NULL would
      * read as "inactive since forever" (the V24 backfill + the auth-path
      * stamps + the DB default keep it filled; see the migration).

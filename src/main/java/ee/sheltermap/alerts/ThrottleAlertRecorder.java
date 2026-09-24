@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The bounded in-memory ring behind {@code GET /admin/alerts}
- * (abuse-limits): the throttle caps and duplicate detectors append their
+ * The bounded in-memory ring behind {@code GET /admin/alerts}: the
+ * throttle caps and duplicate detectors append their
  * throttled (429) and repeat-report (409) events here. Oldest events are
  * evicted first once {@code retained} rows are filled; {@code id} is a
  * monotonic sequence (ring-local, resets on restart).

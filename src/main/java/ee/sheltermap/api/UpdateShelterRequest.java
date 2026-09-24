@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code PUT /api/shelters/{id}} body (user-contributions).
+ * {@code PUT /api/shelters/{id}} body.
  *
  * <p>Constraints are field-for-field IDENTICAL to {@link CreateShelterRequest}
  * — name, description, capacity and the coordinate bounds cannot drift

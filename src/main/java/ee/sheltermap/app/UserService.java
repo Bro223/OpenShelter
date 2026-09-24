@@ -54,7 +54,7 @@ public class UserService {
     }
 
     /**
-     * Stamps sign-in activity (retention-pruning) — a column-only write;
+     * Stamps sign-in activity — a column-only write;
      * the auth paths (register / login / refresh) call this on every
      * credential use.
      */

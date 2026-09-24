@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Audit log for registry import runs (official-dataset-csv).
+ * Audit log for registry import runs.
  *
  * <p>One row per run of {@code ShelterImportService.importFromRegistry()} —
  * a successful apply ({@code OK}), a registry-down abort ({@code FAILED}),

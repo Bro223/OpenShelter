@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Name → addresses seam for the hero-import address policy
- * (guidance-hero-import, guard 3).
+ * (guard 3).
  *
  * <p>The import service resolves the URL's host with this seam and runs
  * {@link HeroAddressPolicy} over EVERY resolved address before it fetches

@@ -7,12 +7,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the admin shelter-report queue (admin-moderation) — the
+ * One row of the admin shelter-report queue — the
  * reporter's identity (profile name + email) is admin-only data, never
  * exposed outside {@code /admin/*}. {@code dismissed} is the queue's
  * resolved marker ({@code dismissed_at != null}); dismissed rows stay in
  * the list, recorded as resolved. {@code damped} flags the self-interested
- * negative votes (community-self-moderation) — recorded and shown,
+ * negative votes — recorded and shown,
  * contributing 0 to the weighted auto-hide tally.
  */
 @Schema(description = "One row of the admin shelter-report queue. The "

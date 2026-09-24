@@ -3,7 +3,7 @@ package ee.sheltermap.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * {@code POST /api/geo/resolve} response (shelter-location-input).
+ * {@code POST /api/geo/resolve} response.
  *
  * <p>The field names {@code latitude}/{@code longitude} are the contract
  * with the frontend's {@code LocationResolved} model — do not rename.

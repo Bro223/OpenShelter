@@ -3,8 +3,8 @@ package ee.sheltermap.alerts;
 import java.time.Instant;
 
 /**
- * One throttle/abuse alert row served by {@code GET /admin/alerts}
- * (abuse-limits), newest first.
+ * One throttle/abuse alert row served by {@code GET /admin/alerts},
+ * newest first.
  *
  * <p>{@code id} is a monotonic sequence (ring-local, resets on restart) —
  * the frontend row key. {@code kind} is a closed vocabulary (the constants

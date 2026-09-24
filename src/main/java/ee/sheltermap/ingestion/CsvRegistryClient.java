@@ -23,8 +23,8 @@ import java.util.List;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Bulk-CSV client for the official Päästeamet shelter dataset
- * (official-dataset-csv).
+ * Bulk-CSV client for the official Päästeamet shelter dataset.
+ *
  *
  * <p>One bulk download per run from
  * {@code https://opendata.smit.ee/gis/varjumiskohad.csv} (semicolon-separated,

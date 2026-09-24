@@ -3,7 +3,7 @@ package ee.sheltermap.app;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Trust-layer settings (shelter-trust-and-reports). Bound from
+ * Trust-layer settings. Bound from
  * {@code app.reports.*}.
  *
  * @param maxActionsPerHour per-user cap on report-type actions (shelter

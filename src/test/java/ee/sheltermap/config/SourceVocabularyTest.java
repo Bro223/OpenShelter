@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +29,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * comment states a conclusion without its reason. The rule enforced here is
  * that a comment either spells the reason out in words or points at the
  * durable specification path that owns the rule.
+ *
+ * <p>A second check refuses a different dead reference: a main-source
+ * comment that cites an archived change by name. Its refused list is
+ * derived at runtime from the openspec change archive, so it stays in step
+ * as changes are archived — see
+ * {@link #mainSourceCommentsContainNoArchivedChangeNames()}.
  *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
  * stays in the fast unit tier.
@@ -128,6 +135,20 @@ class SourceVocabularyTest {
     /** Total scanned lines across all roots (measured 136 518 on a clean tree). */
     private static final int MIN_SCANNED_LINES = 110_000;
 
+    /** The openspec change archive the refused names are derived from. */
+    private static final String ARCHIVE_DIR = "openspec/changes/archive";
+
+    /** The live changes that keep a same-named id resolvable. */
+    private static final String CHANGES_DIR = "openspec/changes";
+
+    /**
+     * Floor on the derived archived-name list (measured 74 on a clean tree).
+     * The list is derived at runtime from the archive, so a pruned or
+     * mislocated archive would shrink it silently; the floor makes that a
+     * loud failure instead of a quiet pass.
+     */
+    private static final int MIN_ARCHIVED_CHANGE_NAMES = 70;
+
     /** A hex byte: one or two hex digits (FF, D8, 0A). */
     private static final Pattern HEX_BYTE = Pattern.compile("[0-9A-Fa-f]{1,2}");
 
@@ -159,6 +180,93 @@ class SourceVocabularyTest {
         }
         if (!hits.isEmpty()) {
             fail(renderFailure(hits));
+        }
+    }
+
+    /**
+     * Fails when a MAIN-source comment cites an archived change by name.
+     *
+     * <p>A change name is resolvable while its directory sits in
+     * {@code openspec/changes/} — the reader can open the proposal it names.
+     * Once the change is archived the directory exists only under a date
+     * prefix, so a bare name in a comment points at nothing the reader can
+     * open; the constraint it described is still worth keeping, the name is
+     * dead weight. This check refuses exactly those dead names.
+     *
+     * <p>The refused list is derived at runtime: every archived directory
+     * name, plus the same name without its {@code YYYY-MM-DD-} prefix, minus
+     * the live change names (a live change re-opening the same name makes it
+     * resolvable again). Archiving a change therefore extends the list
+     * without any edit to this test, and the floor
+     * {@link #MIN_ARCHIVED_CHANGE_NAMES} keeps the derivation honest — a
+     * pruned archive that would silently shrink the list is a failure, not a
+     * pass.
+     *
+     * <p>Scope: {@code src/main/java} comment text only. String and char
+     * literals do not count — an OpenAPI description is public contract, not
+     * a comment, and regenerating the snapshot it pins is a separate
+     * decision. The test tree and the frontend still carry historical
+     * citations of archived names in separate in-flight sweeps; this check
+     * covers the tree that sweep has cleaned, and the other trees join it as
+     * those sweeps land. A match must be a whole kebab token (a slug inside a
+     * longer identifier is a coincidental substring, not a citation), and a
+     * path token containing {@code /} is exempt: a comment that cites an
+     * archive document by path still resolves.
+     */
+    @Test
+    void mainSourceCommentsContainNoArchivedChangeNames() {
+        Path root = moduleRoot();
+        if (!Files.isDirectory(root.resolve(ARCHIVE_DIR))) {
+            fail("No archive walk was executed: " + ARCHIVE_DIR + " is missing under " + root
+                    + " — the refused list is derived from it, so this guard cannot pass over a "
+                    + "tree it did not derive its names from.");
+        }
+        List<String> refusedNames = archivedChangeNames(root);
+        if (refusedNames.size() < MIN_ARCHIVED_CHANGE_NAMES) {
+            fail("Only " + refusedNames.size() + " archived change name(s) were derived from "
+                    + ARCHIVE_DIR + " (the floor is " + MIN_ARCHIVED_CHANGE_NAMES
+                    + ") — the archive is pruned or mislocated, and a shrunken list would let this "
+                    + "guard pass silently.");
+        }
+        Path start = root.resolve("src").resolve("main").resolve("java");
+        if (!Files.isDirectory(start)) {
+            fail("No main-source walk was executed: the scan started in the wrong directory "
+                    + start + ". Anchor it at the real module root, not a build copy.");
+        }
+        List<String> hits = new ArrayList<>();
+        int[] scannedFiles = { 0 };
+        try {
+            Files.walkFileTree(start, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attributes) {
+                    return SKIPPED_DIRECTORIES.contains(dir.getFileName().toString())
+                            ? FileVisitResult.SKIP_SUBTREE
+                            : FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                    if (file.toString().endsWith(".java")) {
+                        scannedFiles[0] += 1;
+                        hits.addAll(refusedNameHits(root, file, refusedNames));
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException failure) {
+                    // An unreadable file is not evidence of a dead name, so the walk moves on.
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            // A subtree that disappears mid-walk is not evidence either.
+        }
+        if (scannedFiles[0] == 0) {
+            fail("The main-source walk found no .java files — the scan is reading the wrong tree.");
+        }
+        if (!hits.isEmpty()) {
+            fail(renderRefusedNameFailure(hits, refusedNames.size()));
         }
     }
 
@@ -366,5 +474,206 @@ class SourceVocabularyTest {
         return message.append("Replace each id with the reason it stood for, or with the path of the durable "
                 + "specification that owns the rule — an id from a planning or review pass "
                 + "is unresolvable once that pass is over.").toString();
+    }
+
+    /**
+     * The refused names, sorted for deterministic failure output: every
+     * archived directory name plus its date-stripped slug, minus the live
+     * change names.
+     */
+    private static List<String> archivedChangeNames(Path root) {
+        Set<String> names = new TreeSet<>();
+        try (var archiveEntries = Files.list(root.resolve(ARCHIVE_DIR))) {
+            for (String entry : archiveEntries.map(p -> p.getFileName().toString()).toList()) {
+                if (entry.startsWith(".") || !entry.matches("\\d{4}-\\d{2}-\\d{2}-.+")) {
+                    continue; // the placeholder dotfile and any stray non-dated entry are not change names
+                }
+                names.add(entry);
+                names.add(entry.replaceFirst("\\d{4}-\\d{2}-\\d{2}-", ""));
+            }
+        } catch (IOException e) {
+            fail("The change archive could not be read: " + e.getMessage());
+        }
+        try (var liveEntries = Files.list(root.resolve(CHANGES_DIR))) {
+            for (String entry : liveEntries.map(p -> p.getFileName().toString()).toList()) {
+                if (!entry.startsWith(".") && !entry.equals("archive")) {
+                    names.remove(entry);
+                }
+            }
+        } catch (IOException e) {
+            fail("The live changes could not be read: " + e.getMessage());
+        }
+        return List.copyOf(names);
+    }
+
+    /** The comment lines of one main-source file that carry a refused name, rendered for failure output. */
+    private static List<String> refusedNameHits(Path root, Path file, List<String> names) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return List.of(); // unreadable, undecodable or vanished: the walk moves on, like the id walk
+        }
+        List<String> hits = new ArrayList<>();
+        String relativePath = root.relativize(file).toString().replace('\\', '/');
+        List<String> commentLines = commentTextByLine(String.join("\n", lines));
+        for (int index = 0; index < lines.size(); index++) {
+            String name = findRefusedName(commentLines.get(index), names);
+            if (name != null) {
+                hits.add(relativePath + ":" + (index + 1) + ": refused '" + name + "' — "
+                        + lines.get(index).trim());
+            }
+        }
+        return hits;
+    }
+
+    /**
+     * The first refused name cited as a whole kebab token in one comment line,
+     * or {@code null}. A match inside a path token (a whitespace-delimited
+     * token containing {@code /}) is exempt: it names a resolvable archive
+     * document, not a dead change id.
+     */
+    private static String findRefusedName(String commentLine, List<String> names) {
+        for (String name : names) {
+            int from = 0;
+            while (true) {
+                int start = commentLine.indexOf(name, from);
+                if (start < 0) {
+                    break;
+                }
+                int end = start + name.length();
+                if (isWholeKebabToken(commentLine, start, end) && !isPathToken(commentLine, start, end)) {
+                    return name;
+                }
+                from = start + 1;
+            }
+        }
+        return null;
+    }
+
+    /** True when {@code [start, end)} is a full whitespace-delimited kebab token. */
+    private static boolean isWholeKebabToken(String line, int start, int end) {
+        if (start > 0 && isKebabChar(line.charAt(start - 1))) {
+            return false;
+        }
+        return end >= line.length() || !isKebabChar(line.charAt(end));
+    }
+
+    /** A letter, a digit, or the kebab separator itself. */
+    private static boolean isKebabChar(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+    }
+
+    /** True when the whitespace-delimited token holding {@code [start, end)} contains a {@code /}. */
+    private static boolean isPathToken(String line, int start, int end) {
+        int tokenStart = start;
+        while (tokenStart > 0 && !Character.isWhitespace(line.charAt(tokenStart - 1))) {
+            tokenStart--;
+        }
+        int tokenEnd = end;
+        while (tokenEnd < line.length() && !Character.isWhitespace(line.charAt(tokenEnd))) {
+            tokenEnd++;
+        }
+        int slash = line.indexOf('/', tokenStart);
+        return slash >= 0 && slash < tokenEnd;
+    }
+
+    /**
+     * The comment text of a Java source, one entry per source line. A minimal
+     * state machine tracks line comments, block comments, string literals and
+     * char literals, so a slug-shaped word inside a string literal is not
+     * reported and a comment marker inside a string (a URL) does not confuse
+     * the scan. The scanned tree contains no text blocks; if one is
+     * introduced, teach this scanner before relying on it.
+     */
+    private static List<String> commentTextByLine(String content) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int state = CODE;
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            char next = i + 1 < content.length() ? content.charAt(i + 1) : 0;
+            if (state == CODE) {
+                if (c == '/' && next == '/') {
+                    state = LINE_COMMENT;
+                    i++;
+                }
+                else if (c == '/' && next == '*') {
+                    state = BLOCK_COMMENT;
+                    i++;
+                }
+                else if (c == '"') {
+                    state = STRING;
+                }
+                else if (c == '\'') {
+                    state = CHAR;
+                }
+                else if (c == '\n') {
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+            }
+            else if (state == LINE_COMMENT) {
+                if (c == '\n') {
+                    state = CODE;
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+                else {
+                    current.append(c);
+                }
+            }
+            else if (state == BLOCK_COMMENT) {
+                if (c == '*' && next == '/') {
+                    state = CODE;
+                    i++;
+                }
+                else if (c == '\n') {
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+                else {
+                    current.append(c);
+                }
+            }
+            else { // STRING and CHAR literals: skipped, with escape handling
+                if (c == '\\') {
+                    i++;
+                }
+                else if ((state == STRING && c == '"') || (state == CHAR && c == '\'')) {
+                    state = CODE;
+                }
+                else if (c == '\n') {
+                    state = CODE;
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+            }
+        }
+        result.add(current.toString());
+        return result;
+    }
+
+    /** Scanner states for {@link #commentTextByLine(String)}. */
+    private static final int CODE = 0;
+    private static final int LINE_COMMENT = 1;
+    private static final int BLOCK_COMMENT = 2;
+    private static final int STRING = 3;
+    private static final int CHAR = 4;
+
+    /** Renders the refused-name hit list plus the one-sentence fix a reader needs. */
+    private static String renderRefusedNameFailure(List<String> hits, int nameCount) {
+        StringBuilder message = new StringBuilder()
+                .append(hits.size())
+                .append(" source comment(s) cite an archived change name (")
+                .append(nameCount)
+                .append(" names derived from ")
+                .append(ARCHIVE_DIR)
+                .append("):\n");
+        for (String hit : hits) {
+            message.append("  ").append(hit).append('\n');
+        }
+        return message.append("A change name stops resolving when the change is archived — keep the "
+                + "constraint it stated, drop the name.").toString();
     }
 }

@@ -126,7 +126,7 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional(readOnly = true)
     public List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox) {
-        // Inclusive BETWEEN on both coordinates (shelter-bbox-paging);
+        // Inclusive BETWEEN on both coordinates;
         // the V23.1 (latitude, longitude) B-tree backs the range scan — no PostGIS.
         return shelters.findAllBySourceInAndStatusAndLatitudeBetweenAndLongitudeBetweenOrderByIdAsc(
                         sources, ShelterStatus.ACTIVE,

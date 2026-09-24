@@ -10,10 +10,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the admin shelter list (admin-moderation) — every shelter,
- * ALL statuses (auto-hidden rows included), id-ordered, with the same
- * batched trust derivations as the public list (shelter-trust-and-reports
- * no N+1) plus the submitter's profile name.
+ * One row of the admin shelter list — every shelter, ALL statuses
+ * (auto-hidden rows included), id-ordered, with the same batched
+ * trust derivations as the public list (no N+1) plus the submitter's
+ * profile name.
  *
  * <p>{@code nonexistentReports} is 0 when none;
  * {@code occupancy} is the fresh (≤ 2 h) block, null when nothing is
@@ -27,20 +27,20 @@ import java.time.Instant;
  * {@code locationKind} is the private-home declaration (the "Private
  * location" badge renders on this surface too).
  *
- * <p>Provenance taxonomy (shelter-provenance-taxonomy): {@code provenance}
+ * <p>Provenance taxonomy: {@code provenance}
  * is the same server-derived value as on {@link ShelterDto} — this is the
  * one surface where all six values are reachable (the list keeps hidden
  * rows), so the admin badge renders REPORTED_INACTIVE / REJECTED tones
  * here.
  *
- * <p>Information request (moderation-dashboard-completion):
+ * <p>Information request:
  * {@code infoRequest} is the moderator→submitter exchange for this row —
  * null when none exists. The admin sees the request together with the
  * submitter's reply here (audit posture: the row is kept after the reply),
  * with the requesting admin's profile name ("Unknown" after erasure —
  * no FK on requested_by).
  *
- * <p>Mark inaccurate (moderation-dashboard-completion):
+ * <p>Mark inaccurate:
  * {@code inaccurate} is the same server-derived flag as on
  * {@link ShelterDto} — the admin list is where the mark is managed, so the
  * row carries the state its Mark/Inaccurate actions toggle.
