@@ -4,10 +4,9 @@
   <header>
     @if (editMode()) {
       <!-- Edit mode: the heading names the mode — this is a save of an
-           existing shelter, not a new submission. 'account.edit' ('Edit') is
-           the existing catalog key; a dedicated 'submit.editTitle' would be
-           the better fit once the i18n lane lands it (reported, not added).
-           The subtitle is create-mode copy ("Add …") — hidden in edit. -->
+           existing shelter, not a new submission. 'account.edit' is the
+           existing catalog key that says "this is an edit". The subtitle
+           is create-mode copy ("Add …") — hidden in edit. -->
       <h1 class="page-title">{{ 'account.edit' | t }}</h1>
     } @else {
       <h1 class="page-title">{{ 'submit.title' | t }}</h1>
@@ -17,12 +16,11 @@
 
   <app-banner severity="error" [message]="error()" />
 
-  <!-- Success panel (community-review-queue): the row is public NOW (NEW
-       state) — no "awaiting review"; the panel links to the live detail
-       page. The form stays for a second submission. In edit mode the
-       same panel IS the save confirmation: the edit publishes immediately
-       and carries the same NEW (pending-verification) state a new
-       submission gets. -->
+  <!-- Success panel: the row is public NOW (NEW state) — no "awaiting
+       review"; the panel links to the live detail page. The form stays
+       for a second submission. In edit mode the same panel IS the save
+       confirmation: the edit publishes immediately and carries the same
+       NEW (pending-verification) state a new submission gets. -->
   @if (submitted(); as created) {
     <div class="submit-success" role="status">
       <p>{{ 'submit.successBody' | t }}</p>
@@ -50,9 +48,9 @@
     <!-- The /mine load 401'd: the session is dead and the central
          interceptor has routed to /login?session=expired (api-interceptor
          owns the session work — the page never re-implements it). This is
-         the explicit state for the window until the bounce lands, and what
-         a back-button return shows before the guard redirects again. It
-         never renders the form — and with it the mini-map — so an
+         the explicit state for the window until the bounce lands, and
+         what a back-button return shows before the guard redirects again.
+         It never renders the form — and with it the mini-map — so an
          unauthorized page can never be a dead grey map box. The copy
          reuses the login page's session-expired note + the nav's Log in
          link (no new catalog keys). -->
@@ -81,7 +79,6 @@
           autocomplete="off"
         />
         @if (name().touched && name().invalid) {
-          <!-- 'maxlength' (lowercase) is Angular's MaxLengthValidator error key. -->
           <p class="field-error">
             {{
               name().errors?.['maxlength']
@@ -116,18 +113,18 @@
           formControlName="capacity"
           [placeholder]="'submit.capacityPlaceholder' | t"
         />
-        <!-- The range is its OWN hint line (submit.capacityHint) so a narrow
-           column can't break it mid-range (i18n-et-en); the label above is
-           just "Capacity (optional)". Shared with the /account panel. -->
+        <!-- The range is its OWN hint line (submit.capacityHint) so a
+           narrow column can't break it mid-range; the label above is just
+           "Capacity (optional)". Shared with the /account panel. -->
         <p class="field-note">{{ 'submit.capacityHint' | t }}</p>
         @if (capacity().invalid && capacity().touched) {
           <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
         }
       </div>
 
-      <!-- The private-home declaration (community-review-queue): default
-         unchecked = PUBLIC. The row stays a public result; the declaration
-         adds the "Private location" badge + the resident-offered note. -->
+      <!-- The private-home declaration: default unchecked = PUBLIC. The
+         row stays a public result; the declaration adds the "Private
+         location" badge + the resident-offered note. -->
       <div class="field">
         <label class="checkbox-field" for="shelter-private">
           <input id="shelter-private" type="checkbox" formControlName="privateLocation" />
@@ -237,8 +234,8 @@
           </button>
         </div>
 
-        <!-- (map-crisis-actions): the shared .num-tabular class keeps the
-           coordinate figures from shifting while they update. -->
+        <!-- The shared .num-tabular class keeps the coordinate figures
+           from shifting while they update. -->
         <p
           class="location-readout num-tabular"
           [class.location-readout--empty]="location() === null"
@@ -253,19 +250,11 @@
         }
       </fieldset>
 
-      <!-- The submit button: create mode says "Submit shelter" (a new row);
-         edit mode says "Save changes" — this is a save, not a new
-         submission. The pending copy matches the mode ('Saving…'). -->
+      <!-- The submit button: create mode says "Submit shelter" (a new
+         row); edit mode says "Save changes" — this is a save, not a new
+         submission. The pending copy matches the mode. -->
       <button type="submit" class="btn btn--primary" [disabled]="pending() || editLoading()">
-        {{
-          pending()
-            ? editMode()
-              ? ('account.saving' | t)
-              : ('submit.submitting' | t)
-            : editMode()
-              ? ('account.save' | t)
-              : ('submit.submit' | t)
-        }}
+        {{ submitButtonLabel() }}
       </button>
     </form>
   }

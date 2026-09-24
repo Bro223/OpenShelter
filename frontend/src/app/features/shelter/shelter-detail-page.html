@@ -12,18 +12,17 @@
       <div class="shelter-detail__title-row">
         <h1 class="page-title">{{ shelter()?.name ?? ('detail.titleFallback' | t) }}</h1>
         @if (shelter(); as s) {
-          <!-- Source/trust badge (community-review-queue): registry rows
-               say which registry; USER rows say their trust state (NEW =
-               "Newly added" on the unverified-yellow badge pair, CONFIRMED
-               = "Community-checked" on the verified green tint; the badge
-               text carries the state). -->
+          <!-- Source/trust badge: registry rows say which registry; USER
+               rows say their trust state (NEW = "Newly added" on the
+               unverified-yellow badge pair, CONFIRMED = "Community-checked"
+               on the verified green tint; the badge text carries the
+               state). -->
           <span class="badge" [ngClass]="communityBadgeClass(s)">
             {{ sourceTrustLabel(s) }}
           </span>
           @if (submitterVerificationKey(s); as submitterKey) {
-            <!-- The submitter's verification depth
-                 (submitter-verification-badge): derived LIVE by the API from
-                 the author's current claims, so a row added at 1/2
+            <!-- The submitter's verification depth: derived LIVE by the API
+                 from the author's current claims, so a row added at 1/2
                  verification reads "fully verified" the moment the second
                  channel is confirmed — nothing is stored on the row. Absent
                  for registry rows, deleted accounts and unverified authors. -->
@@ -32,14 +31,13 @@
           @if (isPrivateLocation(s)) {
             <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
           }
-          <!-- Trust badges (shelter-trust-and-reports): same copy rules
-               as the map list row — reported /
-               fresh-CLOSED (amber; fresh OPEN renders no badge) /
-               occupancy. -->
+          <!-- Trust badges: same copy rules as the map list row —
+               reported / fresh-CLOSED (amber; fresh OPEN renders no
+               badge) / occupancy. -->
           @if (hasTrustBadges(s)) {
             @if (hasReports(s)) {
-              <!-- The count — the open trust-report sum that
-                   drives the badge (single-sourced with the map row). -->
+              <!-- The count: the open trust-report sum that drives the
+                   badge (single-sourced with the map row). -->
               <span class="badge badge--reported">{{ reportedBadgeText(s) }}</span>
             }
             @if (openStatusBadgeText(s.openStatus); as openText) {
@@ -53,17 +51,16 @@
       </div>
       @if (shelter(); as s) {
         @if (s.source === 'USER' && s.reviewStatus === 'NEW') {
-          <!-- The unverified warning (community-review-queue): community
-               rows in the NEW state only — CONFIRMED rows keep the
-               "Community-checked" badge and NO warning. Subtle muted
-               styling next to the trust-state badge — a caveat, NOT the
-               crisis orange. -->
+          <!-- The unverified warning: NEW community rows only — CONFIRMED
+               rows keep the "Community-checked" badge and NO warning.
+               Subtle muted styling next to the trust-state badge — a
+               caveat, NOT the crisis orange. -->
           <p class="community-warning">{{ 'shelter.unverifiedWarning' | t }}</p>
         }
         @if (s.inaccurate) {
-          <!-- Marked inaccurate: the single-sourced warning —
-               the flag is the treatment, the row stays visible (status and
-               trust state untouched). Independent of the review state. -->
+          <!-- Marked inaccurate: the single-sourced warning — the flag is
+               the treatment, the row stays visible (status and trust state
+               untouched). Independent of the review state. -->
           <p class="community-warning">{{ 'account.contrib.inaccurate' | t }}</p>
         }
         @if (isPrivateLocation(s)) {
@@ -74,15 +71,14 @@
       }
       @if (shelter(); as s) {
         @if (hasCoordinates(s)) {
-          <!-- Navigate actions (map-crisis-actions): small secondary
-               links near the name — they leave the app to the phone's own
-               navigation app, they do not navigate within it, and they do
-               not compete with the back link. The visible labels are the
-               BRAND NAMES only (owner: short labels); the meaningful
-               accessible names live in the aria-labels (detail.navigateAria
-               / detail.appleMapsAria) — action + destination + service,
-               so a screen reader hears what each link does, not just a
-               brand. -->
+          <!-- Navigate actions: small secondary links near the name — they
+               leave the app to the phone's own navigation app, they do not
+               navigate within it, and they do not compete with the back
+               link. The visible labels are the BRAND NAMES only (short
+               labels); the meaningful accessible names live in the
+               aria-labels (detail.navigateAria / detail.appleMapsAria) —
+               action + destination + service, so a screen reader hears what
+               each link does, not just a brand. -->
           <div class="shelter-detail__navigate">
             <a
               [href]="navigateUrl(s)"
@@ -98,10 +94,10 @@
               [attr.aria-label]="'detail.appleMapsAria' | t: { name: s.name }"
               >{{ 'detail.appleMaps' | t }}</a
             >
-            <!-- Distance from you (location-navigation): the page's
-                 ONLY geolocation trigger — browser asks first, the point
-                 never leaves the device, the result is the straight-line
-                 honesty line under the coordinates (never a route claim). -->
+            <!-- Distance from you: the page's ONLY geolocation trigger —
+                 the browser asks first, the point never leaves the device,
+                 the result is the straight-line honesty line under the
+                 coordinates (never a route claim). -->
             <button
               type="button"
               class="shelter-detail__distance"
@@ -127,8 +123,7 @@
         }
       }
       @if (distanceKm() !== null) {
-        <!-- Distance honesty (location-navigation): the
-             straight line from the user's browser position — never a
+        <!-- The straight line from the user's browser position — never a
              walking-route or official claim. -->
         <p class="shelter-detail__distance-line num-tabular" role="status">
           {{ 'detail.distance.fromYou' | t: { distance: straightLineText(distanceKm()!) } }}
@@ -137,14 +132,14 @@
         <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
       }
       @if (shelter(); as s) {
-        <!-- Last verified: the per-entry server-derived stamp (
-             registry rows name the registry the check came from). For NEW
-             community rows the line IS the not-yet-verified signal ("Newly
-             added X d ago — not yet verified"). .num-tabular keeps the
-             figures from shifting. The community report count is the
-             SEPARATE line below — the two facts (when this entry was
-             verified against its source / how many community reports
-             exist) are never joined into one string. -->
+        <!-- Last verified: the per-entry server-derived stamp (registry
+             rows name the registry the check came from). For NEW community
+             rows the line IS the not-yet-verified signal ("Newly added X d
+             ago — not yet verified"). .num-tabular keeps the figures from
+             shifting. The community report count is the SEPARATE line
+             below — the two facts (when this entry was verified against
+             its source / how many community reports exist) are never
+             joined into one string. -->
         <p class="shelter-detail__verified num-tabular">{{ lastVerifiedText(s) }}</p>
         @if (hasCommunityReports(s)) {
           <!-- The labeled lifetime total over all report types — a
@@ -162,13 +157,13 @@
       <app-banner severity="success" [message]="n.text" />
     }
 
-    <!-- Location map: ALWAYS mounted in the non-not-found state (not inside
-         the shelter branch) so the container exists at view-init time while
-         the shelter — and its coordinates — are still in flight. Loading /
-         error show the placeholder background; on load success the page
-         flies here to street level and pins the shelter. The map is a
-         picture of WHERE the shelter is: static marker, no picking, no
-         marker navigation. -->
+    <!-- Location map: ALWAYS mounted in the non-not-found state (not
+         inside the shelter branch) so the container exists at view-init
+         time while the shelter — and its coordinates — are still in
+         flight. Loading / error show the placeholder background; on load
+         success the page flies here to street level and pins the shelter.
+         The map is a picture of WHERE the shelter is: static marker, no
+         picking, no marker navigation. -->
     <section class="detail-section" aria-labelledby="location-heading">
       <h2 class="section-title" id="location-heading">{{ 'detail.locationHeading' | t }}</h2>
       <div #mapEl class="shelter-detail__map"></div>
@@ -189,17 +184,13 @@
         </section>
       }
 
-      <!-- Report how full (shelter-trust-and-reports): three large
-           band buttons, one tap, latest-wins. The user's current band is
-           pre-selected from yourOccupancyBand; the current aggregate +
-           recency render ONLY while fresh (the null block shows nothing).
-           Verified viewers report; unverified/anonymous get the existing
-           redirect vocabulary. -->
+      <!-- Report how full: three large band buttons, one tap,
+           latest-wins. The user's current band is pre-selected from
+           yourOccupancyBand; the current aggregate + recency render ONLY
+           while fresh (the null block shows nothing). Verified viewers
+           report; unverified/anonymous get the redirect vocabulary. -->
       <section class="detail-section" aria-labelledby="occupancy-heading">
         <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
-        <!-- Community pulse: the how-full gauge moved to the shared
-             bottom container directly above the recent log (placement
-             pass) — this section keeps the band picker. -->
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div class="band-picker" role="group" [attr.aria-label]="'detail.occupancy.aria' | t">
@@ -237,8 +228,8 @@
         }
       </section>
 
-      <!-- Report open/closed: two large state buttons,
-           one tap, latest-wins — the "Report how full" section's structure
+      <!-- Report open/closed: two large state buttons, one tap,
+           latest-wins — the "Report how full" section's structure
            mirrored 1:1 (same gates, same redirect vocabulary, same error
            handling). The user's current state is pre-selected from
            yourOpenStatus (radio-style pressed state); a tap fires
@@ -247,9 +238,6 @@
            picker is where the signal lives. -->
       <section class="detail-section" aria-labelledby="open-status-heading">
         <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
-        <!-- Community pulse: the open/closed gauge moved to the
-             shared bottom container directly above the recent log
-             (placement pass) — this section keeps the state picker. -->
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div
@@ -288,9 +276,9 @@
         }
       </section>
 
-      <!-- Report this shelter (shelter-trust-and-reports): the typed
-           report (verified only, one per type). The factual types
-           (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
+      <!-- Report this shelter: the typed report (verified only, one per
+           type). The factual types (WRONG_LOCATION / OTHER) carry the
+           detail field. -->
       <section class="detail-section" aria-labelledby="report-shelter-heading">
         <h2 class="section-title" id="report-shelter-heading">{{ 'detail.reportThis' | t }}</h2>
         @if (auth.initialized() && auth.authenticated()) {
@@ -374,25 +362,24 @@
         }
       </section>
 
-      <!-- Community pulse: the two gauges, moved to the bottom of
-           the page — DIRECTLY above the recent log they summarise
-           (owner placement decision; the pickers stay in their own
-           sections above). The weighted shares (server-derived) drive
-           the needles. Layout (owner overlay fix): the ARROWS sit in
+      <!-- Community pulse: the two gauges, at the bottom of the page —
+           DIRECTLY above the recent log they summarise (the pickers stay
+           in their own sections above). The weighted shares
+           (server-derived) drive the needles. Layout: the ARROWS sit in
            .pulse-gauges__arrows — a wrapping row, side by side whenever
            both 240px gauges fit, stacked below that; the COUNT LINES
            (the captions — each gauge's accessible text, associated via
            aria-describedby) sit in .pulse-gauges__captions, ONE
            normal-flow column below the arrows, stacked one under the
-           other. The window hint + ONE general estimate notice ("the
+           other. The window hint + ONE general estimate note ("the
            arrows show a calculated estimate, not confirmed data" — a
            phrase true for BOTH arrows: open/closed is a probability,
-           how-full an expected level; see detail.pulse.estimateNote)
-           sit at the top with the window hint. The inline captions used
-           to overflow their
-           240px boxes (the count line's nowrap tokens carried no break
-           opportunities) and paint over each other; the column + the
-           wbr between the tokens keeps both lines always fully
+           how-full an expected level; see detail.pulse.estimateNote) sit
+           at the top with the window hint. The captions sit in the column
+           (not inline under the arrows) because the count line's nowrap
+           tokens carry no break opportunities — inline they overflowed
+           their 240px boxes and painted over each other; the column +
+           the wbr between the tokens keeps both lines always fully
            readable. Rendered for EVERY viewer (guests included) —
            read-only; the empty state is explicit (no fresh reports →
            no neutral arrow). DOM order: the arrows, then their count
@@ -400,22 +387,21 @@
            below. -->
       <div class="pulse-gauges">
         <!-- The window line: the gauges/counts are a FRESHNESS tally over
-             the last two hours (the BE's OCCUPANCY_FRESHNESS_WINDOW) while
-             the log below is a CHRONOLOGICAL log with no such window. The
-             two time bases are stated right where the reader meets the
-             counts — without it, "0 space available" reads as a
-             contradiction of the (older) log entries. First in the DOM:
-             a screen reader hears the window before the numbers it
-             qualifies. -->
+             the last two hours while the log below is a CHRONOLOGICAL log
+             with no such window. The two time bases are stated right where
+             the reader meets the counts — without it, "0 space available"
+             reads as a contradiction of the (older) log entries. First in
+             the DOM: a screen reader hears the window before the numbers
+             it qualifies. -->
         <p class="pulse-gauges__hint">{{ 'detail.pulse.windowHint' | t }}</p>
-        <!-- ONE general notice for the whole gauges section (owner): the
-             arrows show a CALCULATED ESTIMATE from the fresh reports,
-             not confirmed data. "Estimate" is true for BOTH arrows —
+        <!-- ONE general notice for the whole gauges section: the arrows
+             show a CALCULATED ESTIMATE from the fresh reports, not
+             confirmed data. "Estimate" is true for BOTH arrows —
              open/closed is a probability, how-full an expected level —
-             so the single phrase never mis-describes the how-full arrow
-             (see the key's doc in core/i18n/messages.ts). Sits with the
-             window hint; the per-gauge COUNT LINES below stay each
-             gauge's accessible text (aria-describedby → count line). -->
+             so the single phrase never mis-describes the how-full arrow.
+             Sits with the window hint; the per-gauge COUNT LINES below
+             stay each gauge's accessible text (aria-describedby → count
+             line). -->
         <p class="pulse-gauges__hint">{{ 'detail.pulse.estimateNote' | t }}</p>
         <div class="pulse-gauges__arrows">
           @if (occupancyPulse(); as occPulse) {
@@ -471,12 +457,11 @@
         }
       </div>
 
-      <!-- Report log (community pulse): the merged CHRONOLOGICAL log —
-           what was reported + when, newest first, capped server-side,
-           with NO 2-hour window (the gauges above are the windowed
-           tally; the heading + the window line say so). NO reporter
-           identity (privacy: "a community member"). Read-only for every
-           viewer. -->
+      <!-- Report log: the merged CHRONOLOGICAL log — what was reported +
+           when, newest first, capped server-side, with NO 2-hour window
+           (the gauges above are the windowed tally; the heading + the
+           window line say so). NO reporter identity (privacy: "a
+           community member"). Read-only for every viewer. -->
       <section class="detail-section" aria-labelledby="recent-reports-heading">
         <h2 class="section-title" id="recent-reports-heading">{{ 'detail.pulse.recent' | t }}</h2>
         @if (recentReports().length) {
@@ -497,31 +482,24 @@
         }
       </section>
 
-      <!-- Practical info (INFO-LAST-REPORTED): what was LAST REPORTED —
-           the Status row is the newest OPEN/CLOSED report, the Capacity
-           row the newest SPACE/GETTING_FULL/FULL report, each with its
-           own date and time in the viewer's locale (<time datetime> is
-           the machine-readable instant). A kind with no report in the
-           recent log → that row's explicit empty state (never a stale or
-           invented status).
+      <!-- Practical info: what was LAST REPORTED — the Status row is the
+           newest OPEN/CLOSED report, the Capacity row the newest
+           SPACE/GETTING_FULL/FULL report, each with its own date and time
+           in the viewer's locale (<time datetime> is the machine-readable
+           instant). A kind with no report in the recent log → that row's
+           explicit empty state (never a stale or invented status).
 
-           NO derived-status row here (owner decision — do not re-add):
-           the derived display status (shelterStatusText in
-           shared/shelter-copy.ts) consults the SAME fresh open/closed
-           reports and so usually prints the same word these rows already
-           show, and the one case where it would differ — a lifecycle-
-           INACTIVE row reading "Closed" — cannot be reached on this page
-           (the public detail read 404s INACTIVE rows). The last-reported
-           rows are strictly more informative: they carry the time. The
-           rule is NOT dead — the map's "Open" chip (isOpenRow), the
-           header's amber badge (openStatusBadgeText) and the
-           admin-facing displays still consume it. Its full order, for
-           the record: the FRESH open/closed reports outrank the
-           lifecycle status — a fresh lone CLOSED report hedges
-           ("Reported closed"), a fresh firm one (two+) is firm
-           ("Closed"), a fresh OPEN reads "Open"; only with nothing fresh
-           the lifecycle status decides — INACTIVE reads "Closed",
-           ACTIVE reads "Open (no recent reports)". -->
+           NO derived-status row here — do not re-add: the derived display
+           status (shelterStatusText in shared/shelter-copy.ts) consults
+           the SAME fresh open/closed reports and so usually prints the
+           same word these rows already show, and the one case where it
+           would differ — a lifecycle-INACTIVE row reading "Closed" —
+           cannot be reached on this page (the public detail read 404s
+           INACTIVE rows). The last-reported rows are strictly more
+           informative: they carry the time. The rule is NOT dead — the
+           map's "Open" chip (isOpenRow), the header's amber badge
+           (openStatusBadgeText) and the admin-facing displays still
+           consume it. -->
       <section class="detail-section" aria-labelledby="info-heading">
         <h2 class="section-title" id="info-heading">{{ 'detail.infoHeading' | t }}</h2>
         <dl class="fact-list">

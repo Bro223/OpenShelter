@@ -35,11 +35,10 @@
 }
 
 /* The shared .badge pill (styles.scss) carries the typography, shape and
-   the registry/user/trust fills; detail-local only: the submitter's
-   verification depth (submitter-verification-badge) — a NEUTRAL chip like
-   occupancy/private — it describes WHO added the row, not a state, so it
-   must not compete with the trust badge beside it or the crisis-orange
-   reported badge. */
+   the registry/user/trust fills. Detail-local: the submitter's
+   verification depth — a NEUTRAL chip like occupancy/private. It
+   describes WHO added the row, not a state, so it must not compete with
+   the trust badge beside it or the crisis-orange reported badge. */
 .badge {
   &.badge--submitter {
     background: var(--color-bg-subtle);
@@ -53,10 +52,10 @@
   color: var(--color-muted);
 }
 
-/* The permanent unverified warning for NEW community rows (community-
-   review-queue): an inset note in the muted/subtle vocabulary —
-   deliberately NOT the crisis orange (--color-cta) and not the reported
-   token. A caveat that lives next to the trust-state badge. */
+/* The permanent unverified warning for NEW community rows: an inset note
+   in the muted/subtle vocabulary — deliberately NOT the crisis orange
+   (--color-cta) and not the reported token. A caveat that lives next to
+   the trust-state badge. */
 .community-warning {
   margin: 0;
   padding: var(--space-8) var(--space-12);
@@ -79,9 +78,9 @@
   font-size: var(--text-sm);
 }
 
-/* Navigate actions (map-crisis-actions): small secondary text links
-   deliberately quieter than the back link — they open the phone's own
-   navigation app (Google Maps walking / Apple Maps), never in-app routes. */
+/* Navigate actions: small secondary text links deliberately quieter than
+   the back link — they open the phone's own navigation app (Google Maps
+   walking / Apple Maps), never in-app routes. */
 .shelter-detail__navigate {
   display: flex;
   gap: var(--space-16);
@@ -96,10 +95,10 @@
     }
   }
 
-  /* Distance-from-you action (location-navigation): styled EXACTLY
-     like the two deep links beside it (same size/colour/underline-on-
-     hover) — a third secondary link, not a new affordance class. The
-     resets undo the UA button defaults so it reads as a link. */
+  /* Distance-from-you action: styled EXACTLY like the two deep links
+     beside it (same size/colour/underline-on-hover) — a third secondary
+     link, not a new affordance class. The resets undo the UA button
+     defaults so it reads as a link. */
   .shelter-detail__distance {
     padding: 0;
     border: none;
@@ -121,18 +120,18 @@
   }
 }
 
-/* The distance-from-you result line (location-navigation) — the same
-   muted meta language as the coordinate line: a measured fact (the
-   straight-line honesty format + " from you"), not a caveat. */
+/* The distance-from-you result line — the same muted meta language as
+   the coordinate line: a measured fact (the straight-line honesty format
+   + " from you"), not a caveat. */
 .shelter-detail__distance-line {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--text-sm);
 }
 
-/* The distance-from-you per-error line (location-navigation) — the
-   same danger language as the page's other inline errors; deliberately
-   NOT the crisis orange (--color-cta stays reserved). */
+/* The distance-from-you per-error line — the same danger language as
+   the page's other inline errors; deliberately NOT the crisis orange
+   (--color-cta stays reserved). */
 .shelter-detail__distance-error {
   margin: 0;
   color: var(--color-danger);
@@ -204,11 +203,11 @@
   font-size: var(--text-md);
 }
 
-/* The practical info block (INFO-LAST-REPORTED): label/value rows — the
-   LAST REPORTED open/closed state + the LAST REPORTED how-full band, each
-   with its <time> stamp in the viewer's locale. (The derived display
-   status is deliberately NOT a row here — see the template comment.)
-   The block is a definition list: dt is the muted label, dd the value. */
+/* The practical info block: label/value rows — the LAST REPORTED
+   open/closed state + the LAST REPORTED how-full band, each with its
+   <time> stamp in the viewer's locale. The derived display status is
+   deliberately NOT a row here — see the template comment. The block is
+   a definition list: dt is the muted label, dd the value. */
 .fact-list {
   margin: 0;
   display: flex;
@@ -260,11 +259,11 @@
   }
 }
 
-/* Report how full (shelter-trust-and-reports): three large band
-   buttons. The .btn base carries the 48px minimum target; the active
-   band is the user's CURRENT report (yourOccupancyBand pre-select) and
-   flips to the primary fill. Occupancy is display-only — the active state
-   is the primary colour, never success/crisis. */
+/* Report how full: three large band buttons. The .btn base carries the
+   48px minimum target; the active band is the user's CURRENT report
+   (yourOccupancyBand pre-select) and flips to the primary fill.
+   Occupancy is display-only — the active state is the primary colour,
+   never success/crisis. */
 .band-picker {
   display: flex;
   gap: var(--space-8);
@@ -375,10 +374,9 @@
   flex-wrap: wrap;
 }
 
-/* Community pulse (report aggregation UI): the explicit empty state
-   line (no fresh reports → NO neutral gauge) and the recent-report log.
-   The pulse block itself stacks (layout pass): the arrows row, then the
-   captions column below it. */
+/* Community pulse: the explicit empty-state line (no fresh reports →
+   NO neutral gauge) and the recent-report log. The pulse block itself
+   stacks: the arrows row, then the captions column below it. */
 .pulse-empty {
   margin: var(--space-8) 0 0;
   font-size: var(--text-sm);
@@ -395,29 +393,26 @@
   color: var(--color-muted);
 }
 
-/* The pulse block (community pulse, layout pass): a COLUMN — the
-   arrows row, then the captions column below it. The owner's overlay
-   fix: the count lines (the captions — each gauge's accessible text,
-   associated via aria-describedby) used to sit under their arrows in
-   the inline row; the count line's nowrap tokens carry no break
-   opportunities, so the line overflowed its 240px box and painted over
-   the neighbour's caption. Now the lines sit in one normal-flow column
-   below the arrows — stacked one under the other, the container grows
-   with its content, so they can never overlay. */
+/* The pulse block: a COLUMN — the arrows row, then the captions column
+   below it. The captions are each gauge's accessible text, associated
+   via aria-describedby. They sit in one normal-flow column below the
+   arrows (never side by side with them): the count line's nowrap tokens
+   carry no break opportunities, so inline they overflowed their 240px
+   boxes and painted over each other — normal flow makes that
+   impossible. */
 .pulse-gauges {
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
 }
 
-/* The two community-pulse ARROWS, moved to the bottom of the page
-   directly above the recent log (owner placement pass). A wrapping
-   flex row: side by side whenever both 240px gauges fit (wide
-   viewports), one per line below that — the wrap point is the fit
-   itself, so there is no breakpoint to drift and nothing to overflow
-   (at 360px the 320px of content takes the two 240px gauges stacked).
-   DOM order inside: the how-full gauge first, then open/closed — the
-   page's old section order, kept for screen readers. */
+/* The two community-pulse ARROWS, at the bottom of the page directly
+   above the recent log. A wrapping flex row: side by side whenever both
+   240px gauges fit (wide viewports), one per line below that — the wrap
+   point is the fit itself, so there is no breakpoint to drift and
+   nothing to overflow (at 360px the 320px of content takes the two
+   240px gauges stacked). DOM order inside: the how-full gauge first,
+   then open/closed. */
 .pulse-gauges__arrows {
   display: flex;
   flex-wrap: wrap;
@@ -437,10 +432,10 @@
 }
 
 /* The captions' column: one count line per gauge, stacked one under the
-   other, normal flow — the column grows with its content (no absolute
-   positioning, no fixed height), so the lines can never overlay. The
-   hosts are full-width blocks: a line wider than 240px now wraps
-   between its tokens (the wbr opportunities) instead of overflowing. */
+   other, normal flow — the column grows with its content, so the lines
+   can never overlay. The hosts are full-width blocks: a line wider than
+   240px now wraps between its tokens (the wbr opportunities) instead of
+   overflowing. */
 .pulse-gauges__captions {
   display: flex;
   flex-direction: column;
@@ -458,11 +453,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
-  /* A bit bigger / more present than a cramped list (owner placement
-     pass): ~6 comfortable rows visible before it scrolls — the BE caps
-     recent reports at 10, so a full list scrolls inside the box instead
-     of stretching the page (page-specific layout dimension, documented
-     exception, not spacing). */
+  /* A bit bigger / more present than a cramped list: ~6 comfortable
+     rows visible before it scrolls — the BE caps recent reports at 10,
+     so a full list scrolls inside the box instead of stretching the
+     page (page-specific layout dimension, documented exception, not
+     spacing). */
   max-height: 200px;
   overflow-y: auto;
 }

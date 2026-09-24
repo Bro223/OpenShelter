@@ -36,12 +36,13 @@ import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService } from '../../shared/leafl
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
-/** Which capture mode last wrote the shared location state (design decision 1).
- * 'saved' is the edit-mode prefill: the pin comes from the row being
- *  edited, not from a capture — it renders no "Location from …" hint. */
+/** Which capture mode last wrote the shared location state. 'saved' is
+ *  the edit-mode prefill: the pin comes from the row being edited, not
+ *  from a capture — it renders no "Location from …" hint. */
 type LocationSource = 'typed' | 'link' | 'geolocation' | 'map-pick' | 'address-search' | 'saved';
 
-/** The ONE shared location state: every capture mode writes it, the map marker + read-only readout read it. */
+/** The ONE shared location state: every capture mode writes it, the map
+ *  marker + the read-only readout read it. */
 interface PickedLocation {
   latitude: number;
   longitude: number;
@@ -52,7 +53,7 @@ interface PickedLocation {
   accuracyM: number | null;
 }
 
-/** The per-reason inline errors of the location section (design decision 5 + spec). */
+/** The per-reason inline errors of the location section. */
 type LocationErrorKind =
   | 'missing'
   | 'no-pair'
@@ -83,8 +84,8 @@ const LOCATION_ERROR_KEY: Record<LocationErrorKind, MessageKey> = {
   'short-link-unavailable': 'submit.loc.shortLinkUnavailable',
 };
 
-/** The prefill ('saved') names no capture mode — the hint line stays off.
- *  The five real captures keep their per-source copy. */
+/** The five real capture modes name their copy; the prefill ('saved')
+ *  names none — the hint line stays off. */
 const SOURCE_KEY: Record<Exclude<LocationSource, 'saved'>, MessageKey> = {
   typed: 'submit.hint.source.typed',
   link: 'submit.hint.source.link',
@@ -93,9 +94,9 @@ const SOURCE_KEY: Record<Exclude<LocationSource, 'saved'>, MessageKey> = {
   'address-search': 'submit.hint.source.address',
 };
 
-/** The inline states of the address search (shelter-address-search). A search
- * failure NEVER touches the location state (no pin change) and never blocks
- * form submission — search is an optional capture mode, not a gate. */
+/** The inline states of the address search. A search failure NEVER
+ *  touches the location state (no pin change) and never blocks form
+ *  submission — search is an optional capture mode, not a gate. */
 type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
 
 const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
@@ -105,41 +106,31 @@ const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
 };
 
 /**
- * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
- * (05-shelter-review-flow.puml, shelter-location-input). Name (≤200),
- * optional description (≤2000), optional capacity (1–100 000), the
- * private-home declaration (community-review-queue: locationKind), and
- * a location captured five ways — smart text input (coordinate string /
- * long-form map URL, parsed by shared/location-input.ts), "Use my location"
- * (browser geolocation), maps.app.goo.gl short links (POST /api/geo/resolve),
- * an Estonia address search (client-side OSM Nominatim via GeocodeGateway —
- * button/Enter submit, no autosuggest; the only client-side external call),
- * and the mini-map click/drag — all writing ONE shared location signal
- * (design decision 1). Resolved coordinates are displayed read-only.
+ * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission.
+ * Name (≤200), optional description (≤2000), optional capacity (1–100
+ * 000), the private-home declaration (locationKind), and a location
+ * captured five ways — smart text input (coordinate string / long-form
+ * map URL), "Use my location" (browser geolocation), maps.app.goo.gl
+ * short links (POST /api/geo/resolve), an Estonia address search
+ * (client-side OSM Nominatim via GeocodeGateway) and the mini-map
+ * click/drag — all writing ONE shared location signal. Resolved
+ * coordinates are displayed read-only.
  *
- * On 201 the row is PUBLIC IMMEDIATELY as NEW (community-review-queue —
- * no blocking queue): the page STAYS on /submit with a success panel
- * ("listed now, marked as newly added, community reports confirm it")
- * linking to the (already public) detail page. On 401/403/400 the
- * backend message shows through the banner (403 adds a /verify link — the
- * claim can lapse mid-session) and the form input is preserved.
+ * On 201 the row is PUBLIC IMMEDIATELY as NEW (no blocking queue): the
+ * page STAYS on /submit with a success panel linking to the (already
+ * public) detail page. On 401/403/400 the backend message shows through
+ * the banner (403 adds a /verify link — the claim can lapse
+ * mid-session) and the form input is preserved.
  *
- * EDIT MODE (shelter-editing reuses the add form): /submit?edit=<id>
- * renders this SAME form (same fields, same capture modes) prefilled with
- * the row's current values. The row is fetched from GET /api/shelters/mine
+ * EDIT MODE reuses this same form: /submit?edit=<id> prefills it with
+ * the row's current values, fetched from GET /api/shelters/mine
  * (owner-scoped, ALL statuses) — an id that is not the caller's, or a
  * malformed param, renders the not-found state, never someone else's
- * data. The heading + submit button carry the edit/save copy
- * ('account.edit' / 'account.save' — the catalog has no submit-scoped edit
- * heading yet; 'account.edit' is the existing key that says "this is an
- * edit"). Save is PUT /api/shelters/{id} with the same payload shape as
- * create (locationKind explicit). The edit PUBLISHES IMMEDIATELY — the
- * backend keeps the row's status (an edit never unpublishes or removes it
- * from the map) — and per the owner's decision the shelter then carries
+ * data. Save is PUT /api/shelters/{id} with the same payload shape as
+ * create. The edit PUBLISHES IMMEDIATELY — the backend keeps the row's
+ * status (an edit never unpublishes it) — and the shelter then carries
  * the same pending-verification (NEW) trust state a newly added shelter
- * gets until it is confirmed again: a STATUS, not a gate in front of the
- * edit. The account area no longer hosts its own reduced edit form — its
- * Edit entry opens this route.
+ * gets: a STATUS, not a gate in front of the edit.
  */
 @Component({
   selector: 'app-submit-shelter-page',
@@ -154,7 +145,6 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly geo = inject(GeoGateway);
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
-  /** Resolves the location capture copy (i18n-et-en). */
   private readonly i18n = inject(I18nService);
   /** The active route: /submit?edit=<id> opens the form in edit mode. */
   private readonly route = inject(ActivatedRoute);
@@ -168,16 +158,15 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
 
   constructor() {
     /**
-     * Fires after EVERY render of this component. In edit mode the
-     * form — and with it the #mapEl container — mounts only after the
-     * ?edit row has loaded, so ngAfterViewInit's one-shot create misses
-     * the container (create() no-ops on it) and the map would stay dead:
-     * an empty grey .submit-map box with no tiles and no pin (the owner's
-     * report). This re-creates the instance the moment the container is
-     * in the DOM (no-op while an instance is alive or the container is
-     * absent) and re-pins when the location is already picked (the edit
-     * prefill's setPick/flyTo ran on the missing map and no-oped) — the
-     * same idiom as the detail page's Location map.
+     * Fires after EVERY render. In edit mode the form — and with it the
+     * #mapEl container — mounts only after the ?edit row has loaded, so
+     * ngAfterViewInit's one-shot create misses the container and the map
+     * would stay dead: an empty grey box with no tiles and no pin. This
+     * re-creates the instance the moment the container is in the DOM
+     * (no-op while an instance is alive or the container is absent) and
+     * re-pins when the location is already picked (the prefill's
+     * setPick/flyTo ran on the missing map and no-oped) — the same
+     * idiom as the detail page's Location map.
      */
     afterEveryRender(() => {
       if (this.ensureMap()) {
@@ -206,8 +195,8 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       validators: [Validators.maxLength(2000)],
     }),
     capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
-    // The private-home declaration (community-review-queue): maps to the
-    // payload's locationKind (PRIVATE when checked, PUBLIC by default).
+    // The private-home declaration: maps to the payload's locationKind
+    // (PRIVATE when checked, PUBLIC by default).
     privateLocation: new FormControl(false, { nonNullable: true }),
   });
 
@@ -215,18 +204,16 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly error = signal<string | null>(null);
   /** True when the last failure was a 403 — offer the /verify path. */
   protected readonly verifyLink = signal(false);
-  /** The created row (community-review-queue): set on 201 — the row is
-   *  public immediately as NEW, so the success panel links to the detail
-   *  page instead of navigating there (the form stays for a second
-   * submission). In edit mode it is the UPDATED row — the same panel
-   *  is the save confirmation (the edit publishes immediately with the
-   *  NEW pending-verification state). */
+  /** The created row: set on 201 — the row is public immediately as NEW,
+   *  so the success panel links to the detail page instead of navigating
+   *  there (the form stays for a second submission). In edit mode it is
+   *  the UPDATED row — the same panel is the save confirmation (the edit
+   *  publishes immediately with the NEW pending-verification state). */
   protected readonly submitted = signal<ShelterDto | null>(null);
 
-  // ---- edit mode (editing reuses this form) ----------------------------
+  // ---- edit mode ---------------------------------------------------------
   /** True while /submit?edit=<id> — the heading + submit button carry the
-   *  edit/save copy. Creation is this same form WITHOUT the param — the
-   *  /submit path is unchanged. */
+   *  edit/save copy. Creation is this same form WITHOUT the param. */
   protected readonly editMode = signal(false);
   /** True while the ?edit row is being loaded from /mine. */
   protected readonly editLoading = signal(false);
@@ -236,15 +223,12 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   /**
    * True when the /mine load failed with a 401 — the session is dead. The
    * central interceptor has ALREADY done the session work (cleared the
-   * tokens, routed to /login?session=expired, rethrown the error —
-   * api-interceptor.ts handles 401 exactly once, pages never do); the
-   * page's half of the pattern (the same one /account's contributions
-   * panel follows: an explicit error state, session logic stays central)
-   * is this explicit unavailable state — rendered for the window until the
-   * bounce lands and on any back-button return. It never renders the form
-   * (it could never save without the row's id) and with it the mini-map:
-   * an unauthorized page leaves no dead grey .submit-map box behind.
-   * Other load failures (5xx, network) keep the banner instead.
+   * tokens, routed to /login?session=expired — api-interceptor.ts handles
+   * 401 exactly once, pages never do); this explicit state renders for
+   * the window until the bounce lands and on any back-button return. It
+   * never renders the form — and with it the mini-map: an unauthorized
+   * page leaves no dead grey map box behind. Other load failures (5xx,
+   * network) keep the banner instead.
    */
   protected readonly sessionExpired = signal(false);
   /** The id of the row being edited — set once the /mine row is found.
@@ -260,22 +244,23 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   /** True while the browser geolocation request is in flight. */
   protected readonly locating = signal(false);
   /**
-   * The smart text input's content. Deliberately a plain input (not a form
-   * control): it is a capture AFFORDANCE, not a submitted field — the
-   * submitted coordinates always come from the shared location state.
-   * Doubles as the form's address field for address-search prefill
-   * (only-if-empty, stated in the help line near it — design decision 4).
+   * The smart text input's content. Deliberately a plain input (not a
+   * form control): it is a capture AFFORDANCE, not a submitted field —
+   * the submitted coordinates always come from the shared location
+   * state. Doubles as the form's address field for address-search
+   * prefill (only-if-empty, stated in the help line near it).
    */
   protected readonly locationText = signal('');
 
   /**
    * The monotonic capture generation (cross-mode capture race): every
-   * capture start — geolocation, short-link resolve, smart-input parse, map
-   * pick, address select — bumps this counter. Async callbacks capture
-   * their generation at start and NO-OP once a newer capture has superseded
-   * them: a late geolocation settle (up to 10 s) can neither overwrite a
-   * typed/map pin nor clear it with its error, and a late resolve 400 can
-   * neither overwrite nor clear a pick made while it was in flight.
+   * capture start — geolocation, short-link resolve, smart-input parse,
+   * map pick, address select — bumps this counter. Async callbacks
+   * capture their generation at start and no-op once a newer capture has
+   * superseded them: a late geolocation settle (up to 10 s) can neither
+   * overwrite a typed/map pin nor clear it with its error, and a late
+   * resolve 400 can neither overwrite nor clear a pick made while it was
+   * in flight.
    */
   private captureGeneration = 0;
 
@@ -347,15 +332,22 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Edit mode: /submit?edit=<id> prefills the SAME form with the
-   * row's current values. The row comes from GET /api/shelters/mine —
+   * The submit button's label: create mode says "Submit shelter" (a new
+   * row), edit mode "Save changes" (a save, not a new submission); the
+   * pending copy matches the mode ("Saving…" / "Submitting…").
+   */
+  protected submitButtonLabel(): string {
+    const pendingKey = this.editMode() ? 'account.saving' : 'submit.submitting';
+    const idleKey = this.editMode() ? 'account.save' : 'submit.submit';
+    return this.i18n.t(this.pending() ? pendingKey : idleKey);
+  }
+
+  /**
+   * Edit mode: /submit?edit=<id> prefills the SAME form with the row's
+   * current values. The row comes from GET /api/shelters/mine —
    * owner-scoped, ALL statuses — so an id that is not the caller's (or a
    * malformed param) is the not-found state, never a prefill of someone
-   * else's shelter. Save is PUT /api/shelters/{id} and publishes
-   * immediately (the backend keeps the row's status — an edit never
-   * unpublishes it); per the owner's decision the shelter then carries
-   * the same pending-verification (NEW) trust state a newly added shelter
-   * gets — a STATUS, not a gate in front of the edit.
+   * else's shelter.
    */
   ngOnInit(): void {
     const raw = this.route.snapshot.queryParamMap.get('edit');
@@ -368,32 +360,38 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       this.editMissing.set(true);
       return;
     }
+    void this.loadEditRow(id);
+  }
+
+  /**
+   * Loads the ?edit row from /mine. A 401 is the dead-session case: the
+   * central interceptor has cleared the session and routed to
+   * /login?session=expired — render the explicit session-expired state
+   * (its copy carries the message, no banner on top) instead of a half
+   * page that can never load its data. The 403/400/5xx/network branches
+   * keep the banner — the session is alive there and the user can retry
+   * on the page.
+   */
+  private async loadEditRow(id: number): Promise<void> {
     this.editLoading.set(true);
-    void this.gateway
-      .mine()
-      .then((rows) => {
-        const row = rows.find((r) => r.id === id) ?? null;
-        if (row === null) {
-          this.editMissing.set(true);
-          return;
-        }
-        this.prefillFromRow(row);
-        this.editingId.set(row.id);
-      })
-      .catch((failure: unknown) => {
-        // A 401 here is the dead-session case: the central interceptor has
-        // cleared the session and routed to /login?session=expired. Render
-        // the explicit session-expired state (its copy carries the message
-        // — no banner on top) instead of a half page that can never load
-        // its data. The 403/400/5xx/network branches keep the banner —
-        // the session is alive there and the user can retry on the page.
-        if (toApiError(failure).status === 401) {
-          this.sessionExpired.set(true);
-          return;
-        }
-        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
-      })
-      .finally(() => this.editLoading.set(false));
+    try {
+      const rows = await this.gateway.mine();
+      const row = rows.find((r) => r.id === id);
+      if (row === undefined) {
+        this.editMissing.set(true);
+        return;
+      }
+      this.prefillFromRow(row);
+      this.editingId.set(row.id);
+    } catch (failure: unknown) {
+      if (toApiError(failure).status === 401) {
+        this.sessionExpired.set(true);
+        return;
+      }
+      this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
+    } finally {
+      this.editLoading.set(false);
+    }
   }
 
   /**
@@ -420,7 +418,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Wires the pick callback (map click AND pick-marker drag -> the shared
+   * Wires the pick callback (map click AND pick-marker drag → the shared
    * location state) and creates the mini-map when the container already
    * exists (creation mode). In edit mode the form — and with it the
    * #mapEl container — mounts only after the ?edit row has loaded, so the
@@ -440,10 +438,10 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
 
   /**
    * Ensures the mini-map instance matches the rendered container: creates
-   * it when #mapEl is mounted and no instance is alive (first load, or the
-   * edit form's late-mounted container). No-op otherwise — safe to call
-   * from every render and every load outcome (the real create() is itself
-   * one-per-visit, so a stray call can never double the map).
+   * it when #mapEl is mounted and no instance is alive (first load, or
+   * the edit form's late-mounted container). No-op otherwise — safe to
+   * call from every render and every load outcome (the real create() is
+   * itself one-per-visit, so a stray call can never double the map).
    * @returns true when a fresh instance was created on this call.
    */
   private ensureMap(): boolean {
@@ -456,8 +454,9 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     return true;
   }
 
+  /** Destroys the mini-map with the page (page-scoped instance — zoneless
+   *  has no safety net). */
   ngOnDestroy(): void {
-    // Drop the mini-map instance + listeners (page-scoped, design decision 3).
     this.mapAlive = false;
     this.leaflet.destroy();
   }
@@ -507,10 +506,17 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /** A capture's async settle is only current if no newer capture
+   *  started in the meantime — a late settle must not overwrite, or clear
+   *  with its error, a pin made while it was in flight. */
+  private isCurrentCapture(generation: number): boolean {
+    return generation === this.captureGeneration;
+  }
+
   /**
-   * "Use my location" — high-accuracy geolocation, 10 s timeout, no cached
-   * positions (design decision 5). Each failure maps 1:1 to an inline
-   * message; the insecure-context guard has its own copy.
+   * "Use my location" — high-accuracy geolocation, 10 s timeout, no
+   * cached positions. Each failure maps 1:1 to an inline message; the
+   * insecure-context guard has its own copy.
    */
   protected useMyLocation(): void {
     if (window.isSecureContext === false) {
@@ -529,10 +535,8 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     geolocation.getCurrentPosition(
       (position) => {
         this.locating.set(false);
-        if (gen !== this.captureGeneration) {
-          // Superseded by a newer capture (typed/picked/… while this was in
-          // flight) — the late settle must not overwrite the pin.
-          return;
+        if (!this.isCurrentCapture(gen)) {
+          return; // superseded — the late settle must not overwrite the pin
         }
         this.setLocation(
           position.coords.latitude,
@@ -545,10 +549,8 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       },
       (err) => {
         this.locating.set(false);
-        if (gen !== this.captureGeneration) {
-          // Superseded — the late error must not run failLocation and clear
-          // the pin the user set in the meantime.
-          return;
+        if (!this.isCurrentCapture(gen)) {
+          return; // superseded — the late error must not clear a set pin
         }
         // Duck-typed code read: jsdom does not define GeolocationPositionError.
         const code = typeof err?.code === 'number' ? err.code : 2;
@@ -560,29 +562,25 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  /** maps.app.goo.gl -> POST /api/geo/resolve (JWT, per-IP 5/min). */
+  /** maps.app.goo.gl → POST /api/geo/resolve (JWT, per-IP 5/min). */
   private async resolveShortLink(url: string): Promise<void> {
     this.resolvingLink.set(true);
     this.locationError.set(null);
     const gen = ++this.captureGeneration;
     try {
       const resolved = await this.geo.resolve(url);
-      if (gen !== this.captureGeneration) {
-        // Superseded by a newer capture while the resolve was in flight —
-        // the late success must not overwrite the pin.
-        return;
+      if (!this.isCurrentCapture(gen)) {
+        return; // superseded — the late success must not overwrite the pin
       }
       this.setLocation(resolved.latitude, resolved.longitude, 'link');
     } catch (failure: unknown) {
-      if (gen !== this.captureGeneration) {
-        // Superseded — the late failure must not run failLocation and clear
-        // a pick made while the resolve was in flight.
-        return;
+      if (!this.isCurrentCapture(gen)) {
+        return; // superseded — the late failure must not clear a pick
       }
       // A 5xx = the backend's UPSTREAM resolution is temporarily
       // unavailable (its own message says retry later); a network failure
-      // = the API is unreachable. Neither is the user's link — retry-
-      // oriented copy, not the not-found copy.
+      // = the API is unreachable. Neither is the user's link —
+      // retry-oriented copy, not the not-found copy.
       const api = toApiError(failure);
       if (api.status >= 500 || api.isNetworkError) {
         this.failLocation('short-link-unavailable');
@@ -615,10 +613,10 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
 
   /**
    * The "Search" button (and Enter): ONE deliberate Nominatim request per
-   * press — no autosuggest (Nominatim usage policy, design decision 2).
-   * A press while a search is pending is IGNORED, never stacked; if the
-   * press lands inside the 1000 ms spacing window the gateway waits it
-   * out and the button stays pending the whole time (design decision 3).
+   * press — no autosuggest (Nominatim usage policy). A press while a
+   * search is pending is IGNORED, never stacked; a press inside the
+   * 1000 ms spacing window waits it out (gateway-side) and the button
+   * stays pending the whole time.
    */
   protected startAddressSearch(): void {
     if (this.searching()) {
@@ -631,29 +629,32 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     this.searching.set(true);
     this.addressError.set(null);
     this.addressResults.set([]);
-    void this.geocode
-      .search(query)
-      .then((results) => {
-        if (results.length === 0) {
-          this.addressError.set('no-results');
-          return;
-        }
-        this.addressResults.set(results);
-      })
-      .catch((failure: unknown) => {
-        // 429 = the service throttles ("please wait a moment"); anything
-        // else (network/CORS/5xx) gets the generic unavailable copy.
-        const api = toApiError(failure);
-        this.addressError.set(api.status === 429 ? 'rate-limited' : 'network');
-      })
-      .finally(() => this.searching.set(false));
+    void this.runAddressSearch(query);
+  }
+
+  private async runAddressSearch(query: string): Promise<void> {
+    try {
+      const results = await this.geocode.search(query);
+      if (results.length === 0) {
+        this.addressError.set('no-results');
+        return;
+      }
+      this.addressResults.set(results);
+    } catch (failure: unknown) {
+      // 429 = the service throttles ("please wait a moment"); anything
+      // else (network/CORS/5xx) gets the generic unavailable copy.
+      const api = toApiError(failure);
+      this.addressError.set(api.status === 429 ? 'rate-limited' : 'network');
+    } finally {
+      this.searching.set(false);
+    }
   }
 
   /**
    * Selecting a result: place the pin (source 'address-search', the same
-   * shared path as every other capture mode) and prefill the address field
-   * — the smart text input above — ONLY IF it is currently empty (design
-   * decision 4: prefill, never overwrite; the help line states this).
+   * shared path as every other capture mode) and prefill the address
+   * field — the smart text input above — ONLY IF it is currently empty
+   * (prefill, never overwrite; the help line states this).
    */
   protected selectAddressResult(result: GeocodeResult): void {
     // A selection is a capture — it supersedes any pending capture.
@@ -670,11 +671,10 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * A FAILED capture removes the previous pin (spec: "the marker is not
-   * placed") — the safest state: an error is showing AND the form cannot
-   * silently submit a stale, now-untrusted pin (design risk: never a
-   * silent wrong pin). 'missing' is the one exception — it is set at
-   * submit time when there is nothing to clear.
+   * A FAILED capture removes the previous pin (the marker is not placed)
+   * — the safest state: an error is showing AND the form cannot silently
+   * submit a stale, now-untrusted pin. 'missing' is the one exception —
+   * it is set at submit time when there is nothing to clear.
    */
   private failLocation(kind: LocationErrorKind): void {
     this.location.set(null);
@@ -700,9 +700,34 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // ---------------------------------------------------------------------
-  // Submit — payload: name + latitude/longitude numbers, optional
-  // description/capacity, locationKind (community-review-queue)
+  // Submit — create POSTs /api/shelters, an edit PUTs /api/shelters/{id}
+  // with the same payload shape
   // ---------------------------------------------------------------------
+
+  /** The create/update payload: name + coordinates always, the optional
+   *  description/capacity only when present, locationKind explicit —
+   *  unchecked = PUBLIC (the contract default), checked = PRIVATE
+   *  (the resident-offered declaration). The edit's PUT rides the
+   *  identical shape: the backend's create/update constraint path is
+   *  shared. */
+  private buildRequest(): CreateShelterRequest {
+    const picked = this.location() as PickedLocation;
+    const request: CreateShelterRequest = {
+      name: this.name().value.trim(),
+      latitude: picked.latitude,
+      longitude: picked.longitude,
+      locationKind: this.privateLocation().value ? 'PRIVATE' : 'PUBLIC',
+    };
+    const description = this.description().value.trim();
+    if (description !== '') {
+      request.description = description;
+    }
+    const capacity = this.capacity().value;
+    if (typeof capacity === 'number' && Number.isInteger(capacity)) {
+      request.capacity = capacity;
+    }
+    return request;
+  }
 
   async submit(): Promise<void> {
     if (this.pending()) {
@@ -724,41 +749,18 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     this.error.set(null);
     this.verifyLink.set(false);
     this.submitted.set(null);
-
-    const picked = this.location() as PickedLocation;
-    const request: CreateShelterRequest = {
-      name: this.name().value.trim(),
-      latitude: picked.latitude,
-      longitude: picked.longitude,
-      // Explicit on purpose: unchecked = PUBLIC (the contract default),
-      // checked = PRIVATE (the resident-offered declaration). The same
-      // explicit locationKind rides the edit's PUT — the backend's
-      // create/update constraint path is shared.
-      locationKind: this.privateLocation().value ? 'PRIVATE' : 'PUBLIC',
-    };
-    const description = this.description().value.trim();
-    if (description !== '') {
-      request.description = description;
-    }
-    const capacity = this.capacity().value;
-    if (typeof capacity === 'number' && Number.isInteger(capacity)) {
-      request.capacity = capacity;
-    }
-
     try {
-      // Creation: POST /api/shelters; edit: PUT /api/shelters/{id} with the
-      // SAME payload shape (the backend re-checks identical constraints).
+      const request = this.buildRequest();
       const result =
-        editId === null
-          ? await this.gateway.create(request)
-          : await this.gateway.update(editId, request);
-      // No navigation: the row is public NOW (NEW state — an edit keeps the
-      // row's status, so a published shelter stays published) — the success
+        editId === null ? await this.gateway.create(request) : await this.gateway.update(editId, request);
+      // No navigation: the row is public NOW (an edit keeps the row's
+      // status, so a published shelter stays published) — the success
       // panel links to the (already live) detail page.
       this.submitted.set(result);
     } catch (failure: unknown) {
-      // Input preserved on purpose — the user fixes the backend's complaint
-      // and retries. 403 (claim lapsed since the guard ran) gets a /verify link.
+      // Input preserved on purpose — the user fixes the backend's
+      // complaint and retries. A 403 (the claim lapsed since the guard
+      // ran) gets the /verify link.
       const api = toApiError(failure);
       this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       this.verifyLink.set(api.status === 403);

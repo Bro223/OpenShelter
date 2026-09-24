@@ -37,14 +37,13 @@
   }
 }
 
-/* The private-home declaration (community-review-queue): a plain label +
-   checkbox row — the label wraps for narrow widths.
+/* The private-home declaration: a plain label + checkbox row — the
+   label wraps for narrow widths.
 
-   The checkbox escapes the global `.field input { width: 100% }` form rule:
-   as a flex child, width: 100% stretched it into a ~112px item at 360px
-   and displaced the label text (mobile-responsive-polish — the same
-   explicit native-size escape the detail page's report radios use in
-   `.report-option input`). */
+   The checkbox escapes the global `.field input { width: 100% }` form
+   rule: as a flex child, width: 100% stretched it into a ~112px item at
+   360px and displaced the label text — the same explicit native-size
+   escape the detail page's report radios use in `.report-option input`. */
 .checkbox-field {
   display: flex;
   align-items: center;
@@ -61,8 +60,8 @@
   }
 }
 
-/* Success panel (community-review-queue): the success tint — the row is
-   public NOW (NEW state), so the copy is a confirmation, not a caveat. */
+/* Success panel: the success tint — the row is public NOW (NEW state),
+   so the copy is a confirmation, not a caveat. */
 .submit-success {
   padding: var(--space-12) var(--space-16);
   background: var(--color-success-bg);
