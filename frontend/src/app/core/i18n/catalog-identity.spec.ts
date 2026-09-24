@@ -4,7 +4,7 @@ import { RU } from './ru';
 import type { MessageKey, Messages } from './messages';
 
 /**
- * i18n-et-en DURABLE GUARD (catalog identity): an ET or RU value that is
+ * DURABLE GUARD (catalog identity): an ET or RU value that is
  * BYTE-IDENTICAL to the EN value for the same key is almost certainly an
  * untranslated string that was copied instead of translated. The catalog
  * key-parity guard in i18n.spec.ts only proves the key EXISTS in each
@@ -43,7 +43,7 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // bare period in every supported locale) — same rationale as agreeTail.
   'account.phoneDone.after': '.',
   'account.legal.tail': '.',
-  // Legal pages (legal-i18n): punctuation-only splice tails. A semicolon
+  // Legal pages: punctuation-only splice tails. A semicolon
   // or a period is a semicolon/period in every supported locale; the
   // translated sentence around them carries the language.
   'legal.privacy.collect.li1.after': ';',

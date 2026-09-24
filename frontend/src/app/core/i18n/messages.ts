@@ -1,6 +1,6 @@
 /**
- * The message catalog contract (i18n-et-en). Both locale
- * catalogs (`en.ts` / `et.ts`) are typed against this interface, so a key
+ * The message catalog contract. Both locale
+ * catalogs (`en.ts` / `et.ts` / `ru.ts`) are typed against this interface, so a key
  * missing from EITHER side is a compile error; the runtime key-parity
  * guard in `i18n.spec.ts` is the backstop (and rejects empty values).
  *
@@ -35,7 +35,7 @@ export interface Messages {
   'auth.login': string;
   'auth.register': string;
 
-  // --- accessibility dialog (accessibility-dialog): the three contrast
+  // --- accessibility dialog: the three contrast
   // options. Every string below is admin-editable through site_texts —
   // these catalog values are the shipped defaults the overlay falls back
   // to when no override row exists (see site-texts.ts). The popup block is
@@ -182,7 +182,7 @@ export interface Messages {
   'authPage.privacyPolicy': string;
   'authPage.termsOfUse': string;
 
-  // --- map page (i18n-et-en: the browse surface). The around-you CTA IS
+  // --- map page (the browse surface). The around-you CTA IS
   // keyed (map.aroundYou) — the how.nearest / map.geocode copy quotes the
   // ACTIVE LOCALE'S label, so the quote stays true in every language.
   'map.title': string;
@@ -195,7 +195,7 @@ export interface Messages {
    *  the trust-scale rung below the two verified shapes. */
   'map.legend.unverified': string;
   'map.legend.reported': string;
-  /** The submitter-verification shapes (submitter-verification-badge): a
+  /** The submitter-verification shapes: a
    *  triangle at one confirmed channel, a circle at two or more. */
   'map.legend.partialVerified': string;
   'map.legend.fullVerified': string;
@@ -245,7 +245,7 @@ export interface Messages {
   'map.geocode.rateLimited': string;
   'map.geocode.network': string;
 
-  // --- shelter detail page (i18n-et-en). The Distance-from-you action (its
+  // --- shelter detail page. The Distance-from-you action (its
   // button + DISTANCE_COPY) stays English. The Details section's registered
   // "Capacity:" data label stays English too; the Info section's own
   // Status/Capacity row labels are catalog-keyed below (INFO-LAST-REPORTED).
@@ -428,7 +428,7 @@ export interface Messages {
   'shelter.communityReports': string;
   /** {distance} is the shared straightLineText() figure (1 decimal km /
    *  whole metres). Never a walking-route or official-status claim. */
-  /** The submitter's verification depth (submitter-verification-badge): the
+  /** The submitter's verification depth: the
    *  single confirmed channel, or FULL at two or more. Absent/null = no
    *  badge (registry rows, no author, an author with no confirmed channel). */
   'shelter.submitterVerification.email': string;
@@ -447,7 +447,7 @@ export interface Messages {
    *  is empty). */
   'shelter.notice.reportDuplicate': string;
 
-  // --- submit shelter page (i18n-et-en: the contribute surface).
+  // --- submit shelter page (the contribute surface).
   'submit.backToMap': string;
   'submit.title': string;
   'submit.subtitle': string;
@@ -987,10 +987,10 @@ export interface Messages {
 
   'admin.guidance.tab': string;
   'admin.guidance.loading': string;
-  /** The scoped empty state (admin-locale-scope): no posts have content in
+  /** The scoped empty state: no posts have content in
    *  the active UI language. `{locale}` is the language code. */
   'admin.guidance.emptyLocale': string;
-  /** The scoped list's language line (admin-locale-scope): the posts shown
+  /** The scoped list's language line: the posts shown
    *  are the active UI language's. `{locale}` is the language code. */
   'admin.guidance.shownIn': string;
   /** The admin guidance search's input label (admin-guidance-search):
@@ -1157,15 +1157,15 @@ export interface Messages {
   'admin.guidance.editor.localeLabel': string;
   'admin.guidance.editor.localeHint': string;
   'admin.guidance.editor.localeTooLong': string;
-  /** The editor's language line, edit mode (admin-locale-scope): which
+  /** The editor's language line, edit mode: which
    *  language's content the form edits. `{locale}` is the content locale. */
   'admin.guidance.editor.editingIn': string;
-  /** The editor's language line, create mode (admin-locale-scope): the
+  /** The editor's language line, create mode: the
    *  language the post will be created in. `{locale}` is the active UI
    *  language code. */
   'admin.guidance.editor.creatingIn': string;
-  /** Shown only when the form edits a FOREIGN-locale row (admin-locale-
-   *  scope): the post's home language and the single-language effect of a
+  /** Shown only when the form edits a FOREIGN-locale row:
+   *  the post's home language and the single-language effect of a
    *  save. `{home}` the home locale, `{locale}` the content locale. */
   'admin.guidance.editor.homeLocaleNote': string;
   /** The editor's language line, translation-authoring mode
@@ -1251,7 +1251,7 @@ export interface Messages {
   'admin.media.success.uploaded': string;
   'admin.media.success.deleted': string;
 
-  // --- legal pages (legal-i18n): /privacy + /terms were English-only
+  // --- legal pages: /privacy + /terms were English-only
   // static text; every paragraph/heading is now a catalog key, one key
   // per block, with splice segments around the inline <strong>/<em>/
   // <code> and cross-page links (the account-area pattern).

@@ -7,7 +7,7 @@ import { Injectable, signal } from '@angular/core';
 const REFRESH_TOKEN_KEY = 'os.refresh';
 
 /**
- * Token storage (03-CONTEXT-CORE-AUTH.md decision 1):
+ * Token storage:
  *  - access token  -> in-memory signal only (smaller XSS surface; lost on reload)
  *  - refresh token -> localStorage (survives reload so boot can silent-refresh)
  *

@@ -10,7 +10,7 @@ import type { MessageKey } from './i18n/messages';
 import { APP_NAME, titleGuard } from './title';
 
 /**
- * Route titles (spec: "Route titles and favicon"), i18n-et-en:
+ * Route titles (spec: "Route titles and favicon"):
  * titles resolve through the active locale.
  *  - Mechanism: titleGuard sets document.title from the route's
  *    data.title MESSAGE KEY on navigation ("<Page> — OpenShelter").
@@ -54,7 +54,7 @@ describe('route titles', () => {
 
   it('resolves the title in the active locale (et)', async () => {
     document.title = 'initial';
-    i18n.setLocale('et'); // bundle-lazy-i18n: also starts the et chunk load
+    i18n.setLocale('et'); // also starts the et chunk load
     await router.navigateByUrl('/a');
     await i18n.ensureCatalog('et'); // the chunk lands → the guard's one-shot re-resolves the title
     expect(document.title).toBe(`Varjupaikade kaart — ${APP_NAME}`);
@@ -62,13 +62,13 @@ describe('route titles', () => {
 
   it('resolves the title in the active locale (ru)', async () => {
     document.title = 'initial';
-    i18n.setLocale('ru'); // bundle-lazy-i18n: also starts the ru chunk load
+    i18n.setLocale('ru'); // also starts the ru chunk load
     await router.navigateByUrl('/a');
     await i18n.ensureCatalog('ru'); // the chunk lands → the guard's one-shot re-resolves the title
     expect(document.title).toBe(`Карта укрытий — ${APP_NAME}`);
   });
 
-  it('a titled navigation with the active locale catalog still loading never shows a raw key (bundle-lazy-i18n)', async () => {
+  it('a titled navigation with the active locale catalog still loading never shows a raw key', async () => {
     document.title = 'initial';
     i18n.setLocale('et'); // starts the et chunk load; the chunk may or may
     // not have resolved by the time the guard runs

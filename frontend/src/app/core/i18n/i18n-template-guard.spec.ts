@@ -2,15 +2,14 @@
  * i18n DURABLE GUARD (translated surfaces — app-wide): no hardcoded
  * user-visible text in ANY template under src/app.
  *
- * Scope (widened 2026-09-21, N7 i18n-completeness / F3): every .html
+ * Scope: every .html
  * template under src/app is discovered by walking — there is NO TEMPLATES
  * map to opt out of, so a new template is guarded from its first commit.
  * It flags three classes:
  *   1. text nodes that are not interpolations or control-flow syntax,
  *   2. literal values of user-visible attributes (placeholder,
  *      aria-label, title, alt, message),
- *   3. (new — the class the old scanner skipped entirely) string literals
- *      inside {{ … }} interpolations that look like copy:
+ *   3. string literals inside {{ … }} interpolations that look like copy:
  *      `{{ pending ? 'Measuring…' : 'Distance from you' }}`.
  *
  * The scanner is a character-level state machine (the old line-based one
@@ -58,8 +57,9 @@ function findTemplates(): string[] {
   return out;
 }
 
-/** The full template set as of 2026-09-21 (31 files — the admin
- *  panel extraction added the eight tab panels). */
+/** The full template set (31 files). The completeness test pins the
+ *  exact set — a new or missing template fails it until someone has
+ *  looked at it, which is the point. */
 const EXPECTED_TEMPLATES = [
   'src/app/app.html',
   'src/app/features/account/account-page.html',

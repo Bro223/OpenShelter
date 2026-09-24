@@ -14,9 +14,8 @@ import { TokenStore } from '../core/token-store';
  * that depends on `gateways` (AuthGateway/AccountGateway), and a core →
  * gateways edge would invert the documented `features → gateways → core`
  * dependency rule. `session/` sits between them: it may import core and
- * gateways; core may import `session/auth-store` ONLY from two named files
- * (a deliberate, documented core→session edge — 01-TASK.md names both):
- * core/guards.ts (the guard type) and core/api-interceptor.ts (the
+ * gateways; core may import `session/auth-store` ONLY from two named
+ * files: core/guards.ts (the guard type) and core/api-interceptor.ts (the
  * mid-session 401 single-flight refresh).
  *
  * Profile: the backend answers `GET /account/me` with the REAL profile —
@@ -70,7 +69,7 @@ export class AuthStore {
   readonly levels = signal<VerificationLevel[]>([]);
 
   /**
-   * True for the ADMIN-kind account (admin-moderation): adopted from
+   * True for the ADMIN-kind account: adopted from
    * the fetched profile (`isAdmin` is always present — false for every
    * regular user) and reset to false with the profile. The kind is the
    * truth server-side (fresh lookup per /admin/* request, never a JWT
@@ -210,7 +209,7 @@ export class AuthStore {
   }
 
   /**
-   * Single-flight session refresh (03-CONTEXT decision 2). Concurrent callers
+   * Single-flight session refresh. Concurrent callers
    * (e.g. N parallel 401s, or the boot rotation) share ONE in-flight
    * POST /auth/refresh — the old rotated refresh token is never used twice.
    * Returns true when a fresh pair was stored, false when the session is

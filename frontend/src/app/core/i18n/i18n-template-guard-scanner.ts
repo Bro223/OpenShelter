@@ -1,7 +1,7 @@
 /**
- * The template scanner for the i18n template guard (N7 i18n-completeness
- * / F3). Kept in its own module (no test imports) so it is unit-testable
- * and demo-able without dragging the guard's describe block along.
+ * The template scanner for the i18n template guard. Kept in its own
+ * module so it is unit-testable without dragging the guard's describe
+ * block along.
  *
  * It flags three classes of hardcoded user-visible text:
  *   1. text nodes that are not interpolations or control-flow syntax,

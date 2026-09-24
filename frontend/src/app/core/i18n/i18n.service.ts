@@ -9,88 +9,61 @@ import {
   type SiteTextsByLocale,
 } from './site-texts';
 
-/**
- * Where the UI language preference lives in localStorage (i18n-et-en).
- * Only `en`/`et`/`ru` are ever stored — the default is the ABSENCE of the
- * key (mirrors the pre-paint script in index.html, which reads this same
- * key before first paint, and the ThemeStore persistence shape).
- */
+/** Where the UI language preference lives in localStorage. Only `en`/`et`/`ru`
+ *  is ever stored — the default is the ABSENCE of the key. The pre-paint
+ *  script in index.html reads this same key before first paint. */
 const LOCALE_KEY = 'openshelter-locale';
 
-/**
- * Where the admin area's CONTENT language lives in localStorage
- * (admin-locale-split): the locale the guidance admin's list/detail/
- * save/reorder calls scope to. A SEPARATE key from LOCALE_KEY on purpose
- * — the two languages are independent (the owner's requirement): the
- * admin chrome can be Estonian while the moderator edits Russian
- * content, and the public header switcher (LOCALE_KEY) never touches
- * this one.
- */
+/** Where the admin area's CONTENT language lives in localStorage. A
+ *  SEPARATE key from LOCALE_KEY on purpose — the two languages are
+ *  independent: the admin chrome can be Estonian while the moderator
+ *  edits Russian content, and the public header switcher (LOCALE_KEY)
+ *  never touches this one. */
 const CONTENT_LOCALE_KEY = 'openshelter-admin-content-locale';
 
-/**
- * The default locale: `en`, the app's original copy language — a fresh
- * visitor sees the UI exactly as authored (zero first-load behavior
- * change). Flipping the default to `et` (whitepaper: "Estonian first") is
- * an owner decision for after the whole UI is translated: one line here +
- * the spec, no other change.
- */
+/** The default locale: `en`, the app's original copy language — a fresh
+ *  visitor sees the UI exactly as authored (zero first-load behavior
+ *  change). */
 const DEFAULT_LOCALE: Locale = 'en';
 
-/**
- * Catalog loading (bundle-lazy-i18n). The DEFAULT catalog ships in the
- * initial bundle: a fresh (or default-locale) visitor paints the final
- * text with zero flash, and the pre-paint script in index.html needs no
- * catalog data at all — it only validates the stored locale STRING
- * against the known set and sets `<html lang>`, and the pre-paint
- * `<title>` is the brand name, which no locale translates. The other
- * catalogs load ON DEMAND — dynamic imports, so `et`/`ru` live in their
- * own lazy chunks — the first time a visitor actually needs one (a stored
- * non-default preference at boot, or the header language switcher) — and
- * stay cached for the session. While a catalog is still loading, `t()`
- * serves the DEFAULT locale's value for the key: translated copy, never a
- * raw key, never undefined — and one extra change-detection pass
- * (ApplicationRef.tick, scheduled by the service) repaints the chrome in
- * the active locale when the chunk lands.
- *
- * The typed `Messages` interface is the compile-time parity guard, the
- * runtime parity + on-demand-loading guards live in i18n.spec.ts.
- */
-const EAGER_CATALOGS: Partial<Record<Locale, Messages>> = { en: EN };
-
-/** The on-demand loaders for the non-default catalogs. */
+/** The on-demand loaders for the non-default catalogs: dynamic imports,
+ *  so `et`/`ru` each ship in their own lazy chunk. The default catalog
+ *  (`en`) ships in the initial bundle and is never loaded here. */
 const LAZY_CATALOG_LOADERS: Partial<Record<Locale, () => Promise<Messages>>> = {
   et: () => import('./et').then((m) => m.ET),
   ru: () => import('./ru').then((m) => m.RU),
 };
 
 /**
- * The UI language (i18n-et-en: app chrome + route titles).
+ * The UI language: the app chrome and the route titles.
  *
- * Signal-based, the same persistence shape as ThemeStore: a key constant +
- * try/catch so private-mode storage degrades to a session-only preference.
- * The `lang` attribute on `<html>` is the seam: screen readers and
- * spellcheck read it, and it is set BEFORE first paint by the inline
- * index.html script — the constructor re-assertion is an idempotent no-op
- * that covers the edge where that script was skipped.
- *
- * TWO LANGUAGES (admin-locale-split): `locale`/`setLocale` is the UI
- * language — the chrome, exactly as before; the public site's header
- * switcher drives it, and public pages render both their chrome and their
- * content in it, unchanged. `contentLocale`/`setContentLocale` is the
- * admin area's content language: the locale the guidance admin's list/
- * detail/save/reorder calls scope to. It defaults to the UI locale on
- * first entry, then persists INDEPENDENTLY (its own key) — a UI-language
- * switch never moves it, and a content-language switch never re-translates
- * the chrome.
+ * TWO LANGUAGES: `locale`/`setLocale` is the UI language — the chrome,
+ * driven by the public header switcher, and public pages render both
+ * their chrome and their content in it. `contentLocale`/`setContentLocale`
+ * is the admin area's content language: the locale the guidance admin's
+ * list/detail/save/reorder calls scope to. It defaults to the UI locale
+ * on first entry, then persists INDEPENDENTLY (its own key) — a
+ * UI-language switch never moves it, and a content-language switch never
+ * re-translates the chrome.
  *
  * `t()` is the single lookup seam: templates use the `t` pipe
  * (`{{ 'nav.map' | t }}`), non-template code (titleGuard, the
  * shelter-copy/error-copy helpers) calls it directly with an optional
  * `{param}` interpolation map.
  *
- * Site-text overlay (site_texts): the admin can override a DECLARED set
- * of keys (see site-texts.ts) per locale. `setSiteTexts()` installs the
+ * Lazy catalogs: the DEFAULT catalog ships in the initial bundle — a
+ * fresh (or default-locale) visitor paints the final text with zero
+ * flash, and the pre-paint script needs no catalog data at all (it only
+ * validates the stored locale STRING against the known set and sets
+ * `<html lang>`, and the pre-paint `<title>` is the brand name, which no
+ * locale translates). The other catalogs load ON DEMAND — a stored
+ * non-default preference at boot, or the header language switcher — and
+ * stay cached for the session. While a catalog is still loading, `t()`
+ * serves the DEFAULT locale's value for the key: translated copy, never
+ * a raw key, never undefined.
+ *
+ * Site-text overlay: the admin can override a DECLARED set of keys (the
+ * allowlist in site-texts.ts) per locale. `setSiteTexts()` installs the
  * fetched overrides (null = none / not loaded yet); `t()` reads the
  * active locale's override for the key FIRST and falls back to the
  * shipped catalog — the catalog is the default, never a duplicate of
@@ -99,26 +72,25 @@ const LAZY_CATALOG_LOADERS: Partial<Record<Locale, () => Promise<Messages>>> = {
  */
 @Injectable({ providedIn: 'root' })
 export class I18nService {
-  /** The active locale. */
-  readonly locale = signal<Locale>(storedLocale());
+  /** The active UI locale. */
+  readonly locale = signal<Locale>(storedLocale(LOCALE_KEY, DEFAULT_LOCALE));
 
-  /** The admin area's CONTENT language (admin-locale-split): the locale
-      the guidance admin's list/detail/save/reorder calls scope to. The
-      UI locale does NOT drive it — the default (on first entry) is the
-      UI locale, and from then on it persists independently under its
-      own key. The public site never reads it: public pages render in
-      the UI locale, exactly as before. */
-  readonly contentLocale = signal<Locale>(storedContentLocale(this.locale()));
+  /** The admin area's CONTENT language: the locale the guidance
+      admin's list/detail/save/reorder calls scope to. The UI locale does
+      NOT drive it — the default (on first entry) is the UI locale, and
+      from then on it persists independently under its own key. The
+      public site never reads it. */
+  readonly contentLocale = signal<Locale>(storedLocale(CONTENT_LOCALE_KEY, this.locale()));
 
-  /** The admin overrides (site_texts), fetched once at boot by the shell.
-      null = not loaded yet (or the fetch failed) — t() serves the
-      shipped catalog, so a down API degrades to the default copy. */
+  /** The admin overrides (the site_texts table), fetched once at boot by
+      the shell. null = not loaded yet (or the fetch failed) — t() serves
+      the shipped catalog, so a down API degrades to the default copy. */
   readonly siteTexts = signal<SiteTextsByLocale | null>(null);
 
-  /** Bumped each time a catalog finishes loading (bundle-lazy-i18n) —
-      reactive consumers (the admin site-texts panel's placeholder
-      computed, via defaultText) re-run with the real values when a
-      non-default chunk lands. */
+  /** Bumped each time a catalog finishes loading — reactive consumers
+      (the admin site-texts panel's placeholder computed, via
+      defaultText) re-run with the real values when a non-default chunk
+      lands. */
   readonly catalogVersion = signal(0);
 
   private readonly appRef = inject(ApplicationRef);
@@ -160,9 +132,9 @@ export class I18nService {
       any template change. A failed load rejects AND drops out of the
       cache, so the next call retries. */
   ensureCatalog(locale: Locale): Promise<Messages> {
-    const eager = EAGER_CATALOGS[locale];
-    if (eager !== undefined) {
-      return Promise.resolve(eager);
+    const inMemory = this.resolvedCatalogs[locale];
+    if (inMemory !== undefined) {
+      return Promise.resolve(inMemory);
     }
     const inFlight = this.catalogLoads[locale];
     if (inFlight !== undefined) {
@@ -179,8 +151,8 @@ export class I18nService {
         }
         // One extra change-detection pass (zoneless: no zone to schedule
         // one). Guarded: the chunk may land after the app is destroyed
-        // (test teardown) — nothing to repaint then, and the signal-
-        // tracking in lookup() already covers live views.
+        // (test teardown) — nothing to repaint then, and the
+        // signal-tracking in lookup() already covers live views.
         try {
           this.appRef.tick();
         } catch {
@@ -202,9 +174,9 @@ export class I18nService {
     return this.resolvedCatalogs[locale] !== undefined;
   }
 
-  /** Run `cb` once, the next time a catalog lands (bundle-lazy-i18n). If
-      the ACTIVE locale's catalog is already in memory, `cb` runs
-      immediately — the caller can rely on it running exactly once. */
+  /** Run `cb` once, the next time a catalog lands. If the ACTIVE
+      locale's catalog is already in memory, `cb` runs immediately — the
+      caller can rely on it running exactly once. */
   onCatalogLoaded(cb: () => void): void {
     if (this.isCatalogLoaded(this.locale())) {
       cb();
@@ -231,9 +203,9 @@ export class I18nService {
 
   /** The shipped CATALOG value for an explicit locale — the admin
       Settings panel's placeholder (the default, override-independent).
-      While a non-default catalog is still loading (bundle-lazy-i18n) the
-      DEFAULT locale's value stands in; the `catalogVersion` read makes a
-      calling `computed` re-run the moment the real catalog lands. */
+      While a non-default catalog is still loading the DEFAULT locale's
+      value stands in; the `catalogVersion` read makes a calling
+      `computed` re-run the moment the real catalog lands. */
   defaultText(key: MessageKey, locale: Locale): string {
     this.catalogVersion(); // tracked read — recomputes when a catalog lands
     return this.resolvedCatalogs[locale]?.[key] ?? EN[key];
@@ -255,20 +227,19 @@ export class I18nService {
     return entry;
   }
 
-  /** The single override seam: active-locale override FIRST, the ACTIVE
+  /** The single lookup seam: active-locale override FIRST, the ACTIVE
       locale's catalog when it is loaded, and the DEFAULT locale's
-      catalog otherwise (bundle-lazy-i18n: the loading state renders the
-      default locale — never a raw key, never undefined; the default
-      catalog is key-complete and always in memory).
+      catalog otherwise — the loading state renders the default locale,
+      never a raw key, never undefined (the default catalog is
+      key-complete and always in memory).
 
       The `catalogVersion` read is the lazy-loading re-render seam
       (zoneless CD): every template binding that calls t() thereby
-      consumes `catalogVersion`, so the zoneless scheduler marks the
-      view for refresh the moment a non-default chunk lands — the pipe
+      consumes `catalogVersion`, so the zoneless scheduler marks the view
+      for refresh the moment a non-default chunk lands — the pipe
       re-evaluates into the active locale's text with no template change
-      and no zone. (Same tracking pattern this codebase already uses
-      for locale switches — account-page's "Reading i18n.t() here
-      tracks the locale".) */
+      and no zone. (Same tracking pattern this codebase already uses for
+      locale switches.) */
   private lookup(key: MessageKey): string {
     const override = this.overrideFor(key);
     if (override !== null) {
@@ -282,19 +253,19 @@ export class I18nService {
     return EN[key];
   }
 
-  /** Switch + persist the locale (the header language switcher). Never
-      touches the admin's content locale — the two languages are
-      independent (admin-locale-split). */
+  /** Switch + persist the UI locale (the header language switcher).
+      Never touches the admin's content locale — the two languages are
+      independent. */
   setLocale(locale: Locale): void {
     this.locale.set(locale);
     document.documentElement.lang = locale;
     // Start fetching the (possibly new) locale's chunk NOW — the chrome
-    // shows the default locale's copy until it lands, then the
-    // ensureCatalog's change-detection pass repaints it (bundle-lazy-i18n).
-    // A failed load is silent: the UI keeps the default-locale copy and
-    // the next switch retries (a failed load is not cached).
+    // shows the default locale's copy until it lands, then
+    // ensureCatalog's change-detection pass repaints it. A failed load
+    // is silent: the UI keeps the default-locale copy and the next
+    // switch retries (a failed load is not cached).
     void this.ensureCatalog(locale).catch(() => {
-      /* see setLocale's comment — degraded to the default-locale copy */
+      /* degraded to the default-locale copy until a later retry lands */
     });
     try {
       localStorage.setItem(LOCALE_KEY, locale);
@@ -319,31 +290,19 @@ export class I18nService {
   }
 }
 
-/** The stored value when it is a known locale, else the default — an
-    invalid/stale value falls back instead of crashing first paint. */
-function storedLocale(): Locale {
+/** The stored value for `key` when it is a known locale, else `fallback`
+ *  — an invalid/stale value falls back instead of crashing first paint. */
+function storedLocale(key: string, fallback: Locale): Locale {
   try {
-    const stored = localStorage.getItem(LOCALE_KEY);
-    return LOCALES.includes(stored as Locale) ? (stored as Locale) : DEFAULT_LOCALE;
-  } catch {
-    return DEFAULT_LOCALE;
-  }
-}
-
-/** The stored admin content locale when it is a known one, else `fallback`
-    — an invalid/stale value falls back to the UI locale (the first-entry
-    default), never a hardcoded locale (admin-locale-split). */
-function storedContentLocale(fallback: Locale): Locale {
-  try {
-    const stored = localStorage.getItem(CONTENT_LOCALE_KEY);
+    const stored = localStorage.getItem(key);
     return LOCALES.includes(stored as Locale) ? (stored as Locale) : fallback;
   } catch {
     return fallback;
   }
 }
 
-/** Replace `{name}` placeholders with the given params (pure — unit-
-    tested directly; reused by every interpolated message in later slices). */
+/** Replace `{name}` placeholders with the given params (pure —
+ *  unit-tested directly). Unknown placeholders stay literal. */
 export function interpolate(template: string, params: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in params ? String(params[name]) : match,

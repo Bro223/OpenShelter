@@ -34,7 +34,7 @@ function isBusiness401Endpoint(url: string): boolean {
 }
 
 /**
- * ApiInterceptor (functional interceptor, 03-CONTEXT-CORE-AUTH.md):
+ * ApiInterceptor (functional interceptor):
  *  1. attaches `Authorization: Bearer <access>` to every request carrying a
  *     token — never to /auth/login or /auth/refresh (public endpoints;
  *     /account/profile DOES receive the token — it is an authenticated call);

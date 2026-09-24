@@ -8,13 +8,13 @@ import { toApiError } from './api-error';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 /**
- * The only class allowed to touch HttpClient (01-TASK.md §4 dependency rule).
+ * The only class allowed to touch HttpClient. Every failure — HTTP error
+ * or network error — is converted into an ApiError (mirroring the backend
+ * ErrorResponse) via a single catchError. Consumers (gateways, pages)
+ * never see raw HttpErrorResponses.
  *
- * Every failure — HTTP error or network error — is converted into an ApiError
- * (mirroring the backend ErrorResponse) via a single catchError. Consumers
- * (gateways, pages) never see raw HttpErrorResponses.
- *
- * Base URL comes from environment.apiUrl (public config only — never tokens).
+ * Base URL comes from environment.apiUrl (public config only — never
+ * tokens).
  */
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
@@ -27,11 +27,11 @@ export class ApiClient {
 
   /**
    * A GET with the response HEADERS surfaced alongside the body — the
-   * paging-metadata seam (the guidance index's X-Total-Count rides a
-   * header, not the body, so the paged and un-paged answers share one
-   * response shape). The body parses exactly like {@link get}; the
-   * caller reads the selected header by name. The auth interceptor and
-   * the central ApiError mapping are unchanged.
+   * paging-metadata seam: X-Total-Count rides a header, not the body, so
+   * the paged and un-paged answers share one response shape. The body
+   * parses exactly like {@link get}; the caller reads the selected header
+   * by name. The auth interceptor and the central ApiError mapping are
+   * unchanged.
    */
   getWithHeaders<T>(path: string): Observable<{ body: T; headers: HttpHeaders }> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;

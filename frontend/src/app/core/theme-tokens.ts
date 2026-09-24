@@ -1,18 +1,41 @@
 /**
- * The persisted UI theme (accessibility-dialog, extending): three
- * options — the light DEFAULT (absent key / no attribute), the
- * high-contrast SCSS token override (the [data-theme='high-contrast']
- * block in styles.scss) and the black-and-yellow theme.
+ * The persisted UI theme: three options — the light DEFAULT (absent key
+ * / no attribute), the high-contrast SCSS token override (the
+ * [data-theme='high-contrast'] block in styles.scss) and the
+ * black-and-yellow theme below.
  *
  * Black-and-yellow is applied as RUNTIME CSS custom properties on <html>
  * instead of an SCSS token block, on purpose: the design-tokens audit
  * (src/app/design-tokens.spec.ts) allows hex literals only inside the
- * styles.scss :root + high-contrast blocks, and styles.scss is not
- * editable this wave — so the third theme's verified values live here in
- * TypeScript and are applied by ThemeStore (post-paint) and the inline
- * index.html pre-paint script (before paint). The SCSS everywhere else
- * only ever references var(--color-*), so the runtime values flow through
- * the existing token seam unchanged.
+ * styles.scss :root + high-contrast blocks, and it re-audits this map
+ * with the same contrast math + the same name-set rule (every :root
+ * token must be overridden, so no light value can leak through). It is
+ * applied by ThemeStore (post-paint) and the inline index.html pre-paint
+ * script (before paint); the SCSS everywhere else only references
+ * var(--color-*), so the runtime values flow through the existing token
+ * seam unchanged.
+ *
+ * Constraints the map must keep:
+ *  - CARDS are distinguished by BORDER, not by a dark tint: every
+ *    surface token is #000000 — #111 on black is 1.11:1 and would be
+ *    invisible — so --color-border carries the card edge. And
+ *    --color-bg-surface is #000 AND doubles as the "text on primary"
+ *    colour, which makes the inverted primary button black-on-yellow
+ *    with no extra rule.
+ *  - The chrome band (header/footer) FOLLOWS this theme — black
+ *    background, yellow text (the --color-chrome-* values). The
+ *    high-contrast theme keeps the navy band — that is the HC SCSS
+ *    block's own values. The MAP is not themed (OSM tiles stay light);
+ *    --color-map-placeholder and the marker hues keep the source coding.
+ *  - Error/danger is the theme's ONE voice — yellow: hue cannot
+ *    distinguish an error or a destructive action from ordinary text,
+ *    so the non-colour cue carries it (the weight on the error lines,
+ *    the full border on the banner/confirm surfaces, the explicit
+ *    wording). The reported state keeps its red family — a separate,
+ *    deliberate owner decision.
+ *  - Links get a token of their own and stay UNDERLINED (the non-colour
+ *    cue, the global rule ships in the accessibility dialog's
+ *    stylesheet — WCAG 1.4.1).
  */
 
 export type AppTheme = 'default' | 'high-contrast' | 'black-and-yellow';
@@ -22,62 +45,9 @@ export const HIGH_CONTRAST_THEME = 'high-contrast';
 /** The stored localStorage value of the black-and-yellow theme. */
 export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
 
-/**
- * The black-and-yellow palette on #000 (owner-verified ratios; the
- * computed ones follow the same method as the high-contrast block's
- * verified comments):
- *
- *   text    #ffd400   on #000        14.67:1
- *   muted   #d4b53a   on #000        10.47:1
- *   link    #ffe066   on #000        16.11:1 (link-vs-text is 1.10:1, so
- *                                     links are UNDERLINED — the global
- *                                     rule ships in the accessibility
- *                                     dialog's stylesheet, WCAG 1.4.1)
- *   CTA /   #ff9f1c   black on it    10.23:1 (the CTA + primary fill
- *   primary                                  family; see the note below)
- *   primary #ffd400   black on it    14.67:1 (btn--primary INVERTS:
- *   button   (the --color-text value, the .btn--primary override rule)
- *   reported #ff6b4d  black on it    7.46:1  (stays red-family — the pin +
- *                                     the reported badge/marker; a
- *                                     separate, deliberate owner decision)
- *   danger   #ffd400   on #000        14.67:1 (= --color-text: the theme has
- *   error                              ONE voice — yellow — so hue cannot
- *                                     distinguish an error from a note;
- *                                     the non-colour cue is the weight, the
- *                                     full border, the wording)
- *   danger-  #ffd400   on #2a2408     10.83:1 (banner text on the dark
- *   bg                                   amber tint)
- *   danger-  #b89600   vs #000        7.40:1  (the banner/confirm FULL
- *   border                                 border — the visible non-colour
- *                                          error cue, enforced at 3:1)
- *   success #7fd49a   on #000        11.79:1
- *   registry #7ab8ff  on badge #14263a  7.4:1 (the badge fill reuses the
- *                                        high-contrast dark tint — the
- *                                        verified pair)
- *   new     #7fd49a   black on it    11.79:1 (= the verified value — the
- *                                verified family is ONE value, owner decision;
- *                                the verified-green re-tint made it the success green)
- *   pick    #4dd0c4   on #000        10.9:1 (the selected-point pin)
- *   info    #8ac6f5   on #000        11.7:1
- *   border  #8a7400   vs #000        4.58:1 (UI boundary ≥ 3:1)
- *
- * CARDS are distinguished by BORDER, not by a dark tint: every surface
- * token is #000000 — #111 on black is 1.11:1 and would be invisible, so
- * --color-border carries the card edge (4.58:1). --color-bg-surface is
- * #000 AND doubles as the "text on primary" colour (the btn--primary
- * convention from the high-contrast block), which is what makes the
- * inverted primary button black-on-yellow with no extra rule.
- *
- * The chrome band (header/footer) FOLLOWS this theme (owner decision):
- * the mode's word for it is "black and yellow = yellow text on a black
- * background", so the --color-chrome-* values are black + the palette's
- * yellows (design-tokens.spec.ts re-runs those ratios like the rest of
- * the map; a name-set test pins that the map overrides every :root
- * token, so no navy value can leak through the band). The
- * high-contrast theme keeps the navy band — that is the HC SCSS block's
- * own values, spec-enforced there. The MAP is not themed (OSM tiles
- * stay light); --color-map-placeholder and the marker hues keep the
- * source coding.
+/** The black-and-yellow palette on #000: owner-verified contrast
+ *  ratios, re-audited by src/app/design-tokens.spec.ts with the same
+ *  contrast math as the two SCSS blocks.
  */
 export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   /* Text & surfaces */
@@ -127,7 +97,7 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-reported': '#ff6b4d',
   '--color-new':
     '#7fd49a' /* ONE value with --color-verified — the unified verified family (green = verified) */,
-  /* Submitter-verified marker fill (submitter-verification-badge) — the same
+  /* Submitter-verified marker fill — the same
      name as :root, so the theme layers stay in lockstep (design-tokens.spec
      asserts both directions). */
   '--color-verified': '#7fd49a',
@@ -176,9 +146,9 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
 /** The token names — clearing removes exactly what was set. */
 export const BLACK_AND_YELLOW_TOKEN_NAMES: readonly string[] = Object.keys(BLACK_AND_YELLOW_TOKENS);
 
-/** The token appliers only need the style object (the pre-paint script's
- *  fake roots carry it without the attribute seam). */
-export type ThemeStyleRoot = {
+/** The token applier roots only need the style object (the pre-paint
+ *  script's fake roots carry it without the attribute seam). */
+type ThemeStyleRoot = {
   style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
 };
 

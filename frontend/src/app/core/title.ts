@@ -9,7 +9,7 @@ import type { MessageKey } from './i18n/messages';
 export const APP_NAME = 'OpenShelter';
 
 /**
- * Route-title guard (i18n-et-en): sets `document.title` from the route's
+ * Route-title guard: sets `document.title` from the route's
  * `data.title` MESSAGE KEY on every activation, resolved through the active
  * locale — one small navigation handler instead of each page importing
  * Title. "title.map" -> "Shelter map — OpenShelter"
@@ -25,7 +25,7 @@ export const APP_NAME = 'OpenShelter';
  * immediately but the tab title picks the new language on the next
  * activation.
  *
- * Lazy catalogs (bundle-lazy-i18n): with a stored non-default preference
+ * Lazy catalogs: with a stored non-default preference
  * (or a just-clicked switcher), the active locale's chunk may still be
  * loading when the guard runs. The guard therefore sets the title in the
  * BEST AVAILABLE language (`t()` serves the default locale while the

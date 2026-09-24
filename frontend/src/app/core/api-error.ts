@@ -74,9 +74,9 @@ function isErrorResponseBody(payload: unknown): payload is ErrorResponseBody {
 }
 
 /**
- * The frontend's one error type (01-TASK.md §4: one uniform error path).
- * Mirrors the backend ErrorResponse exactly; pages surface `message` through
- * the banner. 401 mid-session is handled once in the interceptor, never here.
+ * The frontend's one error type — one uniform error path. Mirrors the
+ * backend ErrorResponse exactly; pages surface `message` through the
+ * banner. 401 mid-session is handled once in the interceptor, never here.
  */
 export class ApiError extends Error {
   readonly timestamp: string;
