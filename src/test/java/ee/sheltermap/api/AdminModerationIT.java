@@ -915,6 +915,81 @@ class AdminModerationIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void theOpenScopeQueueRendersOnlyOpenRowsAndCountsThem() throws Exception {
+        // The hide-dismissed scope (excludeDismissed=true) end-to-end: only the
+        // OPEN rows render, and the X-Total-Count IS the open count (the sum
+        // of the per-shelter open counts the pins read) — the dismissed rows
+        // stay in the table, dimmed out of the OPEN scope, never deleted.
+        long a = seedShelter("Avatud A", ShelterSource.USER);
+        long b = seedShelter("Avatud B", ShelterSource.USER);
+        mvc.perform(post("/api/shelters/" + a + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Avaja A1", "avaja-a1@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"NON_EXISTENT\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + a + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Avaja A2", "avaja-a2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"CLOSED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + b + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Avaja B1", "avaja-b1@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + b + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Avaja B2", "avaja-b2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"WRONG_LOCATION\"}"))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        // the admin resolves one report on each shelter
+        Long ra1 = reportId("Avaja A1", a);
+        Long rb1 = reportId("Avaja B1", b);
+        mvc.perform(post("/admin/reports/" + ra1 + "/dismiss")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/admin/reports/" + rb1 + "/dismiss")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+
+        // the OPEN scope: the resolved verdicts out — only the open rows
+        mvc.perform(get("/admin/reports").param("excludeDismissed", "true")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[?(@.dismissed == true)]")
+                        .value(org.hamcrest.Matchers.empty()));
+
+        // the default scope hides nothing: every row renders, the total is the
+        // queue's length (dismissed rows included, dimmed)
+        mvc.perform(get("/admin/reports")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "4"))
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(4)));
+    }
+
+    @Test
+    void anUnpagedUsersRequestServesTheDefaultPageWithTheTotalHeader() throws Exception {
+        // The absent-params request is a bounded page (the default size), never
+        // the whole table — and the X-Total-Count header is the tab's
+        // population WITHOUT paging (always present, the paging vocabulary).
+        String token = adminToken();
+        MvcResult result = mvc.perform(get("/admin/users")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Total-Count"))
+                .andReturn();
+        int total = Integer.parseInt(result.getResponse().getHeader("X-Total-Count"));
+        java.util.List<Long> ids = parseIds(result.getResponse().getContentAsString());
+        assertThat(ids).hasSizeLessThanOrEqualTo(AdminModerationService.AUDIT_DEFAULT_LIMIT);
+        assertThat(total).isGreaterThanOrEqualTo(ids.size());
+    }
+
+    @Test
     void aDismissIsIdempotentAndKeepsTheRow() throws Exception {
         long id = seedShelter("Märkitav", ShelterSource.USER);
         mvc.perform(post("/api/shelters/" + id + "/reports")

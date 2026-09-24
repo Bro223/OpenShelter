@@ -26,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -168,28 +167,29 @@ public class AdminModerationService {
     public void setShelterStatus(long moderatorId, long shelterId, ShelterStatus target) {
         Shelter shelter = shelterService.requireShelter(shelterId);
         shelterService.requireUserOwned(shelter);
-        if (shelter.getStatus() != target) {
-            ReviewStatus previousReview = shelter.getReviewStatus();
-            if (target == ShelterStatus.ACTIVE) {
-                // The restore (shelter-trust-and-reports): once a human
-                // has set the status, the NON_EXISTENT reports increment
-                // their count but never re-hide this shelter.
-                shelter.setAutoHideDisarmed(true);
-                // A rejected row starts over as NEW (community-review-queue
-                // v2).
-                if (shelter.getReviewStatus() == ReviewStatus.REJECTED) {
-                    shelter.setReviewStatus(ReviewStatus.NEW);
-                }
-            }
-            shelter.setStatus(target);
-            shelters.save(shelter);
-            // The audit row joins this transaction (community-review-queue
-            // v2). previous/new carry the review_status — it moves only
-            // on a restore of a REJECTED row; otherwise the action string
-            // says what moved.
-            audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.STATUS_CHANGE, null,
-                    previousReview, shelter.getReviewStatus());
+        if (shelter.getStatus() == target) {
+            return; // a no-op same-status call writes nothing, audit included
         }
+        ReviewStatus previousReview = shelter.getReviewStatus();
+        if (target == ShelterStatus.ACTIVE) {
+            // The restore (shelter-trust-and-reports): once a human
+            // has set the status, the NON_EXISTENT reports increment
+            // their count but never re-hide this shelter.
+            shelter.setAutoHideDisarmed(true);
+            // A rejected row starts over as NEW (community-review-queue
+            // v2).
+            if (shelter.getReviewStatus() == ReviewStatus.REJECTED) {
+                shelter.setReviewStatus(ReviewStatus.NEW);
+            }
+        }
+        shelter.setStatus(target);
+        shelters.save(shelter);
+        // The audit row joins this transaction (community-review-queue
+        // v2). previous/new carry the review_status — it moves only
+        // on a restore of a REJECTED row; otherwise the action string
+        // says what moved.
+        audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.STATUS_CHANGE, null,
+                previousReview, shelter.getReviewStatus());
     }
 
     /**
@@ -256,14 +256,15 @@ public class AdminModerationService {
     public void markInaccurate(long moderatorId, long shelterId, String reason) {
         Shelter shelter = shelterService.requireShelter(shelterId);
         shelterService.requireUserOwned(shelter);
-        if (shelter.getInaccurateMarkedAt() == null) {
-            shelter.setInaccurateMarkedAt(clock.instant());
-            shelter.setInaccurateMarkedBy(moderatorId);
-            shelters.save(shelter);
-            audit.record(shelterId, null, moderatorId,
-                    ModerationAuditLog.Action.MARK_INACCURATE, normalizeReason(reason),
-                    shelter.getReviewStatus(), shelter.getReviewStatus());
+        if (shelter.getInaccurateMarkedAt() != null) {
+            return; // already marked: a no-op records no audit row
         }
+        shelter.setInaccurateMarkedAt(clock.instant());
+        shelter.setInaccurateMarkedBy(moderatorId);
+        shelters.save(shelter);
+        audit.record(shelterId, null, moderatorId,
+                ModerationAuditLog.Action.MARK_INACCURATE, normalizeReason(reason),
+                shelter.getReviewStatus(), shelter.getReviewStatus());
     }
 
     /**
@@ -276,14 +277,15 @@ public class AdminModerationService {
     public void clearInaccurate(long moderatorId, long shelterId) {
         Shelter shelter = shelterService.requireShelter(shelterId);
         shelterService.requireUserOwned(shelter);
-        if (shelter.getInaccurateMarkedAt() != null) {
-            shelter.setInaccurateMarkedAt(null);
-            shelter.setInaccurateMarkedBy(null);
-            shelters.save(shelter);
-            audit.record(shelterId, null, moderatorId,
-                    ModerationAuditLog.Action.CLEAR_INACCURATE, null,
-                    shelter.getReviewStatus(), shelter.getReviewStatus());
+        if (shelter.getInaccurateMarkedAt() == null) {
+            return; // unmarked: a no-op records no audit row
         }
+        shelter.setInaccurateMarkedAt(null);
+        shelter.setInaccurateMarkedBy(null);
+        shelters.save(shelter);
+        audit.record(shelterId, null, moderatorId,
+                ModerationAuditLog.Action.CLEAR_INACCURATE, null,
+                shelter.getReviewStatus(), shelter.getReviewStatus());
     }
 
     /**
@@ -327,25 +329,56 @@ public class AdminModerationService {
         if (shelterId != null) {
             shelterService.requireShelter(shelterId);
         }
-        List<ShelterReport> reports = excludeDismissed
-                ? openReportPage(shelterId, from, size)
-                : (shelterId == null
-                        ? shelterReports.findLatest(from, size)
-                        : shelterReports.findLatestByShelterId(shelterId, from, size));
-        long total = excludeDismissed
-                ? openReportCount(shelterId)
-                : (shelterId == null
-                        ? shelterReports.countAll()
-                        : shelterReports.countByShelterId(shelterId));
+        List<ShelterReport> reports = queuePage(shelterId, excludeDismissed, from, size);
+        long total = queueTotal(shelterId, excludeDismissed);
         if (reports.isEmpty()) {
             return new Pagination.Paged<>(List.of(), total);
         }
+        return new Pagination.Paged<>(toReportDtos(reports), total);
+    }
+
+    /**
+     * The queue's page: the OPEN scope filters the dismissed rows out of
+     * the bounded store pages; the default scope is the store's own
+     * newest-first page (the queue's table is append-only — the bound is
+     * in the SQL, not an in-memory trim).
+     */
+    private List<ShelterReport> queuePage(Long shelterId, boolean excludeDismissed, long from, int size) {
+        if (excludeDismissed) {
+            return openReportPage(shelterId, from, size);
+        }
+        return shelterId == null
+                ? shelterReports.findLatest(from, size)
+                : shelterReports.findLatestByShelterId(shelterId, from, size);
+    }
+
+    /**
+     * The queue's length WITHOUT paging (the X-Total-Count): the OPEN
+     * scope counts the dismissed-excluded rows; the default scope counts
+     * everything (nothing hidden silently).
+     */
+    private long queueTotal(Long shelterId, boolean excludeDismissed) {
+        if (excludeDismissed) {
+            return openReportCount(shelterId);
+        }
+        return shelterId == null
+                ? shelterReports.countAll()
+                : shelterReports.countByShelterId(shelterId);
+    }
+
+    /**
+     * The page's rows with their shelter + reporter identity: ONE batched
+     * lookup each (no N+1) over the RETURNED page only; a gone shelter
+     * renders {@link #UNKNOWN_NAME}, an erased reporter its
+     * {@link #UNKNOWN_NAME} fallback.
+     */
+    private List<AdminShelterReportDto> toReportDtos(List<ShelterReport> reports) {
         Map<Long, Shelter> sheltersById = shelters
                 .findByIds(reports.stream().map(ShelterReport::getShelterId).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(Shelter::getId, Function.identity()));
         Map<Long, User> reporters = users.findByIds(reports.stream()
                 .map(ShelterReport::getUserId).collect(Collectors.toSet()));
-        List<AdminShelterReportDto> dtos = reports.stream()
+        return reports.stream()
                 .map(report -> {
                     Shelter shelter = sheltersById.get(report.getShelterId());
                     User reporter = reporters.get(report.getUserId());
@@ -363,7 +396,6 @@ public class AdminModerationService {
                             report.isDismissed());
                 })
                 .toList();
-        return new Pagination.Paged<>(dtos, total);
     }
 
     /**
@@ -407,19 +439,17 @@ public class AdminModerationService {
 
     /**
      * The OPEN queue's length WITHOUT paging (the filtered view's
-     * X-Total-Count): the same dismissed-excluded, per-(shelter, type)
-     * counts the pins read (one grouped query, no per-row scan),
-     * summed over the queue's scope. Reports of deleted shelters cascade
-     * away with the shelter, so the shelter ids cover the whole table.
+     * X-Total-Count): the dismissed-excluded count the pins read,
+     * summed over the queue's scope. A store-level COUNT, never a
+     * read: the global scope must not pay for the shelter table (or the
+     * report rows) — reports of deleted shelters cascade away with the
+     * shelter, so the undismissed count covers the whole table by itself.
      */
     private long openReportCount(Long shelterId) {
-        Collection<Long> ids = shelterId == null
-                ? shelters.findAll().stream().map(Shelter::getId).toList()
-                : List.of(shelterId);
-        if (ids.isEmpty()) {
-            return 0L;
+        if (shelterId == null) {
+            return shelterReports.countOpen();
         }
-        return shelterReports.countByTypeForShelterIds(ids).stream()
+        return shelterReports.countByTypeForShelterIds(List.of(shelterId)).stream()
                 .mapToLong(ShelterReportRepository.ReportTypeCount::count)
                 .sum();
     }
@@ -434,13 +464,14 @@ public class AdminModerationService {
     public void dismissReport(long moderatorId, long reportId) {
         ShelterReport report = shelterReports.findById(reportId)
                 .orElseThrow(() -> new ReportNotFoundException(reportId));
-        if (!report.isDismissed()) {
-            report.markDismissed(clock.instant());
-            shelterReports.save(report);
-            ReviewStatus reviewStatus = reviewStatusOf(report.getShelterId());
-            audit.record(report.getShelterId(), null, moderatorId,
-                    ModerationAuditLog.Action.REPORT_DISMISS, null, reviewStatus, reviewStatus);
+        if (report.isDismissed()) {
+            return; // already resolved: a no-op records no audit row, the stamp is set once
         }
+        report.markDismissed(clock.instant());
+        shelterReports.save(report);
+        ReviewStatus reviewStatus = reviewStatusOf(report.getShelterId());
+        audit.record(report.getShelterId(), null, moderatorId,
+                ModerationAuditLog.Action.REPORT_DISMISS, null, reviewStatus, reviewStatus);
     }
 
     /**
@@ -510,10 +541,17 @@ public class AdminModerationService {
         if (rows.isEmpty()) {
             return new Pagination.Paged<>(List.of(), total);
         }
-        // User-scoped rows carry a null shelterId + a
-        // subjectUserId; both reference sets are resolved in ONE batched
-        // lookup each (no N+1), dangling ids included (rendered at read
-        // time — "Deleted shelter" / "Deleted account").
+        return new Pagination.Paged<>(toAuditDtos(rows), total);
+    }
+
+    /**
+     * The trail's rows with their subject + moderator names: user-scoped
+     * rows carry a null shelterId + a subjectUserId, and both reference
+     * sets resolve in ONE batched lookup each (no N+1), dangling ids
+     * included (rendered at read time — "Deleted shelter" / "Deleted
+     * account").
+     */
+    private List<AdminAuditDto> toAuditDtos(List<ModerationAuditLog.Row> rows) {
         Set<Long> shelterIds = rows.stream()
                 .map(ModerationAuditLog.Row::shelterId).filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> subjectIds = rows.stream()
@@ -523,7 +561,7 @@ public class AdminModerationService {
         Map<Long, User> subjects = users.findByIds(subjectIds);
         Map<Long, User> moderators = users.findByIds(rows.stream()
                 .map(ModerationAuditLog.Row::moderatorId).filter(Objects::nonNull).collect(Collectors.toSet()));
-        List<AdminAuditDto> dtos = rows.stream()
+        return rows.stream()
                 .map(row -> {
                     // V14: moderation_actions.moderator_id is ON DELETE SET NULL,
                     // so a row can outlive its moderator with a null id. The lookup
@@ -544,7 +582,6 @@ public class AdminModerationService {
                             row.createdAt());
                 })
                 .toList();
-        return new Pagination.Paged<>(dtos, total);
     }
 
     /**
@@ -570,6 +607,14 @@ public class AdminModerationService {
         if (events.isEmpty()) {
             return List.of();
         }
+        return toHistoryDtos(events);
+    }
+
+    /**
+     * The history rows with their actor names: ONE batched user lookup
+     * (no N+1); a dangling actor renders "Unknown".
+     */
+    private List<AdminShelterHistoryDto> toHistoryDtos(List<ShelterHistoryLog.Event> events) {
         Map<Long, User> actors = users.findByIds(events.stream()
                 .map(ShelterHistoryLog.Event::actorUserId).filter(Objects::nonNull)
                 .collect(Collectors.toSet()));
@@ -624,35 +669,31 @@ public class AdminModerationService {
     /**
      * GET /admin/users — the account list behind the Users tab:
      * every REGISTERED and ADMIN account, id-ordered, with its
-     * suspension state. GUEST rows are filtered out (no credentials to
-     * suspend); the ADMIN row is listed so the provisioned account is
-     * visible but not suspendable.
+     * suspension state. GUEST rows never reach the read (no credentials
+     * to suspend) — they are excluded IN THE SQL, so a page never loads
+     * — and never decrypts — the whole account population.
      *
-     * <p>Paging (the owner's "every admin list pages" rule): the
-     * unpaged read (both params absent) keeps the pre-change behaviour
-     * (one pass over the whole table — the account population is small
-     * and the tab is a triage surface); a present {@code limit}
-     * (1..{@link Pagination#MAX_PAGE_SIZE}) or {@code offset} pages in
-     * the SQL (REGISTERED + ADMIN kinds only — a page never decrypts the
-     * whole account population), and the answer's
-     * {@link Pagination.Paged#total()} is the tab's population WITHOUT
-     * paging (the X-Total-Count value).
+     * <p>Paged like the other admin lists (the owner's "every admin
+     * list pages" rule): {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
+     * (default {@value #AUDIT_DEFAULT_LIMIT}, anything else a 400) and
+     * {@code offset} is the non-negative page start (both bounds are the
+     * shared paging vocabulary, the controller's checks run BEFORE the
+     * read). The answer's {@link Pagination.Paged#total()} is the tab's
+     * population WITHOUT paging (the X-Total-Count value).
      */
     @Transactional(readOnly = true)
     public Pagination.Paged<AdminUserDto> listUsers(Integer limit, Integer offset) {
-        if (limit == null && offset == null) {
-            List<AdminUserDto> dtos = users.findAll().stream()
-                    .filter(user -> user.getData().email() != null)
-                    .map(user -> AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId()))
-                    .toList();
-            return new Pagination.Paged<>(dtos, dtos.size());
-        }
-        int size = limit == null ? (int) users.countAccounts() : Pagination.requireLimit(limit);
+        int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         long from = offset == null ? 0 : offset;
         List<AdminUserDto> dtos = users.findAccountPage(from, size).stream()
-                .map(user -> AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId()))
+                .map(AdminModerationService::toUserDto)
                 .toList();
         return new Pagination.Paged<>(dtos, users.countAccounts());
+    }
+
+    /** The tab's row: the account identity it needs plus the suspension state. */
+    private static AdminUserDto toUserDto(User user) {
+        return AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId());
     }
 
     /**
@@ -666,19 +707,14 @@ public class AdminModerationService {
      */
     @Transactional
     public void suspendUser(long moderatorId, long userId) {
-        User user = requireUser(userId);
-        if (user instanceof AdminUser) {
-            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+        User user = requireSuspendableUser(userId);
+        if (user.isSuspended()) {
+            return; // already suspended: a no-op records no audit row
         }
-        if (!isRegistered(user)) {
-            throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
-        }
-        if (!user.isSuspended()) {
-            user.suspend(clock.instant());
-            users.save(user);
-            audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_SUSPEND,
-                    null, null, null);
-        }
+        user.suspend(clock.instant());
+        users.save(user);
+        audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_SUSPEND,
+                null, null, null);
     }
 
     /**
@@ -690,6 +726,22 @@ public class AdminModerationService {
      */
     @Transactional
     public void unsuspendUser(long moderatorId, long userId) {
+        User user = requireSuspendableUser(userId);
+        if (!user.isSuspended()) {
+            return; // not suspended: a no-op records no audit row
+        }
+        user.unsuspend();
+        users.save(user);
+        audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_UNSUSPEND,
+                null, null, null);
+    }
+
+    /**
+     * The suspension guards, in order: 404 the unknown id, 403 the
+     * provisioned admin (the deployment's access path — a lockout vector,
+     * it cannot be disabled at all), 409 the guest (no credentials).
+     */
+    private User requireSuspendableUser(long userId) {
         User user = requireUser(userId);
         if (user instanceof AdminUser) {
             throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
@@ -697,12 +749,7 @@ public class AdminModerationService {
         if (!isRegistered(user)) {
             throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
         }
-        if (user.isSuspended()) {
-            user.unsuspend();
-            users.save(user);
-            audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_UNSUSPEND,
-                    null, null, null);
-        }
+        return user;
     }
 
     private User requireUser(long userId) {

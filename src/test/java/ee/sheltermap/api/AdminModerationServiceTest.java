@@ -19,12 +19,15 @@ import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.DuplicateInfoRequestException;
 import ee.sheltermap.app.UserNotFoundException;
+import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewDecision;
+import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReport;
@@ -56,11 +59,11 @@ class AdminModerationServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-11T12:00:00Z");
     private static final Clock FIXED = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private InMemoryShelterRepository shelters;
+    private CountingShelterRepository shelters;
     private InMemoryShelterReportRepository shelterReports;
     private InMemoryShelterOccupancyRepository occupancy;
     private InMemoryShelterOpenStatusRepository openStatus;
-    private InMemoryUserRepository users;
+    private CountingUserRepository users;
     private InMemoryModerationAuditLog audit;
     private InMemoryShelterHistoryLog history;
     private InMemoryShelterInfoRequestLog infoRequests;
@@ -71,30 +74,34 @@ class AdminModerationServiceTest {
 
     @BeforeEach
     void setUp() {
-        shelters = new InMemoryShelterRepository();
+        shelters = new CountingShelterRepository();
         shelterReports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
         openStatus = new InMemoryShelterOpenStatusRepository();
-        users = new InMemoryUserRepository();
+        users = new CountingUserRepository();
         audit = new InMemoryModerationAuditLog(FIXED);
         history = new InMemoryShelterHistoryLog(FIXED);
         infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
-        ShelterQueryService queryService =
-                new ShelterQueryService(shelters, users, shelterReports, occupancy,
-                        openStatus,
-                        new InMemoryDataImportLog(), audit,
-                        new ReporterTrustEvaluator(shelters, audit),
-                        infoRequests, FIXED);
-        service = new AdminModerationService(queryService, shelters, shelterReports,
-                users, FIXED,
-                audit,
-                new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
-                        history, FIXED),
-                history,
-                infoRequests);
+        service = buildService(shelters, users);
 
         adminId = saveAdmin("Admin", "admin@example.ee");
         submitterId = saveUser("Autor", "autor@example.ee");
+    }
+
+    private AdminModerationService buildService(ShelterRepository shelterStore, UserRepository userStore) {
+        ShelterQueryService queryService =
+                new ShelterQueryService(shelterStore, userStore, shelterReports, occupancy,
+                        openStatus,
+                        new InMemoryDataImportLog(), audit,
+                        new ReporterTrustEvaluator(shelterStore, audit),
+                        infoRequests, FIXED);
+        return new AdminModerationService(queryService, shelterStore, shelterReports,
+                userStore, FIXED,
+                audit,
+                new ShelterService(shelterStore, userStore, 1_000, 100.0, new ThrottleAlertRecorder(128),
+                        history, FIXED),
+                history,
+                infoRequests);
     }
 
     private long saveAdmin(String name, String email) {
@@ -543,6 +550,101 @@ class AdminModerationServiceTest {
             moved.put((String) pair[0], (Object[]) pair[1]);
         }
         return moved;
+    }
+
+    // ---------- the users list: a bounded page, never the whole-table read ----------
+
+    /**
+     * The hazard this test would have caught: the unpaged Users-tab request
+     * (both paging params absent) used to read the WHOLE users table —
+     * domain-mapping, and so PII-decrypting, every account, guests included,
+     * and then filtering the guests out in memory. The tab is a bounded
+     * page like the other admin lists: the absent-params request serves the
+     * DEFAULT page, and no code path may pay for the account population.
+     */
+    @Test
+    void theUnpagedUsersListServesTheDefaultPageWithoutReadingTheWholeTable() {
+        // 121 accounts in total (admin + submitter + 119) — more than the
+        // default page, so the bound is observable.
+        for (int i = 0; i < 119; i++) {
+            saveUser("Leht " + i, "leht" + i + "@example.ee");
+        }
+
+        Pagination.Paged<AdminUserDto> page = service.listUsers(null, null);
+
+        assertThat(page.rows()).hasSize(AdminModerationService.AUDIT_DEFAULT_LIMIT);
+        assertThat(page.total()).isEqualTo(121);
+        assertThat(users.findAllCalls)
+                .as("the unpaged path must not read the whole users table (the PII full-decrypt read)")
+                .isZero();
+    }
+
+    /**
+     * The OPEN report queue's X-Total-Count must be a store-level COUNT:
+     * the hazard this test would have caught was the global scope loading
+     * the ENTIRE shelter table (domain-mapping every row) just to collect
+     * the ids for a grouped count. The value must stay the dismissed-excluded
+     * count — equal to the sum of the per-shelter open counts the pins read —
+     * without the shelter table entering the read at all.
+     */
+    @Test
+    void theGlobalOpenQueueTotalIsAStoreCountWithoutReadingTheShelterTable() {
+        long s1 = userShelter(ReviewStatus.NEW).getId();
+        long s2 = userShelter(ReviewStatus.NEW).getId();
+        long other = saveUser("Teine", "teine@example.ee");
+        long third = saveUser("Kolmas", "kolmas@example.ee");
+        // Five reports across the two shelters; two are dismissed (resolved)
+        long r1 = report(s1, submitterId, ShelterReportType.NON_EXISTENT);
+        long r2 = report(s1, other, ShelterReportType.CLOSED);
+        long r3 = report(s1, third, ShelterReportType.OPEN_CONFIRMED);
+        long r4 = report(s2, submitterId, ShelterReportType.NON_EXISTENT);
+        long r5 = report(s2, other, ShelterReportType.CLOSED);
+        dismiss(r3);
+        dismiss(r5);
+
+        Pagination.Paged<AdminShelterReportDto> open = service.listShelterReports(null, true, null, null);
+
+        assertThat(open.total()).isEqualTo(3); // the two undismissed on s1 + the one on s2
+        assertThat(open.rows()).hasSize(3);
+        // The shelter-scoped open scope keeps the same dismissed-excluded value
+        assertThat(service.listShelterReports(s1, true, null, null).total()).isEqualTo(2);
+        assertThat(shelters.findAllCalls)
+                .as("the open-scope X-Total-Count is a COUNT, not a read of the shelter table")
+                .isZero();
+    }
+
+    private long report(long shelterId, long userId, ShelterReportType type) {
+        ShelterReport report = new ShelterReport(shelterId, userId, type, null, NOW);
+        shelterReports.save(report);
+        return report.getId();
+    }
+
+    private void dismiss(long reportId) {
+        ShelterReport report = shelterReports.findById(reportId).orElseThrow();
+        report.markDismissed(NOW);
+        shelterReports.save(report);
+    }
+
+    /** Counts the whole-table read — the PII full-decrypt read a bounded page must not pay. */
+    private static final class CountingUserRepository extends InMemoryUserRepository {
+        int findAllCalls;
+
+        @Override
+        public List<User> findAll() {
+            findAllCalls++;
+            return super.findAll();
+        }
+    }
+
+    /** Counts the whole-shelter-table read — the queue's count must not pay for the corpus. */
+    private static final class CountingShelterRepository extends InMemoryShelterRepository {
+        int findAllCalls;
+
+        @Override
+        public List<Shelter> findAll() {
+            findAllCalls++;
+            return super.findAll();
+        }
     }
 
     // ---------- request-info ----------

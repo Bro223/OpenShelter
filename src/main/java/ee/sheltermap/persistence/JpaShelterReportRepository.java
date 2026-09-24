@@ -140,6 +140,12 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
         return reports.count();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public long countOpen() {
+        return reports.countOpen();
+    }
+
     private static ShelterReport toDomain(ShelterReportEntity entity) {
         ShelterReport report = new ShelterReport(entity.getShelterId(), entity.getUserId(),
                 entity.getType(), entity.getDetail(), entity.getCreatedAt());

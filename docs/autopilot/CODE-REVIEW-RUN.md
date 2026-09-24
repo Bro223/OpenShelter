@@ -21,6 +21,8 @@
 
 6. **The current-state document's anchors pin line ranges** (`docs/agent/00-CURRENT-STATE.md`, guarded by `DocumentationFactsTest`). A refactor that shifts lines will fail that guard even when the code is fine. So: where you can keep a cited range stable, do; where your change moves it, **record the shift in the notes file with the old and new range** so a single anchor pass can re-derive them all at the end. Do not edit the document yourself — one lane owns it, and 49 lanes editing one file is how anchors rot.
 
+7. **Every Maven invocation takes the lock**, not just the full gate: `flock /tmp/openshelter-mvn.lock mvn …`. A concurrent non-locked build wipes `target/test-classes` under another lane mid-run and produces hundreds of phantom `class file does not exist` errors — this has now bitten four separate lanes, and it makes a lane's own gate untrustworthy. If your gate fails with a wall of missing-class errors and no assertion failures, that is this, not your code: re-run under the lock and say so.
+
 ## What "simpler" means here — the standard to apply
 
 Rewrite toward these, and stop when the code is plain; do not gold-plate:

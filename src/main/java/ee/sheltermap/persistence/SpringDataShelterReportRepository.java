@@ -65,4 +65,10 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
 
     /** The report table's row count without paging (X-Total-Count —
      *  the inherited {@code CrudRepository.count} is the one COUNT). */
+
+    /** The NON-dismissed report count without paging — the admin queue's
+     *  open-scope X-Total-Count (a single COUNT; the dismissed rows
+     *  excluded by the same predicate every other read of this table uses). */
+    @Query("select count(r) from ShelterReportEntity r where r.dismissedAt is null")
+    long countOpen();
 }

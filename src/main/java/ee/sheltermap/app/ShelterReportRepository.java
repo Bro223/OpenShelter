@@ -96,4 +96,14 @@ public interface ShelterReportRepository {
      * {@code X-Total-Count} header value for the global queue).
      */
     long countAll();
+
+    /**
+     * The NON-dismissed report count WITHOUT paging — the admin
+     * queue's open-scope {@code X-Total-Count} (the dismissed rows stay
+     * in the table: the dismissal records the resolution, it never
+     * deletes the report — but they count in nothing, this count
+     * included). A single COUNT: the count must not pay for the rows it
+     * counts, and the global scope must not pay for the shelter table.
+     */
+    long countOpen();
 }

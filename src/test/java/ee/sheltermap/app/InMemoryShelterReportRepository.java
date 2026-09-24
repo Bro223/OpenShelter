@@ -125,6 +125,13 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
         return store.size();
     }
 
+    @Override
+    public long countOpen() {
+        return store.values().stream()
+                .filter(r -> !r.isDismissed())
+                .count();
+    }
+
     // ---- test-only conveniences (NOT on the production seam) ----
     // The production seam is deliberately bounded (an append-only table
     // must not be read unbounded); assertions in unit tests that inspect
