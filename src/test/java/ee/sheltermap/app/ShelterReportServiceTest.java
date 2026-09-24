@@ -29,8 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the shelter report + occupancy service
- * (shelter-trust-and-reports, community-self-moderation):
+ * Unit tests for the shelter report + occupancy service:
  * the verified gate, 404s, the per-target duplicate 409 (before any
  * throttle budget is consumed), the per-hour throttle 429, the
  * trust-weighted 5-point auto-hide (five baseline reporters still hide
@@ -294,8 +293,8 @@ class ShelterReportServiceTest {
         assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.INACTIVE);
 
-        // admin restore (the admin-moderation change owns the write path;
-        // here we simulate the resulting status change)
+        // admin restore (the service never writes status except at the
+        // auto-hide crossing; here we simulate the resulting change)
         Shelter restored = shelters.findById(shelter.getId()).orElseThrow();
         restored.setStatus(ShelterStatus.ACTIVE);
         shelters.save(restored);
@@ -453,11 +452,7 @@ class ShelterReportServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ---------- auto-confirm (community-review-queue v2) ----------
-
-    // (the old single-report promotion test is superseded:
-    // threeDistinctConfirmersVerifyANewRow covers the crossing + audit
-    // shape, aSingleConfirmationDoesNotVerifyANewRow pins the threshold)
+    // ---------- auto-confirm (community verification) ----------
 
     @Test
     void theSubmittersOwnPositiveReportDoesNotConfirm() {
@@ -680,7 +675,7 @@ class ShelterReportServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ---------- trust-weighted auto-hide (community-self-moderation) ----------
+    // ---------- trust-weighted auto-hide ----------
 
     /** A reporter with one CONFIRMED USER submission of their own (weight 2), far from the target. */
     private RegisteredUser trustedUser(String name) {
@@ -827,7 +822,7 @@ class ShelterReportServiceTest {
                 ShelterReportType.NON_EXISTENT, null)).isFalse();
     }
 
-    // ---------- dismissed reports stop counting (admin-moderation) ----------
+    // ---------- dismissed reports stop counting ----------
 
     @Test
     void aDismissedReportCountsNothingAndTheFifthUndismissedStillHides() {
@@ -836,8 +831,8 @@ class ShelterReportServiceTest {
             service.reportShelter(user("Voter" + i, true), shelter.getId(),
                     ShelterReportType.NON_EXISTENT, null);
         }
-        // the admin judged one of them invalid (the admin-moderation change
-        // owns the endpoint; here the domain stamp)
+        // the admin judged one of them invalid (the admin endpoint owns
+        // dismissal; here the domain stamp)
         ShelterReport dismissed = reports.findByShelterId(shelter.getId()).get(0);
         dismissed.markDismissed(FIXED.instant());
         reports.save(dismissed);

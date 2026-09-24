@@ -25,8 +25,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Typed shelter reports + live occupancy + live open/closed state
- * (shelter-trust-and-reports).
+ * Typed shelter reports + live occupancy + live open/closed state:
+ * the community's writes that decide what the map shows.
  *
  * <p>Every write requires a verified registered user (the same
  * {@code canWrite()} gate as submissions), a known shelter (404), and —
@@ -37,20 +37,20 @@ import java.util.stream.Collectors;
  * open/closed state tap does NOT count — a tap is a state, not a report
  * action, so it records nothing in the action log.
  *
- * <p>Auto-hide (trust-weighted since community-self-moderation):
- * an {@code ACTIVE} shelter whose {@code auto_hide_disarmed} is
- * {@code false} becomes {@code INACTIVE} on the {@code NON_EXISTENT}
- * report insert that brings the shelter's trust-weighted hide tally —
- * the sum of the distinct reporters' derived weights, dampened reports
- * contributing 0 and admin-dismissed reports excluded entirely (the
- * dismissal is the admin's invalid verdict — the report stops
- * influencing anything) — from below {@code AUTO_HIDE_THRESHOLD} to at
- * least that value. Five baseline (weight-1) reporters still hide on the
+ * <p>Auto-hide (trust-weighted): an {@code ACTIVE} shelter whose
+ * {@code auto_hide_disarmed} is {@code false} becomes
+ * {@code INACTIVE} on the {@code NON_EXISTENT} report insert that
+ * brings the shelter's trust-weighted hide tally — the sum of the
+ * distinct reporters' derived weights, dampened reports contributing
+ * 0 and admin-dismissed reports excluded entirely (the dismissal is
+ * the admin's invalid verdict — the report stops influencing
+ * anything) — from below {@code AUTO_HIDE_THRESHOLD} to at least
+ * that value. Five baseline (weight-1) reporters still hide on the
  * fifth report; trusted reporters reach the consensus faster. The
  * trigger fires only on the crossing insert; after a manual status
- * change (admin restore, later change) the tally is already at or above
- * the threshold, so later reports increment it but never re-hide. No
- * other path auto-hides.
+ * change (admin restore, later change) the tally is already at or
+ * above the threshold, so later reports increment it but never
+ * re-hide. No other path auto-hides.
  *
  * <p>Auto-confirm (community verification, the positive mirror of the
  * auto-hide): when an {@code OPEN_CONFIRMED} report is successfully
@@ -164,20 +164,12 @@ public class ShelterReportService {
             throw new DuplicateReportException();
         }
         actionLog.record(user.getId(), ReportActionLog.Action.SHELTER_REPORT);
-        boolean damped = false;
-        boolean reachesAutoHide = false;
-        if (type == ShelterReportType.NON_EXISTENT) {
-            // The negative half of the self-moderation loop is
-            // trust-weighted and dampened; the positive half below is
-            // untouched (the locked auto-trust).
-            damped = isDampenedFor(user.getId(), shelter);
-            long tallyBefore = hideTally(shelterId);
-            long myPoints = damped ? 0 : trust.weight(user.getId());
-            reachesAutoHide = tallyBefore < ShelterReport.AUTO_HIDE_THRESHOLD
-                    && tallyBefore + myPoints >= ShelterReport.AUTO_HIDE_THRESHOLD;
-        }
-        ShelterReport report = new ShelterReport(shelterId, user.getId(), type, detailFor(type, detail),
-                clock.instant());
+        boolean damped = type == ShelterReportType.NON_EXISTENT
+                && hasOwnDuplicateListing(user.getId(), shelter);
+        boolean crossesHideTally = type == ShelterReportType.NON_EXISTENT
+                && crossesHideTally(shelterId, user.getId(), damped);
+        ShelterReport report = new ShelterReport(shelterId, user.getId(), type,
+                detailFor(type, detail), clock.instant());
         if (damped) {
             report.markDamped();
         }
@@ -188,7 +180,7 @@ public class ShelterReportService {
             // constraint is the authority; same semantics as the pre-check.
             throw new DuplicateReportException();
         }
-        if (reachesAutoHide) {
+        if (crossesHideTally) {
             autoHideIfEligible(shelter);
         }
         if (type == ShelterReportType.OPEN_CONFIRMED) {
@@ -202,6 +194,13 @@ public class ShelterReportService {
      * (shelter, user), re-reporting refreshes the band and
      * {@code updated_at}. Display is derived at read time; this write
      * never affects visibility, status or filters.
+     *
+     * <p>Like a shelter report, an occupancy write counts against the
+     * per-user rolling-hour throttle (the 429 fires once the budget is
+     * exhausted, and a rejected write consumes nothing). The
+     * open/closed state tap is the exception: a tap is a state, not a
+     * report action, so it records nothing in the action log and is
+     * never throttled.
      *
      * @throws NotVerifiedException     guest or unverified registered user (→ 403)
      * @throws ShelterNotFoundException unknown shelter id (→ 404)
@@ -280,24 +279,25 @@ public class ShelterReportService {
     }
 
     /**
-     * The duplicate dampening: {@code true} when the reporter
-     * holds their OWN other USER listing of the same place — the same
-     * normalized name within {@code duplicateCoordMeters} haversine of
-     * the reported shelter, the reporter's row in ANY status (a deleted
-     * row is simply gone, so it cannot damp), the target row itself
-     * excluded. Reuses the duplicate rule's statics — one spelling of
-     * "duplicate" in the codebase.
+     * The dampening predicate: {@code true} when the reporter holds
+     * their OWN other USER listing of the same place as the reported
+     * shelter — the same normalized name within
+     * {@code duplicateCoordMeters} haversine, the reporter's row in
+     * ANY status (a deleted row is gone, so it cannot damp), the
+     * reported row itself excluded. Reuses the duplicate rule's
+     * statics — one spelling of "duplicate" in the codebase.
      */
-    private boolean isDampenedFor(long reporterId, Shelter target) {
-        return shelters.findByCreatedBy(reporterId).stream()
-                .filter(existing -> existing.getId() != null
-                        && !existing.getId().equals(target.getId()))
-                .filter(existing -> existing.getSource() == ShelterSource.USER)
-                .filter(existing -> ShelterService.normalizedNamesEqual(
-                        existing.getName(), target.getName()))
-                .filter(existing -> ShelterService.haversineMeters(
-                        existing.getLocation(), target.getLocation()) <= duplicateCoordMeters)
-                .findAny().isPresent();
+    private boolean hasOwnDuplicateListing(long reporterId, Shelter target) {
+        for (Shelter existing : shelters.findByCreatedBy(reporterId)) {
+            if (existing.getId() != null && !existing.getId().equals(target.getId())
+                    && existing.getSource() == ShelterSource.USER
+                    && ShelterService.normalizedNamesEqual(existing.getName(), target.getName())
+                    && ShelterService.haversineMeters(existing.getLocation(), target.getLocation())
+                            <= duplicateCoordMeters) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -329,21 +329,21 @@ public class ShelterReportService {
      * decision on its own (stale) snapshot. What keeps the promotion to
      * exactly one is the {@code shelters.version} column, not the
      * {@code reviewStatus == NEW} check: the two versioned UPDATE
-     * statements serialize on the row, the first to commit promotes and writes the
-     * single AUTO_CONFIRM row, and the loser's UPDATE finds the row
-     * already moved — its whole transaction (its legitimate report
-     * included) rolls back and the request is answered 409 "The resource
-     * changed under you; reload and retry" (never 500, never a silently
-     * dropped report). The 409 is retryable: the loser's report is gone
-     * from the store, so the duplicate pre-check passes on re-POST and
-     * the report is stored; the row is already CONFIRMED, so the retry
-     * cannot double-promote. The actor of record is therefore the
-     * WINNER's user — under a true race both writers are legitimate
-     * crossing actions and the recorded actor is the one whose action
-     * committed, not necessarily "the" crossing report. (The
-     * auto-hide crossing has the same guarantee — one transition, loser
-     * 409'd and retryable — with one asymmetry: it writes no audit row,
-     * the queue evidences it; review 18 F2.)
+     * statements serialize on the row, the first to commit promotes and
+     * writes the single AUTO_CONFIRM row, and the loser's UPDATE finds
+     * the row already moved — its whole transaction (its legitimate
+     * report included) rolls back and the request is answered 409 "The
+     * resource changed under you; reload and retry" (never 500, never a
+     * silently dropped report). The 409 is retryable: the loser's
+     * report is gone from the store, so the duplicate pre-check passes
+     * on re-POST and the report is stored; the row is already
+     * CONFIRMED, so the retry cannot double-promote. The actor of record
+     * is therefore the WINNER's user — under a true race both writers
+     * are legitimate crossing actions and the recorded actor is the one
+     * whose action committed, not necessarily "the" crossing report.
+     * (The auto-hide crossing has the same guarantee — one transition,
+     * loser 409'd and retryable — with one asymmetry: it writes no
+     * audit row, the queue evidences it.)
      */
     private void autoConfirmIfEligible(Shelter shelter, RegisteredUser actor) {
         if (shelter.getSource() == ShelterSource.USER
@@ -364,11 +364,11 @@ public class ShelterReportService {
      * live tap is OPEN, the row's submitter excluded — their own
      * confirmation never verifies their own shelter, not even as the
      * third. Each distinct user counts once regardless of how many
-     * positive actions they took (a row without a stored author — pre-V7
-     * legacy — has no submitter to exclude). The report half reuses the
-     * same seam as the hide tally (the (shelter, user, type) uniqueness
-     * gives one row per reporter; dismissed reports are excluded there
-     * by the query), so a dismissal drops the reporter from this tally
+     * positive actions they took (a row without a stored author has no
+     * submitter to exclude). The report half reuses the same seam as
+     * the hide tally (the (shelter, user, type) uniqueness gives one
+     * row per reporter; dismissed reports are excluded there by the
+     * query), so a dismissal drops the reporter from this tally
      * exactly as from the hide tally and the displayed counts.
      */
     private long distinctConfirmers(Shelter shelter) {
@@ -382,6 +382,20 @@ public class ShelterReportService {
             confirmers.remove(submitter);
         }
         return confirmers.size();
+    }
+
+    /**
+     * Whether storing this report takes the shelter's hide tally from
+     * below {@link ShelterReport#AUTO_HIDE_THRESHOLD} to at least that
+     * value — the crossing that auto-hides. The tally is read as stored
+     * BEFORE the insert, so this report's own points (0 when dampened)
+     * are added here, not read from the store.
+     */
+    private boolean crossesHideTally(long shelterId, long reporterId, boolean damped) {
+        long before = hideTally(shelterId);
+        long points = damped ? 0 : trust.weight(reporterId);
+        return before < ShelterReport.AUTO_HIDE_THRESHOLD
+                && before + points >= ShelterReport.AUTO_HIDE_THRESHOLD;
     }
 
     /**
