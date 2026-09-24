@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Unit tests for the read side of the shelter API: source-filter mapping
  * (REGISTRY/USER/ALL → repository source sets), DTO mapping that never leaks
  * the entity, and the trust-layer
- * derivations (shelter-trust-and-reports D1/D4/D5): report counts, the
+ * derivations (shelter-trust-and-reports): report counts, the
  * fresh open/closed block, the fresh occupancy block, the ACTIVE-only
  * public list and the in-memory trust filters.
  */
@@ -149,13 +149,13 @@ class ShelterQueryServiceTest {
         assertThat(service.findAll(ShelterSourceFilter.ALL, null, null))
                 .extracting(ShelterDto::name)
                 .doesNotContain("Peidetud varjend");
-        // the owner list keeps hidden rows (D5) and carries their derived state
+        // the owner list keeps hidden rows and carries their derived state
         ShelterDto mine = service.findByCreatedBy(7L).get(0);
         assertThat(mine.name()).isEqualTo("Peidetud varjend");
         assertThat(mine.status()).isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    // ---------- trust derivations (shelter-trust-and-reports D1/D4/D5) ----------
+    // ---------- trust derivations (shelter-trust-and-reports) ----------
 
     @Test
     void nonexistentReportsDefaultToZero() {
@@ -461,7 +461,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void theInaccurateCountSumsWrongLocationAndOtherExcludingDismissed() {
-        // W2-A report semantics: the "inaccurate information" count is the
+        // report semantics: the "inaccurate information" count is the
         // open WRONG_LOCATION + OTHER reports — the community "the data is
         // wrong" kinds. NON_EXISTENT keeps its own count, and a dismissed
         // report stops counting in EVERY count (the admin's invalid verdict
@@ -527,7 +527,7 @@ class ShelterQueryServiceTest {
         // "verified yellow" marker) is absent, and the provenance is the
         // ordinary community value, never the registry/partner standing.
         //
-        // W2-A backfill boundary: this is the PRE-V31 shape (the snapshot
+        // backfill boundary: this is the PRE-V31 shape (the snapshot
         // column is null on the fixture), so the read falls back to the live
         // author and an orphaned pre-existing row resolves UNVERIFIED.
         // Backfilling those rows is an explicit OWNER DECISION left open by
@@ -547,7 +547,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void theV31SnapshotSurvivesAuthorErasure() {
-        // W2-A part 2 (the erasure fix): a row written after V31 carries the
+        // part 2 (the erasure fix): a row written after V31 carries the
         // submitter's standing AS AT WRITE TIME. Account erasure NULLs
         // created_by (V7 ON DELETE SET NULL) and the live derivation dies
         // with the author — the snapshot must survive it, so the row keeps

@@ -35,7 +35,7 @@
   >
     <nav class="shell-nav" [attr.aria-label]="'nav.primaryAria' | t">
       <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
-      <!-- Public crisis-guidance index (crisis-guidance D6): permit-all —
+      <!-- Public crisis-guidance index (crisis-guidance): permit-all —
            anonymous visitors see it too, like the map. -->
       <a routerLink="/blog" routerLinkActive="active">{{ 'nav.guidance' | t }}</a>
       @if (auth.initialized() && auth.authenticated()) {
@@ -52,7 +52,7 @@
         @if (!auth.isAdmin()) {
           <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
         }
-        <!-- Admin-kind only (admin-moderation D5): regular users see the
+        <!-- Admin-kind only (admin-moderation): regular users see the
              nav unchanged; a failed profile fetch leaves isAdmin false, so
              the item hides itself fail-closed. -->
         @if (auth.isAdmin()) {

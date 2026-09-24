@@ -25,7 +25,7 @@ import java.util.Optional;
  * User-submitted shelters.
  *
  * <p>Community trust lifecycle without a blocking queue
- * (community-review-queue v2 D2): {@code addPlace} checks
+ * (community-review-queue v2): {@code addPlace} checks
  * {@code canWrite()} first, then persists the place as
  * {@code ACTIVE}/{@code USER}/{@code NEW} — the row is public
  * IMMEDIATELY (the owner does not actively moderate); NEW simply carries
@@ -59,7 +59,7 @@ public class ShelterService {
             "A verified account is required to submit shelters";
 
     /**
-     * 403 message for the ownership rule (W3-A) — the rule itself moved
+     * 403 message for the ownership rule — the rule itself moved
      * here from {@code api.ShelterController} (the layer that owns the
      * shelter rows owns the guard), one constant for every owner check:
      * the author's PUT/DELETE/reply route and the owner-scoped service
@@ -69,10 +69,10 @@ public class ShelterService {
             "Only the author may modify this shelter";
 
     /**
-     * 409 message for import-owned rows (admin-moderation D4) — moved
-     * here from {@code api.AdminModerationService} (W3-A): the hard-delete
+     * 409 message for import-owned rows (admin-moderation) — moved
+     * here from {@code api.AdminModerationService}: the hard-delete
      * boundary below enforces it in the service layer too, so the
-     * constant travels with the guard. W4-A: the admin service's
+     * constant travels with the guard. the admin service's
      * forwarder constant is gone with its private guard copy — every
      * throw site constructs from this one constant.
      */
@@ -80,7 +80,7 @@ public class ShelterService {
             "Registry shelters are import-owned and cannot be moderated here";
 
     /**
-     * Per-user spam floor (shelter-trust-and-reports D3): the max shelters
+     * Per-user spam floor (shelter-trust-and-reports): the max shelters
      * one user may have with {@code source = USER} and {@code status =
      * ACTIVE}; the 11th submission is a 409. Deletions and auto-hidden
      * shelters free the cap; ADMIN-kind users are exempt.
@@ -132,7 +132,7 @@ public class ShelterService {
      * @throws ShelterLimitExceededException when the user already has
      *                                  {@link #MAX_ACTIVE_SHELTERS_PER_USER}
      *                                  active USER shelters (→ 409; ADMIN
-     *                                  kind is exempt — D3)
+     * kind is exempt)
      * @throws ShelterSubmissionThrottledException when the user has already
      *                                  submitted {@code app.limits.daily-submissions-per-user}
      *                                  USER shelters in the last 24 h (→ 429 + Retry-After;
@@ -208,7 +208,7 @@ public class ShelterService {
                     });
         }
         place.setCreatedBy(user.getId());
-        // Write-time trust snapshot (V31, W2-A part 2 of the erasure fix):
+        // Write-time trust snapshot (V31, part 2 of the erasure fix):
         // freeze the submitter's verified standing AS AT WRITE TIME onto
         // the row — account erasure (created_by is ON DELETE SET NULL, V7)
         // must not change it. "Verified" = at least one active (non-revoked)
@@ -217,12 +217,12 @@ public class ShelterService {
         // policy that ever allowed writing with no claims would snapshot
         // false, which is the honest answer).
         place.setSubmitterVerifiedAtCreation(!user.getData().levels().isEmpty());
-        // community-review-queue v2 D2: new community rows publish
+        // community-review-queue v2: new community rows publish
         // immediately with the unverified trust state — the public list
         // is unchanged, the UI shows the "newly added" treatment.
         place.setReviewStatus(ReviewStatus.NEW);
         shelterRepository.save(place);
-        // Edit history (moderation-dashboard-completion, D4):
+        // Edit history (moderation-dashboard-completion):
         // CREATED joins this transaction, actor = the submitting account.
         history.record(place.getId(), place.getName(), user.getId(),
                 ShelterHistoryLog.Action.CREATED, null);
@@ -285,7 +285,7 @@ public class ShelterService {
     }
 
     /**
-     * The author check on a shelter row (W3-A — moved here from
+     * The author check on a shelter row (moved here from
      * {@code api.ShelterController.requireOwnedShelter}, which enforced it
      * in the controller): the row must exist (404), be USER-source and
      * authored by {@code userId} (403 otherwise — registry and legacy
@@ -310,7 +310,7 @@ public class ShelterService {
     }
 
     /**
-     * The 404 half of every shelter-row lookup (W4-A — the byte-identical
+     * The 404 half of every shelter-row lookup (the byte-identical
      * private copies in {@code ShelterReportService} and
      * {@code AdminModerationService} are gone): unknown id →
      * {@link ShelterNotFoundException} (404), otherwise the row. Plain
@@ -325,9 +325,9 @@ public class ShelterService {
     }
 
     /**
-     * D4 (admin-moderation): only USER-source rows are admin-manageable;
+     * (admin-moderation): only USER-source rows are admin-manageable;
      * registry rows are import-owned. The ONE guard every admin write on
-     * a shelter row goes through (W4-A — the source check was inlined in
+     * a shelter row goes through (the source check was inlined in
      * {@link #deletePlaceByAdmin} AND copied as a private guard in
      * {@code api.AdminModerationService}; the constant now travels with
      * the single guard, and the admin service's forwarder is gone).
@@ -341,7 +341,7 @@ public class ShelterService {
     }
 
     /**
-     * The author's OWN update (W3-A — the ownership guard now sits on the
+     * The author's OWN update (the ownership guard now sits on the
      * service boundary, not only in the controller): re-checks
      * {@link #requireOwnedBy} and applies {@link #updatePlace}. The
      * controller still runs {@code requireOwnedBy} BEFORE its own 400
@@ -359,9 +359,9 @@ public class ShelterService {
     }
 
     /**
-     * The admin hard-delete boundary (W3-A — the guard now enforced in
+     * The admin hard-delete boundary (the guard now enforced in
      * the service layer too): the row must exist (404) and be USER-source
-     * (409, import-owned, admin-moderation D4 — the registry import
+     * (409, import-owned, admin-moderation — the registry import
      * rebuilds its rows as ACTIVE on every run, so an admin delete would
      * silently revert). The delete itself is {@link #deletePlace} — the
      * same choke point as the author route (the DELETED history row,
@@ -382,7 +382,7 @@ public class ShelterService {
      * Callers own the authorization (author check) and validation (field
      * bounds + the Estonia bbox) before calling this.
      *
-     * <p>Owner-edit trust reset (M5b, the owner's decision): verification
+     * <p>Owner-edit trust reset (the owner's decision): verification
      * is a STATUS, not a gate in front of the edit. {@code reviewStatus}
      * is decided HERE — the incoming row's value is overwritten in every
      * case, so no request field can carry a trust state through (an owner
@@ -420,7 +420,7 @@ public class ShelterService {
      * never a 500. Mapped by re-reading the row (observable state, not
      * message parsing); the repository keeps its internal guard.
      *
-     * <p>Edit history (moderation-dashboard-completion, D4):
+     * <p>Edit history (moderation-dashboard-completion):
      * the old row is read FIRST (the diff needs it) — which tightens the
      * race: an absent row is a plain 404 before any diff, not only at the
      * save-time guard. An EDITED row is appended (this transaction) only
@@ -434,7 +434,7 @@ public class ShelterService {
         Shelter current = shelterRepository.findById(place.getId())
                 .orElseThrow(() -> new ShelterNotFoundException(place.getId()));
         Map<String, Object[]> moved = diffFields(current, place);
-        // The owner-edit trust reset (M5b) — the rule and its documented
+        // The owner-edit trust reset — the rule and its documented
         // decisions are in the method javadoc. The incoming row's
         // reviewStatus is server-owned and overwritten in every case.
         place.setReviewStatus(!moved.isEmpty() && current.getStatus() == ShelterStatus.ACTIVE

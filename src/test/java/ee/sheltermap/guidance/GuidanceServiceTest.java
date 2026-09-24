@@ -29,12 +29,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * GuidanceService behaviour (crisis-guidance D3/D4/D5/D6/D11/D12) against
+ * GuidanceService behaviour (crisis-guidance) against
  * the in-memory repository fakes: draft invisibility, the publish /
  * unpublish / delete lifecycle (a no-op writes NO audit row), the pinned-
  * first public ordering with same-instant tie-breaks, slug transliteration /
  * collision / suffix / 409, the hero+alt pairing (400s) and the replace-
- * keeps-the-old-asset rule, and the D12 audit rows (actor + label snapshot).
+ * keeps-the-old-asset rule, and the audit rows (actor + label snapshot).
  *
  * <p>The REAL {@link BodySanitizer} (static, dependency-free in tests) is
  * on the path: the service contract under test is "the stored body is the
@@ -190,7 +190,7 @@ class GuidanceServiceTest {
         GuidancePost post = service.create(ADMIN_ID, "T", null, hostile,
                 null, false, null, null, null, null).post();
 
-        // The stored value is the sanitizer OUTPUT, not the raw input (D2):
+        // The stored value is the sanitizer OUTPUT, not the raw input:
         // exactly what the sanitizer answers for the input, no script left.
         assertThat(post.getBodyHtml()).isEqualTo(BodySanitizer.sanitize(hostile));
         assertThat(post.getBodyHtml()).doesNotContain("script").contains("ok");
@@ -241,7 +241,7 @@ class GuidanceServiceTest {
         assertThat(updated.getLocale()).isEqualTo("en");
         assertThat(updated.getUpdatedAt()).isEqualTo(clock.instant());
         assertThat(updated.getUpdatedAt()).isAfter(post.getCreatedAt());
-        // Publication state is NOT editable through update (D4: the
+        // Publication state is NOT editable through update (the
         // publish/unpublish stamps own it).
         assertThat(updated.isPublished()).isFalse();
     }
@@ -359,7 +359,7 @@ class GuidanceServiceTest {
         }
     }
 
-    // ------------------------------------------------------------- ordering (D6)
+    // ------------------------------------------------------------- ordering
 
     @Test
     void publicListIsPinnedFirstThenSortOrderAscThenTieBreakers() {
@@ -383,7 +383,7 @@ class GuidanceServiceTest {
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(a.getId(), b.getId(), c.getId());
 
-        // A newer post APPENDS at the end of the manual order (D4): it does
+        // A newer post APPENDS at the end of the manual order: it does
         // NOT float to the top of the non-pinned block by its timestamp.
         clock.advance(Duration.ofHours(1));
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
@@ -640,7 +640,7 @@ class GuidanceServiceTest {
                 .containsExactlyElementsOf(order);
     }
 
-    // ------------------------------------------------------------- slugs (D5)
+    // ------------------------------------------------------------- slugs
 
     @Test
     void generatedSlugTransliteratesEstonianTitles() {
@@ -708,7 +708,7 @@ class GuidanceServiceTest {
         assertThat(SlugFactory.isValidCustomSlug("a".repeat(SlugFactory.MAX_SLUG_LENGTH + 1))).isFalse();
     }
 
-    // ------------------------------------------------------------- hero (D1/D8/D10)
+    // ------------------------------------------------------------- hero
 
     @Test
     void aPostWithoutAHeroCarriesNullHeroFields() {
@@ -1376,7 +1376,7 @@ class GuidanceServiceTest {
         GuidanceService.SavedPost saved = service.update(ADMIN_ID, post.getId(), "Live", null,
                 "<p>b</p>", null, false, null, "an alt", "https://images.example.com/live.png");
 
-        // The Wave 9 trigger: the import runs at save even for a published
+        // The trigger: the import runs at save even for a published
         // post (the V25 pending-import CHECK is gone — V33).
         assertThat(saved.heroImportError()).isNull();
         assertThat(saved.post().getHeroImageId()).isNotNull();
@@ -1449,7 +1449,7 @@ class GuidanceServiceTest {
         assertThat(fetches.get()).isEqualTo(2);
         assertThat(refetched.post().getHeroImageId()).isNotEqualTo(firstAssetId);
         assertThat(refetched.post().getHeroImportUrl()).isEqualTo("https://images.example.com/b.png");
-        // The superseded asset stays in the library (the D8 replace rule).
+        // The superseded asset stays in the library (the replace rule).
         assertThat(media.findById(firstAssetId)).isPresent();
     }
 
@@ -1465,7 +1465,7 @@ class GuidanceServiceTest {
         assertThat(fetches.get()).isZero();
 
         // Both hero kinds at once is legal: the import supersedes the id
-        // AT SAVE (the request's asset stays in the library, D8).
+        // AT SAVE (the request's asset stays in the library).
         MediaAsset asset = newAsset(slug32("a"));
         GuidancePost post = service.create(ADMIN_ID, "Both", null, "<p>b</p>",
                 null, false, asset.getId(), "an alt", "https://images.example.com/x.png", null).post();
@@ -1629,7 +1629,7 @@ class GuidanceServiceTest {
         assertThat(GuidanceService.matchesSearch(null, null, "hello")).isFalse();
     }
 
-    // ------------------------------------------------------------- audit (D12)
+    // ------------------------------------------------------------- audit
 
     private void assertLabeledRow(ModerationAuditLog.Row row, ModerationAuditLog.Action action, String label) {
         assertThat(row.action()).isEqualTo(action);

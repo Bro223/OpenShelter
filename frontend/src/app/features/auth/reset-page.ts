@@ -61,7 +61,7 @@ export class ResetPage implements OnDestroy {
 
   /**
    * The password-length field-error copy key. The i18n lane adds it to the
-   * `Messages` catalog this wave (M7 report: EN/ET/RU values); the cast
+   * `Messages` catalog this wave (report: EN/ET/RU values); the cast
    * keeps the template compiling until then — at runtime the lookup goes
    * through the I18nService seam (the spec installs the value via
    * site-texts), and it resolves from the catalog directly once the key

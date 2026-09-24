@@ -460,7 +460,7 @@ class HeroImageImportServiceTest {
                 .isZero();
     }
 
-    // ------------------------------------------------------------- P2-9 derivatives
+    // ------------------------------------------------------------- derivatives
 
     /** A REAL decodable PNG (ImageIO-encoded gradient) — the header-only
      *  {@link #png} fixture is inspector-readable but undecodable. */
@@ -499,7 +499,7 @@ class HeroImageImportServiceTest {
 
     @Test
     void aDerivativeThatFailsValidationRefusesTheImportLeavingNothingBehind() throws Exception {
-        // THE P2-9 acceptance rule, pinned at the seam: a derivative that
+        // THE acceptance rule, pinned at the seam: a derivative that
         // fails the content gate fails the import — the publish transaction
         // rolls back and the post stays a DRAFT (the existing failure
         // behaviour), and nothing is left on disk.
@@ -526,7 +526,7 @@ class HeroImageImportServiceTest {
     void anUndecodableImportedImageIsStoredWithoutDerivatives() throws Exception {
         // The default fixture is header-only: the inspector reads it,
         // ImageIO cannot decode it — the import stores the original and
-        // skips the derivatives (the pre-P2-9 behaviour, unchanged).
+        // skips the derivatives (the pre-behaviour, unchanged).
         MediaAsset asset = service.importHero(ADMIN_ID, "https://public.example/hero.png");
 
         assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.png$");

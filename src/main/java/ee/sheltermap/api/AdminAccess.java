@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * The fresh per-request ADMIN check shared by every /admin/* controller
- * (D2): the kind column is the truth, never a JWT claim — the JWT's userId
+ * the kind column is the truth, never a JWT claim — the JWT's userId
  * is re-read from the database and its kind checked on every request, so a
  * token minted before a demotion or deletion fails the instant the kind
  * changes. One implementation for the whole admin surface
@@ -41,7 +41,7 @@ public class AdminAccess {
      * point, which answers anonymous requests first), an authenticated
      * non-admin → 403. Returns the moderator's user id — every admin WRITE
      * is recorded in the moderation audit trail under it (community-review-
-     * queue D4, crisis-guidance D7/D12); read endpoints ignore it.
+     * queue, crisis-guidance); read endpoints ignore it.
      */
     public long requireAdmin() {
         long userId = currentCaller.requireUserId();

@@ -164,7 +164,7 @@ describe('PageShell', () => {
     expect(element.textContent).not.toContain('Log in');
   });
 
-  it('an authenticated user gets the Account link (Verify left the nav in M7)', async () => {
+  it('an authenticated user gets the Account link (Verify left the nav in)', async () => {
     await store.init();
     gateway.login.mockResolvedValue(PAIR);
     await store.login('user@example.ee', 'secret');
@@ -179,7 +179,7 @@ describe('PageShell', () => {
     // No standalone Verify nav item: verification is a per-contact label on
     // /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
-    // admin-moderation D5: a regular user's nav is unchanged — no Admin item.
+    // admin-moderation: a regular user's nav is unchanged — no Admin item.
     expect(element.querySelector('a[href="/admin"]')).toBeNull();
   });
 
@@ -852,7 +852,7 @@ describe('PageShell', () => {
      at a time. The choice persists (openshelter-locale) and flips
      <html lang> + the whole chrome. jsdom cannot measure media queries,
      so the acceptance is the DOM/state wiring, not the CSS. */
-  describe('language switcher (i18n-et-en M14)', () => {
+  describe('language switcher (i18n-et-en)', () => {
     function langGroup(): HTMLElement {
       const group = fixture.nativeElement.querySelector('.shell-lang') as HTMLElement;
       expect(group, '.shell-lang group missing').not.toBeNull();
@@ -979,7 +979,7 @@ describe('PageShell', () => {
     });
   });
 
-  describe('data provenance line (official-dataset-csv M5)', () => {
+  describe('data provenance line (official-dataset-csv)', () => {
     const DS: DataSourceDto = {
       sourceName: 'Päästeamet',
       officialUrl: 'https://www.rescue.ee/et/juhend/avaandmed/avalikud-varjumiskohad',

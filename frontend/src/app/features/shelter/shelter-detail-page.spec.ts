@@ -108,7 +108,7 @@ class FakeLeafletService {
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation D5: the shell's nav item reads this — default false.
+    // admin-moderation: the shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -127,16 +127,16 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
-    submitterVerified: false, // registry rows have no creator (D3)
+    submitterVerified: false, // registry rows have no creator
     nonexistentReports: 0,
     reportCount: 0, // total (all report types)
     openStatus: null,
     occupancy: null,
-    reviewStatus: 'CONFIRMED', // registry backfill (D3)
+    reviewStatus: 'CONFIRMED', // registry backfill
     locationKind: 'PUBLIC',
     lastVerifiedAt: null, // null = never verified
     inaccurate: false, // no moderator mark on this row
-    yourOccupancyBand: null, // the detail projection's extra field (D5)
+    yourOccupancyBand: null, // the detail projection's extra field
     yourOpenStatus: null, // the detail projection's open-status pre-select
     ...overrides,
   };
@@ -151,7 +151,7 @@ function userShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDt
     source: 'USER',
     description: 'Neighbourhood basement',
     capacity: 12,
-    reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
+    reviewStatus: 'NEW', // existing USER rows backfill NEW (amber)
     ...overrides,
   };
 }
@@ -287,7 +287,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.shelter-detail__address')).toBeNull(); // null address
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
-      // The trust-state label (community-review-queue D5): NEW ->
+      // The trust-state label (community-review-queue): NEW ->
       // "Newly added" (replacing the old "User-submitted" wording).
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
       // An ACTIVE row with nothing fresh shows BOTH last-reported rows in
@@ -353,7 +353,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.textContent).toContain('Community-checked');
     });
 
-    it('a PRIVATE row shows the private badge and the resident-offered note (D7)', async () => {
+    it('a PRIVATE row shows the private badge and the resident-offered note ', async () => {
       shelterGateway.rows.set(9, userShelter({ id: 9, locationKind: 'PRIVATE' }));
       const { element, fixture } = await open('/shelters/9');
 
@@ -393,14 +393,14 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element: el8 } = await open('/shelters/8');
       // A verified submitter is NOT a verified shelter — the label follows
-      // the trust state, not submitterVerified (community-review-queue D5).
+      // the trust state, not submitterVerified (community-review-queue).
       expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
       expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
 
     // ----- last-verified meta --------------------------------------------
 
-    it('a verified registry row shows the last-verified line naming the registry (M8)', async () => {
+    it('a verified registry row shows the last-verified line naming the registry ', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
       shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2) }));
       const { element } = await open('/shelters/1');
@@ -426,7 +426,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Last verified 2 h ago');
     });
 
-    it('the community report count is a SEPARATE labeled line, never spliced onto the verified line (M8)', async () => {
+    it('the community report count is a SEPARATE labeled line, never spliced onto the verified line ', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
       shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2), reportCount: 3 }));
       const { element } = await open('/shelters/1');
@@ -550,7 +550,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).toContain('Shelter details');
     });
   });
-  describe('navigate actions (Google Maps walking + Apple Maps, D3)', () => {
+  describe('navigate actions (Google Maps walking + Apple Maps)', () => {
     beforeEach(() => {
       shelterGateway.rows.set(1, registryShelter());
     });
@@ -589,7 +589,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       ).not.toBeNull();
     });
 
-    it('renders the coordinate line with tabular numerals (D6)', async () => {
+    it('renders the coordinate line with tabular numerals ', async () => {
       const { element } = await open('/shelters/1');
 
       const coords = element.querySelector('.shelter-detail__coords');
@@ -645,9 +645,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
   // ---------------------------------------------------------------------------
   // Distance from you (location-navigation): the page's ONLY
   // geolocation trigger — client-side Haversine to the shelter's own point,
-  // the D6 straight-line honesty format, the map CTA's mirrored error copy.
+  // the straight-line honesty format, the map CTA's mirrored error copy.
   // ---------------------------------------------------------------------------
-  describe('distance from you (M12)', () => {
+  describe('distance from you ', () => {
     beforeEach(() => {
       shelterGateway.rows.set(1, registryShelter());
     });
@@ -710,7 +710,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
     it('on success renders the straight-line distance line (km scale, 1 decimal) under the coordinates', async () => {
       // The registry shelter sits at (59.437, 24.754); the user 0.01° north
-      // is 1.1118 km away — "≈ 1.1 km straight line from you" (D6 honesty:
+      // is 1.1118 km away — "≈ 1.1 km straight line from you" (honesty:
       // the line states what it measures, never a walking route).
       setGeolocation(
         stubGeolocation({ position: { latitude: 59.447, longitude: 24.754, accuracy: 10 } }),
@@ -829,7 +829,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(leaflet.showShelterCalls).toEqual([]);
     });
 
-    it('a 404 after create destroys the map (the not-found branch unmounts the container) (M4)', async () => {
+    it('a 404 after create destroys the map (the not-found branch unmounts the container) ', async () => {
       // /shelters/999 is a VALID id the gateway 404s: the container is
       // mounted at view-init (map created), then the 404 flip to the
       // not-found branch unmounts it — the live map must be destroyed.
@@ -839,7 +839,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(leaflet.destroyed).toBe(1);
     });
 
-    it('a 404 -> valid-id re-navigation shows a working (re-created) map (M4)', async () => {
+    it('a 404 -> valid-id re-navigation shows a working (re-created) map ', async () => {
       shelterGateway.rows.set(1, registryShelter());
       const { element, fixture, router } = await open('/shelters/999');
       expect(leaflet.created).toBe(1);
@@ -862,7 +862,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       ]);
     });
 
-    it('an invalid id after a loaded page destroys the map (M4)', async () => {
+    it('an invalid id after a loaded page destroys the map ', async () => {
       shelterGateway.rows.set(1, registryShelter());
       const { fixture, router } = await open('/shelters/1');
       expect(leaflet.created).toBe(1);
@@ -920,9 +920,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
   // ---------------------------------------------------------------------------
   // Trust layer (shelter-trust-and-reports):
-  //   header badges (D1/D6) · shelter report (D1/D6) · "report how full"
-  //   picker (D5/D6).
-  // All endpoints mocked; 409 → the plain sentence-case line (D6).
+  // header badges · shelter report · "report how full"
+  // picker.
+  // All endpoints mocked; 409 → the plain sentence-case line.
   // ---------------------------------------------------------------------------
   describe('trust layer (shelter-trust-and-reports)', () => {
     const minutesAgo = (minutes: number): string =>
@@ -1045,7 +1045,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       ).toBe(false);
     });
 
-    // ----- shelter report (D1/D6) --------------------------------------
+    // ----- shelter report --------------------------------------
 
     it('verified: the shelter Report picker opens with the three NEGATIVE types and a factual detail field for the factual types (open-status wave: CLOSED/OPEN_CONFIRMED left the picker)', async () => {
       const { element, fixture } = await open('/shelters/1');
@@ -1124,7 +1124,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('#report-detail')).toBeNull();
     });
 
-    it('verified: a dampened report shows the reduced-weight notice (M9)', async () => {
+    it('verified: a dampened report shows the reduced-weight notice ', async () => {
       // The reporter holds their own other listing of the same place — the
       // server stores the vote dampened (counts 0 toward the hide) and
       // answers {"damped": true}; the banner says so.
@@ -1142,7 +1142,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       await settle(fixture);
 
       expect(shelterGateway.report).toHaveBeenCalledTimes(1);
-      // M8: the notice says the report was recorded but WEIGHTED 0 — the
+      // the notice says the report was recorded but WEIGHTED 0 — the
       // server's damped=true answers exactly that, with the why.
       expect(text(fixture)).toContain(
         'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.',
@@ -1177,7 +1177,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('form')).toBeNull(); // picker closed
     });
 
-    it('verified: WRONG_LOCATION submits with its factual detail (M11)', async () => {
+    it('verified: WRONG_LOCATION submits with its factual detail ', async () => {
       const { element, fixture } = await open('/shelters/1');
       const section = sectionOf(element, 'report-shelter-heading')!;
       [...section.querySelectorAll('button')]
@@ -1203,7 +1203,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('form')).toBeNull(); // picker closed
     });
 
-    it('verified: 409 duplicate renders the server\u2019s standard message in place of the picker (D6)', async () => {
+    it('verified: 409 duplicate renders the server\u2019s standard message in place of the picker ', async () => {
       shelterGateway.report.mockRejectedValueOnce(
         ApiError.fromHttp(
           409,
@@ -1251,7 +1251,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section!.querySelector('button')).toBeNull();
     });
 
-    it('anonymous: the report section shows a plain login prompt (D5 anonymous variant)', async () => {
+    it('anonymous: the report section shows a plain login prompt (anonymous variant)', async () => {
       setSession(false);
       const { element } = await open('/shelters/1');
 
@@ -1305,7 +1305,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(shelterGateway.reportOccupancy).toHaveBeenCalledWith(1, 'GETTING_FULL');
     });
 
-    it('verified: the aggregate line shows the occupancy summary beside the picker (D6: neutral)', async () => {
+    it('verified: the aggregate line shows the occupancy summary beside the picker (neutral)', async () => {
       shelterGateway.rows.set(
         1,
         registryShelter({
@@ -1331,7 +1331,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
     });
 
-    it('anonymous: the occupancy section shows the login prompt (D5 anonymous variant)', async () => {
+    it('anonymous: the occupancy section shows the login prompt (anonymous variant)', async () => {
       setSession(false);
       const { element } = await open('/shelters/1');
 
@@ -1497,7 +1497,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     });
   });
 
-  describe('community pulse (M9 — report aggregation UI)', () => {
+  describe('community pulse (report aggregation UI)', () => {
     function pulseShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDto {
       return registryShelter({
         communityPulse: {

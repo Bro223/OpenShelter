@@ -10,10 +10,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the admin shelter list (admin-moderation D3) — every shelter,
+ * One row of the admin shelter list (admin-moderation) — every shelter,
  * ALL statuses (auto-hidden rows included), id-ordered, with the same
  * batched trust derivations as the public list (shelter-trust-and-reports
- * D1/D4 — no N+1) plus the submitter's profile name.
+ * no N+1) plus the submitter's profile name.
  *
  * <p>{@code nonexistentReports} is 0 when none;
  * {@code occupancy} is the fresh (≤ 2 h) block, null when nothing is
@@ -61,7 +61,7 @@ public record AdminShelterDto(
         int nonexistentReports,
         @Schema(description = "The open 'inaccurate information' subset of the "
                 + "community reports (WRONG_LOCATION + OTHER; 0 when none) — "
-                + "W2-A: EITHER report kind drives the reported state. Open "
+                + "EITHER report kind drives the reported state. Open "
                 + "means not dismissed (a dismissed report stops counting).")
         int inaccurateReports,
         ShelterDto.Occupancy occupancy,

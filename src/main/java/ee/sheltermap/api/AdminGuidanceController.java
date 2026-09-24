@@ -41,11 +41,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The admin guidance authoring API (crisis-guidance D3) — thin shell:
+ * The admin guidance authoring API (crisis-guidance) — thin shell:
  * parse, validate, authorize, delegate to {@link GuidanceService}.
  *
  * <p>Authorization is the shared fresh per-request ADMIN kind lookup
- * ({@link AdminAccess#requireAdmin()}, D2): a FRESH user lookup per
+ * ({@link AdminAccess#requireAdmin()}): a FRESH user lookup per
  * request — the JWT's userId is loaded and its kind checked, never a
  * role claim in the token. A JWT minted before a demotion/deletion keeps
  * failing the instant the kind changes. Anonymous callers never reach
@@ -86,7 +86,7 @@ public class AdminGuidanceController {
     private final GuidanceService guidance;
     private final MediaAssetRepository mediaAssets;
     private final AdminAccess adminAccess;
-    /** The derivative-srcset builder (P2-9) — the disk-truth read of the hero's widths. */
+    /** The derivative-srcset builder — the disk-truth read of the hero's widths. */
     private final MediaService media;
 
     public AdminGuidanceController(GuidanceService guidance,
@@ -100,7 +100,7 @@ public class AdminGuidanceController {
     }
 
     /**
-     * The admin guidance list (D3): every post, drafts included, in the
+     * The admin guidance list: every post, drafts included, in the
      * stored manual order. With {@code ?locale=} (admin-locale-scope) only
      * the posts that HAVE content in that locale — a translation row there,
      * or the post's home locale being it — are returned, carrying that
@@ -186,7 +186,7 @@ public class AdminGuidanceController {
         int total = filtered.size();
         // The slice runs LAST, over the (filtered) stored manual order.
         List<GuidancePost> paged = Pagination.slice(filtered, offset, limit);
-        // ONE batched read for the PAGE's hero URLs (W2-A: the pre-change
+        // ONE batched read for the its hero URLs (the pre-change
         // hero index loaded the WHOLE media library for every request).
         Map<Long, MediaAsset> heroes = heroIndex(paged);
         List<AdminGuidancePostDto> dtos = paged.stream()
@@ -281,7 +281,7 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Create a post (D4): DRAFT by default; an explicit PUBLISHED in the
+     * Create a post: DRAFT by default; an explicit PUBLISHED in the
      * body makes it a one-shot "write and publish". 200 with the created
      * post; 400 validation; 409 an admin-supplied slug collision naming
      * the slug; 404 a heroImageId with no such asset. A hero import URL
@@ -324,11 +324,11 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Full replace of the editable fields (D3): the slug is kept when
-     * omitted; the body is re-sanitized (D2); the publication state is
+     * Full replace of the editable fields: the slug is kept when
+     * omitted; the body is re-sanitized; the publication state is
      * NOT editable here (publish/unpublish own it). 200 with the updated
      * post; 400/404/409 the same vocabulary as create. A hero import URL
-     * is fetched AT SAVE, draft or published alike (the Wave 9 trigger):
+     * is fetched AT SAVE, draft or published alike (the trigger):
      * a changed URL re-imports, and a failed import never blocks the
      * update — the 200 body's {@code heroImportError} names it and the
      * URL is kept for a retry on the next save.
@@ -394,7 +394,7 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Reorder (guidance-manual-order D3 + admin-locale-scope). UNSCOPED: the
+     * Reorder (guidance-manual-order + admin-locale-scope). UNSCOPED: the
      * FULL ordered list of every post id (drafts and published alike) — a
      * strict permutation of every current post — renumbered 1..N in ONE
      * transaction. SCOPED ({@code ?locale=}): the FULL ordered list of the
@@ -450,10 +450,10 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Publish (D4): stamps publishedAt from the server clock. Idempotent
+     * Publish: stamps publishedAt from the server clock. Idempotent
      * — an already-published post is a 204 no-op that writes NO audit
      * row and keeps its earlier stamp. The hero import moved to SAVE
-     * time (the Wave 9 trigger): publish no longer fetches, validates or
+     * time (the trigger): publish no longer fetches, validates or
      * stores anything — a post with an unimported or failed hero URL
      * publishes exactly as stored (the URL stays for a retry on the next
      * save). 204; 404 unknown id.
@@ -477,7 +477,7 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Unpublish (D4): back to DRAFT, publishedAt cleared. Idempotent — a
+     * Unpublish: back to DRAFT, publishedAt cleared. Idempotent — a
      * draft is a 204 no-op that writes NO audit row. 204; 404 unknown id.
      */
     @PostMapping("/{id}/unpublish")
@@ -497,9 +497,9 @@ public class AdminGuidanceController {
     }
 
     /**
-     * Hard delete (D4): {@code confirm=true} required (400 without it —
+     * Hard delete: {@code confirm=true} required (400 without it —
      * the admin UI shows a confirm dialog). The post's media assets stay
-     * in the library, and its audit rows keep their label snapshot (D12).
+     * in the library, and its audit rows keep their label snapshot.
      * 204; 404 unknown id.
      */
     @DeleteMapping("/{id}")
@@ -656,7 +656,7 @@ public class AdminGuidanceController {
     // ------------------------------------------------------------- mapping
 
     /**
-     * The hero assets of the GIVEN posts in ONE batched query (W2-A):
+     * The hero assets of the GIVEN posts in ONE batched query:
      * the distinct hero ids of the page, not the whole library — the
      * pre-change hero index loaded every asset for every list request.
      */

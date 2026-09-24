@@ -1,7 +1,7 @@
 package ee.sheltermap.domain;
 
 /**
- * A reporter's derived trust weight (community-self-moderation, D1).
+ * A reporter's derived trust weight (community-self-moderation).
  *
  * <p>The weight is NEVER stored: it is re-derived from the rows that
  * already exist (the reporter's own submissions + the moderation audit

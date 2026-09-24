@@ -2,7 +2,7 @@
  * Shared geolocation mechanics: the one-shot high-accuracy position
  * request the map "Nearest shelter" CTA and the detail page's "Distance
  * from you" action both run, the Geolocation error-code mapping, and the
- * Haversine distance both pages compute client-side (the D2 "no new
+ * Haversine distance both pages compute client-side (the "no new
  * endpoint" precedent).
  *
  * Stays page-local on purpose: the per-page

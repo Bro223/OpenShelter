@@ -15,7 +15,7 @@ import java.util.Objects;
 
 /**
  * JPA implementation of {@link ModerationAuditLog} (community-review-queue
- * D4) — a plain JPA save in the CALLER's transaction: every admin action
+ *) — a plain JPA save in the CALLER's transaction: every admin action
  * runs inside its {@code @Transactional} service method, so the audit row
  * commits or rolls back with the action it records (same-transaction
  * write, no JdbcTemplate, no separate transaction, no async).
@@ -48,7 +48,7 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
 
     @Override
     public void recordLabeled(long moderatorId, Action action, String subjectLabel, String reason) {
-        // Crisis-guidance D12: a guidance/media row — no shelter, no
+        // Crisis-guidance a guidance/media row — no shelter, no
         // subject account; the subjectLabel snapshot is the subject (it
         // outlives the deleted target). Same-transaction write, like every
         // other row in this log.
@@ -72,7 +72,7 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
     public List<Row> findLatest(long offset, int limit) {
         // Newest first; the id tie-break keeps same-timestamp rows
         // deterministic (the stable-order discipline, B7a). The declared
-        // List return pays no hidden count (W2-A — the count is the
+        // List return pays no hidden count (the count is the
         // explicit countAll twin behind the X-Total-Count header).
         return actions.findLatestPage(offset, limit).stream()
                 .map(entity -> new Row(entity.getId(), entity.getShelterId(), entity.getSubjectUserId(),

@@ -1,7 +1,7 @@
 package ee.sheltermap.guidance;
 
 /**
- * A rejected guidance/media write (crisis-guidance D4/D5/D8) — the 400
+ * A rejected guidance/media write — the 400
  * family, same plain-spoken vocabulary as {@code InvalidShelterException}
  * and {@code LocationResolveException} (one 400 vehicle per feature).
  *

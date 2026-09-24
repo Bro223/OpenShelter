@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The ownership enforcement moved to the service boundary (W3-A):
+ * The ownership enforcement moved to the service boundary:
  * {@link ShelterService#requireOwnedBy} (404/403, the rule the controller
  * used to inline), {@link ShelterService#updateOwned} (the guard on the
  * owner's update) and {@link ShelterService#deletePlaceByAdmin} (404/409
@@ -153,7 +153,7 @@ class ShelterServiceOwnershipTest {
         assertThat(repo.findById(place.getId())).isEmpty();
     }
 
-    // ------------------------------------- shared guards (W4-A: one guard per rule)
+    // ------------------------------------- shared guards (one guard per rule)
 
     @Test
     void requireShelterAnswers404ForAnUnknownIdAndTheRowOtherwise() {
@@ -165,7 +165,7 @@ class ShelterServiceOwnershipTest {
 
     @Test
     void requireUserOwnedPassesAUserRowAndRefusesARegistryRow() {
-        // The single D4 guard every admin write on a shelter row goes
+        // The single guard every admin write on a shelter row goes
         // through (the admin service's private copy is gone): USER rows
         // pass, registry rows are import-owned (409), fail-first.
         Shelter userPlace = saveUserPlace(1L);

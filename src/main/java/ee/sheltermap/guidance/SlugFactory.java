@@ -3,7 +3,7 @@ package ee.sheltermap.guidance;
 import java.util.regex.Pattern;
 
 /**
- * Slug generation and validation (crisis-guidance D5).
+ * Slug generation and validation.
  *
  * <p>{@link #of(String)} turns a title into a URL slug: lowercase → an
  * EXPLICIT Estonian transliteration ({@code õ→o, ä→a, ö→o, ü→u, š→s, ž→z} —
@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
  * letters Estonian actually uses and a silent strip would produce
  * {@code rnnaku} instead of {@code runnaku} for {@code rünnaku}) → every
  * other non-alphanumeric run becomes a single {@code -} → leading/trailing
- * {@code -} trimmed → bounded to the slug column width (200, V23) and
+ * {@code -} trimmed → bounded to the slug column width (200) and
  * re-trimmed → a fixed fallback when the result is empty (a title of
  * {@code "!!!"} still gets a URL).
  *
@@ -24,20 +24,20 @@ import java.util.regex.Pattern;
  */
 public final class SlugFactory {
 
-    /** The slug column width (V23 {@code guidance_posts.slug VARCHAR(200)}) — the bound every slug obeys. */
+    /** The slug column width ({@code guidance_posts.slug VARCHAR(200)}) — the bound every slug obeys. */
     public static final int MAX_SLUG_LENGTH = 200;
 
     /** The fixed fallback: a title with no letters or digits still gets a URL. */
     public static final String FALLBACK_SLUG = "post";
 
-    /** The shape generated and admin-supplied slugs must share (D5). */
+    /** The shape generated and admin-supplied slugs must share. */
     public static final Pattern VALID_SLUG = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
 
     private SlugFactory() {
     }
 
     /**
-     * Generates the slug for a title (D5 step by step). The result always
+     * Generates the slug for a title step by step. The result always
      * matches {@link #VALID_SLUG} and is at most {@link #MAX_SLUG_LENGTH}
      * characters.
      */
@@ -81,14 +81,14 @@ public final class SlugFactory {
 
     /**
      * The explicit diacritic map (lowercase input — the caller lowercases
-     * first). Estonian's six letters are the primary concern (D5); the
+     * first). Estonian's six letters are the primary concern; the
      * other Latin diacritics are the common European ones, mapped so a
      * non-Estonian title still yields a readable slug instead of
      * gaps. Unmapped characters return null (treated as separators).
      */
     private static String transliterate(char c) {
         return switch (c) {
-            // Estonian (D5): the six letters Estonian actually uses.
+            // Estonian: the six letters Estonian actually uses.
             case 'õ' -> "o";
             case 'ä' -> "a";
             case 'ö' -> "o";

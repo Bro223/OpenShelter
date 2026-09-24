@@ -51,7 +51,7 @@ function fakeAuthStore(
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation D5: the shell's nav item reads this — default false.
+    // admin-moderation: the shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -62,7 +62,7 @@ function guidancePost(overrides: Partial<GuidancePostDto> = {}): GuidancePostDto
   return {
     slug: 'water-and-heating',
     title: 'Water and heating in the first days',
-    bodyHtml: null, // the index never carries the body (D6)
+    bodyHtml: null, // the index never carries the body
     heroImageUrl: null,
     heroImageAlt: null,
     pinned: false,
@@ -335,7 +335,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelectorAll('.guidance-list__posts a')).toHaveLength(1);
   });
 
-  // ---- P2-9: the derivative srcset on the 400 px card thumbnail ------------
+  // ---- the derivative srcset on the 400 px card thumbnail ------------
 
   it('the card thumbnail carries the derivative srcset when the server has one (sizes = 400px)', async () => {
     const heroUrl =
@@ -375,7 +375,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(img?.hasAttribute('srcset')).toBe(false);
   });
 
-  // ---- Wave 13: real non-square files (the stretch cannot come back) -------
+  // ---- real non-square files (the stretch cannot come back) -------
   //
   // The declared geometry of every slot is pinned in app/hero-geometry
   // .spec.ts (natural size / fixed box + cover, per slot). This case
@@ -688,15 +688,15 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+  // 360px viewport (mobile-responsive-polish): no page-level horizontal
   // overflow. jsdom cannot measure a 360px viewport (it has no layout engine —
-  // every offsetWidth/scrollWidth is 0), so — exactly like the M13 pins in
+  // every offsetWidth/scrollWidth is 0), so — exactly like the pins in
   // shelter-detail-page.spec.ts / submit-shelter-page.scss — the mechanisms
   // that make overflow impossible are pinned against the stylesheet instead
   // of a viewport measurement. 360px viewport − 2 × 20px .shell-body padding
   // (page-shell.scss) = 320px of content on /blog.
   // ---------------------------------------------------------------------------
-  describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+  describe('no page-level horizontal overflow at 360px ', () => {
     const readListScss = (): string =>
       readFileSync(`${process.cwd()}/src/app/features/guidance/guidance-list-page.scss`, 'utf8');
 

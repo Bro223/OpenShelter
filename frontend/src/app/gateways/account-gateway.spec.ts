@@ -90,7 +90,7 @@ describe('AccountGateway', () => {
     expect(result).toEqual(fresh);
   });
 
-  it('exportData GETs /account/export and returns the document (M4 slice 1)', async () => {
+  it('exportData GETs /account/export and returns the document ', async () => {
     const doc = {
       profile: {
         name: 'Kontakt Muutus',
@@ -108,7 +108,7 @@ describe('AccountGateway', () => {
     expect(result).toEqual(doc);
   });
 
-  it('deleteAccount DELETEs /account (M4 slice 2)', async () => {
+  it('deleteAccount DELETEs /account ', async () => {
     api.delete.mockReturnValue(of(undefined));
 
     await gateway.deleteAccount();

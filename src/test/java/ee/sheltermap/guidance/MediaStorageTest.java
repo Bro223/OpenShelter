@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
 /**
- * The file store behind the media library (crisis-guidance D7): the
+ * The file store behind the media library (crisis-guidance): the
  * generated-name contract, the parent-equality resolve gate and
  * idempotent deletion.
  */
@@ -135,7 +135,7 @@ class MediaStorageTest {
         assertThat(storage.root()).isEqualByComparingTo(storage.root().normalize());
     }
 
-    // ------------------------------------------------------------- P2-9 derivatives
+    // ------------------------------------------------------------- derivatives
 
     @Test
     void storeDerivativeDerivesTheNameBesideTheOriginal() throws Exception {

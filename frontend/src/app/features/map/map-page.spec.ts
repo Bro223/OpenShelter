@@ -85,8 +85,8 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     reportCount: 0, // total (all report types)
     openStatus: null,
     occupancy: null,
-    reviewStatus: 'CONFIRMED', // registry backfill (D3) — USER fixtures override
-    locationKind: 'PUBLIC', // D7 default — no private declaration
+    reviewStatus: 'CONFIRMED', // registry backfill — USER fixtures override
+    locationKind: 'PUBLIC', // default — no private declaration
     lastVerifiedAt: null, // null = never verified
     inaccurate: false, // no moderator mark on this row
     ...overrides,
@@ -106,7 +106,7 @@ const BASEMENT = shelter({
   source: 'USER',
   description: 'Neighbourhood basement',
   capacity: 12,
-  reviewStatus: 'NEW', // D3: USER rows backfill NEW (badge only — the pin carries depth, not recency)
+  reviewStatus: 'NEW', // USER rows backfill NEW (badge only — the pin carries depth, not recency)
 });
 const VERIFIED_BASEMENT = shelter({
   id: 8,
@@ -225,7 +225,7 @@ function fakeAuthStore(
     authenticated: signal(overrides.authenticated ?? false),
     initialized: signal(overrides.initialized ?? true),
     levels: signal<VerificationLevel[]>([]),
-    // admin-moderation D5: the shell's nav item reads this — default false.
+    // admin-moderation: the shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async (): Promise<void> => undefined),
     isVerified: () => false,
@@ -418,7 +418,7 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Trust-state badges (community-review-queue D5): the NEW USER row
+      // Trust-state badges (community-review-queue): the NEW USER row
       // reads "Newly added", the registry rows keep their registry labels.
       expect(basementRow.textContent).toContain('Newly added');
       expect(rows[1].textContent).toContain('Municipal registry');
@@ -436,7 +436,7 @@ describe('MapPage', () => {
 
       // One badge per row, in the name-sorted order. The old
       // "Verified user" / "User-submitted" split is gone — the label follows
-      // the trust state (community-review-queue D5): NEW → "Newly added",
+      // the trust state (community-review-queue): NEW → "Newly added",
       // CONFIRMED → "Community-checked".
       const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
         b.textContent?.trim(),
@@ -470,7 +470,7 @@ describe('MapPage', () => {
       expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
-      // The origin marker (M8): the searched address the per-row
+      // The origin marker: the searched address the per-row
       // distances are measured from — its own swatch + label, so
       // "222 m from WHAT" is answerable at a glance.
       expect(legend?.querySelector('.shelter-marker--anchor')).not.toBeNull();
@@ -504,7 +504,7 @@ describe('MapPage', () => {
       expect(text(fixture)).not.toContain('No shelters match this filter.');
     });
 
-    it('the source-kind chips are gone — the legend is the only filter control, and the source distinction survives through it (wave 8)', async () => {
+    it('the source-kind chips are gone — the legend is the only filter control, and the source distinction survives through it ', async () => {
       const { element, fixture } = await open('/map');
       // No source-chip row at all (All / Registry / User was the leftover
       // duplicate of the legend filter — removed, not re-hidden).
@@ -659,7 +659,7 @@ describe('MapPage', () => {
       const { element, fixture } = await open('/map'); // ALL fetch pending
       // The trust chip stays enabled while loading (no disabled binding) —
       // a click queues a newer fetch (the only refetch left on the page
-      // after the source chips went, wave 8).
+      // after the source chips went).
       element.querySelectorAll<HTMLButtonElement>('button.trust-chip')[1].click(); // Has capacity
       await settle(fixture);
       expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
@@ -678,7 +678,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Nearest shelter (map-crisis-actions D1/D2): the safety-orange CTA,
+  // Nearest shelter (map-crisis-actions): the safety-orange CTA,
   // geolocation -> Haversine nearest over the loaded list -> fly (no row emphasis).
   // ---------------------------------------------------------------------------
   describe('nearest shelter (crisis CTA)', () => {
@@ -723,7 +723,7 @@ describe('MapPage', () => {
       // stays the RESULT (the one-line state), not a selection or emphasis.
       expect(element.querySelector('.shelter-row--selected')).toBeNull();
       // The one-line state with the found shelter's name + address, plus
-      // the straight-line distance (D6 honesty: the ranking's own Haversine
+      // the straight-line distance (honesty: the ranking's own Haversine
       // — ~125 m for the NEAR fixture, whole metres below 1 km). The NEAR
       // row is a REGISTRY row: no unverified warning.
       expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
@@ -817,7 +817,7 @@ describe('MapPage', () => {
       [1, '≈ 1.0 km straight line'],
       [2.4, '≈ 2.4 km straight line'],
       [6.442, '≈ 6.4 km straight line'],
-    ])('straightLineText(%f) -> %s (pinned D6 copy)', (km, expected) => {
+    ])('straightLineText(%f) -> %s (pinned copy)', (km, expected) => {
       expect(straightLineText(km)).toBe(expected);
     });
 
@@ -912,7 +912,7 @@ describe('MapPage', () => {
       expect(add?.getAttribute('href')).toBe('/submit');
       expect(add?.classList.contains('btn--ghost')).toBe(true);
 
-      // Anonymous: the entry is absent (D4 — nothing here for signed-out users).
+      // Anonymous: the entry is absent (nothing here for signed-out users).
       store.authenticated.set(false);
       await settle(fixture);
       expect(
@@ -1039,7 +1039,7 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([]);
     });
 
-    it('a row click clears the Nearest result line (temporary, D2)', async () => {
+    it('a row click clears the Nearest result line (temporary)', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
       const { element, fixture } = await open('/map');
@@ -1075,7 +1075,7 @@ describe('MapPage', () => {
       expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
     });
 
-    it('a refetch clears the Nearest result line (D2)', async () => {
+    it('a refetch clears the Nearest result line ', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
         Promise.resolve(trust?.hasCapacity ? [FAR] : [NEAR, FAR, ALPHA_FAR]),
@@ -1107,7 +1107,7 @@ describe('MapPage', () => {
   // Nominatim), rendered in the map sidebar; selecting a result anchors the
   // per-row straight-line distances + the distance sort.
   // ---------------------------------------------------------------------------
-  describe('address-search anchor (M12)', () => {
+  describe('address-search anchor ', () => {
     /** The geocoded point of the FAR fixture — anchoring HERE flips the
      *  name sort (Kalamaja < Nõmme) into the distance sort (FAR 0 km,
      *  NEAR ≈ 6.5 km), so the order change is the assertion. */
@@ -1191,7 +1191,7 @@ describe('MapPage', () => {
         el.textContent?.trim(),
       );
       expect(names).toEqual(['Nõmme Shelter', 'Kalamaja Shelter']);
-      // Every row carries its straight-line distance (the D6 honesty
+      // Every row carries its straight-line distance (the honesty
       // format). The 0 km edge renders too — the template keys the span on
       // the anchor, not the distance's truthiness.
       const distances = [
@@ -1518,7 +1518,7 @@ describe('MapPage', () => {
       return { open: chips[0], hasCapacity: chips[1] };
     }
 
-    it('renders the Open / Has capacity toggle chips — and no source-chip row (no rating control — M11, wave 8)', async () => {
+    it('renders the Open / Has capacity toggle chips — and no source-chip row (no rating control)', async () => {
       const { element } = await open('/map');
 
       const { open: openChip, hasCapacity } = trustControls(element);
@@ -1530,7 +1530,7 @@ describe('MapPage', () => {
       expect(hasCapacity.getAttribute('aria-pressed')).toBe('false');
       expect(element.querySelector('.filter-rating')).toBeNull();
       expect(element.querySelector('select')).toBeNull();
-      // Wave 8: the source-kind chip row is GONE — the trust chips are the
+      // the source-kind chip row is GONE — the trust chips are the
       // only .chip buttons on the page, and the source distinction is the
       // legend's registry entry vs. its community tones.
       expect(element.querySelector('.filter-chips')).toBeNull();
@@ -1633,7 +1633,7 @@ describe('MapPage', () => {
 
       // One server request carrying the server-side filter only — "Open"
       // never reaches the query string (client-side) and there is no source
-      // param (the list is always ALL, wave 8).
+      // param (the list is always ALL).
       expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
       // The tone selection applies on top of the fresh response: TALLINN is
       // a registry row, so the filtered view is empty.
@@ -1665,11 +1665,11 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Reported / occupancy presentation (shelter-trust-and-reports D1/D6):
+  // Reported / occupancy presentation (shelter-trust-and-reports):
   // the orange legend entry, the row badges, and the marker hand-off to
   // LeafletService (whose class logic lives in leaflet-service.spec.ts).
   // ---------------------------------------------------------------------------
-  describe('reported and occupancy presentation (D1/D6)', () => {
+  describe('reported and occupancy presentation ', () => {
     const minutesAgo = (minutes: number): string =>
       new Date(Date.now() - minutes * 60000).toISOString();
 
@@ -1842,7 +1842,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Legend filter (wave 7 — the legend IS the filter): the five pin-tone
+  // Legend filter (the legend IS the filter): the five pin-tone
   // entries are real toggle buttons (accessible name + pressed state,
   // keyboard operable); the selection persists in the URL only (?tones=,
   // URL-only — no localStorage), is display-only (no refetch, never alters
@@ -2057,7 +2057,7 @@ describe('MapPage', () => {
 
     it('a hasCapacity refetch keeps the tone selection (the filter is display state, orthogonal to the fetch)', async () => {
       // The only refetch left on this page is "Has capacity" (the source
-      // refetch went with the chips, wave 8) — the tone selection must
+      // refetch went with the chips) — the tone selection must
       // survive it the same way it survived the old source refetch.
       gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
         Promise.resolve(trust?.hasCapacity ? [PARTIAL_ROW] : TONE_ROWS),
@@ -2104,18 +2104,18 @@ describe('MapPage', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+// 360px viewport (mobile-responsive-polish): no page-level horizontal
 // overflow on the recently-moved filter surfaces. jsdom cannot measure a
 // 360px viewport (no layout engine — every offsetWidth/scrollWidth is 0), so
-// — like the M13 pins in shelter-detail-page.spec.ts — the mechanisms that
+// — like the pins in shelter-detail-page.spec.ts — the mechanisms that
 // make overflow impossible are pinned against the stylesheet. 360px viewport
 // − 2 × 20px .shell-body padding (page-shell.scss) = 320px of content.
 // ---------------------------------------------------------------------------
-describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+describe('no page-level horizontal overflow at 360px ', () => {
   const readMapScss = (): string =>
     readFileSync(`${process.cwd()}/src/app/features/map/map-page.scss`, 'utf8');
 
-  it('below 900px the legend is IN FLOW (position: static) — the filter entries render between the map and the sidebar at the page width, never as an absolute overlay escaping the 360px layout (wave 8: the entries moved out of the map element)', () => {
+  it('below 900px the legend is IN FLOW (position: static) — the filter entries render between the map and the sidebar at the page width, never as an absolute overlay escaping the 360px layout (the entries moved out of the map element)', () => {
     const media = readMapScss().match(/@media \(max-width: 900px\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
     expect(media, 'the narrow-viewport media block must exist').not.toEqual('');
     const legend = media.match(/\.map-legend \{[\s\S]*?\n  \}/)?.[0] ?? '';

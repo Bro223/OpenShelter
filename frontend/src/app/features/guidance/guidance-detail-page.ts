@@ -13,7 +13,7 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
 /**
- * /blog/:slug — one public crisis-guidance post (crisis-guidance D4).
+ * /blog/:slug — one public crisis-guidance post (crisis-guidance).
  *
  * Thin shell (01-TASK.md §7): state in signals, the gateway owns the API
  * (a permit-all read — no auth). The body is admin-authored HTML the

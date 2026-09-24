@@ -138,7 +138,7 @@ class AdminMediaClientErrorsIT extends AbstractPersistenceIT {
 
     @Test
     void theMediaLibraryPagesWithTheTotalHeader() throws Exception {
-        // W2-A: the admin media library is a bounded page (limit/offset) with
+        // the admin media library is a bounded page (limit/offset) with
         // the X-Total-Count header = the FULL library length, stable across
         // pages — the page read must not walk the whole library to count.
         String admin = adminToken();

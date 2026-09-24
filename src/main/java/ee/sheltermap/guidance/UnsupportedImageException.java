@@ -1,7 +1,7 @@
 package ee.sheltermap.guidance;
 
 /**
- * The upload is not a readable image (crisis-guidance D7): the magic
+ * The upload is not a readable image: the magic
  * bytes are not JPEG/PNG/WebP, the sniffed type contradicts the
  * declared part {@code Content-Type}, or the pixel dimensions cannot be
  * read from the header (SVG in particular fails the magic-byte step —

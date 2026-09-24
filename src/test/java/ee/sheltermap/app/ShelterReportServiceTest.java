@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the shelter report + occupancy service
- * (shelter-trust-and-reports D1/D3/D4, community-self-moderation):
+ * (shelter-trust-and-reports, community-self-moderation):
  * the verified gate, 404s, the per-target duplicate 409 (before any
  * throttle budget is consumed), the per-hour throttle 429, the
  * trust-weighted 5-point auto-hide (five baseline reporters still hide
@@ -242,7 +242,7 @@ class ShelterReportServiceTest {
         assertThat(actionLog.actions()).hasSize(3);
     }
 
-    // ---------- auto-hide (D1) ----------
+    // ---------- auto-hide ----------
 
     @Test
     void oneToFourNonExistentReportsOnlyFlagAndStayActive() {
@@ -327,7 +327,7 @@ class ShelterReportServiceTest {
                 .isEqualTo(ShelterStatus.ACTIVE);
     }
 
-    // ---------- occupancy (D4) ----------
+    // ---------- occupancy ----------
 
     @Test
     void occupancyUpsertsOneRowPerUserWithTheLatestBand() {
@@ -453,7 +453,7 @@ class ShelterReportServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ---------- auto-confirm (community-review-queue v2 D2) ----------
+    // ---------- auto-confirm (community-review-queue v2) ----------
 
     // (the old single-report promotion test is superseded:
     // threeDistinctConfirmersVerifyANewRow covers the crossing + audit
@@ -723,7 +723,7 @@ class ShelterReportServiceTest {
                 .isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    /** The rival's own listing of the same place — the dampening vector (D3). */
+    /** The rival's own listing of the same place — the dampening vector. */
     private RegisteredUser rivalWithOwnListing(String name, boolean ownRowActive) {
         RegisteredUser u = user(name, true);
         Shelter own = new Shelter("Kesklinna varjend", new GeoPoint(59.4001, 24.7001),

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The extracted search seam (W3-A) directly: the searchable-text
+ * The extracted search seam directly: the searchable-text
  * derivation and the match rule in {@link GuidanceSearch} — the
  * {@code GuidanceService} delegates (the pre-extraction public surface)
  * are covered by {@code GuidanceServiceTest}, this suite covers the

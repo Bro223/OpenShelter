@@ -13,7 +13,7 @@ import java.util.List;
 /** Spring Data repository for {@link ModerationActionEntity} — internal to the persistence layer. */
 public interface SpringDataModerationActionRepository extends JpaRepository<ModerationActionEntity, Long> {
 
-    /** The reporter's own rows of one action — derived trust input (community-self-moderation, D1). */
+    /** The reporter's own rows of one action — derived trust input (community-self-moderation). */
     long countByModeratorIdAndAction(Long moderatorId, ModerationAuditLog.Action action);
 
     /** Erasure redaction (legal-recovery) — rows survive, only the free text goes. */
@@ -34,10 +34,10 @@ public interface SpringDataModerationActionRepository extends JpaRepository<Mode
                                                 @Param("actions") Collection<ModerationAuditLog.Action> actions);
 
     /**
-     * Paged trail read (W2-A): newest first (created_at descending, id
+     * Paged trail read: newest first (created_at descending, id
      * descending as the same-timestamp tie-break — the deterministic
      * stable order), exact OFFSET/LIMIT (Hibernate 6 JPQL). The declared
-     * List return pays NO hidden count query — the pre-W2-A
+     * List return pays NO hidden count query — the pre-
      * {@code findAll(Pageable)} paid one COUNT per request; the count is
      * now an explicit twin ({@code JpaRepository.count}) that the
      * X-Total-Count header owns.

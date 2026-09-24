@@ -69,7 +69,7 @@ import java.util.List;
  * adds no backend call by spec).
  *
  * <p>Trust layer (shelter-trust-and-reports): the public list is
- * ACTIVE-only (D5) and accepts the optional trust filters; the detail
+ * ACTIVE-only and accepts the optional trust filters; the detail
  * read carries the caller's own occupancy band; the report/occupancy
  * POSTs require a verified registered user (same gate and error
  * vocabulary as submissions).
@@ -97,14 +97,14 @@ public class ShelterController {
     private final ShelterReportService reportService;
     private final UserRepository userRepository;
     private final ShelterInfoRequestLog infoRequests;
-    /** The per-request authenticated-caller lookup (W3-A); the field the constructor no longer needs (the ownership read moved to the service) is dropped with it. */
+    /** The per-request authenticated-caller lookup; the field the constructor no longer needs (the ownership read moved to the service) is dropped with it. */
     private final CurrentCaller currentCaller;
 
     public ShelterController(ShelterQueryService queryService,
                              ShelterService shelterService,
                              ShelterReportService reportService,
                              UserRepository userRepository,
-                             /** Retained for the frozen constructor signature (the detail-read test seam); the ownership read it backed moved to {@link ShelterService#requireOwnedBy} (W3-A) — the parameter is no longer assigned. */
+                             /** Retained for the frozen constructor signature (the detail-read test seam); the ownership read it backed moved to {@link ShelterService#requireOwnedBy} — the parameter is no longer assigned. */
                              ShelterRepository shelterRepository,
                              ShelterInfoRequestLog infoRequests) {
         this.queryService = queryService;
@@ -116,7 +116,7 @@ public class ShelterController {
     }
 
     /**
-     * The public list. {@code source} as before (D5: ACTIVE rows only —
+     * The public list. {@code source} as before (ACTIVE rows only —
      * auto-hidden shelters are absent); the optional trust filters combine
      * with it in the projection:
      * {@code hasCapacity}
@@ -215,7 +215,7 @@ public class ShelterController {
      * anonymous callers and callers without a report). Rejected
      * (INACTIVE) rows stay readable by id exactly as any other INACTIVE
      * row — no trust rule blocks a detail read.
-     * (community-review-queue v2 D2).
+     * (community-review-queue v2).
      */
     @GetMapping("/{id}")
     @Operation(summary = "The shelter detail read",
@@ -268,7 +268,7 @@ public class ShelterController {
                 null, null, null, null, null, // no registry fields on USER rows
                 request.description(),
                 request.capacity());
-        // The private-home declaration (community-review-queue v2 D7):
+        // The private-home declaration (community-review-queue v2):
         // absent = PUBLIC.
         shelter.setLocationKind(request.locationKind() == null
                 ? LocationKind.PUBLIC : request.locationKind());
@@ -278,10 +278,10 @@ public class ShelterController {
         return ResponseEntity.created(URI.create("/api/shelters/" + shelter.getId())).body(dto);
     }
 
-    /** GET /api/shelters/mine — the caller's own shelters (Bearer JWT), all statuses (D5). */
+    /** GET /api/shelters/mine — the caller's own shelters (Bearer JWT), all statuses. */
     @GetMapping("/mine")
     @Operation(summary = "The caller's own shelters",
-            description = "Author-scoped read (Bearer JWT), ALL statuses (D5) — "
+            description = "Author-scoped read (Bearer JWT), ALL statuses — "
                     + "authenticated even though the rest of /api/shelters/** is "
                     + "public.")
     @ApiResponse(responseCode = "200", description = "The caller's shelters", content =
@@ -313,11 +313,11 @@ public class ShelterController {
 
     /**
      * POST /api/shelters/{id}/reports — one typed report per user per
-     * shelter per type (shelter-trust-and-reports D1). Verified users
+     * shelter per type (shelter-trust-and-reports). Verified users
      * only (same 403 vocabulary as submissions); 404 unknown shelter;
      * 409 duplicate (shelter, user, type); 429 report throttle. The
-     * body answers the dampening outcome (community-self-moderation,
-     * D4): {@code {"damped": true|false}}.
+     * body answers the dampening outcome:
+     * {@code {"damped": true|false}}.
      */
     @PostMapping("/{id}/reports")
     @Operation(summary = "Report a shelter",
@@ -345,7 +345,7 @@ public class ShelterController {
 
     /**
      * PUT /api/shelters/{id}/occupancy — the caller's live occupancy band
-     * (D4): one report per user per shelter, re-sending updates it
+     * one report per user per shelter, re-sending updates it
      * (latest band wins, {@code updated_at} refreshed). Verified users
      * only; 404 unknown shelter; 429 report throttle.
      */
@@ -388,7 +388,7 @@ public class ShelterController {
      * unmanageable by anyone); 400 on bbox/field violations. Only the five
      * writable fields change; the response is the updated {@link ShelterDto}.
      *
-     * <p>Owner-edit trust reset (M5b): a real edit of a PUBLISHED row also
+     * <p>Owner-edit trust reset: a real edit of a PUBLISHED row also
      * returns the shelter to the same pending-verification state
      * ({@code reviewStatus = NEW}) a newly added shelter carries —
      * published stays published (the row's status is preserved), the
@@ -419,7 +419,7 @@ public class ShelterController {
         RegisteredUser user = requireVerifiedRegisteredUser();
         // The ownership check runs BEFORE the 400 validations (the API's
         // documented order: 404/403 before a bbox 400); the service
-        // boundary re-checks it (W3-A).
+        // boundary re-checks it.
         Shelter shelter = shelterService.requireOwnedBy(id, user.getId());
         requireInsideEstonia(request.latitude(), request.longitude());
         Shelter updated = new Shelter(
@@ -441,7 +441,7 @@ public class ShelterController {
         // Admin-owned state is preserved through the owner's edit (the
         // save copies every domain field): the trust-layer disarm flag
         // and the admin "inaccurate" mark. The community trust state is
-        // NOT copied here — ShelterService.updatePlace owns it (the M5b
+        // NOT copied here — ShelterService.updatePlace owns it (the
         // owner-edit trust reset): a real edit of a published row returns
         // the shelter to the same pending-verification (NEW) state a
         // newly added shelter carries, and the owner can never
@@ -489,7 +489,7 @@ public class ShelterController {
     }
 
     /**
-     * The optional viewport box (shelter-bbox-paging D1): ALL four edges
+     * The optional viewport box (shelter-bbox-paging): ALL four edges
      * together or none. The friendly 400 messages are thrown HERE (the
      * existing {@link InvalidShelterException} → 400 mapping, the same
      * vocabulary as the POST/PUT Estonia gate); {@link BoundingBox}'s own

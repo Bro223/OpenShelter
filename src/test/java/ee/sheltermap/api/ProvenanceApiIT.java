@@ -41,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * optional {@code ?provenance=} filter narrows the public list, and an
  * invalid value is a 400.
  *
- * <p>The public list is ACTIVE-only (D5), so REPORTED_INACTIVE and
+ * <p>The public list is ACTIVE-only, so REPORTED_INACTIVE and
  * REJECTED rows are absent from it by construction — they are asserted
  * through the surfaces that keep hidden rows (/mine, /admin/shelters) and
  * the by-id detail read.

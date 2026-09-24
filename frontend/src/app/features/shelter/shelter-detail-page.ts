@@ -84,7 +84,7 @@ const DISTANCE_KEY: Record<GeolocationFailureKind, MessageKey> = {
   insecure: 'map.nearest.insecure',
 };
 
-/** The recent-log kind → localized state-noun key (M9 community pulse).
+/** The recent-log kind → localized state-noun key (community pulse).
  *  The lookup is total over the 5-value kind union; the fallback is
  *  defensive only (a kind outside the union cannot arrive from the BE). */
 const RECENT_KIND_KEYS: Record<CommunityPulseRecentReport['kind'], MessageKey> = {
@@ -171,7 +171,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
 
   /** The shelter id from /shelters/:id (null = invalid id -> not-found). */
   readonly id = signal<number | null>(null);
-  /** Detail projection — the list fields + yourOccupancyBand (D5). */
+  /** Detail projection — the list fields + yourOccupancyBand. */
   readonly shelter = signal<ShelterDetailDto | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -185,8 +185,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The header badge shows the
    *  source label (registry rows) or the trust-state label (USER rows,
-   *  community-review-queue D5) and, from shelter-trust-and-reports, the
-   *  trust badges (D6). Each wrapper injects the i18n seam so the badge
+   * community-review-queue) and, from shelter-trust-and-reports, the
+   * trust badges. Each wrapper injects the i18n seam so the badge
    *  reads in the active locale — the catalog keys are the same ones the
    *  band picker and the /mine panel already render (one word per fact). */
   protected readonly sourceTrustLabel = (s: {
@@ -207,7 +207,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
   /** Last-verified meta: the reported badge with its count (the open
-   *  trust-report sum — nonexistent + inaccurate, W2-B), the per-
+   * trust-report sum — nonexistent + inaccurate), the per-
    *  entry verification line and the community report count line. The
    *  month-abbreviation param follows the active locale (locale data). */
   protected readonly reportedBadgeText = (shelter: {
@@ -228,9 +228,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly straightLineText = (km: number) => straightLineTextShared(km, this.translate);
   protected readonly hasCommunityReports = hasCommunityReportsShared;
 
-  // ---- community pulse (M9 — report aggregation UI) -----------------------
+  // ---- community pulse (report aggregation UI) -----------------------
   /**
-   * The how-full gauge's aggregate (M9): the fresh (≤ 2 h) band counts +
+   * The how-full gauge's aggregate: the fresh (≤ 2 h) band counts +
    * the trust-weighted empty→full share. null = nothing fresh → the
    * explicit empty state (never a neutral arrow). Detail-read only — an
    * older BE omits the field (undefined → null, the FE-ships-ahead rule).
@@ -239,12 +239,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     return this.shelter()?.communityPulse?.occupancy ?? null;
   }
 
-  /** The open/closed gauge's aggregate (M9) — same rules as {@link occupancyPulse}. */
+  /** The open/closed gauge's aggregate — same rules as {@link occupancyPulse}. */
   protected openPulse(): CommunityPulseOpenClosed | null {
     return this.shelter()?.communityPulse?.openClosed ?? null;
   }
 
-  /** The merged recent-report log (M9): newest first, capped server-side.
+  /** The merged recent-report log: newest first, capped server-side.
    *  Empty → the section's empty state. */
   protected recentReports(): CommunityPulseRecentReport[] {
     return this.shelter()?.communityPulse?.recentReports ?? [];
@@ -338,12 +338,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  map.nearest.* catalog keys (the map CTA's vocabulary — see
    *  DISTANCE_KEY). */
   protected readonly distanceError = signal<string | null>(null);
-  /** The private-location predicate (D7) — the template stays branch-free.
+  /** The private-location predicate — the template stays branch-free.
    *  The badge + note + warnings render through the t pipe in the template
    *  (shelter.* / account.contrib.inaccurate keys). */
   protected readonly isPrivateLocation = isPrivateLocation;
 
-  // ---- trust layer (shelter-trust-and-reports D1/D4/D6) ----------------------
+  // ---- trust layer (shelter-trust-and-reports) ----------------------
   /** The three NEGATIVE report types + their picker labels: the picker is
    *  negative-only — "It does not exist" /
    *  "The location is wrong" / "Something else". CLOSED and OPEN_CONFIRMED
@@ -371,7 +371,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     },
   ];
 
-  /** The three occupancy bands (D4) — the picker's large buttons. */
+  /** The three occupancy bands — the picker's large buttons. */
   protected readonly BANDS: { value: OccupancyBand; labelKey: MessageKey }[] = [
     { value: 'SPACE', labelKey: 'detail.band.space' },
     { value: 'GETTING_FULL', labelKey: 'detail.band.gettingFull' },
@@ -513,7 +513,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.notFound.set(false);
     this.shelter.set(null);
     this.notice.set(null);
-    // The trust-layer pickers (D1/D4) belong to the previous shelter —
+    // The trust-layer pickers belong to the previous shelter —
     // close them with the data they were reporting on.
     this.resetTrustPickers();
     // Clear the PREVIOUS shelter's pin (showShelter(null) is the
@@ -605,7 +605,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     return s !== null && (s.description !== null || s.capacity !== null);
   }
 
-  // ---- navigate actions (map-crisis-actions D3) ----------------------------
+  // ---- navigate actions (map-crisis-actions) ----------------------------
   /**
    * Google Maps walking-directions deep link — a hand-rolled href (no
    * navigation library): the phone opens its own app choice. Coordinates at
@@ -627,7 +627,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  /** The header's coordinate line (D6 — tabular figures via .num-tabular). */
+  /** The header's coordinate line (tabular figures via .num-tabular). */
   protected coordinateLine(shelter: ShelterDto): string {
     return `${shelter.latitude.toFixed(5)}, ${shelter.longitude.toFixed(5)}`;
   }
@@ -678,7 +678,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  // ---- report how full (shelter-trust-and-reports D4/D6) --------------------
+  // ---- report how full (shelter-trust-and-reports) --------------------
   /**
    * One-tap occupancy upsert: the latest edit wins (the backend keeps ONE
    * live band per user). Success refetches — the aggregate + recency and
@@ -750,7 +750,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // ---- report this shelter (shelter-trust-and-reports D1/D6) ---------------
+  // ---- report this shelter (shelter-trust-and-reports) ---------------
   /** The verified viewer opens the type picker (inline — no modal). */
   openReport(): void {
     this.reportDuplicate.set(null);

@@ -2,7 +2,7 @@ package ee.sheltermap.domain;
 
 /**
  * Whether the submitter declared the location a private home or private
- * shelter (community-review-queue v2 D7) — a declaration, not a
+ * shelter (community-review-queue v2) — a declaration, not a
  * detection: the data to detect it does not exist, so the submitter
  * ticks the checkbox.
  *

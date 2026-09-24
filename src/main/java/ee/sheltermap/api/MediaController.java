@@ -25,7 +25,7 @@ import java.time.Duration;
 import java.util.regex.Pattern;
 
 /**
- * Serving of stored hero images (crisis-guidance D7) — permit-all: the
+ * Serving of stored hero images (crisis-guidance) — permit-all: the
  * public guidance pages show them to anonymous visitors.
  *
  * <p>The stored name is matched against the generated shape
@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
  * never be stale. EVERYTHING unknown answers 404 without revealing
  * whether a file exists elsewhere on disk.
  *
- * <p>P2-9 derivatives: a derivative name
+ * <p>derivatives: a derivative name
  * ({@code ^[a-f0-9]{32}-t\d+\.(jpg|png|webp)$}) is the SECOND shape —
  * the {@code -t<width>} marker is digits only (the traversal-forbidding
  * of the base shape is inherited), the base name (the 32-hex stem + the
@@ -69,13 +69,13 @@ import java.util.regex.Pattern;
 @RequestMapping("/api/media")
 public class MediaController {
 
-    /** D7: the generated name shape — the first gate of the public serving path. */
+    /** the generated name shape — the first gate of the public serving path. */
     private static final Pattern STORED_FILENAME = Pattern.compile("^[a-f0-9]{32}\\.(jpg|png|webp)$");
 
-    /** P2-9: the derivative name shape (the base shape + the digit-only {@code -t<width>} marker). */
+    /** the derivative name shape (the base shape + the digit-only {@code -t<width>} marker). */
     private static final Pattern DERIVATIVE_FILENAME = Pattern.compile("^[a-f0-9]{32}-t\\d+\\.(jpg|png|webp)$");
 
-    /** Generated names are never reused → an immutable year (D7). */
+    /** Generated names are never reused → an immutable year. */
     private static final Duration IMMUTABLE_CACHE = Duration.ofSeconds(31_536_000);
 
     private final MediaStorage storage;
@@ -87,7 +87,7 @@ public class MediaController {
     }
 
     /**
-     * Serves one stored image (the original OR a P2-9 derivative). 404
+     * Serves one stored image (the original OR a derivative). 404
      * for: a name outside the generated shapes (traversal, absolute
      * paths, encoded variants — all fail the regexes or the path
      * variable), a name with no asset row (a derivative name with no
@@ -123,7 +123,7 @@ public class MediaController {
                     .contentLength(asset.getSizeBytes())
                     .body(new FileSystemResource(path));
         }
-        // P2-9: the derivative shape — the base row is looked up by the
+        // the derivative shape — the base row is looked up by the
         // BASE name (the derivative has no row of its own), the file by
         // its own name; a missing base row or a missing file is the same
         // uniform 404 (nothing outside the upload directory is ever read).

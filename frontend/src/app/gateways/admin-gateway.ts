@@ -28,8 +28,8 @@ import type {
 import { parseTotal } from '../shared/paging';
 
 /**
- * The door to the /admin/* controller group (admin-moderation D3, plus the
- * crisis-guidance D3 authoring + media-library endpoints). Every endpoint
+ * The door to the /admin/* controller group (admin-moderation, plus the
+ * crisis-guidance authoring + media-library endpoints). Every endpoint
  * requires the caller's JWT AND admin kind (backend re-checks the kind per
  * request — a fresh lookup, never a JWT claim: 401 anonymous, 403
  * non-admin, 409 registry-row writes). All methods return typed promises
@@ -91,7 +91,7 @@ export class AdminGateway {
 
   /**
    * POST /admin/shelters/{id}/status {status} -> 204. Manual hide/restore.
-   * USER rows only — a registry row answers 409 (import-owned, D4) and the
+   * USER rows only — a registry row answers 409 (import-owned) and the
    * page surfaces the server message; the UI never offers these actions for
    * registry rows in the first place.
    */
@@ -101,7 +101,7 @@ export class AdminGateway {
 
   /**
    * POST /admin/shelters/{id}/review {action, reason?} -> 200 {ok:true}.
-   * The rare MANUAL trust override (community-review-queue D2) — the
+   * The rare MANUAL trust override (community-review-queue) — the
    * primary flow is the automatic community one. CONFIRM sets
    * review_status=CONFIRMED (status untouched); REJECT sets
    * review_status=REJECTED + status=INACTIVE and stores the reason as the
@@ -212,7 +212,7 @@ export class AdminGateway {
    * the (filtered) queue server-side. Returns the page's rows PLUS the
    * un-paged (filtered) total (the X-Total-Count header — the OPEN count
    * when the filter is on, which is the sum of the per-shelter open
-   * counts the pins express, W2-A).
+   * counts the pins express).
    */
   listShelterReports(
     filters?: AdminShelterReportFilters,
@@ -259,7 +259,7 @@ export class AdminGateway {
   }
 
   // ------------------------------------------------------------------
-  // Guidance (crisis-guidance D3/D4): the authoring endpoints
+  // Guidance (crisis-guidance): the authoring endpoints
   // ------------------------------------------------------------------
 
   /**
@@ -318,7 +318,7 @@ export class AdminGateway {
    * 404 unknown id (or a heroImageId with no such asset). `heroImportUrl`
    * (guidance-hero-import): a blank/absent value CLEARS the import URL
    * (full replace); a non-null URL is fetched, validated and stored AT
-   * SAVE, draft or published alike (the Wave 9 trigger) — a changed URL
+   * SAVE, draft or published alike (the trigger) — a changed URL
    * re-imports. A failed import never blocks the update: the 200 body's
    * `heroImportError` names it and the URL is kept for a retry.
    *
@@ -344,7 +344,7 @@ export class AdminGateway {
    * from the server clock (a re-publish stamps a FRESH instant);
    * idempotent — an already-published post is a 204 no-op that writes no
    * audit row. 404 unknown id. The hero import moved to SAVE time (the
-   * Wave 9 trigger): this call never fetches, validates or stores
+   * trigger): this call never fetches, validates or stores
    * anything — a post with an unimported or failed hero URL publishes
    * exactly as stored, so publishing is never the moment an image can
    * fail for the first time.
@@ -375,7 +375,7 @@ export class AdminGateway {
 
   /**
    * PUT /admin/guidance/order -> 204 (no body) — the MANUAL ordering
-   * (guidance-manual-order D5): UNSCOPED (no `locale`): the FULL ordered id
+   * (guidance-manual-order): UNSCOPED (no `locale`): the FULL ordered id
    * list of every guidance post, exactly the order the admin table shows it
    * (pinned block first, then the rest) — the server validates the list as a
    * permutation of all post ids BEFORE writing — an unknown id, a duplicate,
@@ -456,7 +456,7 @@ export class AdminGateway {
   }
 
   // ------------------------------------------------------------------
-  // Media library (crisis-guidance D7/D8): the asset inventory
+  // Media library (crisis-guidance): the asset inventory
   // ------------------------------------------------------------------
 
   /**

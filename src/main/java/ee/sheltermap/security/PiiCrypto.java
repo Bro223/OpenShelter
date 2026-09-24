@@ -161,7 +161,7 @@ public class PiiCrypto {
 
     /** Canonical e-mail identity for blind indexing (registration
      *  normalizes identically — the shared {@link Contacts#normalize} rule,
-     *  W4-A: before the extraction this two-liner was inlined HERE and
+     * before the extraction this two-liner was inlined HERE and
      *  separately in the limiter/recorder/auth consumers, so a drift in
      *  any copy would have split the blind index from the live lookups). */
     public static String canonicalEmail(String email) {

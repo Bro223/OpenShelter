@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MarkdownToHtmlTest {
 
-    /** The frozen allow-list (crisis-guidance D2) — the converter's ceiling. */
+    /** The frozen allow-list (crisis-guidance) — the converter's ceiling. */
     private static final Set<String> ALLOWED_TAGS =
             Set.of("h2", "h3", "p", "br", "strong", "em", "ul", "ol", "li", "a", "blockquote");
 

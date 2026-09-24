@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
- * MediaService behaviour (crisis-guidance D7/D8/D12) against the in-memory
+ * MediaService behaviour (crisis-guidance) against the in-memory
  * repository fakes and a REAL {@link MediaStorage} on a temp dir (so "no
  * partial file" and "the file is gone" are asserted on disk): the upload
  * validation ORDER (byte count → magic bytes / dimensions → declared
@@ -108,7 +108,7 @@ class MediaServiceTest {
     /**
      * A REAL decodable PNG (ImageIO-encoded gradient) — unlike the
      * header-only {@link #png} fixture, the derivative renderer can
-     * decode it (P2-9 tests).
+     * decode it (tests).
      */
     private static byte[] realPng(int width, int height) throws IOException {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -147,7 +147,7 @@ class MediaServiceTest {
         return new MediaService(media, posts, storage, audit, clock, 1_000_000);
     }
 
-    // ------------------------------------------------------------- upload (D7)
+    // ------------------------------------------------------------- upload
 
     @Test
     void uploadStoresTheAssetWithAGeneratedNameAndItsMetadata() throws Exception {
@@ -194,7 +194,7 @@ class MediaServiceTest {
 
     @Test
     void unrecognizedBytesAre400WithNoFileAndNoRow() throws Exception {
-        // Text named .jpg: it fails the magic-byte step (D7 step 2).
+        // Text named .jpg: it fails the magic-byte step (step 2).
         assertThatThrownBy(() -> service.upload(ADMIN_ID,
                 "This is not an image.\n".getBytes(java.nio.charset.StandardCharsets.UTF_8),
                 "image/jpeg", "text.jpg"))
@@ -205,7 +205,7 @@ class MediaServiceTest {
 
     @Test
     void aDeclaredTypeThatContradictsTheBytesIs400() throws Exception {
-        // Real PNG bytes, declared as JPEG (D7 step 3).
+        // Real PNG bytes, declared as JPEG (step 3).
         assertThatThrownBy(() -> service.upload(ADMIN_ID, png(1, 1), "image/jpeg", "lying.jpg"))
                 .isInstanceOf(UnsupportedImageException.class)
                 .hasMessageContaining("image/jpeg");
@@ -221,7 +221,7 @@ class MediaServiceTest {
         assertThat(media.findById(asset.getId())).isPresent();
     }
 
-    // ------------------------------------------------------------- listing (D8)
+    // ------------------------------------------------------------- listing
 
     @Test
     void theListIsNewestFirstWithTheReusedCounts() {
@@ -241,7 +241,7 @@ class MediaServiceTest {
         assertThat(counts).containsEntry(second.getId(), 0L).containsEntry(first.getId(), 1L);
     }
 
-    // ------------------------------------------------------------- delete (D8)
+    // ------------------------------------------------------------- delete
 
     @Test
     void deletingAnUnreferencedAssetDeletesRowAndFileAndRecordsTheAuditRow() throws Exception {
@@ -297,7 +297,7 @@ class MediaServiceTest {
         assertThat(countFiles()).isZero();
         for (GuidancePost original : List.of(p1, p2)) {
             GuidancePost cleared = posts.findById(original.getId()).orElseThrow();
-            // Both the hero id AND the alt are cleared (D8).
+            // Both the hero id AND the alt are cleared.
             assertThat(cleared.getHeroImageId()).isNull();
             assertThat(cleared.getHeroImageAlt()).isNull();
             // The post is otherwise untouched: still published, and its
@@ -324,7 +324,7 @@ class MediaServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ------------------------------------------------------------- P2-9 derivatives
+    // ------------------------------------------------------------- derivatives
 
     @Test
     void anUploadStoresTheThumbnailDerivativesBesideTheOriginal() throws Exception {

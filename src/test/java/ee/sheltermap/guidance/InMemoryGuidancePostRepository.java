@@ -22,7 +22,7 @@ import java.util.Optional;
  * <p>Ordering rules (the ordering tests assert through this fake):
  * <ul>
  *   <li>admin list — {@code sortOrder} ascending, {@code id} descending
- *       (the live preview of the public order, guidance-manual-order D2 —
+ * (the live preview of the public order, guidance-manual-order —
  *       locale-blind, the admin sees every language);</li>
  *   <li>public list — the ONE requested locale, pinned first, then
  *       {@code sortOrder} ascending, then {@code publishedAt} descending
@@ -33,7 +33,7 @@ import java.util.Optional;
  */
 public class InMemoryGuidancePostRepository implements GuidancePostRepository {
 
-    /** The admin list order: the stored manual order, id desc tie-break (D2). */
+    /** The admin list order: the stored manual order, id desc tie-break. */
     private static final Comparator<GuidancePost> ADMIN_ORDER =
             Comparator.comparingInt(GuidancePost::getSortOrder)
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
@@ -63,7 +63,7 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
         if (post.getId() == null) {
             post.setId(nextId++);
         } else {
-            // The JPA update-path stamp (D4): updated_at moves on every write.
+            // The JPA update-path stamp: updated_at moves on every write.
             post.setUpdatedAt(clock.instant());
         }
         store.put(post.getId(), post);

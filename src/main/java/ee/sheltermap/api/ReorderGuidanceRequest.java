@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
- * {@code PUT /admin/guidance/order} body (guidance-manual-order D3).
+ * {@code PUT /admin/guidance/order} body (guidance-manual-order).
  *
  * <p>{@code postIds} is the FULL ordered list of post ids — drafts and
  * published alike. The service re-checks everything (it is the

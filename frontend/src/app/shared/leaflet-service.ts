@@ -49,7 +49,7 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 
 /**
  * The marker tone class suffix. Reported state (shelter-trust-and-reports
- * D1, extended by W2-B: EITHER report kind — an open does-not-exist report
+ *, extended by EITHER report kind — an open does-not-exist report
  * or an open inaccurate-information report; the OR of the two per the
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
@@ -72,7 +72,7 @@ export function markerTone(shelter: {
   inaccurateReports?: number;
   submitterVerification?: SubmitterVerification | null;
 }): 'reported' | 'partial' | 'full' | 'user' | 'registry' {
-  // W2-B: EITHER report kind drives the reported state — the OR of the two
+  // EITHER report kind drives the reported state — the OR of the two
   // (the backend contract note). `inaccurateReports` absent (an older
   // backend) reads as 0.
   if (shelter.nonexistentReports > 0 || (shelter.inaccurateReports ?? 0) > 0) {
@@ -173,9 +173,9 @@ export class LeafletService {
    * Replaces ALL markers with one divIcon per shelter row — the layer group
    * is cleared first, so a filter refetch never duplicates markers.
    *
-   * Trust palette (community-review-queue D5): the tone follows
+   * Trust palette (community-review-queue): the tone follows
    * source/reviewStatus; a shelter with an open report of EITHER kind
-   * (the OR of `nonexistentReports` and `inaccurateReports`, W2-B) renders
+   * (the OR of `nonexistentReports` and `inaccurateReports`) renders
    * the ORANGE reported marker — the single "reported" affordance —
    * regardless of trust colour.
    */

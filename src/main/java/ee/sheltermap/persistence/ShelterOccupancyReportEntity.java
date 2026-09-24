@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code shelter_occupancy_reports} (V9, D4). The unique
+ * JPA entity for {@code shelter_occupancy_reports} (V9). The unique
  * constraint {@code (shelter_id, user_id)} — one live report per user per
  * shelter — is enforced by the database; {@code updated_at} (not a
  * creation time) anchors the 2 h read-time freshness window.

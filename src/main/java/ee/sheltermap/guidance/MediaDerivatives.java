@@ -19,7 +19,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
- * The thumbnail derivatives of a stored media asset (P2-9): the 40–72 px
+ * The thumbnail derivatives of a stored media asset: the 40–72 px
  * slots (and the 400 px guidance card) used to download the FULL original
  * just to display a thumbnail. At upload/import time the original is
  * rendered down to a fixed width set, stored beside the original under a
@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
  * must not be "improved" into a 96 px asset, and a small asset simply
  * has no derivatives (its slots already show it at native size).
  *
- * <p><b>EXIF orientation (Wave 13).</b> The caller passes the VISUAL
+ * <p><b>EXIF orientation.</b> The caller passes the VISUAL
  * dimensions (the inspector swaps them for EXIF orientations 5–8), but
  * {@code ImageIO} decodes SENSOR-orientation pixels — it never applies
  * the tag. Before any resampling the decoded raster is therefore rotated
@@ -71,7 +71,7 @@ public final class MediaDerivatives {
      */
     public static final int[] WIDTHS = {96, 192, 480, 800};
 
-    /** The generated ORIGINAL name (the derivative's base — P2-9). */
+    /** The generated ORIGINAL name (the derivative's base). */
     public static final Pattern BASE_NAME = Pattern.compile("^[a-f0-9]{32}\\.(jpg|png|webp)$");
 
     /** The JPEG quality for the rendered derivatives (small formats, 0.85). */
@@ -129,8 +129,8 @@ public final class MediaDerivatives {
      *                   derivative that fails the content gate is
      *                   SKIPPED; {@code false} (the import path): it
      *                   throws {@link UnsupportedImageException} — the
-     *                   P2-9 acceptance rule, the import fails and the
-     *                   post stays a DRAFT (the existing behaviour)
+     *                   acceptance rule: the import fails and the post
+     *                   stays a DRAFT (the existing behaviour)
      * @return the rendered derivatives in ascending width order — empty
      *         for a WebP original, a too-small original, or an
      *         undecodable body (the decode failure is a property of the
@@ -149,7 +149,7 @@ public final class MediaDerivatives {
             return List.of(); // undecodable — no width can succeed
         }
         BufferedImage source = decoded.get();
-        // Wave 13 — the decoded raster is still in SENSOR orientation
+        // The decoded raster is still in SENSOR orientation
         // (ImageIO does not apply EXIF); the caller's dimensions are the
         // VISUAL ones. Rotate the raster into the visual orientation
         // first, so every derivative matches what the browser renders

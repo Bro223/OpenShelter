@@ -43,7 +43,7 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // bare period in every supported locale) — same rationale as agreeTail.
   'account.phoneDone.after': '.',
   'account.legal.tail': '.',
-  // Legal pages (legal-i18n M4): punctuation-only splice tails. A semicolon
+  // Legal pages (legal-i18n): punctuation-only splice tails. A semicolon
   // or a period is a semicolon/period in every supported locale; the
   // translated sentence around them carries the language.
   'legal.privacy.collect.li1.after': ';',  'legal.privacy.collect.li2.after': ';',

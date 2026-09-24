@@ -13,7 +13,7 @@
     @if (loading()) {
       <app-loading-indicator class="guidance-state" [message]="'guidance.loadingDetail' | t" />
     } @else if (post(); as p) {
-      <!-- The hero image (crisis-guidance D1): the article's first
+      <!-- The hero image (crisis-guidance): the article's first
            content, at its NATURAL size — the image's own aspect ratio
            decides the height (guidance-detail-page.scss: max-width
            100% + height auto), so a photo is never stretched into a
@@ -38,7 +38,7 @@
           <!-- Alt: the stored hero alt (the admin sets it; mandatory
                whenever a hero exists). A null alt with a present URL =
                decorative empty alt — never the post title. -->
-          <!-- P2-9: the derivative srcset when the server has one for
+          <!-- the derivative srcset when the server has one for
                this hero (built from disk truth — null for a WebP
                original / pre-feature upload, then plain src only);
                sizes is the article column's max width — 44rem = 704 px,

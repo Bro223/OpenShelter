@@ -71,7 +71,7 @@ public class InMemoryUserRepository implements UserRepository {
     @Override
     public boolean isAdmin(long userId) {
         // The in-memory domain hierarchy now HAS an admin kind (AdminUser,
-        // admin-moderation D1) — answer from the domain class, the mirror
+        // admin-moderation) — answer from the domain class, the mirror
         // of the JPA impl's users.kind-column check.
         return store.get(userId) instanceof AdminUser;
     }

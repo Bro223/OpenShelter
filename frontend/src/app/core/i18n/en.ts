@@ -184,7 +184,7 @@ export const EN: Messages = {
   // submitter depth the API does not report keeps.
   'map.legend.unverified': 'Added by an unverified user',
   'map.legend.reported': 'Reported',
-  // The legend filter's affordance line (wave 7 — the legend IS the filter):
+  // The legend filter's affordance line (the legend IS the filter):
   // the one-line mechanic the pin-tone toggle entries implement. It doubles
   // as the entries' accessible description (aria-describedby).
   'map.legend.hint': 'Click to select or unselect',
@@ -277,7 +277,7 @@ export const EN: Messages = {
   'detail.submitReport': 'Submit report',
   'detail.cancel': 'Cancel',
   'detail.verifyAccount': 'Verify your account',
-  // community pulse (M9): gauge end labels = recent-log kind labels.
+  // community pulse: gauge end labels = recent-log kind labels.
   'detail.pulse.kind.open': 'Open',
   'detail.pulse.kind.closed': 'Closed',
   'detail.pulse.kind.space': 'Space available',
@@ -584,7 +584,7 @@ export const EN: Messages = {
   'verify.alreadyVerified': 'Your {noun} is already verified.',
   'verify.verifiedNotice': 'Your {noun} is verified.',
 
-  // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
+  // --- crisis guidance (/blog — crisis-guidance). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.
   'guidance.title': 'Crisis guidance',
   'guidance.subtitle': 'Practical guidance for crisis situations.',
@@ -612,7 +612,7 @@ export const EN: Messages = {
   'guidance.pageOutOfRange': 'Page {page} does not exist — the index ends at page {pages}.',
   'guidance.pageFirst': 'Show the first page',
 
-  // --- admin: guidance tab + editor + media library (crisis-guidance D8).
+  // --- admin: guidance tab + editor + media library (crisis-guidance).
   'admin.retry': 'Retry',
 
   'admin.settings.tab': 'Settings',
@@ -978,7 +978,7 @@ export const EN: Messages = {
   'admin.media.success.uploaded': 'Image uploaded.',
   'admin.media.success.deleted': 'Image deleted.',
 
-  // --- legal pages (legal-i18n M4): one key per paragraph/heading, splice
+  // --- legal pages (legal-i18n): one key per paragraph/heading, splice
   // segments around the inline emphasis/links. The section heading keys
   // double as the TOC link labels. EN values are verbatim from the old
   // static templates (the page specs assert on them).

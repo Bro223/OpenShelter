@@ -37,7 +37,7 @@ import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
 /** Which capture mode last wrote the shared location state (design decision 1).
- *  'saved' is the edit-mode prefill (M5): the pin comes from the row being
+ * 'saved' is the edit-mode prefill: the pin comes from the row being
  *  edited, not from a capture — it renders no "Location from …" hint. */
 type LocationSource = 'typed' | 'link' | 'geolocation' | 'map-pick' | 'address-search' | 'saved';
 
@@ -108,7 +108,7 @@ const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
  * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
  * (05-shelter-review-flow.puml, shelter-location-input). Name (≤200),
  * optional description (≤2000), optional capacity (1–100 000), the
- * private-home declaration (community-review-queue D7: locationKind), and
+ * private-home declaration (community-review-queue: locationKind), and
  * a location captured five ways — smart text input (coordinate string /
  * long-form map URL, parsed by shared/location-input.ts), "Use my location"
  * (browser geolocation), maps.app.goo.gl short links (POST /api/geo/resolve),
@@ -124,7 +124,7 @@ const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
  * backend message shows through the banner (403 adds a /verify link — the
  * claim can lapse mid-session) and the form input is preserved.
  *
- * EDIT MODE (M5, shelter-editing reuses the add form): /submit?edit=<id>
+ * EDIT MODE (shelter-editing reuses the add form): /submit?edit=<id>
  * renders this SAME form (same fields, same capture modes) prefilled with
  * the row's current values. The row is fetched from GET /api/shelters/mine
  * (owner-scoped, ALL statuses) — an id that is not the caller's, or a
@@ -135,7 +135,7 @@ const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
  * edit"). Save is PUT /api/shelters/{id} with the same payload shape as
  * create (locationKind explicit). The edit PUBLISHES IMMEDIATELY — the
  * backend keeps the row's status (an edit never unpublishes or removes it
- * from the map) — and per the owner's M5 decision the shelter then carries
+ * from the map) — and per the owner's decision the shelter then carries
  * the same pending-verification (NEW) trust state a newly added shelter
  * gets until it is confirmed again: a STATUS, not a gate in front of the
  * edit. The account area no longer hosts its own reduced edit form — its
@@ -156,7 +156,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly leaflet = inject(LeafletService);
   /** Resolves the location capture copy (i18n-et-en). */
   private readonly i18n = inject(I18nService);
-  /** The active route: /submit?edit=<id> opens the form in edit mode (M5). */
+  /** The active route: /submit?edit=<id> opens the form in edit mode. */
   private readonly route = inject(ActivatedRoute);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
@@ -168,7 +168,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
 
   constructor() {
     /**
-     * Fires after EVERY render of this component. In edit mode (M5) the
+     * Fires after EVERY render of this component. In edit mode the
      * form — and with it the #mapEl container — mounts only after the
      * ?edit row has loaded, so ngAfterViewInit's one-shot create misses
      * the container (create() no-ops on it) and the map would stay dead:
@@ -206,7 +206,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       validators: [Validators.maxLength(2000)],
     }),
     capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
-    // The private-home declaration (community-review-queue D7): maps to the
+    // The private-home declaration (community-review-queue): maps to the
     // payload's locationKind (PRIVATE when checked, PUBLIC by default).
     privateLocation: new FormControl(false, { nonNullable: true }),
   });
@@ -218,12 +218,12 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   /** The created row (community-review-queue): set on 201 — the row is
    *  public immediately as NEW, so the success panel links to the detail
    *  page instead of navigating there (the form stays for a second
-   *  submission). In edit mode (M5) it is the UPDATED row — the same panel
+   * submission). In edit mode it is the UPDATED row — the same panel
    *  is the save confirmation (the edit publishes immediately with the
    *  NEW pending-verification state). */
   protected readonly submitted = signal<ShelterDto | null>(null);
 
-  // ---- edit mode (M5: editing reuses this form) ----------------------------
+  // ---- edit mode (editing reuses this form) ----------------------------
   /** True while /submit?edit=<id> — the heading + submit button carry the
    *  edit/save copy. Creation is this same form WITHOUT the param — the
    *  /submit path is unchanged. */
@@ -347,13 +347,13 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Edit mode (M5): /submit?edit=<id> prefills the SAME form with the
+   * Edit mode: /submit?edit=<id> prefills the SAME form with the
    * row's current values. The row comes from GET /api/shelters/mine —
    * owner-scoped, ALL statuses — so an id that is not the caller's (or a
    * malformed param) is the not-found state, never a prefill of someone
    * else's shelter. Save is PUT /api/shelters/{id} and publishes
    * immediately (the backend keeps the row's status — an edit never
-   * unpublishes it); per the owner's M5 decision the shelter then carries
+   * unpublishes it); per the owner's decision the shelter then carries
    * the same pending-verification (NEW) trust state a newly added shelter
    * gets — a STATUS, not a gate in front of the edit.
    */
@@ -408,7 +408,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     this.name().setValue(row.name);
     this.description().setValue(row.description ?? '');
     this.capacity().setValue(row.capacity);
-    // The declaration mirrors the row's stored locationKind (D7).
+    // The declaration mirrors the row's stored locationKind.
     this.privateLocation().setValue(row.locationKind === 'PRIVATE');
     // The smart input shows the saved pair — the same text its parser
     // accepts, so a re-Enter re-parses to the same pin.
@@ -422,7 +422,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Wires the pick callback (map click AND pick-marker drag -> the shared
    * location state) and creates the mini-map when the container already
-   * exists (creation mode). In edit mode (M5) the form — and with it the
+   * exists (creation mode). In edit mode the form — and with it the
    * #mapEl container — mounts only after the ?edit row has loaded, so the
    * container is absent here: create() would no-op, and the
    * afterEveryRender hook re-arms the moment the container appears.
@@ -701,7 +701,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
 
   // ---------------------------------------------------------------------
   // Submit — payload: name + latitude/longitude numbers, optional
-  // description/capacity, locationKind (community-review-queue D7)
+  // description/capacity, locationKind (community-review-queue)
   // ---------------------------------------------------------------------
 
   async submit(): Promise<void> {
@@ -732,7 +732,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       longitude: picked.longitude,
       // Explicit on purpose: unchecked = PUBLIC (the contract default),
       // checked = PRIVATE (the resident-offered declaration). The same
-      // explicit locationKind rides the edit's PUT (M5) — the backend's
+      // explicit locationKind rides the edit's PUT — the backend's
       // create/update constraint path is shared.
       locationKind: this.privateLocation().value ? 'PRIVATE' : 'PUBLIC',
     };

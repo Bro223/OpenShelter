@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { gaugeAngle } from './gauge-math';
 
 /**
- * The semicircular report gauge (M9 — report aggregation UI): one
+ * The semicircular report gauge (report aggregation UI): one
  * question, two ends. The needle sweeps from 0° (pointing at the LEFT
  * end, e.g. "Closed" / "Space available") through 90° (straight up — an
  * exact equal split) to 180° (pointing at the RIGHT end, e.g. "Open" /

@@ -79,7 +79,7 @@ import java.util.function.LongSupplier;
  * SNIFFED bytes, not the remote header and not the remote filename. A
  * script or a polyglot therefore cannot be stored or served as an image:
  * only bytes the inspector reads as JPEG/PNG/WebP ever reach the library.
- * The same gate is extended to the P2-9 thumbnail derivatives (rendered
+ * The same gate is extended to the thumbnail derivatives (rendered
  * from the validated bytes at store time and re-gated by
  * {@link MediaImageInspector} before they are written beside the
  * original — a derivative that fails the gate fails the import).
@@ -311,7 +311,7 @@ public class HeroImageImportService {
 
     /**
      * The terminal response: status, content and pixel checks (guards 6
-     * and 7), the P2-9 derivative render (in memory — a derivative that
+     * and 7), the derivative render (in memory — a derivative that
      * fails the content gate fails the import here, before anything
      * touches disk: the import's own transaction rolls back and the save
      * surfaces the failure, the post keeping its previous hero and the
@@ -374,11 +374,11 @@ public class HeroImageImportService {
             throw new UnsupportedImageException("Unsupported image type: " + info.contentType());
         }
 
-        // P2-9 — the thumbnail derivatives, rendered IN MEMORY before
+        // The thumbnail derivatives, rendered IN MEMORY before
         // anything touches disk: a derivative that fails the content
         // gate fails the import HERE (the publish transaction rolls
         // back and the post stays a DRAFT — the existing failure
-        // behaviour, the plan's acceptance rule). An undecodable body
+        // behaviour — the acceptance rule). An undecodable body
         // (or a WebP original — no JDK decoder) simply yields NO
         // derivatives: the original is still stored and served.
         List<MediaDerivatives.RenderedDerivative> derivatives = renderDerivativesStrict(info, bytes);
@@ -408,7 +408,7 @@ public class HeroImageImportService {
     }
 
     /**
-     * The P2-9 import-path render step (strict gate): every derivative
+     * The import-path render step (strict gate): every derivative
      * the original can serve (renderable format only — no WebP;
      * guard 7 already bounded the sides, re-checked here defensively;
      * no upscale), each rendered byte sequence re-gated by the SAME
@@ -431,7 +431,7 @@ public class HeroImageImportService {
     }
 
     /**
-     * The P2-9 import-path write step: the rendered derivative files
+     * The import-path write step: the rendered derivative files
      * beside the original. A per-width write failure only skips the
      * width (the original + the row stand; the srcset lists what
      * exists) — a disk failure is not a validation failure.

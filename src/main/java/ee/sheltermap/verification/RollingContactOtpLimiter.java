@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code Retry-After}). A rejected acquire records nothing.
  *
  * <p>The key is normalized here ({@link Contacts#normalize} — trim +
- * root-locale lowercase, the one shared contact-identity rule, W4-A), so e-mail
+ * root-locale lowercase, the one shared contact-identity rule), so e-mail
  * spellings share one bucket. Phones arrive pre-normalized as E.164 (digits
  * plus a leading {@code +}) and are unaffected by lowercasing. Callers
  * namespace the key per surface ({@code "register:"} / {@code "verify:"}),

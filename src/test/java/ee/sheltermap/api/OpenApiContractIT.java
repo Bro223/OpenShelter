@@ -241,7 +241,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
 
     @Test
     void theShelterDtoDocumentsTheCommunityPulse() throws Exception {
-        // M9 community pulse: the detail-read field and its nested schemas
+        // community pulse: the detail-read field and its nested schemas
         // are part of the published contract (the gauge inputs the FE
         // renders — the plain counts, the weighted shares, the log).
         JsonNode shelterDto = doc().path("components").path("schemas").path("ShelterDto");

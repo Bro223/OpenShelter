@@ -27,11 +27,11 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * The admin media-library API (crisis-guidance D3/D7/D8) — thin shell:
+ * The admin media-library API (crisis-guidance) — thin shell:
  * parse, authorize, delegate to {@link MediaService}.
  *
  * <p>Authorization is the shared fresh per-request ADMIN kind lookup
- * ({@link AdminAccess#requireAdmin()}, D2): anonymous → 401 (the security
+ * ({@link AdminAccess#requireAdmin()}): anonymous → 401 (the security
  * entry point answers first), authenticated non-admin → 403. The
  * multipart upload field is {@code file}; the declared part
  * type the browser sends is validated against the SNIFFED type in the
@@ -58,11 +58,11 @@ public class AdminMediaController {
     }
 
     /**
-     * The library listing (D8): every asset newest-first, each with its
+     * The library listing: every asset newest-first, each with its
      * serving URL, dimensions, size, upload date and reused-by count
      * (0 for an unused asset — it is listed like any other).
      *
-     * <p>Paging (W2-A — the owner's "every admin list pages" rule):
+     * <p>Paging (the owner's "every admin list pages" rule):
      * optional {@code limit} (1..200; absent = no paging) / {@code offset}
      * (>= 0) page the newest-first order in SQL, and the
      * {@code X-Total-Count} response header is the library's asset count
@@ -109,7 +109,7 @@ public class AdminMediaController {
     }
 
     /**
-     * Multipart upload (D7): the fixed validation order (byte count vs
+     * Multipart upload: the fixed validation order (byte count vs
      * cap → 413; magic bytes + dimensions → 400; declared type vs sniffed
      * type → 400) lives in the service — a refused upload writes no file
      * and no row. 201 with the stored asset; the generated name is in
@@ -151,7 +151,7 @@ public class AdminMediaController {
     }
 
     /**
-     * Delete an asset (D8): unreferenced → 200 (the pre-delete snapshot),
+     * Delete an asset: unreferenced → 200 (the pre-delete snapshot),
      * row and file gone; referenced without {@code confirm=true} → 409
      * naming the affected posts (the admin UI turns the answer into the
      * confirm dialog); referenced with {@code confirm=true} → 200 and

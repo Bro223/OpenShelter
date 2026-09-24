@@ -181,13 +181,13 @@ export const ET: Messages = {
   'map.legend.registry': 'Register (Päästeamet)',
   'map.legend.partialVerified': 'Lisanud osaliselt kinnitatud kasutaja',
   'map.legend.fullVerified': 'Lisanud täielikult kinnitatud kasutaja',
-  // Unverified community tone (wave 8 — green = verified, unverified is
+  // Unverified community tone (green = verified, unverified is
   // the YELLOW tone; the pin palette is green/yellow/blue/red only, there
   // is no grey in it). MACHINE DRAFT — awaiting native Estonian review;
   // do not treat as final.
   'map.legend.unverified': 'Lisanud kinnitamata kasutaja',
   'map.legend.reported': 'Teatatud',
-  // Legend filter affordance line (wave 7). MACHINE DRAFT — awaiting native
+  // Legend filter affordance line. MACHINE DRAFT — awaiting native
   // Estonian review; do not treat as final.
   'map.legend.hint': 'Klõpsa, et valida või tühista',
   'map.geoNote':
@@ -279,7 +279,7 @@ export const ET: Messages = {
   'detail.submitReport': 'Saada teave',
   'detail.cancel': 'Tühista',
   'detail.verifyAccount': 'Kinnita oma konto',
-  // community pulse (M9): mõnede lõppmärgised = viimaste teatete liigid.
+  // community pulse: mõnede lõppmärgised = viimaste teatete liigid.
   'detail.pulse.kind.open': 'Avatud',
   'detail.pulse.kind.closed': 'Suletud',
   'detail.pulse.kind.space': 'On vaba mahtu',
@@ -587,7 +587,7 @@ export const ET: Messages = {
   'verify.alreadyVerified': 'Sinu {noun} on juba kinnitatud.',
   'verify.verifiedNotice': 'Sinu {noun} on kinnitatud.',
 
-  // --- kriisijuhised (/blog — crisis-guidance D4/D6). Artikli pealkiri ja
+  // --- kriisijuhised (/blog — crisis-guidance). Artikli pealkiri ja
   // keha on administraatori tekst (kuvatakse muutmatuna), mitte sõnastiku võtmed.
   'guidance.title': 'Kriisijuhised',
   'guidance.subtitle': 'Praktilised juhised kriisiseisundiks.',
@@ -617,7 +617,7 @@ export const ET: Messages = {
   'guidance.pageOutOfRange': 'Lehe {page} ei ole — nimestik lõppeb lehel {pages}.',
   'guidance.pageFirst': 'Näita esimest lehte',
 
-  // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance D8).
+  // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance).
   'admin.retry': 'Proovi uuesti',
 
   'admin.settings.tab': 'Sätted',

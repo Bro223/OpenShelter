@@ -16,12 +16,12 @@ const REGISTRY_ROW: ShelterDto = {
   createdAt: '2025-09-01T08:00:00Z',
   description: null,
   capacity: null,
-  submitterVerified: false, // registry rows have no creator (D3)
+  submitterVerified: false, // registry rows have no creator
   nonexistentReports: 0,
   reportCount: 0, // total (all report types)
   openStatus: null,
   occupancy: null,
-  reviewStatus: 'CONFIRMED', // registry backfill (D3)
+  reviewStatus: 'CONFIRMED', // registry backfill
   locationKind: 'PUBLIC',
   lastVerifiedAt: null, // null — no import run in this fixture
   inaccurate: false, // no moderator mark in this fixture
@@ -81,7 +81,7 @@ describe('ShelterGateway', () => {
     expect(rows).toEqual([]);
   });
 
-  // ---- trust filters (shelter-trust-and-reports D5) ------------------------
+  // ---- trust filters (shelter-trust-and-reports) ------------------------
 
   it.each([
     ['ALL', { hasCapacity: true }, '/api/shelters?source=ALL&hasCapacity=true'],
@@ -262,9 +262,9 @@ describe('ShelterGateway', () => {
     expect(api.delete).toHaveBeenCalledWith('/api/shelters/7');
   });
 
-  // ---- trust layer (shelter-trust-and-reports D1/D4) ------------------------
+  // ---- trust layer (shelter-trust-and-reports) ------------------------
 
-  it('report POSTs the typed body and answers the damp flag (M9)', async () => {
+  it('report POSTs the typed body and answers the damp flag ', async () => {
     api.post.mockReturnValue(of({ damped: false }));
 
     await expect(gateway.report(7, { type: 'NON_EXISTENT' })).resolves.toEqual({

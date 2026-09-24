@@ -29,11 +29,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The public crisis-guidance reads (crisis-guidance D3/D4) — permit-all
+ * The public crisis-guidance reads (crisis-guidance) — permit-all
  * (no JWT): the public {@code /blog} pages read these anonymously.
  *
  * <p>The PUBLISHED-only filter lives in the QUERY, not in this mapping
- * layer (D4): a draft slug and an unknown slug answer the SAME 404 — the
+ * layer: a draft slug and an unknown slug answer the SAME 404 — the
  * response must not reveal that a draft exists. The index does not expose
  * the post body (the detail does — the stored, sanitized HTML).
  *
@@ -61,7 +61,7 @@ public class GuidanceController {
 
     private final GuidanceService guidance;
     private final MediaAssetRepository mediaAssets;
-    /** The derivative-srcset builder (P2-9) — the disk-truth read of the hero's widths. */
+    /** The derivative-srcset builder — the disk-truth read of the hero's widths. */
     private final MediaService media;
 
     public GuidanceController(GuidanceService guidance, MediaAssetRepository mediaAssets,
@@ -72,7 +72,7 @@ public class GuidanceController {
     }
 
     /**
-     * The public index (D6): PUBLISHED only, ONE locale, pinned first,
+     * The public index: PUBLISHED only, ONE locale, pinned first,
      * then {@code sortOrder} ascending (the stored manual order), then
      * {@code publishedAt} descending and id descending as the stable
      * tie-breakers. 200 with {@code []} when nothing is published in that
@@ -139,7 +139,7 @@ public class GuidanceController {
         int total = published.size();
         // The slice runs LAST, over the stable order (guidance-index-paging).
         List<PublicGuidanceView> page = Pagination.slice(published, offset, limit);
-        // ONE batched read for the page's hero URLs (W2-A: the pre-change
+        // ONE batched read for the page's hero URLs (the pre-change
         // hero index loaded the WHOLE media library for every request).
         Map<Long, MediaAsset> heroes = heroIndex(page);
         List<GuidancePostDto> dtos = page.stream()
@@ -151,7 +151,7 @@ public class GuidanceController {
     }
 
     /**
-     * The public detail (D4 + bilingual-guidance): PUBLISHED only, by slug
+     * The public detail (+ bilingual-guidance): PUBLISHED only, by slug
      * (never by id). A slug held by a draft answers the same 404 as an unknown
      * slug. When the post has no translation in the requested locale, the
      * default-locale translation is served with {@code localeFallback: true}
@@ -197,7 +197,7 @@ public class GuidanceController {
     }
 
     /**
-     * The hero assets of the GIVEN views in ONE batched query (W2-A):
+     * The hero assets of the GIVEN views in ONE batched query:
      * the distinct hero ids of the page, not the whole library — an
      * empty page (nothing published, or an offset past the end) touches
      * the media table at all only when a view actually references a hero.

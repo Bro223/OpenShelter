@@ -8,14 +8,14 @@
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
     </div>
-    <!-- The legend (wave 8: OUT of the map element). Desktop (≥900px):
+    <!-- The legend (OUT of the map element). Desktop (≥900px):
          the layout is position:relative and .map-legend is absolutely
          positioned back over the map's bottom-left corner — the overlay it
          was before the DOM move, with the map starting at the layout's
          top-left and stretching to its bottom. Below 900px (mobile +
          tablet) the stacked column renders it IN FLOW between the map and
          the sidebar — below the map, never over it (the owner's
-         overlay-obscures-the-map report). The legend IS the filter (wave 7):
+         overlay-obscures-the-map report). The legend IS the filter:
          the five pin-tone entries below are toggle buttons (select/
          unselect). The selection is the URL's ?tones= param (URL-only — no
          localStorage) and is display-only (no refetch). The hint line is
@@ -104,7 +104,7 @@
         </span>
         {{ 'map.legend.fullVerified' | t }}
       </button>
-      <!-- Reported state (shelter-trust-and-reports D6): the single
+      <!-- Reported state (shelter-trust-and-reports): the single
              orange "reported" affordance — beats the trust colour. -->
       <button
         type="button"
@@ -123,13 +123,13 @@
         </span>
         {{ 'map.legend.reported' | t }}
       </button>
-      <!-- The origin marker (M8): the searched address the per-row
+      <!-- The origin marker: the searched address the per-row
              "≈ N m straight line" distances are measured from. The
              diamond shape (not a circle) is the non-colour-only
              distinction from shelter markers; the swatch reuses the
              exact pin class. The label reuses the existing `map.searched`
              key — a dedicated `map.legend.anchor` key is requested from
-             the i18n lane (see the M8 report). NOT a filter entry (wave 7):
+             the i18n lane (see the report). NOT a filter entry:
              it is the browse REFERENCE POINT (at most one, dropped by its
              Clear action) — a UI marker, not a shelter pin tone — so it
              stays an inert legend entry. -->
@@ -145,7 +145,7 @@
     </div>
 
     <aside class="map-page__sidebar">
-      <!-- Crisis actions (map-crisis-actions D1/D4): the single safety-
+      <!-- Crisis actions (map-crisis-actions): the single safety-
            orange CTA (the ONLY consumer of --color-cta) and the
            authenticated-only "Add shelter" entry — the /submit route guards
            handle the verified redirect. Above the chips: this is "the"
@@ -244,7 +244,7 @@
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
           }
-          <!-- Distance honesty (community-review-queue D6): the straight-line
+          <!-- Distance honesty (community-review-queue): the straight-line
                distance the ranking actually computed — never a route claim. -->
           @if (nearestKm() !== null) {
             <span class="nearest-line__distance"> · {{ straightLineText(nearestKm()!) }}</span>
@@ -286,7 +286,7 @@
       <!-- Practical filter chips: "Open" (client-side — the BE has no
            open/closed param, it filters the loaded list and re-renders the
            markers) and "Has capacity" (server-side `?hasCapacity=`). Both
-           are composable with the legend tone filter (wave 8: the legend is
+           are composable with the legend tone filter (the legend is
            the page's only filter control — the source-kind chips are gone,
            the registry-versus-user distinction is the legend's registry
            entry vs. its four community tones). -->
@@ -367,9 +367,9 @@
                     }}</span>
                   }
                 </span>
-                <!-- Trust badges (shelter-trust-and-reports D6): red-orange
+                <!-- Trust badges (shelter-trust-and-reports): red-orange
                      "Reported" (EITHER report kind open — the OR of
-                     nonexistentReports and inaccurateReports, W2-B), the
+                     nonexistentReports and inaccurateReports), the
                      fresh-CLOSED reported-tone badge (amber — the
                      warning-tone pair, not the red-orange reported fill;
                      "Reported closed" at one fresh report, "Closed" at

@@ -16,7 +16,7 @@ import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '..
 import { Pagination } from '../../shared/pagination';
 
 /**
- * /blog — the public crisis-guidance index (crisis-guidance D4/D6),
+ * /blog — the public crisis-guidance index (crisis-guidance),
  * paged (guidance-index-paging).
  *
  * <p>Thin shell (01-TASK.md §7): state in signals, the gateway owns the

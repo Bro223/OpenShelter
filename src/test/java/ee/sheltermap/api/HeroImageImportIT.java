@@ -49,7 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Endpoint acceptance for the hero-image import (guidance-hero-import,
- * at SAVE time — the Wave 9 trigger) — full-stack MockMvc against the
+ * at SAVE time — the trigger) — full-stack MockMvc against the
  * REAL security chain and the REAL {@link JdkHeroImageFetchClient}
  * (real streaming, real redirects, real size-cap abort, real read-stall
  * watchdog) pointed at a local {@link HttpServer}.
@@ -326,7 +326,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
 
     /**
      * Saves a draft post with a hero import URL — the save that TRIGGERS
-     * the import (the Wave 9 trigger: create, draft status). Always 200
+     * the import (the trigger: create, draft status). Always 200
      * (a failed import never blocks a save); returns the response body.
      */
     private String saveDraftWithImport(String title, String url) throws Exception {
@@ -436,7 +436,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
         // No NEW imported asset row (the diff — see importedAssetCount).
         assertThat(importedAssetCount()).isEqualTo(baseline);
 
-        // Publish is unaffected by the failed import (the Wave 9 red-proof
+        // Publish is unaffected by the failed import (the red-proof
         // at endpoint level: it used to fail the publish).
         publish(id);
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
@@ -610,7 +610,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
         publish(id);
 
         // A save (PUT) on the LIVE post with a URL imports it AT SAVE —
-        // the Wave 9 trigger (the old 400 "unpublish first" is gone).
+        // the trigger (the old 400 "unpublish first" is gone).
         mvc.perform(put("/admin/guidance/" + id)
                         .header("Authorization", "Bearer " + admin)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -650,7 +650,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
         assertThat(secondAssetId).isNotEqualTo(firstAssetId);
         assertThat((Object) JsonPath.read(body, "$.heroImportUrl")).isEqualTo(urlB);
 
-        // The superseded asset stays in the library (the D8 replace rule).
+        // The superseded asset stays in the library (the replace rule).
         // Scoped to this test's own URLs (the class' @AfterAll reclaims
         // the committed imports for the other ITs — see
         // importedAssetCount's javadoc).

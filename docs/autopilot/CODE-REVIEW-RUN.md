@@ -19,6 +19,8 @@
 4. **Report both directions.** Findings that are *not* yours go to the notes file. If a lane's change breaks something of yours, write it there with the file and line so it can be reversed.
 5. **No new dependencies. Never touch `frontend/src/vendor/**`** (vendored third-party bytes), **`docs/skills/**`** (third-party skill instructions, copied verbatim so the tooling cannot change under us), or any migration that has already been applied.
 
+6. **The current-state document's anchors pin line ranges** (`docs/agent/00-CURRENT-STATE.md`, guarded by `DocumentationFactsTest`). A refactor that shifts lines will fail that guard even when the code is fine. So: where you can keep a cited range stable, do; where your change moves it, **record the shift in the notes file with the old and new range** so a single anchor pass can re-derive them all at the end. Do not edit the document yourself — one lane owns it, and 49 lanes editing one file is how anchors rot.
+
 ## What "simpler" means here — the standard to apply
 
 Rewrite toward these, and stop when the code is plain; do not gold-plate:

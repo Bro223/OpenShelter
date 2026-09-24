@@ -126,58 +126,47 @@ public class ApiErrorHandler {
         return error(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed", request);
     }
 
-    @ExceptionHandler(InvalidResetTokenException.class)
-    ResponseEntity<ErrorResponse> invalidResetToken(InvalidResetTokenException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(VerificationFailedException.class)
-    ResponseEntity<ErrorResponse> verificationFailed(VerificationFailedException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(InvalidContactChangeException.class)
-    ResponseEntity<ErrorResponse> invalidContactChange(InvalidContactChangeException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(InvalidShelterException.class)
-    ResponseEntity<ErrorResponse> invalidShelter(InvalidShelterException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
     /**
-     * A paging bound violation (limit outside 1..200, a negative offset)
-     * on any of the paged reads — the uniform 400, the one message
-     * ({@link Pagination} is the single source of both).
+     * The plain 400 family: a rejected client value — the thrower's own
+     * message (each exception class documents the rejection), the uniform
+     * body, no logging:
+     *
+     * <ul>
+     *   <li>{@link InvalidResetTokenException} — an unknown/used/expired/
+     *       attempt-exhausted reset code, deliberately generic (the failure
+     *       mode is never revealed);</li>
+     *   <li>{@link VerificationFailedException} — a verification the
+     *       service rejected (unavailable channel, invalid/expired code, or
+     *       a request it cannot tie to a user);</li>
+     *   <li>{@link InvalidContactChangeException} — the same value as the
+     *       current one, no pending request, or a wrong/expired/exhausted
+     *       code;</li>
+     *   <li>{@link InvalidShelterException} — a rejected user-shelter
+     *       submission (e.g. coordinates outside Estonia);</li>
+     *   <li>{@link PagingBoundsException} — a limit outside 1..200 or a
+     *       negative offset on a paged read; {@link Pagination} is the
+     *       single source of both messages;</li>
+     *   <li>{@link GuidanceValidationException} — a cross-field guidance
+     *       write rule bean validation cannot express (title/body bounds,
+     *       slug shape, the alt/hero pairing, delete-without-confirm);
+     *       rejected before anything is written — a 400 changes nothing;</li>
+     *   <li>{@link UnsupportedImageException} — an upload whose magic bytes
+     *       are not a readable JPEG/PNG/WebP (SVG included), whose declared
+     *       part type contradicts the sniffed bytes, or whose dimensions
+     *       cannot be read. (The hero-import path throws the same family
+     *       too, but it is caught save-time and stored as the post's
+     *       heroImportError — it never reaches this handler.)</li>
+     * </ul>
      */
-    @ExceptionHandler(PagingBoundsException.class)
-    ResponseEntity<ErrorResponse> pagingBounds(PagingBoundsException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    /**
-     * A rejected guidance/media write (crisis-guidance D4/D5/D8) — the
-     * cross-field 400 vocabulary: missing/oversized title or body, a
-     * malformed admin-supplied slug, alt without a hero (or a hero
-     * without alt) and the delete-without-confirm refusal.
-     */
-    @ExceptionHandler(GuidanceValidationException.class)
-    ResponseEntity<ErrorResponse> guidanceValidation(GuidanceValidationException ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
-    }
-
-    /**
-     * A refused media upload (crisis-guidance D7) — magic bytes that are
-     * not a readable JPEG/PNG/WebP (SVG included), unreadable dimensions,
-     * or a declared part type that contradicts the sniffed bytes. (The
-     * hero-import path throws the same family too, but
-     * {@code GuidanceService.resolveHeroOnSave} catches it save-time and
-     * stores the failure as the post's {@code heroImportError} — it never
-     * reaches this handler.)
-     */
-    @ExceptionHandler(UnsupportedImageException.class)
-    ResponseEntity<ErrorResponse> unsupportedImage(UnsupportedImageException ex, HttpServletRequest request) {
+    @ExceptionHandler({
+            InvalidResetTokenException.class,
+            VerificationFailedException.class,
+            InvalidContactChangeException.class,
+            InvalidShelterException.class,
+            PagingBoundsException.class,
+            GuidanceValidationException.class,
+            UnsupportedImageException.class})
+    ResponseEntity<ErrorResponse> badRequest(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
@@ -191,71 +180,61 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(DuplicateAccountException.class)
-    ResponseEntity<ErrorResponse> duplicateAccount(DuplicateAccountException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
     /**
-     * A report the user already made (shelter-trust-and-reports D1/D2):
-     * the per-target unique bound — same (shelter, user, type). 409 so the
-     * client knows nothing was stored.
+     * The 409 family: a collision, plain-spoken — the thrower's own
+     * message (each exception class documents what collided), the uniform
+     * body, no logging; the client knows nothing was stored:
+     *
+     * <ul>
+     *   <li>{@link DuplicateAccountException} — registration on a contact
+     *       that already has an account;</li>
+     *   <li>{@link DuplicateReportException} — the per-target report bound:
+     *       same (shelter, user, type);</li>
+     *   <li>{@link ShelterLimitExceededException} — the per-user cap on
+     *       active shelters;</li>
+     *   <li>{@link ShelterDuplicateException} — a near-duplicate
+     *       submission; the message carries the existing row id so the
+     *       client can point at it;</li>
+     *   <li>{@link AlreadyVerifiedException} — a verification for a level
+     *       the user already holds (before any code is sent);</li>
+     *   <li>{@link SlugAlreadyUsedException} — an admin-supplied slug
+     *       another post holds (drafts and published); never silently
+     *       rewritten — an auto-generated collision takes the -2/-3
+     *       suffix;</li>
+     *   <li>{@link MediaAssetInUseException} — a hero image deleted
+     *       without confirm=true; the message names the affected posts
+     *       (title + slug) so the admin UI can open the confirm dialog;</li>
+     *   <li>{@link ImportOwnedShelterException} — a registry row under an
+     *       admin write: the registry import rebuilds it as ACTIVE on every
+     *       run, so the edit would silently revert;</li>
+     *   <li>{@link NonSuspendableUserException} — an account kind that
+     *       cannot be suspended (the ADMIN lockout vector; GUEST has no
+     *       credentials);</li>
+     *   <li>{@link DuplicateInfoRequestException} — one information
+     *       exchange per shelter; the replied row is kept, so a
+     *       re-request collides;</li>
+     *   <li>{@link InfoRequestAlreadyAnsweredException} — a second reply
+     *       to an answered request.</li>
+     * </ul>
      */
-    @ExceptionHandler(DuplicateReportException.class)
-    ResponseEntity<ErrorResponse> duplicateReport(DuplicateReportException ex, HttpServletRequest request) {
+    @ExceptionHandler({
+            DuplicateAccountException.class,
+            DuplicateReportException.class,
+            ShelterLimitExceededException.class,
+            ShelterDuplicateException.class,
+            AlreadyVerifiedException.class,
+            SlugAlreadyUsedException.class,
+            MediaAssetInUseException.class,
+            ImportOwnedShelterException.class,
+            NonSuspendableUserException.class,
+            DuplicateInfoRequestException.class,
+            InfoRequestAlreadyAnsweredException.class})
+    ResponseEntity<ErrorResponse> conflict(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     /**
-     * The per-user active-shelter cap (shelter-trust-and-reports D3):
-     * the 11th ACTIVE USER shelter is a conflict, plain-spoken.
-     */
-    @ExceptionHandler(ShelterLimitExceededException.class)
-    ResponseEntity<ErrorResponse> shelterLimit(ShelterLimitExceededException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * Near-duplicate shelter submission (abuse-limits): an
-     * ACTIVE USER row with the same normalized name within the configured
-     * coordinate tolerance already exists. 409 — the message carries the
-     * existing row id so the client can point at it (the uniform
-     * {@code ErrorResponse} shape is kept).
-     */
-    @ExceptionHandler(ShelterDuplicateException.class)
-    ResponseEntity<ErrorResponse> shelterDuplicate(ShelterDuplicateException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(AlreadyVerifiedException.class)
-    ResponseEntity<ErrorResponse> alreadyVerified(AlreadyVerifiedException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * An admin-supplied slug another guidance post already holds
-     * (crisis-guidance D5) — 409 naming the slug; it is never silently
-     * rewritten (an auto-generated collision takes the -2/-3 suffix
-     * instead). Uniqueness spans drafts and published posts.
-     */
-    @ExceptionHandler(SlugAlreadyUsedException.class)
-    ResponseEntity<ErrorResponse> slugAlreadyUsed(SlugAlreadyUsedException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * A media asset still referenced as a hero image, deleted without
-     * confirm=true (crisis-guidance D8) — 409; the body carries the
-     * affected posts (title + slug) so the admin UI can turn the answer
-     * into the confirm dialog.
-     */
-    @ExceptionHandler(MediaAssetInUseException.class)
-    ResponseEntity<ErrorResponse> mediaAssetInUse(MediaAssetInUseException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * An upload over the configured size cap (crisis-guidance D7) — 413,
+     * An upload over the configured size cap — 413,
      * the message names the cap, and no partial file is left behind (the
      * cap is checked before the file touches disk).
      */
@@ -281,43 +260,6 @@ public class ApiErrorHandler {
                 ? "The uploaded file exceeds the maximum size of " + maxBytes + " bytes"
                 : "The uploaded file exceeds the maximum size";
         return error(HttpStatus.PAYLOAD_TOO_LARGE, message, request);
-    }
-
-    /**
-     * A registry row under an admin moderation write (admin-moderation
-     * D4): the registry import owns those rows and rebuilds them as ACTIVE
-     * on every run, so the edit would silently revert — plain-spoken 409.
-     */
-    @ExceptionHandler(ImportOwnedShelterException.class)
-    ResponseEntity<ErrorResponse> importOwnedShelter(ImportOwnedShelterException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * A suspend/unsuspend of an account kind that cannot be suspended
-     * (ADMIN lockout vector, GUEST has no credentials) —
-     * 409, plain-spoken.
-     */
-    @ExceptionHandler(NonSuspendableUserException.class)
-    ResponseEntity<ErrorResponse> nonSuspendableUser(NonSuspendableUserException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /**
-     * A second information request for a shelter that already has one
-     * (one exchange per shelter; the replied row is kept,
-     * so a re-request collides). 409, plain-spoken.
-     */
-    @ExceptionHandler(DuplicateInfoRequestException.class)
-    ResponseEntity<ErrorResponse> duplicateInfoRequest(DuplicateInfoRequestException ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
-    }
-
-    /** A second reply to an already-answered information request. 409. */
-    @ExceptionHandler(InfoRequestAlreadyAnsweredException.class)
-    ResponseEntity<ErrorResponse> infoRequestAlreadyAnswered(InfoRequestAlreadyAnsweredException ex,
-                                                              HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler({
@@ -436,7 +378,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * The per-user report throttle (shelter-trust-and-reports D3): 10
+     * The per-user report throttle: 10
      * report-type actions per rolling hour (any target, any type) — 429 +
      * the uniform body, the exact {@code Retry-After} (the oldest in-window
      * action leaves the trailing hour) and one WARN.

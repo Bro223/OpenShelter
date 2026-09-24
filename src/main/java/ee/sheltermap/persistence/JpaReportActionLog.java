@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * JPA implementation of {@link ReportActionLog} (D3) — the durable
+ * JPA implementation of {@link ReportActionLog} — the durable
  * timestamped table behind the per-user rolling-hour throttle (same
  * table family and window style as
  * {@code password_reset_tokens.created_at}): count this user's rows in

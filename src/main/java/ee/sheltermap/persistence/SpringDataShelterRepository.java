@@ -17,7 +17,7 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     Optional<ShelterEntity> findByExternalId(String externalId);
 
-    /** Public list (V9, D5): the same stable order, ACTIVE rows only. */
+    /** Public list (V9): the same stable order, ACTIVE rows only. */
     List<ShelterEntity> findAllBySourceInAndStatusOrderByIdAsc(Collection<ShelterSource> sources,
                                                                ShelterStatus status);
 
@@ -25,20 +25,20 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
      * Public list with the viewport filter (shelter-bbox-paging): inclusive
      * BETWEEN on both coordinates, the same stable id-ascending order. Backed
      * by the V23.1 composite index on (latitude, longitude) — no PostGIS
-     * (D3: a B-tree is enough at Estonia scale).
+     * (a B-tree is enough at Estonia scale).
      */
     List<ShelterEntity> findAllBySourceInAndStatusAndLatitudeBetweenAndLongitudeBetweenOrderByIdAsc(
             Collection<ShelterSource> sources, ShelterStatus status, double minLat, double maxLat,
             double minLng, double maxLng);
 
-    /** Per-user active-shelter cap count (V9, D3). */
+    /** Per-user active-shelter cap count (V9). */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
     /** Per-user daily submission cap count (abuse-limits). */
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
                                                     java.time.Instant createdAtAfter);
 
-    /** Derived reporter trust input (community-self-moderation, D1). */
+    /** Derived reporter trust input (community-self-moderation). */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);
 
@@ -52,7 +52,7 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     List<ShelterEntity> findByIdIn(Collection<Long> ids);
 
     /**
-     * Paged public list and admin list reads (W2-A) live in
+     * Paged public list and admin list reads live in
      * {@link JpaShelterRepository} as DYNAMIC native queries: a static
      * "(:p IS NULL OR ...)" predicate shape is an unpredictable boolean
      * expression that the planner cannot constant-fold — it seq-scans the

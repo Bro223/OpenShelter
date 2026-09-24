@@ -22,7 +22,7 @@ import type {
  * now runs through the CATALOG. Each copy function takes an optional
  * trailing `translate` callback — the same seam error-copy.ts's
  * bannerMessage() uses. Public pages pass `(key, params) => i18n.t(key,
- * params)` (the active locale); the admin list passes it too (P1-4
+ * params)` (the active locale); the admin list passes it too (
  * closed — the moderation surface reads in the moderator's language);
  * callers that pass none get the EN catalog value, byte-identical to
  * the old hardcoded literals (spec fakes and any future un-routed call
@@ -101,7 +101,7 @@ export function verificationTone(shelter: {
 }
 
 /**
- * The community trust-state label (community-review-queue D5): a USER row
+ * The community trust-state label (community-review-queue): a USER row
  * says what it IS in the trust lifecycle:
  *   NEW       -> "Newly added"       (the unverified yellow badge — the
  *   CONFIRMED -> "Community-checked" badge follows the same unverified
@@ -152,7 +152,7 @@ export function sourceTrustLabel(
 }
 
 /**
- * The row's badge tone (community-review-queue D5): the badge follows the
+ * The row's badge tone (community-review-queue): the badge follows the
  * marker's trust palette — NEW ("Newly added") rides the unverified yellow
  * pair, CONFIRMED ("Community-checked") the verified green pair (the badge
  * TEXT carries the state; the verified GREEN shapes carry the submitter's
@@ -178,7 +178,7 @@ export function communityBadgeClass(shelter: {
 }
 
 /**
- * The private-home declaration badge (community-review-queue D7): shown
+ * The private-home declaration badge (community-review-queue): shown
  * on list rows, the detail page and the admin list for rows whose
  * submitter declared the location a private home/shelter. Muted styling
  * at the point of use — a description, not a caveat. The copy says what it
@@ -186,7 +186,7 @@ export function communityBadgeClass(shelter: {
  * access data and must not claim any (owner decision, Option A).
  *
  * Rendered everywhere through the `t` pipe ('shelter.privateBadge' | t)
- * — the admin list included (P1-4 closed), so the badge follows the
+ * — the admin list included (closed), so the badge follows the
  * active locale with no frozen const.
  */
 
@@ -201,7 +201,7 @@ export function communityBadgeClass(shelter: {
  *
  * The key is the contributions panel's catalog entry (account.contrib.
  * inaccurate) — every template renders it through the `t` pipe (the
- * admin list included, P1-4 closed).
+ * admin list included, closed).
  */
 
 /** True for rows carrying the private-home declaration. */
@@ -268,7 +268,7 @@ export function isOpenRow(shelter: {
 }
 
 // ---------------------------------------------------------------------------
-// Trust layer copy (shelter-trust-and-reports D6): the map rows and the
+// Trust layer copy (shelter-trust-and-reports): the map rows and the
 // detail header render the SAME badge text — single-sourced here, like the
 // source/trust labels.
 // ---------------------------------------------------------------------------
@@ -301,10 +301,10 @@ export function openStatusBadgeText(
 
 /**
  * True when the DTO is in the reported state: EITHER open report kind
- * (W2-B — the backend contract note: "the pin/badge logic is the OR of
+ * (the backend contract note: "the pin/badge logic is the OR of
  * the two"): an open does-not-exist report or an open
  * inaccurate-information report. `inaccurateReports` absent (an older
- * backend) reads as 0, so a pre-W2-B payload renders exactly as before.
+ * backend) reads as 0, so a pre-payload renders exactly as before.
  */
 export function hasReports(shelter: {
   nonexistentReports: number;
@@ -313,7 +313,7 @@ export function hasReports(shelter: {
   return shelter.nonexistentReports > 0 || (shelter.inaccurateReports ?? 0) > 0;
 }
 
-/** True when the DTO carries at least one trust badge to render (D6) — a
+/** True when the DTO carries at least one trust badge to render — a
  *  fresh OPEN openStatus carries no badge (open is the default), so only
  *  the fresh CLOSED one counts. */
 export function hasTrustBadges(shelter: {
@@ -334,7 +334,7 @@ export function hasTrustBadges(shelter: {
 // the keys live in the catalog, no frozen const.
 
 /**
- * Firm band heads (D4) — >= 2 fresh reports agreeing with the latest
+ * Firm band heads — >= 2 fresh reports agreeing with the latest
  * band. These REUSE the band picker's catalog keys (detail.band.*): the
  * picker button and the badge for the same band are one word in every
  * locale (the EN values are byte-identical; ET/RU are translated once,
@@ -346,7 +346,7 @@ export const OCCUPANCY_FIRM_KEY: Record<OccupancyBand, MessageKey> = {
   FULL: 'detail.band.full',
 };
 
-/** Hedged band heads (D4) — exactly one fresh report (a lone claim). */
+/** Hedged band heads — exactly one fresh report (a lone claim). */
 export const OCCUPANCY_HEDGED_KEY: Record<OccupancyBand, MessageKey> = {
   SPACE: 'shelter.occupancy.hedged.space',
   GETTING_FULL: 'shelter.occupancy.hedged.gettingFull',
@@ -375,7 +375,7 @@ export function recencyText(
 }
 
 /**
- * The occupancy badge line (D4/D6): firm head at reportCount >= 2
+ * The occupancy badge line: firm head at reportCount >= 2
  * ("Full · 12 min ago"), hedged at exactly 1 ("Reported full · 12 min
  * ago"). Occupancy is display-only — the copy deliberately never reads
  * as success or crisis; the styling is the neutral badge class. The `·`
@@ -403,7 +403,7 @@ export function occupancyText(
 /**
  * The reported badge with its count: "Reported (2)". The count is the
  * OPEN trust-report total — `nonexistentReports` + `inaccurateReports`,
- * the same OR of the two that drives the badge (W2-B backend contract
+ * the same OR of the two that drives the badge (backend contract
  * note) — NOT the lifetime all-types `reportCount` (that reads on the
  * separate "Community reports: N" line). `inaccurateReports` absent (an
  * older backend) reads as 0. Rendered on the map row and the detail
@@ -467,7 +467,7 @@ export function verifiedAgoText(
  * to hard-code. A NEW community row is never verified — its line IS the
  * not-yet-verified signal, pairing the submission age with the missing
  * check; any other row without a verification record (e.g. a dev DB before
- * the first import) reads "No verification record yet". M8: this line is
+ * the first import) reads "No verification record yet". this line is
  * rendered SEPARATELY from the community report count — the two facts are
  * never joined into one string (the detail header renders them as two
  * lines, each self-contained).
@@ -506,7 +506,7 @@ export function lastVerifiedText(
  * live states (one per user, latest wins) and do not change this count, and
  * the count does not move the verification stamp on the line above. (The
  * badge's "Reported (n)" stays the open trust-report sum — nonexistent +
- * inaccurate, W2-B.) M8: a separate line from the verification stamp —
+ * inaccurate, .) a separate line from the verification stamp —
  * never spliced onto it.
  */
 export function communityReportsText(reportCount: number, translate?: ShelterTranslate): string {
@@ -519,7 +519,7 @@ export function hasCommunityReports(shelter: { reportCount: number }): boolean {
 }
 
 /**
- * The straight-line distance line (community-review-queue D6 — distance
+ * The straight-line distance line (community-review-queue — distance
  * honesty): "≈ 2.4 km straight line" (1 decimal), whole metres below 1 km
  * ("≈ 450 m straight line"). The copy NEVER claims a walking route or
  * official status — it states what it measures. A pure formatter with two

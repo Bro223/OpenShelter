@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code report_actions} (V9, D3) — one row per
+ * JPA entity for {@code report_actions} (V9) — one row per
  * report-type action; {@code created_at} anchors the trailing-hour
  * throttle count (same window style as
  * {@code password_reset_tokens.created_at}).

@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * W2-A cost model: a paged request must pay for ITS PAGE, not for the corpus.
+ * cost model: a paged request must pay for ITS PAGE, not for the corpus.
  *
  * <p>Measures the real DB work through {@code pg_stat_user_tables} deltas
  * around MockMvc requests (this class is deliberately NOT {@code
@@ -86,13 +86,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * class. Two guards:
  *
  * <ul>
- * <li>the admin shelter list — before the W2-A change, every page (including
+ * <li>the admin shelter list — before the change, every page (including
  * {@code limit=1}) loaded and batch-projected the ENTIRE shelter corpus;
  * the guard asserts a {@code limit=1} page reads fewer {@code shelters}
  * rows than a {@code limit=100} page. With the mandated {@code
  * X-Total-Count} count twin the scan count is fixed by design, so the
  * assertion is about tuple reads, not scan count;</li>
- * <li>the public guidance index — before the W2-A change, every page row
+ * <li>the public guidance index — before the change, every page row
  * cost one extra {@code guidance_posts} read (a per-post detail fetch);
  * the guard asserts a two-row page costs at most the index scan plus one
  * batched read.</li>
@@ -308,7 +308,7 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
                 .as("a limit=1 page reads the count scan + its single row, not the corpus projection")
                 .isBetween(LIMIT1_TUPLES_LO, LIMIT1_TUPLES_HI);
         // Invariant 3 — the page-size work is real and bounded: limit=100
-        // does genuinely MORE work than limit=1 (the pre-W2-A shape read
+        // does genuinely MORE work than limit=1 (the pre-shape read
         // the identical corpus for both — the counts were literally equal),
         // but at most the index plan's +100 rows or the planner's
         // legitimate full-scan alternative — never a corpus projection on

@@ -16,9 +16,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The media library surface (crisis-guidance D7/D8/D13).
+ * The media library surface.
  *
- * <p>Upload (D7): the validation ORDER is fixed — the actual byte count of
+ * <p>Upload: the validation ORDER is fixed — the actual byte count of
  * what was received (never {@code Content-Length}) against the cap (413),
  * then the magic bytes / header dimensions (the inspector answers
  * empty for anything that is not a readable JPEG/PNG/WebP — 400), then
@@ -27,22 +27,22 @@ import java.util.Objects;
  * extension) — the client's filename is display metadata only and never
  * part of a path. An upload that fails any step writes no file and no row.
  *
- * <p>Listing (D8): every asset newest-first (the repository order) with
+ * <p>Listing: every asset newest-first (the repository order) with
  * the reused-by count from ONE batched query (no N+1) — assets no post
  * references are listed like any other (the library is the admin's
  * inventory, uploads are independent of post references).
  *
- * <p>Delete (D8): unreferenced → the row and the file are removed; still
+ * <p>Delete: unreferenced → the row and the file are removed; still
  * referenced without {@code confirm} → 409 naming the affected posts (and
  * nothing is deleted, no audit row); with {@code confirm} → the asset and
  * the file are removed and, in the SAME transaction, every referencing
  * post loses BOTH {@code hero_image_id} and {@code hero_image_alt} — the
  * post then renders with no image element, and no post is deleted,
  * unpublished or otherwise altered. A completed delete writes its
- * MEDIA_DELETE audit row in the same transaction (D12); a refused one
+ * MEDIA_DELETE audit row in the same transaction; a refused one
  * writes nothing.
  *
- * <p>Derivatives (P2-9): after a successful upload (and, in
+ * <p>Derivatives: after a successful upload (and, in
  * {@code HeroImageImportService}, after a successful import) the
  * thumbnail derivatives are rendered and stored beside the original —
  * BEST EFFORT here: the original is authoritative, so a derivative that
@@ -58,10 +58,10 @@ public class MediaService {
     /** The uniform 404 for an unknown asset id (the same vehicle as the guidance 404s). */
     public static final String ASSET_NOT_FOUND_MESSAGE = "Media asset not found";
 
-    /** The serving-URL prefix (D7: under /api/ so the frontend proxy covers it). */
+    /** The serving-URL prefix (under /api/ so the frontend proxy covers it). */
     public static final String MEDIA_URL_PREFIX = "/api/media/";
 
-    /** The extension implied by the SNIFFED type — the stored name's suffix (D7). */
+    /** The extension implied by the SNIFFED type — the stored name's suffix. */
     private static final Map<String, String> EXTENSION_BY_TYPE = Map.of(
             "image/jpeg", "jpg",
             "image/png", "png",
@@ -72,10 +72,10 @@ public class MediaService {
     private final MediaStorage storage;
     private final ModerationAuditLog audit;
     private final Clock clock;
-    /** The upload size cap (D13: {@code app.media.max-bytes}, default 5 MiB). */
+    /** The upload size cap ({@code app.media.max-bytes}, default 5 MiB). */
     private final long maxBytes;
     /**
-     * The P2-9 decode guard: an original with a side above this is stored
+     * The decode guard: an original with a side above this is stored
      * WITHOUT derivatives (the decode is never attempted — the unbounded
      * header cannot drive an unbounded bitmap). Mirrors the import path's
      * guard 7 ({@code app.media.import-max-side}).
@@ -99,7 +99,7 @@ public class MediaService {
         this.derivativeMaxSide = derivativeMaxSide;
     }
 
-    /** The pre-P2-9 form: the decode guard at its default (10000 px). */
+    /** The form without the decode guard parameter: its default (10000 px). */
     public MediaService(MediaAssetRepository mediaAssets,
                         GuidancePostRepository posts,
                         MediaStorage storage,
@@ -116,7 +116,7 @@ public class MediaService {
     // ------------------------------------------------------------- reads
 
     /**
-     * The library listing (D8): every asset newest-first (createdAt
+     * The library listing: every asset newest-first (createdAt
      * descending, id descending — the repository order), each with its
      * reused-by count from ONE batched query. An unused asset carries 0 —
      * it is listed like any other.
@@ -130,9 +130,9 @@ public class MediaService {
     }
 
     /**
-     * The library listing paged (W2-A — the owner's "every admin list
-     * pages" rule): absent {@code limit}/{@code offset} = the unpaged
-     * listing (byte-identical to the pre-change path); present, ONE
+     * The library listing paged: absent {@code limit}/{@code offset} =
+     * the unpaged listing (byte-identical to the {@link #list()} path);
+     * present, ONE
      * newest-first OFFSET/LIMIT page. The reused-by counts are batched
      * over the page's ids only. The answer's {@link Pagination.Paged#total()}
      * is the library's asset count WITHOUT paging (the X-Total-Count
@@ -165,7 +165,7 @@ public class MediaService {
     }
 
     /**
-     * The {@code srcset} for an asset's thumbnail slots (P2-9): one
+     * The {@code srcset} for an asset's thumbnail slots: one
      * {@code w} descriptor per derivative that EXISTS on disk (the
      * filesystem is the truth — the row knows nothing about them), in
      * ascending width order, or {@code null} when the asset has none
@@ -194,7 +194,7 @@ public class MediaService {
     // ------------------------------------------------------------- writes
 
     /**
-     * Upload an image into the library (D7), in the fixed validation
+     * Upload an image into the library, in the fixed validation
      * order: byte count vs cap (413) → magic bytes + readable dimensions
      * (400) → sniffed type equals the declared part type (400). The file
      * is stored under a generated name BEFORE the row is written, but
@@ -212,19 +212,19 @@ public class MediaService {
     @Transactional
     public MediaAsset upload(long adminId, byte[] bytes, String declaredContentType,
                              String originalFilename) {
-        // D7 step 1: the ACTUAL byte count (never Content-Length) — the
+        // Step 1: the ACTUAL byte count (never Content-Length) — the
         // cap failure is the one 413, and it fires before anything else
         // (no file written, no row stored, the inspector never runs).
         if (bytes.length > maxBytes) {
             throw new MediaTooLargeException(maxBytes);
         }
-        // D7 step 2+4: magic bytes AND readable header dimensions — the
+        // Step 2+4: magic bytes AND readable header dimensions — the
         // inspector answers empty for any other content (text named .jpg,
         // an SVG, a truncated header).
         MediaImageInspector.ImageInfo info = MediaImageInspector.inspect(bytes)
                 .orElseThrow(() -> new UnsupportedImageException(
                         "Unsupported image: only readable JPEG, PNG and WebP uploads are accepted"));
-        // D7 step 3: the sniffed type must equal the declared part type —
+        // Step 3: the sniffed type must equal the declared part type —
         // a PNG declared as image/jpeg is a lying client, plain 400.
         String declared = baseContentType(declaredContentType);
         if (!info.contentType().equalsIgnoreCase(declared)) {
@@ -253,7 +253,7 @@ public class MediaService {
                     adminId,
                     clock.instant());
             MediaAsset saved = mediaAssets.save(asset);
-            // P2-9: the thumbnail derivatives beside the original —
+            // The thumbnail derivatives beside the original —
             // best effort (the hook never propagates: the upload of the
             // validated original cannot fail because of a thumbnail).
             storeDerivativesBestEffort(stored.storedFilename(), info, bytes);
@@ -270,7 +270,7 @@ public class MediaService {
     }
 
     /**
-     * The P2-9 upload-path derivative step — BEST EFFORT by contract
+     * The upload-path derivative step — BEST EFFORT by contract
      * (never propagates): the original is authoritative, so a skipped
      * render (WebP, an unbounded decode, an undecodable body), a
      * gate failure and a failed write all only skip the width — the
@@ -306,7 +306,7 @@ public class MediaService {
     }
 
     /**
-     * Delete an asset (D8): unreferenced → row + file gone (200, the
+     * Delete an asset: unreferenced → row + file gone (200, the
      * controller's answer); referenced without {@code confirm} → 409
      * naming the affected posts (title + slug), nothing deleted, NO audit
      * row; referenced with {@code confirm} → row + file gone and every
@@ -328,12 +328,12 @@ public class MediaService {
             // The 409 names the affected posts so the admin UI can turn
             // the answer straight into the confirm dialog. NOTHING is
             // deleted and NO audit row is written (a refused delete
-            // leaves no trace, D12).
+            // leaves no trace).
             throw new MediaAssetInUseException(referencing.stream()
                     .map(post -> post.getTitle() + " (" + post.getSlug() + ")")
                     .toList());
         }
-        // D12: the audit row joins this transaction with a label snapshot
+        // The audit row joins this transaction with a label snapshot
         // (original filename + stored filename) — the trail stays readable
         // after the asset is gone (the label has no FK by design).
         String original = asset.getOriginalFilename() == null ? "" : asset.getOriginalFilename();
@@ -343,7 +343,7 @@ public class MediaService {
             post.clearHero();
             posts.save(post);
         }
-        // P2-9: the whole set goes — original AND the derivatives beside
+        // The whole set goes — original AND the derivatives beside
         // it (orphan thumbnails would only ever 404 against a gone row).
         storage.deleteWithDerivatives(asset.getStoredFilename());
         mediaAssets.delete(asset);
@@ -358,7 +358,7 @@ public class MediaService {
                 .orElseThrow(() -> new GuidanceNotFoundException(ASSET_NOT_FOUND_MESSAGE));
     }
 
-    /** The declared part type without parameters, for the equality check (D7 step 3). */
+    /** The declared part type without parameters, for the equality check (step 3). */
     private static String baseContentType(String declaredContentType) {
         if (declaredContentType == null) {
             return "";

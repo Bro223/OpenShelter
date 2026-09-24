@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V28 backfill test (guidance-manual-order D1) — the safety property the
+ * V28 backfill test (guidance-manual-order) — the safety property the
  * migration's comment is written around: the backfill must rank every row
  * in the order the public index produced BEFORE the change (pinned first,
  * then published_at DESC, id DESC — drafts, invisible today, ranked after
@@ -151,7 +151,7 @@ class GuidanceOrderBackfillIT {
                     .contains("status)")
                     .contains("'PUBLISHED'");
 
-            // 5) NO unique constraint on sort_order (D1: the atomic renumber
+            // 5) NO unique constraint on sort_order (the atomic renumber
             // must not transiently violate one).
             assertThat(readCount(c, "SELECT count(*) FROM pg_indexes "
                     + "WHERE tablename = 'guidance_posts' AND indexdef ILIKE '%UNIQUE%sort_order%'")

@@ -1,5 +1,5 @@
 /**
- * The report-gauge angle math (M9 — report aggregation UI): the
+ * The report-gauge angle math (report aggregation UI): the
  * semicircular gauge's needle sweeps 0° (pointing at the LEFT end, the
  * "closed" / "empty" side) through 90° (straight up — an exact equal
  * split) to 180° (pointing at the RIGHT end, the "open" / "full" side).

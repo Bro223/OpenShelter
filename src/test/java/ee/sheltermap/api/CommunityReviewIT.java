@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the community trust lifecycle without a blocking
- * queue (community-review-queue v2 D1/D2/D3/D4/D7) — full-stack MockMvc
+ * queue (community-review-queue v2) — full-stack MockMvc
  * against the real services, security chain, JWT filter and Postgres:
  * new USER rows publish IMMEDIATELY as NEW (public list + /mine); three
  * DISTINCT community confirmers promote NEW→CONFIRMED (the crossing
@@ -162,7 +162,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .filter(s -> s.getName().equals("Uus varjend"))
                 .findFirst().orElseThrow().getId();
 
-        // public IMMEDIATELY: list + detail (no blocking queue, D2)
+        // public IMMEDIATELY: list + detail (no blocking queue)
         mvc.perform(get("/api/shelters"))
                 .andExpect(jsonPath("$[?(@.id == " + id + ")].reviewStatus")
                         .value(org.hamcrest.Matchers.contains("NEW")));
@@ -318,7 +318,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.ok").value(true));
 
         // hidden: out of the public list (status INACTIVE — the existing
-        // mechanism, D2); the detail stays readable by id like any INACTIVE row
+        // mechanism); the detail stays readable by id like any INACTIVE row
         mvc.perform(get("/api/shelters"))
                 .andExpect(jsonPath("$[*].name").value(
                         org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("Keeldatud"))));
@@ -353,7 +353,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].status").value("INACTIVE"));
 
         // the existing status endpoint restores it — and the review state
-        // starts over as NEW (v2 D2), NOT CONFIRMED
+        // starts over as NEW (v2), NOT CONFIRMED
         mvc.perform(post("/admin/shelters/" + id + "/status")
                         .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -380,7 +380,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     @Test
     void registryRowsAreImportOwnedAndReviewIs409() throws Exception {
         long registryId = seedRegistryShelter("Registri varjend", "Tule 1, Tartu");
-        // backfilled CONFIRMED (D3) and publicly listed exactly as before
+        // backfilled CONFIRMED and publicly listed exactly as before
         mvc.perform(get("/api/shelters"))
                 .andExpect(jsonPath("$[*].name").value(
                         org.hamcrest.Matchers.hasItem("Registri varjend")));
@@ -564,7 +564,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 403, "Forbidden");
     }
 
-    // ---------- the private-home declaration (D7) ----------
+    // ---------- the private-home declaration ----------
 
     @Test
     void aPrivateDeclarationRoundTripsOnEverySurface() throws Exception {
@@ -608,12 +608,12 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 400, "Bad Request");
     }
 
-    // ---------- owner edits (M5b): the pending-verification reset ----------
+    // ---------- owner edits: the pending-verification reset ----------
 
     @Test
     void anOwnerEditPublishesImmediatelyAndCarriesThePendingVerificationState() throws Exception {
         String author = verifiedToken("Autor", "autor-m5b-1@example.ee");
-        long id = createShelterViaApi(author, "M5b varjend");
+        long id = createShelterViaApi(author, "varjend");
 
         // verified first: the row is green/CONFIRMED
         mvc.perform(post("/admin/shelters/" + id + "/review")
@@ -632,7 +632,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         mvc.perform(put("/api/shelters/" + id)
                         .header("Authorization", "Bearer " + author)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"M5b varjend 2\",\"latitude\":59.4,\"longitude\":24.7}"))
+                        .content("{\"name\":\"varjend 2\",\"latitude\":59.4,\"longitude\":24.7}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
@@ -676,7 +676,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     @Test
     void aCommunityConfirmationAfterAnEditClearsThePendingState() throws Exception {
         String author = verifiedToken("Autor", "autor-m5b-2@example.ee");
-        long id = createShelterViaApi(author, "M5b kinnitus");
+        long id = createShelterViaApi(author, "kinnitus");
         String first = verifiedToken("Kinnitaja", "kinnitaja-m5b-1@example.ee");
 
         // one community confirmation is below the 3-distinct threshold
@@ -694,7 +694,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         mvc.perform(put("/api/shelters/" + id)
                         .header("Authorization", "Bearer " + author)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"M5b kinnitus 2\",\"latitude\":59.4,\"longitude\":24.7}"))
+                        .content("{\"name\":\"kinnitus 2\",\"latitude\":59.4,\"longitude\":24.7}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
@@ -733,7 +733,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     @Test
     void anEditByANonOwnerIsStillRefusedAndChangesNothing() throws Exception {
         String author = verifiedToken("Autor", "autor-m5b-3@example.ee");
-        long id = createShelterViaApi(author, "M5b oma");
+        long id = createShelterViaApi(author, "oma");
         mvc.perform(post("/admin/shelters/" + id + "/review")
                         .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -749,7 +749,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
 
         // nothing moved: name, trust state and status untouched
         mvc.perform(get("/api/shelters/" + id))
-                .andExpect(jsonPath("$.name").value("M5b oma"))
+                .andExpect(jsonPath("$.name").value("oma"))
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
@@ -757,7 +757,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     @Test
     void theClientCannotSetTheTrustStateThroughTheEditBody() throws Exception {
         String author = verifiedToken("Autor", "autor-m5b-4@example.ee");
-        long id = createShelterViaApi(author, "M5b usaldus");
+        long id = createShelterViaApi(author, "usaldus");
         mvc.perform(post("/admin/shelters/" + id + "/review")
                         .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -770,7 +770,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         mvc.perform(put("/api/shelters/" + id)
                         .header("Authorization", "Bearer " + author)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"M5b usaldus 2\",\"latitude\":59.4,\"longitude\":24.7,"
+                        .content("{\"name\":\"usaldus 2\",\"latitude\":59.4,\"longitude\":24.7,"
                                 + "\"reviewStatus\":\"CONFIRMED\",\"provenance\":\"OFFICIAL\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"))

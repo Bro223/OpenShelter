@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Crisis-guidance endpoint authorization over the REAL security chain
- * (crisis-guidance D3): anonymous /admin/guidance/* and /admin/media/* is
+ * (crisis-guidance): anonymous /admin/guidance/* and /admin/media/* is
  * a 401, a registered non-admin a 403, the env-provisioned admin gets
  * through; and the two public guidance routes plus the hero-image serving
  * path answer anonymously (200 on a published post / a stored file — whose
@@ -68,7 +68,7 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
      * Isolates the media upload directory per JVM run: the default
      * data/media must not accumulate IT artifacts, and the directory is
      * created by the storage layer at boot (a missing parent temp dir
-     * would fail the boot loudly — the D13 fail-closed behaviour).
+     * would fail the boot loudly — the fail-closed behaviour).
      */
     private static final Path MEDIA_DIR;
 

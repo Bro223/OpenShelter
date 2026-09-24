@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for {@link ShelterReport} (shelter-trust-and-reports D1).
+ * Persistence seam for {@link ShelterReport} (shelter-trust-and-reports).
  * Implementations live in {@code ee.sheltermap.persistence}; tests use
  * in-memory fakes.
  */
@@ -34,7 +34,7 @@ public interface ShelterReportRepository {
 
     /**
      * One distinct reporter of a given type for one shelter, with the
-     * stored damp flag (community-self-moderation, D3) — the input of
+     * stored damp flag (community-self-moderation) — the input of
      * the weighted auto-hide tally. The (shelter, user, type) uniqueness
      * makes one row per reporter.
      */
@@ -47,7 +47,7 @@ public interface ShelterReportRepository {
 
     /**
      * The distinct reporters of one type for one shelter with their damp
-     * flag (D3) — the weighted auto-hide tally input (one query).
+     * flag — the weighted auto-hide tally input (one query).
      * Admin-dismissed reports are excluded — the dismissal is the admin's
      * invalid verdict, so the report stops influencing the tally.
      */
@@ -65,20 +65,20 @@ public interface ShelterReportRepository {
     /** Batched newest OPEN_CONFIRMED per (shelter, reporter) — the "last verified" input. */
     List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds);
 
-    /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation D3). */
+    /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation). */
     Optional<ShelterReport> findById(Long id);
 
     /**
      * One shelter's reports, newest first, the page starting at {@code
      * offset} with at most {@code limit} rows (the admin queue,
-     * admin-moderation D3, paged since W2-A — the cap is applied in the
+     * admin-moderation, paged since the cap is applied in the
      * store, not by trimming in memory; the queue's table is
      * append-only, so an unbounded read grows with the backlog).
      */
     List<ShelterReport> findLatestByShelterId(long shelterId, long offset, int limit);
 
     /**
-     * The shelter's report length WITHOUT paging (the W2-A
+     * The shelter's report length WITHOUT paging (the
      * {@code X-Total-Count} header value for the per-shelter queue).
      */
     long countByShelterId(long shelterId);
@@ -92,7 +92,7 @@ public interface ShelterReportRepository {
     List<ShelterReport> findLatest(long offset, int limit);
 
     /**
-     * The report table's row count WITHOUT paging (the W2-A
+     * The report table's row count WITHOUT paging (the
      * {@code X-Total-Count} header value for the global queue).
      */
     long countAll();

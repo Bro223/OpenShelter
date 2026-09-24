@@ -2,7 +2,7 @@ package ee.sheltermap.app;
 
 /**
  * Durable log behind the per-user report throttle (shelter-trust-and-
- * reports D3) — the same table family and window style as the
+ * reports) — the same table family and window style as the
  * password-reset rotation guard (timestamped rows counted over a window)
  * and the verification send log (one row per action, checked-and-recorded
  * in the same step).

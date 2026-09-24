@@ -46,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the admin moderation surface's community-review part
- * (community-review-queue v2 D2/D4): the CONFIRM/REJECT decisions, the
+ * (community-review-queue v2): the CONFIRM/REJECT decisions, the
  * restore-of-a-rejected-row reverting to NEW, and the audit rows every
  * admin write leaves in the (in-memory) moderation audit log — including
  * that idempotent no-ops record nothing.
@@ -467,7 +467,7 @@ class AdminModerationServiceTest {
                 .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
     }
 
-    // ---------- edit-history projection (D4) ----------
+    // ---------- edit-history projection ----------
 
     @Test
     void historyOfAnAbsentShelterWithNoRowsIsA404() {

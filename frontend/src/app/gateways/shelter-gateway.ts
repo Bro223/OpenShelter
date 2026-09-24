@@ -41,7 +41,7 @@ export class ShelterGateway {
    * only, no paging — Estonia-scale fetch-all). REGISTRY = PAASETEAMET +
    * MUNICIPALITY rows; USER = community submissions.
    *
-   * `trust` (optional, D5) composes with the source filter: hasCapacity=true.
+   * `trust` (optional) composes with the source filter: hasCapacity=true.
    * Inactive filters are omitted from the query string entirely. (The
    * `reviewed` filter is gone with the review model; "Open" is a
    * client-side chip and never reaches the query string.)
@@ -106,7 +106,7 @@ export class ShelterGateway {
 
   /**
    * POST /api/shelters/{id}/reports -> 200 {"damped": true|false}
-   * (shelter-trust-and-reports D1; community-self-moderation damp
+   * (shelter-trust-and-reports; community-self-moderation damp
    * flag). Verified accounts only: 403 (the standard redirect
    * vocabulary), 404 unknown shelter, 409 when the caller already
    * reported that type.
@@ -118,7 +118,7 @@ export class ShelterGateway {
   }
 
   /**
-   * PUT /api/shelters/{id}/occupancy -> 2xx (D4): upsert — one live band per
+   * PUT /api/shelters/{id}/occupancy -> 2xx: upsert — one live band per
    * user per shelter, latest edit wins. Verified accounts only (403),
    * 404 unknown shelter.
    */

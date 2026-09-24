@@ -59,7 +59,7 @@ import {
   haversineKm,
 } from '../../shared/geolocation';
 
-/** The legend's five SELECTABLE pin tones, in legend order (wave 7 — the
+/** The legend's five SELECTABLE pin tones, in legend order (the
  *  legend IS the filter). The order is the canonical URL order for the
  *  `tones` param; the names are the markerTone() vocabulary (the same words
  *  the marker classes use — `shelter-marker--{tone}`), so a selected entry
@@ -67,7 +67,7 @@ import {
  *  diamond, the searched ADDRESS) is a UI reference point, not a shelter
  *  pin tone — it is deliberately not a member.
  *
- *  The legend is the page's ONLY filter control (wave 8): the source-kind
+ * The legend is the page's ONLY filter control: the source-kind
  *  chips (All / Registry / User) were removed as the leftover duplicate of
  *  the legend filter — the registry-versus-user distinction they carried is
  *  the legend's registry entry vs. its four community tones (unverified /
@@ -117,7 +117,7 @@ function sameTones(a: ReadonlySet<LegendTone>, b: ReadonlySet<LegendTone>): bool
 
 /**
  * Message keys for the "Nearest shelter" action's inline errors
- * (map-crisis-actions D2), resolved through the `t` pipe in the template
+ * (map-crisis-actions), resolved through the `t` pipe in the template
  * (i18n-et-en). The vocabulary mirrors the /submit geolocation
  * errors; the two pages keep divergent copy on purpose, so this list stays
  * page-local. The map page has no map-pick or link fallback, only a retry.
@@ -182,7 +182,7 @@ function nearestShelterAt(
 /**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience: a Leaflet map with
- * divIcon markers toned by the trust palette (community-review-queue D5:
+ * divIcon markers toned by the trust palette (community-review-queue:
  * registry blue, community rows the verification-depth shapes (the
  * verified green family) or the neutral unverified tone when the depth is
  * absent, plus the reported-state orange override — the pin carries depth,
@@ -196,7 +196,7 @@ function nearestShelterAt(
  * ngOnDestroy so no map or listener leaks between visits (zoneless has no
  * safety net).
  *
- * Distance numbers (M8 — the "≈ N m / km straight line" figures):
+ * Distance numbers (the "≈ N m / km straight line" figures):
  * WHICH TWO POINTS —
  *   1. Around-you ("Show shelters around you" CTA): the user's BROWSER
  *      geolocation fix (one-shot high-accuracy request, shared/
@@ -223,15 +223,15 @@ function nearestShelterAt(
  *   step that flies to that shelter at SHELTER_ZOOM 16.
  * WHAT THE NUMBER MEANS TO THE USER — an approximate STRAIGHT LINE over
  *   the earth's surface: never a walking/driving route, never an official
- *   distance (D6 distance honesty). The "≈" is the honesty marker; at a
+ * distance (distance honesty). The "≈" is the honesty marker; at a
  *   few hundred metres the route-vs-line difference is negligible, but
  *   the copy never claims a route. Canonical write-up: frontend/docs/
  *   agent/05-CONTEXT-MAP.md, "Distance numbers" section.
  *
- * Filters (wave 8: the legend is the page's ONLY filter control — the
+ * Filters (the legend is the page's ONLY filter control — the
  * source-kind chips are gone, the registry-versus-user distinction is the
  * legend's registry entry vs. its four community tones): the LEGEND is the
- * pin-tone filter (wave 7): the five tone entries are
+ * pin-tone filter: the five tone entries are
  * toggle buttons — the selection is the URL's `tones` param (URL-only,
  * no localStorage, the paging/filter clamp+normalize discipline) and is
  * display-only (the loaded list is filtered and the markers re-render
@@ -290,7 +290,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
    *  source label (registry) or the trust-state label (USER rows);
-   *  the trust badges (D6) reuse the shared openStatus/occupancy copy.
+   * the trust badges reuse the shared openStatus/occupancy copy.
    *  Each wrapper injects the i18n seam so the badge reads in the active
    *  locale (the catalog keys behind them are the same ones the /mine
    *  panel and the band picker already render — one word per fact). */
@@ -306,16 +306,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly occupancyText = (occupancy: ShelterOccupancy) =>
     occupancyTextShared(occupancy, Date.now(), this.translate);
   /** The reported badge with its count (last-verified-meta): the count is
-   *  the open trust-report sum — nonexistent + inaccurate (W2-B). */
+   * the open trust-report sum — nonexistent + inaccurate. */
   protected readonly reportedBadgeText = (shelter: {
     nonexistentReports: number;
     inaccurateReports?: number;
   }) => reportedBadgeTextShared(shelter, this.translate);
-  /** The nearest result's straight-line distance line (D6 honesty). */
+  /** The nearest result's straight-line distance line (honesty). */
   protected readonly straightLineText = (km: number) => straightLineText(km, this.translate);
-  /** The private-location predicate (D7) — the template stays branch-free. */
+  /** The private-location predicate — the template stays branch-free. */
   protected readonly isPrivateLocation = isPrivateLocation;
-  /** Trust-badge predicates (D6) — the template keeps the `>` comparisons
+  /** Trust-badge predicates — the template keeps the `>` comparisons
    *  in code, not in the template expressions. */
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
@@ -326,7 +326,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     return kind === null ? null : GEOCODE_ERROR_KEY[kind];
   };
 
-  // ---- legend filter (wave 7 — the legend IS the filter) ------------------
+  // ---- legend filter (the legend IS the filter) ------------------
   /** The selected pin tones (the legend's toggle entries). The URL's
    *  `tones` param is the SINGLE source of truth (URL-only persistence —
    *  no localStorage); this signal mirrors it for the display view. Empty
@@ -398,7 +398,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly error = signal<string | null>(null);
   protected readonly selectedId = signal<number | null>(null);
 
-  // ---- nearest shelter (map-crisis-actions D1 + D2) ------------------------
+  // ---- nearest shelter (map-crisis-actions +) ------------------------
   /** The session, exposed to the template (the "Add shelter" CTA and the
    *  empty-list offer render only for authenticated users). */
   protected readonly auth = this.store;
@@ -410,7 +410,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  a single shelter). */
   protected readonly nearest = signal<ShelterDto | null>(null);
   /** The Haversine distance to the nearest shelter in km (last success) —
-   *  shown as "≈ … straight line" (D6: distance honesty). Cleared with
+   * shown as "≈ … straight line" (distance honesty). Cleared with
    *  `nearest` everywhere (the two signals move as one). */
   protected readonly nearestKm = signal<number | null>(null);
   /** The user's position from the last around-you success (null = none).
@@ -446,7 +446,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /**
    * Sidebar rows: the "Open" chip's client-side filter first, then the
-   * legend tone filter (wave 7 — display-only, keyed on the SAME
+   * legend tone filter (display-only, keyed on the SAME
    * markerTone() the map draws with, so a selected entry is exactly the
    * pin the map renders and the filter can never fork the geometry or the
    * colour), then the distance sort — the around-you user position wins
@@ -552,14 +552,14 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.renderShelters(this.sorted());
   }
 
-  /** Has capacity toggle chip — flip + refetch (ALL sources, wave 8). */
+  /** Has capacity toggle chip — flip + refetch (ALL sources). */
   toggleHasCapacity(): void {
     this.hasCapacity.update((active) => !active);
     this.load();
   }
 
   /**
-   * The active trust filter, or undefined when none is active (D5).
+   * The active trust filter, or undefined when none is active.
    * An undefined result keeps the legacy single-arg `list(source)` call
    * shape — the query string stays minimal (only `source`) until the filter is
    * actually set. (The `reviewed` param is gone with the review model;
@@ -576,7 +576,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * specs can drive it (page convention).
    */
   selectShelter(shelter: ShelterDto): void {
-    // A manual selection supersedes the Nearest emphasis (D2: the temporary
+    // A manual selection supersedes the Nearest emphasis (the temporary
     // highlight clears on the next interaction) and any pending search
     // selection (a manual pick is the newer intent).
     this.pendingAnchorSelection = null;
@@ -609,7 +609,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * "Nearest shelter" (map-crisis-actions D1/D2): a high-accuracy
+   * "Nearest shelter" (map-crisis-actions): a high-accuracy
    * geolocation request (the shared mechanism, options and error mapping —
    * shared/geolocation.ts), then the closest shelter computed CLIENT-SIDE
    * from the already-loaded list — no backend call. On success:
@@ -669,7 +669,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     // Nearest is computed over `shelters()` — the list the gateway last
     // loaded, the UNFILTERED-by-client view: no further narrowing on top of
     // the server-side filter, and not the name-sorted `sorted()` display
-    // view (same rows, different order). D2: the already-loaded list, not a
+    // view (same rows, different order). the already-loaded list, not a
     // new fetch.
     const hit = nearestShelterAt(latitude, longitude, this.shelters());
     if (hit === null) {
@@ -805,7 +805,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /** The straight-line distance from the active anchor to the row (km),
    *  or null when no anchor is set. Pure Haversine over already-loaded
-   *  rows — the D2 "no new endpoint" precedent (client-side only). */
+   * rows — the "no new endpoint" precedent (client-side only). */
   protected anchorDistance(shelter: ShelterDto): number | null {
     const anchor = this.anchor();
     if (anchor === null) {
@@ -886,14 +886,14 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /**
    * Load the shelter list (always ALL sources — the server-side `?source=`
-   * refetch went with the source chips, wave 8; source is a DISPLAY
+   * refetch went with the source chips, ; source is a DISPLAY
    * distinction the legend tones cover, never a fetch param here).
    */
   private load(): void {
     const seq = ++this.fetchSeq;
     this.error.set(null);
     this.loading.set(true);
-    // Trust filters compose with the source (D5); with none active the
+    // Trust filters compose with the source; with none active the
     // call is the plain list('ALL') shape — no second argument.
     const trust = this.activeTrustFilter();
     const request =
@@ -906,7 +906,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.shelters.set(rows);
         this.selectedId.set(null);
         // A filter change re-loads the list — the previous Nearest emphasis
-        // (and empty-list offer) is stale by definition (D2: cleared on the
+        // (and empty-list offer) is stale by definition (cleared on the
         // next interaction/filter change). nearestError survives: it describes
         // the user's browser, not the list.
         this.nearest.set(null);

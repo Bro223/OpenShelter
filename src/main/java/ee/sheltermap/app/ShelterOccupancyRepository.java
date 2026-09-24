@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * Persistence seam for {@link ShelterOccupancyReport} (shelter-trust-and-
- * reports D4). Implementations live in {@code ee.sheltermap.persistence};
+ * reports). Implementations live in {@code ee.sheltermap.persistence};
  * tests use in-memory fakes.
  */
 public interface ShelterOccupancyRepository {

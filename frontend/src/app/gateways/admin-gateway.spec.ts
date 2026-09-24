@@ -435,7 +435,7 @@ describe('AdminGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/clear-inaccurate');
   });
 
-  // ---- GET /admin/guidance (crisis-guidance D3/D8) ------------------------
+  // ---- GET /admin/guidance (crisis-guidance) ------------------------
 
   const GUIDANCE_ROW: AdminGuidancePostDto = {
     id: 11,
@@ -712,7 +712,7 @@ describe('AdminGateway', () => {
     expect(caught).toBe(failure);
   });
 
-  // ---- GET /admin/media (crisis-guidance D8) --------------------------------
+  // ---- GET /admin/media (crisis-guidance) --------------------------------
 
   const MEDIA_ROW: MediaAssetDto = {
     id: 5,

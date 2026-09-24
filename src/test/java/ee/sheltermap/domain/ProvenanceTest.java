@@ -47,7 +47,7 @@ class ProvenanceTest {
 
     @Test
     void reportedAwayOfficialRowOnInaccurateReportsIsReportedInactive() {
-        // W2-A part 3: the auto-hide is a per-kind rule — five open
+        // part 3: the auto-hide is a per-kind rule — five open
         // inaccurate reports (WRONG_LOCATION + OTHER) report a row away
         // just like five open NON_EXISTENT reports do.
         assertThat(Provenance.of(PAASETEAMET, CONFIRMED, INACTIVE, 0, AUTO_HIDE_THRESHOLD))
@@ -100,7 +100,7 @@ class ProvenanceTest {
 
     @Test
     void reportedAwayCommunityRowOnInaccurateReportsIsReportedInactive() {
-        // W2-A part 3: an INACTIVE row reported away on the inaccurate kind
+        // part 3: an INACTIVE row reported away on the inaccurate kind
         // (WRONG_LOCATION + OTHER open) is REPORTED_INACTIVE even for a
         // partner row — the per-kind rule does not depend on the source.
         assertThat(Provenance.of(MUNICIPALITY, CONFIRMED, INACTIVE, 0, AUTO_HIDE_THRESHOLD))

@@ -37,7 +37,7 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
     @Override
     public synchronized void recordLabeled(long moderatorId, Action action, String subjectLabel,
                                            String reason) {
-        // Crisis-guidance D12: a guidance/media row — no shelter, no subject account.
+        // Crisis-guidance a guidance/media row — no shelter, no subject account.
         rows.add(new Row(nextId++, null, null, moderatorId, action, reason,
                 null, null, clock.instant(), subjectLabel));
     }

@@ -10,7 +10,7 @@ import ee.sheltermap.domain.GuidancePost;
  * <p>Deliberately does NOT touch {@code id} or {@code updated_at}: the
  * id is managed by the primary key, and the update-path stamp is owned
  * by {@link JpaGuidancePostRepository} — one writer for every write
- * (D4: {@code updated_at} moves on every write).
+ * ({@code updated_at} moves on every write).
  */
 final class GuidancePostMapper {
 

@@ -134,7 +134,7 @@ class ShelterServiceTest {
         assertThat(saved.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
     }
 
-    // ---------- owner-edit trust reset (M5b) ----------
+    // ---------- owner-edit trust reset ----------
 
     @Test
     void anOwnerEditOfAPublishedRowResetsTheTrustStateToNewLikeANewSubmission() {
@@ -312,7 +312,7 @@ class ShelterServiceTest {
         assertThat(repo.findByCreatedBy(1L)).isEmpty();
     }
 
-    // ---------- edit history (moderation-dashboard-completion D4) ----------
+    // ---------- edit history (moderation-dashboard-completion) ----------
 
     @Test
     void addPlaceRecordsCreatedHistoryAttributedToTheSubmitter() {
@@ -389,7 +389,7 @@ class ShelterServiceTest {
 
     @Test
     void updatePlaceOfAnAbsentShelterIsNotFoundBeforeAnyHistoryRow() {
-        // D4: the old-row read precedes the diff — an absent row is a plain
+        // the old-row read precedes the diff — an absent row is a plain
         // 404 before any diff, not a save-time guard hit.
         Shelter stale = new Shelter(
                 "Uus nimi", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
@@ -415,7 +415,7 @@ class ShelterServiceTest {
         assertThat(repo.findAll()).isEmpty();
     }
 
-    // ---------- per-user active-shelter cap (shelter-trust-and-reports D3) ----------
+    // ---------- per-user active-shelter cap (shelter-trust-and-reports) ----------
 
     @Test
     void eleventhActiveShelterIsRejected() {

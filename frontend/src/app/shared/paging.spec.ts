@@ -1,6 +1,6 @@
 /**
  * The paging policy (shared/paging.ts) — the ONE place the clamp /
- * normalize rules are pinned (W2-D: the previous copies each had their own
+ * normalize rules are pinned (the previous copies each had their own
  * spec, so drift passed CI). Every paged surface parses the URL through
  * parsePage/parseSize, derives its page count through lastPage, clamps a
  * size-flip through clampPage, and reads the total through parseTotal.

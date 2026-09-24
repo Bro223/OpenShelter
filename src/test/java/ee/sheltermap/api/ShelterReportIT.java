@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Trust layer acceptance (shelter-trust-and-reports D1/D2/D4/D5,
+ * Trust layer acceptance (shelter-trust-and-reports,
  * community-self-moderation) — full-stack MockMvc against the real
  * services, security chain, JWT filter and Postgres, covering EVERY
  * scenario in specs/shelter-reports/spec.md plus the map-browse filter
@@ -140,7 +140,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.path").isNotEmpty());
     }
 
-    // ---------- shelter reports (D1) ----------
+    // ---------- shelter reports ----------
 
     @Test
     void verifiedUserReportIsStoredAndDerivedStateShowsOnNextList() throws Exception {
@@ -284,7 +284,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 400, "Bad Request");
     }
 
-    // ---------- auto-hide (D1) ----------
+    // ---------- auto-hide ----------
 
     @Test
     void fifthNonExistentReportHidesTheShelterAndRemovesItFromPublicList() throws Exception {
@@ -499,7 +499,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    // ---------- CLOSED / OPEN_CONFIRMED report types (D1 — display net retired) ----------
+    // ---------- CLOSED / OPEN_CONFIRMED report types (display net retired) ----------
 
     @Test
     void closedReportsNeverHideTheShelter() throws Exception {
@@ -543,7 +543,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .value(org.hamcrest.Matchers.contains("ACTIVE")));
     }
 
-    // ---------- occupancy (D4) ----------
+    // ---------- occupancy ----------
 
     @Test
     void loneFreshOccupancyIsHedged() throws Exception {
@@ -820,7 +820,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"));
     }
 
-    // ---------- per-user submission cap (D3) ----------
+    // ---------- per-user submission cap ----------
 
     @Test
     void eleventhActiveShelterIs409AndDeletingFreesTheCap() throws Exception {
@@ -885,7 +885,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(status().isCreated());
     }
 
-    // ---------- trust filters (D5) ----------
+    // ---------- trust filters ----------
 
     @Test
     void hasCapacityFilterKeepsSheltersWithCapacityData() throws Exception {
@@ -937,7 +937,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
     }
 
-    // ---------- public list ACTIVE-only (D5) ----------
+    // ---------- public list ACTIVE-only ----------
 
     @Test
     void inactiveShelterIsAbsentFromPublicListButPresentInMine() throws Exception {

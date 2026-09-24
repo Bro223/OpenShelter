@@ -1,6 +1,6 @@
 import { gaugeAngle } from './gauge-math';
 
-describe('gaugeAngle (M9 gauge maths)', () => {
+describe('gaugeAngle (gauge maths)', () => {
   it('an equal split (0.5) points straight up at 90°', () => {
     expect(gaugeAngle(0.5)).toBe(90);
   });

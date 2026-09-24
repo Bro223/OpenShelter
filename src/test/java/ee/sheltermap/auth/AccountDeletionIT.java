@@ -126,7 +126,7 @@ class AccountDeletionIT extends AbstractPersistenceIT {
 
     /**
      * A positive (OPEN_CONFIRMED) report — one of the distinct confirmations
-     * in the NEW→CONFIRMED tally (D2); the row promotes when the third
+     * in the NEW→CONFIRMED tally; the row promotes when the third
      * distinct non-submitter confirmation lands.
      */
     private void positiveReport(Auth reporter, long shelterId) throws Exception {

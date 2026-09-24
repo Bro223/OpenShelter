@@ -46,7 +46,7 @@ public interface UserRepository {
     /**
      * Whether the row behind {@code userId} is of ADMIN kind (the
      * per-user active-shelter cap is skipped for admins —
-     * shelter-trust-and-reports D3). v1 has no admin accounts (the domain
+     * shelter-trust-and-reports). v1 has no admin accounts (the domain
      * hierarchy predates them), so the JPA impl answers from the
      * {@code users.kind} column and every other impl answers {@code false};
      * unknown ids are {@code false}.
@@ -85,7 +85,7 @@ public interface UserRepository {
     List<User> findAll();
 
     /**
-     * Paged admin Users tab read (W2-A): the REGISTERED and ADMIN
+     * Paged admin Users tab read: the REGISTERED and ADMIN
      * accounts — the tab's population, with GUEST rows excluded IN THE
      * SQL (they have no credentials to suspend, and a page must not
      * decrypt the whole account population to answer them), id-ordered,
@@ -95,7 +95,7 @@ public interface UserRepository {
     List<User> findAccountPage(long offset, int limit);
 
     /**
-     * The REGISTERED + ADMIN account count WITHOUT paging (the W2-A
+     * The REGISTERED + ADMIN account count WITHOUT paging (the
      * {@code X-Total-Count} header value for the users list — guests
      * excluded, the same population {@link #findAccountPage} pages).
      */

@@ -14,8 +14,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * The guidance manual-order writes (guidance-manual-order D3 +
- * admin-locale-scope) — extracted from {@link GuidanceService} (W3-A):
+ * The guidance manual-order writes (full-list and locale-scoped) —
+ * extracted from {@link GuidanceService}:
  * the two reorder methods are the feature's ORDERING seam, and they
  * shared (duplicated) the same null/duplicate-id validation walk and
  * the same stale-list check, which is now the parameterised pair
@@ -35,8 +35,7 @@ import java.util.function.Function;
  * tie-break — the live preview of the public order), the public list
  * PUBLISHED-only, pinned first, then {@code sortOrder} ascending, with
  * the {@code publishedAt}/{@code id} tie-breakers. Publishing or
- * unpublishing NEVER moves a post: its slot IS its {@code sortOrder}
- * (D4).
+ * unpublishing NEVER moves a post: its slot IS its {@code sortOrder}.
  */
 public class GuidanceOrderingService {
 
@@ -53,7 +52,7 @@ public class GuidanceOrderingService {
     }
 
     /**
-     * The atomic full-list reorder (guidance-manual-order D3): renumbers
+     * The atomic full-list reorder: renumbers
      * every post's {@code sortOrder} to 1..N in the submitted order in ONE
      * transaction — all-or-nothing, so a failure mid-transaction leaves no
      * partial renumbering observable (the boundary is the caller's —
@@ -73,8 +72,8 @@ public class GuidanceOrderingService {
      * <p>Idempotence: resubmitting the current order changes no value and
      * writes NO audit row (the publish/unpublish no-op idiom). A reorder
      * that actually changes the order writes exactly ONE
-     * {@code GUIDANCE_REORDER} row in the same transaction (D12 — the
-     * label {@code Guidance post order} is a snapshot that stays readable).
+     * {@code GUIDANCE_REORDER} row in the same transaction — the
+     * label {@code Guidance post order} is a snapshot that stays readable.
      *
      * @throws GuidanceValidationException 400 — an unknown id, a duplicate id,
      *                                     a missing (stale) list or an empty
@@ -170,8 +169,8 @@ public class GuidanceOrderingService {
         }
         for (GuidancePost post : current) {
             // A post whose HOME locale is the requested one has content in
-            // it through its own columns (the home rows the V26 invariant
-            // keeps — or lacks, on the legacy rows).
+            // it through its own columns (every post owns its
+            // own-locale home row — the legacy rows may lack it).
             if (post.getLocale().equals(resolved)) {
                 visibleIds.add(post.getId());
             }

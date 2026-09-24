@@ -46,7 +46,7 @@ public class PiiKeys {
     private static byte[] requireBytes(String envName, String value) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException(
-                    envName + " is not set — PII-at-rest (M2) is fail-closed. "
+                    envName + " is not set — PII-at-rest is fail-closed. "
                             + "Generate a key with `openssl rand -base64 32` and set "
                             + envName + " (see README, 'PII at rest').");
         }

@@ -27,7 +27,7 @@ import { MONTH_ABBREVS } from '../core/i18n/locale';
 import { interpolate } from '../core/i18n/i18n.service';
 
 /**
- * The source/trust labels are PINNED copy (community-review-queue D5):
+ * The source/trust labels are PINNED copy (community-review-queue):
  * registry rows say which registry, USER rows say their trust state.
  * A copy change is a spec change — these assertions are the gate.
  */
@@ -77,7 +77,7 @@ describe('community + private copy (community-review-queue)', () => {
 });
 
 /**
- * Trust-layer copy (shelter-trust-and-reports D4/D6): the map rows and the
+ * Trust-layer copy (shelter-trust-and-reports): the map rows and the
  * detail header render the SAME strings — pinned here as single-sourced copy.
  */
 
@@ -241,7 +241,7 @@ describe('the derived-status rule stays single-sourced (chip + badge follow the 
   });
 });
 
-describe('occupancy copy (D4: hedged at one, firm at two+)', () => {
+describe('occupancy copy (hedged at one, firm at two+)', () => {
   // Deterministic: every assertion passes a fixed `now` — the recency math
   // never depends on the wall clock in tests.
   const NOW = Date.parse('2026-09-11T12:12:00Z');
@@ -314,14 +314,14 @@ describe('recencyText (the "· X ago" suffix)', () => {
   });
 });
 
-describe('trust-badge predicates (D6)', () => {
-  it('hasReports: EITHER open report kind drives the reported state (W2-B: the OR of the two)', () => {
+describe('trust-badge predicates ', () => {
+  it('hasReports: EITHER open report kind drives the reported state (the OR of the two)', () => {
     expect(hasReports({ nonexistentReports: 0 })).toBe(false);
     expect(hasReports({ nonexistentReports: 0, inaccurateReports: 0 })).toBe(false);
     expect(hasReports({ nonexistentReports: 1 })).toBe(true);
     expect(hasReports({ nonexistentReports: 4 })).toBe(true);
     // An open inaccurate-information report ALONE is enough — this is the
-    // W2-B behaviour change (the old rule read nonexistentReports only).
+    // behaviour change (the old rule read nonexistentReports only).
     expect(hasReports({ nonexistentReports: 0, inaccurateReports: 1 })).toBe(true);
     expect(hasReports({ nonexistentReports: 0, inaccurateReports: 7 })).toBe(true);
     expect(hasReports({ nonexistentReports: 2, inaccurateReports: 3 })).toBe(true);
@@ -332,7 +332,7 @@ describe('trust-badge predicates (D6)', () => {
       false,
     );
     expect(hasTrustBadges({ nonexistentReports: 2, openStatus: null, occupancy: null })).toBe(true);
-    // An inaccurate-only report opens the badge strip too (the OR, W2-B).
+    // An inaccurate-only report opens the badge strip too (the OR).
     expect(
       hasTrustBadges({
         nonexistentReports: 0,
@@ -371,21 +371,21 @@ describe('trust-badge predicates (D6)', () => {
 // is a spec change.
 // ---------------------------------------------------------------------------
 
-describe('reportedBadgeText (M8)', () => {
-  it('the badge carries the open trust-report sum — nonexistent + inaccurate (W2-B)', () => {
+describe('reportedBadgeText ', () => {
+  it('the badge carries the open trust-report sum — nonexistent + inaccurate ', () => {
     expect(reportedBadgeText({ nonexistentReports: 1 })).toBe('Reported (1)');
     expect(reportedBadgeText({ nonexistentReports: 2 })).toBe('Reported (2)');
     expect(reportedBadgeText({ nonexistentReports: 1, inaccurateReports: 2 })).toBe('Reported (3)');
     expect(reportedBadgeText({ nonexistentReports: 0, inaccurateReports: 4 })).toBe('Reported (4)');
     // Older backend: absent inaccurateReports reads as 0 (no change to the
-    // pre-W2-B count).
+    // pre-count).
     expect(reportedBadgeText({ nonexistentReports: 3, inaccurateReports: undefined })).toBe(
       'Reported (3)',
     );
   });
 });
 
-describe('verifiedAgoText (M8)', () => {
+describe('verifiedAgoText ', () => {
   const NOW = Date.parse('2026-09-13T12:00:00Z');
   const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
 
@@ -410,7 +410,7 @@ describe('verifiedAgoText (M8)', () => {
   });
 });
 
-describe('lastVerifiedText (M8)', () => {
+describe('lastVerifiedText ', () => {
   const NOW = Date.parse('2026-09-13T12:00:00Z');
   const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
 
@@ -465,7 +465,7 @@ describe('lastVerifiedText (M8)', () => {
   });
 });
 
-describe('communityReportsText (M8)', () => {
+describe('communityReportsText ', () => {
   it('labels the count as the labeled TOTAL over all types — never a live tally', () => {
     expect(communityReportsText(1)).toBe('Community reports: 1 (total, all types)');
     expect(communityReportsText(3)).toBe('Community reports: 3 (total, all types)');

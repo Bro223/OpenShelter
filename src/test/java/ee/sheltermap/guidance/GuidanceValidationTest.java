@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted validation seam (W3-A) directly: the locale and slug
+ * The extracted validation seam directly: the locale and slug
  * rules in {@link GuidanceValidation}. The {@code GuidanceService}
  * delegates ({@code MAX_LOCALE_LENGTH}, {@code optionalAdminLocale}) are
  * covered by {@code GuidanceServiceTest}; this suite covers the class
@@ -52,7 +52,7 @@ class GuidanceValidationTest {
     @Test
     void localeOrDefaultDefaultsNullAndBlankToTheConfiguredLocale() {
         // the write rule: absent OR blank = the configured primary
-        // language (D11) — a present value is trimmed but not defaulted.
+        // language — a present value is trimmed but not defaulted.
         assertThat(GuidanceValidation.localeOrDefault(null, "et")).isEqualTo("et");
         assertThat(GuidanceValidation.localeOrDefault("  ", "et")).isEqualTo("et");
         assertThat(GuidanceValidation.localeOrDefault(" en ", "et")).isEqualTo("en");

@@ -27,7 +27,7 @@ public class RegisteredUser extends User {
     }
 
     /**
-     * Admin-only (admin-moderation D1): {@code phone} may be null — the
+     * Admin-only (admin-moderation): {@code phone} may be null — the
      * provisioned admin has NO phone route. Null is outside the unique
      * {@code uq_users_phone} index (partial, WHERE phone IS NOT NULL), so
      * it can never collide with any other user, and it can never be a

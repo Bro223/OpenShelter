@@ -18,7 +18,7 @@ import java.util.Optional;
  * {@code DataIntegrityViolationException} (the service pre-checks with
  * {@code existsBySlug} and maps the expected duplicate to 409).
  *
- * <p>{@code updated_at} moves on every write (D4): the domain's write
+ * <p>{@code updated_at} moves on every write: the domain's write
  * methods carry their own instants, but {@code unpublish()} carries none
  * (frozen signature), so the update path stamps it from the injected
  * Clock — one rule for every write — and syncs the stamp back onto the
@@ -41,7 +41,7 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
         GuidancePostEntity entity;
         if (post.getId() != null) {
             // UPDATE path: mutate the MANAGED row in place (the house
-            // idiom), then stamp updated_at from the Clock (D4 — it moves
+            // idiom), then stamp updated_at from the Clock (it moves
             // on every write, and unpublish() carries no instant of its
             // own, so this stamp is the rule for all update writes).
             entity = posts.findById(post.getId())

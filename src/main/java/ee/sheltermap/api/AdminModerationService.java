@@ -35,20 +35,20 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The admin moderation surface (admin-moderation D3/D4) — manual
+ * The admin moderation surface (admin-moderation) — manual
  * hide/restore of user shelters, hard delete of user shelters, and the two
  * report queues with their single-row moderation actions.
  *
- * <p>Authorization is the controller's job (D2 — fresh kind lookup per
+ * <p>Authorization is the controller's job (fresh kind lookup per
  * request); this service assumes an authenticated admin and owns the
  * guard rails instead:
  * <ul>
  *   <li>USER rows only — status changes and deletes on {@code source !=
- *       USER} are 409 (import-owned, D4: the registry import rebuilds its
+ * USER} are 409 (import-owned, the registry import rebuilds its
  *       rows as ACTIVE on every run, so an admin edit would silently
  *       revert);</li>
  *   <li>a restore (INACTIVE → ACTIVE) is the manual status change that
- *       DISARMS auto-hide (shelter-trust-and-reports D1 — once a human has
+ * DISARMS auto-hide (shelter-trust-and-reports — once a human has
  *       set the status, the 5th NON_EXISTENT report never re-hides);</li>
  *   <li>all writes are single-row transactions; no bulk endpoints; every
  *       unknown id is a 404.</li>
@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
  * admin-only data, never exposed outside {@code /admin/*}.
  *
  * <p>Every moderation-relevant WRITE is recorded in the moderation audit
- * trail (community-review-queue v2 D4) in the SAME transaction as the
+ * trail (community-review-queue v2) in the SAME transaction as the
  * action: status change, delete, report dismiss,
  * and the admin CONFIRM/REJECT decisions (the automatic AUTO_CONFIRM
  * promotion is recorded by the report service itself). The moderator's
@@ -75,7 +75,7 @@ public class AdminModerationService {
     /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
 
-    /** The read-time rendering of a gone shelter's name in the audit trail (D4). */
+    /** The read-time rendering of a gone shelter's name in the audit trail. */
     public static final String DELETED_SHELTER_NAME = "Deleted shelter";
 
     /** The read-time rendering of a gone subject account in the audit trail. */
@@ -83,7 +83,7 @@ public class AdminModerationService {
 
     /**
      * The read-time rendering of a referent whose name no longer resolves
-     * (W4-A — the literal was inlined five times across this class and
+     * (the literal was inlined five times across this class and
      * {@code ShelterQueryService}): an erased actor's name in the queue /
      * audit rows, a vanished shelter's name in the report queue, and an
      * account whose profile name is blank.
@@ -140,7 +140,7 @@ public class AdminModerationService {
      * trust derivations as the public list plus the submitter's profile
      * name (the trust projection, reused — no N+1).
      *
-     * <p>Paging (W2-A): absent {@code limit}/{@code offset} = the unpaged
+     * <p>Paging: absent {@code limit}/{@code offset} = the unpaged
      * read (byte-identical to the pre-change path). Present, the filters
      * and the slice run in SQL, the batches run over the page's ids only,
      * and the answer's {@link Pagination.Paged#total()} is the filtered
@@ -155,13 +155,13 @@ public class AdminModerationService {
 
     /**
      * POST /admin/shelters/{id}/status — manual hide/restore. USER rows
-     * only (registry rows → 409, import-owned, D4); unknown id → 404. A
+     * only (registry rows → 409, import-owned); unknown id → 404. A
      * restore is the manual change that disarms auto-hide. The change
      * (a no-op same-status call writes nothing, audit included) is
      * recorded in the moderation audit trail.
      *
      * <p>Restoring a REJECTED row reverts its review state to NEW
-     * (community-review-queue v2 D2 — it starts over; a rejected row
+     * (community-review-queue v2 — it starts over; a rejected row
      * does not come back as CONFIRMED).
      */
     @Transactional
@@ -171,12 +171,12 @@ public class AdminModerationService {
         if (shelter.getStatus() != target) {
             ReviewStatus previousReview = shelter.getReviewStatus();
             if (target == ShelterStatus.ACTIVE) {
-                // The restore (shelter-trust-and-reports D1): once a human
+                // The restore (shelter-trust-and-reports): once a human
                 // has set the status, the NON_EXISTENT reports increment
                 // their count but never re-hide this shelter.
                 shelter.setAutoHideDisarmed(true);
                 // A rejected row starts over as NEW (community-review-queue
-                // v2 D2).
+                // v2).
                 if (shelter.getReviewStatus() == ReviewStatus.REJECTED) {
                     shelter.setReviewStatus(ReviewStatus.NEW);
                 }
@@ -184,7 +184,7 @@ public class AdminModerationService {
             shelter.setStatus(target);
             shelters.save(shelter);
             // The audit row joins this transaction (community-review-queue
-            // v2 D4). previous/new carry the review_status — it moves only
+            // v2). previous/new carry the review_status — it moves only
             // on a restore of a REJECTED row; otherwise the action string
             // says what moved.
             audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.STATUS_CHANGE, null,
@@ -198,7 +198,7 @@ public class AdminModerationService {
      * rows (V1/V9 FKs are all ON DELETE CASCADE). USER rows only
      * (registry → 409); unknown id → 404.
      *
-     * <p>The audit row is recorded BEFORE the delete (D4): the same
+     * <p>The audit row is recorded BEFORE the delete: the same
      * transaction commits both, and the dangling shelter_id keeps the row
      * readable — the name renders "Deleted shelter" at read time. The
      * delete also appends the DELETED edit-history row
@@ -211,7 +211,7 @@ public class AdminModerationService {
         shelterService.requireUserOwned(shelter);
         audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
-        // The delete runs through the service boundary (W3-A): the
+        // The delete runs through the service boundary: the
         // 404/409 import-owned guard is enforced there too, so a future
         // caller cannot bypass it; the DELETED history row (actor = the
         // moderating admin) joins the transaction through the same choke
@@ -292,7 +292,7 @@ public class AdminModerationService {
      * without, the global queue. {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
      * (default {@value #AUDIT_DEFAULT_LIMIT}, anything
      * else a 400) and {@code offset} is the non-negative page start
-     * (W2-A — both bounds are the shared paging vocabulary). The paging
+     * (both bounds are the shared paging vocabulary). The paging
      * is the OFFSET/LIMIT clauses (the table is append-only — nothing
      * deletes rows except the shelter cascade — so the queue must stay
      * bounded in SQL). The answer's {@link Pagination.Paged#total()} is
@@ -309,7 +309,7 @@ public class AdminModerationService {
     /**
      * The queue with the dismiss filter (the moderator's "hide dismissed"
      * control). {@code excludeDismissed=true} renders the OPEN scope only
-     * (the dismissed rows are the resolved verdicts — W2-A's rule: a
+     * (the dismissed rows are the resolved verdicts — its rule: a
      * dismissed report stops influencing the counts, and the filtered list
      * agrees with them: its X-Total-Count IS the sum of the per-shelter
      * open counts the pins read). Absent/{@code false} renders EVERYTHING
@@ -371,7 +371,7 @@ public class AdminModerationService {
      * queue's newest-first order (the same (created_at, id) tie-break as
      * the unfiltered read), the dismissed rows dropped in the domain, until
      * the requested window is filled or the table runs out. Every single
-     * read is a bounded SQL page (the queue's store-level paging, W2-A —
+     * read is a bounded SQL page (the queue's store-level paging,
      * no unbounded statement), and the scan stops at the window's end: the
      * cost is the dismissed rows NEWER than the requested window (the
      * backlog the moderator already resolved), never the whole table in
@@ -408,7 +408,7 @@ public class AdminModerationService {
     /**
      * The OPEN queue's length WITHOUT paging (the filtered view's
      * X-Total-Count): the same dismissed-excluded, per-(shelter, type)
-     * counts the pins read (W2-A — one grouped query, no per-row scan),
+     * counts the pins read (one grouped query, no per-row scan),
      * summed over the queue's scope. Reports of deleted shelters cascade
      * away with the shelter, so the shelter ids cover the whole table.
      */
@@ -445,7 +445,7 @@ public class AdminModerationService {
 
     /**
      * POST /admin/shelters/{id}/review — the community review decision
-     * (community-review-queue v2 D2) — the rare manual override; the
+     * (community-review-queue v2) — the rare manual override; the
      * primary trust flow is the automatic community one (AUTO_CONFIRM).
      * USER rows only (registry → 409, import-owned); unknown id → 404.
      *
@@ -456,7 +456,7 @@ public class AdminModerationService {
      * mechanism), and the reason, when given, becomes the note.
      *
      * <p>Deliberately NOT a manual status change: CONFIRM does not
-     * disarm auto-hide (shelter-trust-and-reports D1) — the row is
+     * disarm auto-hide (shelter-trust-and-reports) — the row is
      * community-reported and unverified, so the trust layer may hide it
      * on the 5th NON_EXISTENT report just like any other community row.
      *
@@ -491,11 +491,11 @@ public class AdminModerationService {
 
     /**
      * GET /admin/audit — the moderation audit trail, newest first
-     * (community-review-queue D4). {@code limit} is
+     * (community-review-queue). {@code limit} is
      * 1..{@link Pagination#MAX_PAGE_SIZE} (default
      * {@value #AUDIT_DEFAULT_LIMIT}); anything else is a 400 (the shared
      * paging bound vocabulary). {@code offset} is the non-negative page
-     * start (W2-A). The answer's {@link Pagination.Paged#total()} is the
+     * start. The answer's {@link Pagination.Paged#total()} is the
      * trail's length WITHOUT paging (the X-Total-Count value). Shelter
      * names and moderator names resolve in ONE batched lookup each (no
      * N+1); a gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
@@ -549,7 +549,7 @@ public class AdminModerationService {
 
     /**
      * GET /admin/shelters/{id}/history — the shelter's edit history, ASCENDING
-     * (moderation-dashboard-completion, D4): CREATED on
+     * (moderation-dashboard-completion): CREATED on
      * submission, EDITED on an owner PUT that moved fields (server-parsed
      * {@code {field, from, to}} tuples — the FE renders, never parses),
      * DELETED on a user or admin hard delete. Actor names resolve in ONE
@@ -592,7 +592,7 @@ public class AdminModerationService {
      * the shelter name (or "Deleted shelter" once the row is gone); a
      * user-scoped row renders "Account: name (email)" (or "Deleted
      * account" after the target's erasure). A guidance/media row
-     * (crisis-guidance D12) resolves its stored {@code subjectLabel}
+     * (crisis-guidance) resolves its stored {@code subjectLabel}
      * FIRST — the label snapshot that outlives the deleted target; only
      * a NULL label (every pre-V23 row) falls through to the shelter /
      * account resolution, so no existing row changes behaviour. The DTO
@@ -628,7 +628,7 @@ public class AdminModerationService {
      * suspend); the ADMIN row is listed so the provisioned account is
      * visible but not suspendable.
      *
-     * <p>Paging (W2-A — the owner's "every admin list pages" rule): the
+     * <p>Paging (the owner's "every admin list pages" rule): the
      * unpaged read (both params absent) keeps the pre-change behaviour
      * (one pass over the whole table — the account population is small
      * and the tab is a triage surface); a present {@code limit}

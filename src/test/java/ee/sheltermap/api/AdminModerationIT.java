@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the admin moderation API (admin-moderation D2/D3/D4) —
+ * Acceptance IT for the admin moderation API (admin-moderation) —
  * full-stack MockMvc against the real services, security chain, JWT filter
  * and Postgres: authorization (fresh kind lookup, no JWT claim), the admin
  * shelter list (all statuses, trust fields, submitter), manual
@@ -149,7 +149,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.path").isNotEmpty());
     }
 
-    // ---------- authorization (D2) ----------
+    // ---------- authorization ----------
 
     @Test
     void anonymousAdminRequestsAre401() throws Exception {
@@ -217,7 +217,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.isAdmin").value(false));
     }
 
-    // ---------- admin shelter list (D3) ----------
+    // ---------- admin shelter list ----------
 
     @Test
     void theAdminListHasAllStatusesTrustFieldsAndTheSubmitter() throws Exception {
@@ -400,7 +400,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.message").value("offset must be non-negative"));
     }
 
-    // ---------- manual hide / restore (D3) ----------
+    // ---------- manual hide / restore ----------
 
     @Test
     void hideAndRestoreACycle() throws Exception {
@@ -484,7 +484,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.nonexistentReports").value(10));
     }
 
-    // ---------- guard rails: registry rows + unknown ids (D4) ----------
+    // ---------- guard rails: registry rows + unknown ids ----------
 
     @Test
     void registryRowsAreImportOwned() throws Exception {
@@ -530,7 +530,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 400, "Bad Request");
     }
 
-    // ---------- hard delete (D3) ----------
+    // ---------- hard delete ----------
 
     @Test
     void aDeleteCascadesReportsOccupancyAndOpenStatus() throws Exception {
@@ -573,7 +573,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$").value(org.hamcrest.Matchers.empty()));
     }
 
-    // ---------- shelter report queue (D3) ----------
+    // ---------- shelter report queue ----------
 
     @Test
     void theShelterReportQueueHasTheShapeOrderAndReporterIdentity() throws Exception {
@@ -712,7 +712,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
         return stamps;
     }
 
-    // ---------- W2-A: every admin list is a bounded page + a stable count ----------
+    // ---------- every admin list is a bounded page + a stable count ----------
 
     @Test
     void theUsersListPagesInStableOrderWithTheTotalHeader() throws Exception {

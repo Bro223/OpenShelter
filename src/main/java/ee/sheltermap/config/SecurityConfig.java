@@ -70,62 +70,73 @@ public class SecurityConfig {
         return Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     }
 
+    /**
+     * Auth-surface token buckets — the verified limits, in application.yml
+     * order (app.ratelimit.*). The bean name is the DI contract: the
+     * rate-limiting controllers inject by exactly this name via @Qualifier,
+     * so a rename is a cross-class change. Each (capacity,
+     * refill-per-second) pair is its row's yml value, read back against the
+     * yml by SecurityConfigRateLimiterWiringTest, so a row that stops
+     * matching the yml fails the build. What each bucket caps:
+     *
+     * <pre>
+     * loginRateLimiter         POST /auth/login, per (IP, contact): credential stuffing on one account
+     * loginIpRateLimiter        POST /auth/login, aggregate per-IP: one IP spraying many accounts; both buckets must pass
+     * resetRateLimiter          POST /auth/password-reset/request, per (IP, e-mail): reset spam
+     * resetConfirmRateLimiter   POST /auth/password-reset/confirm, per (IP, e-mail): 6-digit code guessing, independent of the request bucket
+     * registerRateLimiter       POST /auth/register, per-IP: account spam
+     * verifyRateLimiter         POST /verify/request, per-IP: verification spam (Twilio plan), keyed via ClientIps (trusted proxies only)
+     * changeRequestRateLimiter  POST /account/*-change/request, per-IP: contact-change spray across accounts
+     * geoResolveRateLimiter     POST /api/geo/resolve, per-IP: every call is a server-side HTTP fetch — the abuse valve
+     * sessionRateLimiter        POST /auth/refresh + /auth/logout, per-IP: token rotation/revocation hammering (unauthenticated, DB-touching)
+     * </pre>
+     *
+     * <p>The token-bucket countdown rides {@code Retry-After} (every
+     * limiter is a {@link TokenBucketRateLimiter}).
+     */
     @Bean
     public RateLimiter loginRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.loginCapacity(), properties.loginRefillPerSecond());
+        return tokenBucket(properties.loginCapacity(), properties.loginRefillPerSecond());
     }
 
-    /**
-     * Per-IP bucket on {@code POST /auth/refresh} and {@code POST /auth/logout}
-     * (session-lifecycle): both are unauthenticated and DB-touching, so a
-     * single IP must not be able to hammer token rotation / revocation
-     * across accounts. The token-bucket countdown rides {@code Retry-After}
-     * (the limiter is a {@link TokenBucketRateLimiter}).
-     */
-    @Bean
-    public RateLimiter sessionRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.sessionCapacity(), properties.sessionRefillPerSecond());
-    }
-
-    /**
-     * Aggregate per-IP bucket on {@code POST /auth/login}: blocks one IP
-     * hammering many accounts (credential stuffing) even
-     * though each per-contact bucket stays under its own limit. Both this
-     * and {@link #loginRateLimiter} must pass for a login to proceed.
-     */
     @Bean
     public RateLimiter loginIpRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.loginIpCapacity(), properties.loginIpRefillPerSecond());
+        return tokenBucket(properties.loginIpCapacity(), properties.loginIpRefillPerSecond());
     }
 
     @Bean
     public RateLimiter resetRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.resetCapacity(), properties.resetRefillPerSecond());
+        return tokenBucket(properties.resetCapacity(), properties.resetRefillPerSecond());
     }
 
-    /**
-     * Per-(IP, e-mail) bucket on {@code POST /auth/password-reset/confirm}:
-     * a 6-digit code is guessable, so the confirm
-     * path is rate-limited independently of the reset-request bucket.
-     */
     @Bean
     public RateLimiter resetConfirmRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.resetConfirmCapacity(), properties.resetConfirmRefillPerSecond());
+        return tokenBucket(properties.resetConfirmCapacity(), properties.resetConfirmRefillPerSecond());
     }
 
     @Bean
     public RateLimiter registerRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.registerCapacity(), properties.registerRefillPerSecond());
+        return tokenBucket(properties.registerCapacity(), properties.registerRefillPerSecond());
     }
 
-    /**
-     * Per-IP bucket on {@code POST /verify/request} (anti-spam, Twilio plan):
-     * blocks one IP spraying many accounts, keyed via {@link ClientIps}
-     * (X-Forwarded-For aware, trusted proxies only).
-     */
     @Bean
     public RateLimiter verifyRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.verifyCapacity(), properties.verifyRefillPerSecond());
+        return tokenBucket(properties.verifyCapacity(), properties.verifyRefillPerSecond());
+    }
+
+    @Bean
+    public RateLimiter changeRequestRateLimiter(RateLimitProperties properties) {
+        return tokenBucket(properties.changeCapacity(), properties.changeRefillPerSecond());
+    }
+
+    @Bean
+    public RateLimiter geoResolveRateLimiter(RateLimitProperties properties) {
+        return tokenBucket(properties.geoResolveCapacity(), properties.geoResolveRefillPerSecond());
+    }
+
+    @Bean
+    public RateLimiter sessionRateLimiter(RateLimitProperties properties) {
+        return tokenBucket(properties.sessionCapacity(), properties.sessionRefillPerSecond());
     }
 
     /**
@@ -154,25 +165,6 @@ public class SecurityConfig {
     public ThrottleAlertRecorder throttleAlertRecorder(
             @Value("${app.limits.alerts-retained:200}") int retained) {
         return new ThrottleAlertRecorder(retained);
-    }
-
-    /**
-     * Per-IP bucket on {@code POST /account/*-change/request} (contact-change
-     * anti-spam): blocks one IP spraying change requests across accounts.
-     */
-    @Bean
-    public RateLimiter changeRequestRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.changeCapacity(), properties.changeRefillPerSecond());
-    }
-
-    /**
-     * Per-IP bucket on {@code POST /api/geo/resolve} (short-link resolver,
-     * shelter-location-input): every call is a server-side HTTP fetch, so the
-     * bucket is the abuse valve — 5 requests, refill ~1/min (5/min effective).
-     */
-    @Bean
-    public RateLimiter geoResolveRateLimiter(RateLimitProperties properties) {
-        return new TokenBucketRateLimiter(properties.geoResolveCapacity(), properties.geoResolveRefillPerSecond());
     }
 
     /**
@@ -266,7 +258,7 @@ public class SecurityConfig {
                     // copy every visitor sees. The write side is /admin/** (the
                     // ADMIN-kind rule below), not /api/**.
                     .requestMatchers(HttpMethod.GET, "/api/site-texts").permitAll()
-                    // Public crisis-guidance reads (crisis-guidance D3): the /blog
+                    // Public crisis-guidance reads: the /blog pages are
                     // pages are readable anonymously. GETs ONLY — the write
                     // side is /admin/** (ADMIN kind, per-request lookup),
                     // already covered by the rule below.
@@ -300,6 +292,12 @@ public class SecurityConfig {
             .addFilterBefore(headersFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /** The one construction site for the token buckets above: all nine
+     *  carry the same shape, so only the (capacity, refill) pair varies. */
+    private static RateLimiter tokenBucket(int capacity, double refillPerSecond) {
+        return new TokenBucketRateLimiter(capacity, refillPerSecond);
     }
 
     private static void writeError(ObjectMapper objectMapper, Clock clock, HttpServletResponse response,

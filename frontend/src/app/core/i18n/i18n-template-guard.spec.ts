@@ -58,7 +58,7 @@ function findTemplates(): string[] {
   return out;
 }
 
-/** The full template set as of 2026-09-21 (31 files — the W3-B admin
+/** The full template set as of 2026-09-21 (31 files — the admin
  *  panel extraction added the eight tab panels). */
 const EXPECTED_TEMPLATES = [
   'src/app/app.html',
@@ -113,7 +113,7 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
   'features/shelter/shelter-detail-page.html': {
     '&larr;': 'decorative back-arrow entity (punctuation, not copy)',
     'Capacity:':
-      'prefix label of the live occupancy gauge — a single key would need a {n} param for the gauge value; structural to the gauge markup (review 07 P1-4 note)',
+      'prefix label of the live occupancy gauge — a single key would need a {n} param for the gauge value; structural to the gauge markup (review 07 note)',
   },
   'features/auth/login-page.html': {
     '&middot;': 'legal-links separator entity (punctuation, not copy)',

@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted authenticated-caller lookup (W3-A; W4-A: moved here from
+ * The extracted authenticated-caller lookup (; moved here from
  * {@code ee.sheltermap.api} — the auth controllers consume it too): the
  * behaviours of {@link CurrentCaller} — the column-only id probe that
  * never throws, the id-only requirement (401, no row load), the full row
@@ -151,7 +151,7 @@ class CurrentCallerTest {
 
     @Test
     void userOrNullReturnsNullForAnErasedRow() {
-        // The vocabulary-neutral half (W4-A): the auth controllers map
+        // The vocabulary-neutral half: the auth controllers map
         // this null to their own documented 400 — the primitive decides
         // nothing about the status.
         users.save(ALICE);

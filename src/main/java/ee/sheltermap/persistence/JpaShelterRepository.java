@@ -126,8 +126,8 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional(readOnly = true)
     public List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox) {
-        // Inclusive BETWEEN on both coordinates (shelter-bbox-paging D2);
-        // the V23.1 (latitude, longitude) B-tree backs the range scan — no PostGIS (D3).
+        // Inclusive BETWEEN on both coordinates (shelter-bbox-paging);
+        // the V23.1 (latitude, longitude) B-tree backs the range scan — no PostGIS.
         return shelters.findAllBySourceInAndStatusAndLatitudeBetweenAndLongitudeBetweenOrderByIdAsc(
                         sources, ShelterStatus.ACTIVE,
                         bbox.minLat(), bbox.maxLat(), bbox.minLng(), bbox.maxLng())
@@ -186,7 +186,7 @@ public class JpaShelterRepository implements ShelterRepository {
     public List<Shelter> findActivePage(List<ShelterSource> sources, BoundingBox bbox, Boolean hasCapacity,
                                         ShelterSource provenanceSource, ReviewStatus provenanceReviewStatus,
                                         long offset, int limit) {
-        // DYNAMIC native query (W2-A cost model): the WHERE carries ONLY the
+        // DYNAMIC native query (cost model): the WHERE carries ONLY the
         // predicates that are present. Two planner traps are avoided:
         // a static "(:p IS NULL OR ...)" shape is an UNPREDICTABLE boolean
         // expression the planner cannot constant-fold (it seq-scans even

@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The derived reporter trust weight (community-self-moderation D1):
+ * The derived reporter trust weight (community-self-moderation):
  * baseline 1, +1 for a cross-verified own submission, +1 for a proven
  * track record of positive reports (≥ 2 own AUTO_CONFIRMs), capped at 3.
  */

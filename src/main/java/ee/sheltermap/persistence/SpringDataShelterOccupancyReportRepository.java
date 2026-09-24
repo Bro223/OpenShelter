@@ -13,7 +13,7 @@ public interface SpringDataShelterOccupancyReportRepository
 
     Optional<ShelterOccupancyReportEntity> findByShelterIdAndUserId(Long shelterId, Long userId);
 
-    /** Fresh rows only (the 2 h read-time window, D4) — the batched projection input. */
+    /** Fresh rows only (the 2 h read-time window) — the batched projection input. */
     List<ShelterOccupancyReportEntity> findByShelterIdInAndUpdatedAtAfter(Collection<Long> shelterIds,
                                                                           Instant freshSince);
 }

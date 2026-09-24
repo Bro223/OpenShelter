@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code shelter_reports} (V9, D1). The unique constraint
+ * JPA entity for {@code shelter_reports} (V9). The unique constraint
  * {@code (shelter_id, user_id, type)} — one report per user per shelter
  * per type — is enforced by the database.
  */
@@ -42,11 +42,11 @@ public class ShelterReportEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /** When an admin dismissed the report (V10, admin-moderation D3); NULL while unresolved. */
+    /** When an admin dismissed the report (V10, admin-moderation); NULL while unresolved. */
     @Column(name = "dismissed_at")
     private Instant dismissedAt;
 
-    /** Dampened flag (V16, community-self-moderation, D3). */
+    /** Dampened flag (V16, community-self-moderation). */
     @Column(nullable = false)
     private boolean damped;
 

@@ -32,7 +32,7 @@
             <dt>{{ 'account.name' | t }}</dt>
             <dd>
               {{ auth.name() }}
-              <!-- Kind badge (admin-moderation D5): the admin kind
+              <!-- Kind badge (admin-moderation): the admin kind
                    is the truth server-side; the store's isAdmin comes from
                    the fetched profile (always present, false for regulars). -->
               @if (auth.isAdmin()) {

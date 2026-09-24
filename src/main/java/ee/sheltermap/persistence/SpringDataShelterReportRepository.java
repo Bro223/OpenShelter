@@ -40,7 +40,7 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
 
     /** One shelter's reports, newest first, the page starting at
      *  {@code offset} with at most {@code limit} rows (the admin queue,
-     *  paged since W2-A); created_at ties break by id desc. The paging is
+     * paged since); created_at ties break by id desc. The paging is
      *  the OFFSET/LIMIT clauses — the queue table is append-only, so the
      *  bound belongs in the SQL, not in an in-memory trim. */
     @Query("select r from ShelterReportEntity r "
@@ -50,7 +50,7 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
                                                     @Param("offset") long offset,
                                                     @Param("limit") int limit);
 
-    /** The shelter's report length without paging (W2-A X-Total-Count). */
+    /** The shelter's report length without paging (X-Total-Count). */
     @Query("select count(r) from ShelterReportEntity r where r.shelterId = :shelterId")
     long countByShelterId(@Param("shelterId") Long shelterId);
 
@@ -63,6 +63,6 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
             + "order by r.createdAt desc, r.id desc offset :offset fetch first :limit rows only")
     List<ShelterReportEntity> findLatest(@Param("offset") long offset, @Param("limit") int limit);
 
-    /** The report table's row count without paging (W2-A X-Total-Count —
+    /** The report table's row count without paging (X-Total-Count —
      *  the inherited {@code CrudRepository.count} is the one COUNT). */
 }

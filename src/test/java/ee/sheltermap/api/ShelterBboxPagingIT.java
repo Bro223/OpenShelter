@@ -67,7 +67,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .toList();
     }
 
-    // ---------- backward compatibility (D2) ----------
+    // ---------- backward compatibility ----------
 
     @Test
     void omittedParametersAnswerTheFullListInIdOrder() throws Exception {
@@ -104,7 +104,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[1].name").value("Põhi varjend"));
     }
 
-    // ---------- the viewport (D1, D2) ----------
+    // ---------- the viewport () ----------
 
     @Test
     void viewportKeepsInsideRowsAndIncludesTheEdges() throws Exception {
@@ -119,7 +119,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
         seedShelter("VäljasPõhjas", MAX_LAT + 0.1, 25.0);
         seedShelter("VäljasLäänes", 58.5, MIN_LNG - 0.1);
         seedShelter("VäljasIdas", 58.5, MAX_LNG + 0.1);
-        // inside the box but hidden — D5 still wins
+        // inside the box but hidden — still wins
         Shelter hidden = new Shelter("Peidetud", new GeoPoint(58.5, 25.0),
                 ShelterStatus.INACTIVE, null, ShelterSource.USER);
         shelters.save(hidden);
@@ -145,7 +145,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(9)));
     }
 
-    // ---------- paging (D2) ----------
+    // ---------- paging ----------
 
     @Test
     void pagesTileTheListWithoutOverlapOrSkips() throws Exception {
@@ -199,7 +199,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .isEqualTo(first.getResponse().getContentAsString());
     }
 
-    // ---------- filter-before-page (D2) ----------
+    // ---------- filter-before-page ----------
 
     @Test
     void filtersApplyBeforeTheSlice() throws Exception {
@@ -259,7 +259,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
         assertThat(boxedIds).doesNotContain(outside);
     }
 
-    // ---------- the 400 vocabulary (D1) ----------
+    // ---------- the 400 vocabulary ----------
 
     @Test
     void aPartialBoxIsRefused() throws Exception {
@@ -299,7 +299,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Longitude must be between -180 and 180"));
         // "NaN" binds to Double.NaN — every comparison against it is false,
-        // so the explicit finiteness check is what catches it (D1)
+        // so the explicit finiteness check is what catches it
         mvc.perform(get("/api/shelters")
                         .param("minLat", "NaN").param("minLng", "23.0")
                         .param("maxLat", "59.0").param("maxLng", "27.0"))

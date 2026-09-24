@@ -170,7 +170,7 @@ describe('api-contract: FE response DTO fields vs the committed OpenAPI snapshot
     expect(checkedFields).toBeGreaterThanOrEqual(100);
   });
 
-  it('the W2-B reported-state input (inaccurateReports) is pinned on BOTH shelter DTOs', () => {
+  it('the reported-state input (inaccurateReports) is pinned on BOTH shelter DTOs', () => {
     // The F2 class (reviews/stale-decisions/SD-1): the backend publishes
     // inaccurateReports and the contract note says "the pin/badge logic is
     // the OR of the two" — the FE must declare the field on BOTH the public
@@ -186,7 +186,7 @@ describe('api-contract: FE response DTO fields vs the committed OpenAPI snapshot
     ] as const) {
       expect(
         Object.keys(snapshot.components.schemas[schemaName].properties ?? {}),
-        `${schemaName} no longer sends inaccurateReports — the W2-B OR rule lost its input`,
+        `${schemaName} no longer sends inaccurateReports — the OR rule lost its input`,
       ).toContain('inaccurateReports');
       const body = interfaceBody(models, feInterface);
       expect(body, `interface ${feInterface} not found in core/models.ts`).not.toBeNull();

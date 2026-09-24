@@ -75,13 +75,13 @@
      its border). */
   --color-chrome-border: #2e4d6a;
 
-  /* Crisis CTA (map-crisis-actions D1) — the "Nearest shelter" button on
+  /* Crisis CTA (map-crisis-actions) — the "Nearest shelter" button on
      /map is the ONLY consumer of this token; the orange is the crisis
      affordance and must not become a general accent. White text on
      #bf360c = 5.6:1 (WCAG AA ≥ 4.5; #e8590c and #d9480f fail at 3.6/4.3). */
   --color-cta: #bf360c;
 
-  /* Reported state (shelter-trust-and-reports D6) — the SINGLE "reported"
+  /* Reported state (shelter-trust-and-reports) — the SINGLE "reported"
      affordance: the orange map marker fill AND the "Reported" badge
      (text = --color-bg-surface). Reuses the --color-cta hue family (safety
      orange, ~10–22°) as its own token: the crisis CTA keeps its colour, the
@@ -90,7 +90,7 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
-  /* Community trust family (community-review-queue D5; the verified-green
+  /* Community trust family (community-review-queue; the verified-green
      re-tint, owner decision — GREEN MEANS VERIFIED): ONE value with
      --color-verified. The state rides on the marker shape + the row's
      badge text, never on a second hue. The reported red stays reserved and
@@ -270,10 +270,10 @@
   --content-max-width-wide: 1440px;
 }
 
-/* High-contrast theme (accessibility-and-provenance D1/D2): a token
+/* High-contrast theme (accessibility-and-provenance): a token
    OVERRIDE, not a parallel stylesheet — same token names as :root, values
    re-tuned for low-vision + direct-sunlight use. Component .scss files are
-   untouched (D1). Default: NO attribute on <html> = the light theme above.
+   untouched. Default: NO attribute on <html> = the light theme above.
    The pre-paint script in index.html + ThemeStore (core/) own the attribute
    + the 'openshelter-theme' localStorage key (absent key = light). */
 [data-theme='high-contrast'] {
@@ -309,9 +309,9 @@
      .auth-links links: UA black/blue on the dark surfaces at 1.06/1.14/2.11)
      — the global element colour rules below cover them, not this block.)
      border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
-     Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
+     Adjusted from the starting values: --color-border #5a5a5a FAILED 3:1 vs
      the surface (2.67:1) → raised to #666666 (3.21:1 vs surface, 3.45:1 vs bg);
-     every other D1 starting value passes as-is.
+     every other starting value passes as-is.
      Deliberately below 3:1 (documented): --color-border-subtle #4a4a4a (2.23:1
      vs bg) — the shell header divider is decorative, not a UI-component
      boundary (the header is identified by its content); the banner
@@ -320,7 +320,7 @@
      Status colors stay distinguishable on #0a0a0a by hue AND value: danger
      8.6:1, warning 10.6:1, info 10.8:1, success 11.1:1, error 9.9:1.
 
-     Map context (D1): the MAP is not themed — OSM tiles stay light, so the
+     Map context: the MAP is not themed — OSM tiles stay light, so the
      marker tokens keep their TRUST coding (blue=registry, yellow=the
      unverified community tone, green=the verified family, teal=the selected
      pick — red means "reported" only; the verified-green re-tint moved the green
@@ -330,7 +330,7 @@
      --color-shelter-user keeps the light-theme yellow #ffd400, because the
      SAME tokens double as source/trust-badge TEXT in the
      component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
-     untouched per D1): the yellow doubles as badge text at 9.8:1 on the
+     untouched per): the yellow doubles as badge text at 9.8:1 on the
      dark tint, and it must not drift into the verified green. On the light
      tiles the yellow fill ratio is the documented trade-off every marker
      tone lives with, but the 2px
@@ -371,7 +371,7 @@
   /* Chrome band — theme-invariant: the band is the brand navy in BOTH
      themes, and its text/focus/indicator values already clear the
      theme's floors on #12304a (text 13.57:1, muted 8.80:1, focus 7.18:1,
-     active 7.20:1). Same token names as :root (D1); the values are
+     active 7.20:1). Same token names as:root; the values are
      identical by design, not an oversight. */
   --color-chrome-bg: #12304a;
   --color-chrome-text: #ffffff;
@@ -398,7 +398,7 @@
   --color-verified: #7fd49a;
 
   /* Borders */
-  --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
+  --color-border: #666666; /* raised from its #5a5a5a — see the 3:1 note above */
   --color-border-subtle: #4a4a4a;
 
   /* Status palette (banners + verification level chips) */
@@ -593,7 +593,7 @@ textarea::placeholder {
     }
   }
 
-  /* The ONE textarea idiom (M10): every form textarea — the submit form's
+  /* The ONE textarea idiom: every form textarea — the submit form's
      description, the contributions info reply, the detail page's report
      detail — takes the SAME tokens as .field input above. The UA default
      textarea (monospace, both-axis grabber, `rows`-sized) is replaced:
@@ -643,7 +643,7 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* D5 (map-crisis-actions) touch target: content + 8px vertical padding
+  /* (map-crisis-actions) touch target: content + 8px vertical padding
      lands at ~41px, short of 48 — the explicit min-height makes every .btn
      (and the row buttons that reuse the class) at least a 48px target. */
   min-height: var(--space-48);
@@ -796,7 +796,7 @@ textarea::placeholder {
   color: var(--color-muted);
 }
 
-/* D6 (map-crisis-actions): coordinate/count readouts use tabular figures so
+/* (map-crisis-actions): coordinate/count readouts use tabular figures so
    digits do not shift while they update (submit-page coordinate readout,
    detail-page coordinate line). */
 .num-tabular {
@@ -884,7 +884,7 @@ textarea::placeholder {
   background: var(--color-shelter-user);
 }
 
-/* Reported state (shelter-trust-and-reports D1, W2-B): the single
+/* Reported state (shelter-trust-and-reports): the single
  * "reported" marker affordance — any shelter with an OPEN report of
  * EITHER kind (nonexistentReports OR inaccurateReports > 0) renders
  * this orange regardless of source; trust colours apply only to

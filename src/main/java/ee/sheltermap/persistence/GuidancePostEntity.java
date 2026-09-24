@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code guidance_posts} (V23, crisis-guidance D1/D4).
+ * JPA entity for {@code guidance_posts} (V23, crisis-guidance).
  * The unique slug ({@code uq_guidance_posts_slug} — across drafts and
  * published posts alike), the hero/alt pairing and the
  * status/{@code published_at} pairing are enforced by the database
@@ -34,7 +34,7 @@ public class GuidancePostEntity {
     @Column(nullable = false, length = 255)
     private String title;
 
-    /** The server-sanitized body — the stored value is always the sanitizer's output (D2). */
+    /** The server-sanitized body — the stored value is always the sanitizer's output. */
     @Column(name = "body_html", nullable = false)
     private String bodyHtml;
 
@@ -62,7 +62,7 @@ public class GuidancePostEntity {
     private String heroImportUrl;
 
     /**
-     * The stored manual position (V28, guidance-manual-order D1). NOT
+     * The stored manual position (V28, guidance-manual-order). NOT
      * uniqueness-constrained on purpose — the atomic renumber must not
      * transiently violate a uniqueness check, and the public order
      * contract's tie-breakers make a duplicate harmless. The V28 partial
@@ -82,7 +82,7 @@ public class GuidancePostEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /** Moves on every write (D4) — stamped by the update path of the JPA repository. */
+    /** Moves on every write — stamped by the update path of the JPA repository. */
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 

@@ -33,9 +33,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for the community pulse (M9 — report aggregation UI): the
+ * Unit tests for the community pulse (report aggregation UI): the
  * fresh-window aggregate queries (the plain counts + the recent log over
- * the SAME 2 h read-time window as the occupancy D4 / open-status taps),
+ * the SAME 2 h read-time window as the occupancy / open-status taps),
  * the damping-weighted share (the trust-weighted share that drives the
  * gauge arrow — equal split → 0.5, all-one-way → the extremes, zero data
  * → the null empty state) and the log's privacy (no reporter identity).

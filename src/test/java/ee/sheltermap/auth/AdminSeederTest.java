@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit test for the env-provisioned admin (admin-moderation D1):
+ * Unit test for the env-provisioned admin (admin-moderation):
  * create-if-absent, no-op on partial config, and the never-touch-existing
  * contract. Fast in-memory fakes; the real-Postgres round-trip (login,
  * kind column, restart idempotency) is in {@code AdminSeederIT}.

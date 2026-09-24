@@ -172,7 +172,7 @@ describe('AccountPage', () => {
     expect(element.querySelector('#profile-name')).toBeNull(); // closed form
   });
 
-  // ---- admin badge (admin-moderation D5) ------------------------------------
+  // ---- admin badge (admin-moderation) ------------------------------------
 
   it('a regular user sees NO Admin badge next to the name', async () => {
     const { element } = await open();
@@ -556,7 +556,7 @@ describe('AccountPage', () => {
     expect(element.querySelector('#change-email-code')).toBeNull();
   });
 
-  it('an over-length new email is rejected by the inline validator, no 400 shown (M6)', async () => {
+  it('an over-length new email is rejected by the inline validator, no 400 shown ', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('a'.repeat(250) + '@example.ee'); // 261 > 255
 
@@ -570,7 +570,7 @@ describe('AccountPage', () => {
     expect(field?.textContent).toContain('Email must be 255 characters or fewer.');
   });
 
-  it('an over-length new phone is rejected by the inline validator, no 400 shown (M6)', async () => {
+  it('an over-length new phone is rejected by the inline validator, no 400 shown ', async () => {
     const { page, element, fixture } = await open();
     page.newPhone.setValue('+3725' + '0'.repeat(70)); // 74 > 64
 
@@ -583,7 +583,7 @@ describe('AccountPage', () => {
     expect(field?.textContent).toContain('Phone must be 64 characters or fewer.');
   });
 
-  it('the email maxLength boundary is exactly 255, and the input pins maxlength="255" (M6)', async () => {
+  it('the email maxLength boundary is exactly 255, and the input pins maxlength="255" ', async () => {
     const { page, element } = await open();
     const input = element.querySelector('#change-email-new') as HTMLInputElement;
     expect(input.getAttribute('maxlength')).toBe('255');
@@ -600,7 +600,7 @@ describe('AccountPage', () => {
     expect(page.newEmail.hasError('maxlength')).toBe(true);
   });
 
-  it('a 256-char new email is rejected inline, the request never goes out (M6)', async () => {
+  it('a 256-char new email is rejected inline, the request never goes out ', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('a'.repeat(245) + '@example.ee'); // 256 > 255
 
@@ -613,7 +613,7 @@ describe('AccountPage', () => {
     expect(field?.textContent).toContain('Email must be 255 characters or fewer.');
   });
 
-  it('the phone maxLength boundary is exactly 64, and the input pins maxlength="64" (M6)', async () => {
+  it('the phone maxLength boundary is exactly 64, and the input pins maxlength="64" ', async () => {
     const { page, element, fixture } = await open();
     const input = element.querySelector('#change-phone-new') as HTMLInputElement;
     expect(input.getAttribute('maxlength')).toBe('64');
@@ -631,7 +631,7 @@ describe('AccountPage', () => {
     expect(element.querySelector('#change-phone-code')).not.toBeNull();
   });
 
-  it('a 65-char new phone is rejected inline, the request never goes out (M6)', async () => {
+  it('a 65-char new phone is rejected inline, the request never goes out ', async () => {
     const { page, element, fixture } = await open();
     page.newPhone.setValue('+3725' + '0'.repeat(60)); // 65 > 64
 
@@ -937,7 +937,7 @@ describe('AccountPage', () => {
     });
   });
 
-  describe('delete account (M4 slice 2)', () => {
+  describe('delete account ', () => {
     it('the provisioned admin gets no delete controls — only the explanation', async () => {
       // The env-provisioned administrator (kind ADMIN — the profile's
       // isAdmin): the type-to-confirm input and the delete button are
@@ -1026,16 +1026,16 @@ describe('AccountPage', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
-// overflow on the proof notes (wave 15 changed their boundary today — the
+// 360px viewport (mobile-responsive-polish): no page-level horizontal
+// overflow on the proof notes (changed their boundary today — the
 // 3px left accent border is gone, the subtle background fill is the note's
 // boundary now; the boundary itself is pinned in design-tokens.spec.ts,
 // this is the 360px half). jsdom cannot measure a 360px viewport (no layout
-// engine), so — like the M13 pins in shelter-detail-page.spec.ts — the
+// engine), so — like the pins in shelter-detail-page.spec.ts — the
 // mechanism is pinned against the stylesheet. 360px viewport − 2 × 20px
 // .shell-body padding (page-shell.scss) = 320px of content on /account.
 // ---------------------------------------------------------------------------
-describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+describe('no page-level horizontal overflow at 360px ', () => {
   it('the proof note is a full-width wrapping block — no fixed width, no nowrap: the channel-proof line wraps inside the 320px content column instead of outgrowing the viewport', () => {
     const scss = readFileSync(
       `${process.cwd()}/src/app/features/account/account-page.scss`,

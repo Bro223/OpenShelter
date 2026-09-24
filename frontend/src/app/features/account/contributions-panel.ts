@@ -27,7 +27,7 @@ import { communityBadgeClass as communityBadgeClassShared } from '../../shared/s
  * caller's own shelters (list/edit/delete). The reviews list is
  * gone with the review model (owner decision).
  *
- * Edit = the shared /submit form in edit mode (M5): the Edit entry is a
+ * Edit = the shared /submit form in edit mode: the Edit entry is a
  * link to /submit?edit=<id> — the SAME full creation form prefilled with
  * the row's current values (same fields, same location capture modes).
  * The account area no longer hosts its own reduced inline edit form;
@@ -56,7 +56,7 @@ export class ContributionsPanel implements OnInit {
    *  data is NOT locale-scoped — no re-fetch. */
   readonly i18n = inject(I18nService);
   /** The active route: the edit entry builds its /submit?edit=<id> UrlTree
-   *  against this route's snapshot (M5). */
+   * against this route's snapshot. */
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -160,14 +160,14 @@ export class ContributionsPanel implements OnInit {
     });
   }
 
-  // ---- shelter edit: the shared /submit form (M5) ---------------------------
-  // The inline edit form is gone (M5): Edit is a routerLink to
+  // ---- shelter edit: the shared /submit form ---------------------------
+  // The inline edit form is gone: Edit is a routerLink to
   // /submit?edit=<id> — the full creation form in edit mode (same fields,
   // same location capture modes), prefilled with the row's values. The
   // account area is no longer where shelter edits happen.
 
   /**
-   * The Edit entry (M5): the shared /submit form in edit mode, one UrlTree
+   * The Edit entry: the shared /submit form in edit mode, one UrlTree
    * per row. The UrlTree form is required here: this Angular version's
    * routerLink input is `string | string[] | UrlTree`, and NEITHER plain
    * form can carry query params — the array form misreads an options object
@@ -212,7 +212,7 @@ export class ContributionsPanel implements OnInit {
 
   // -------------------------------------------------------------------------
   // Shelter rows: view (routerLink in the template), edit (routerLink to
-  // the shared /submit?edit=<id> form, M5), delete
+  // the shared /submit?edit=<id> form), delete
   // -------------------------------------------------------------------------
 
   /** Step 1 of the two-step delete: arm the confirm strip. */

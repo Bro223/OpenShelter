@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One media-library asset (crisis-guidance D7): an uploaded image stored
+ * One media-library asset (crisis-guidance): an uploaded image stored
  * under a server-generated, non-guessable {@code storedFilename} (32 hex
  * + the extension implied by the sniffed type) in the configured upload
  * directory.

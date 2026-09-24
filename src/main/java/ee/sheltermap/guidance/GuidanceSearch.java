@@ -8,7 +8,7 @@ import java.util.Locale;
  * post/translation body and the case-insensitive substring match over
  * the title + stripped body.
  *
- * <p>Extracted from {@link GuidanceService} (W3-A): these static
+ * <p>Extracted from {@link GuidanceService}: these static
  * helpers were the de-facto cross-feature utility API of the guidance
  * service — the admin list's search (api.AdminGuidanceController) used
  * them, which is why a controller outside the feature reached into the
@@ -22,14 +22,14 @@ import java.util.Locale;
  */
 public final class GuidanceSearch {
 
-    /** The admin search-term bound (admin-guidance-search): a present q over this is a 400. */
+    /** The admin search-term bound: a present q over this is a 400. */
     public static final int MAX_SEARCH_LENGTH = 200;
 
     private GuidanceSearch() {
     }
 
     /**
-     * The body's searchable text (admin-guidance-search): every HTML tag
+     * The body's searchable text: every HTML tag
      * stripped, the remaining whitespace collapsed to single spaces, the
      * ends trimmed. {@code <p>hello</p>} -> "hello" — a search for markup
      * is not a feature (the sanitizer keeps only the allowed tags, so a
@@ -43,7 +43,7 @@ public final class GuidanceSearch {
     }
 
     /**
-     * The admin list's search match (admin-guidance-search): a case-
+     * The admin list's search match: a case-
      * insensitive SUBSTRING over the title and the tag-stripped body — no
      * ranking, no fuzzy matching. A blank/absent needle matches everything
      * (no filter: the public {@code q}-less behaviour, never a 400).

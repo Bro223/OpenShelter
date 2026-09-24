@@ -159,7 +159,7 @@ public class JpaUserRepository implements UserRepository {
         // for the canonical form.
         // REGISTERED and ADMIN rows are returned (kind is restored by the
         // mapper): the admin logs in through the normal /auth/login
-        // (admin-moderation D1), and the registration pre-check must see
+        // (admin-moderation), and the registration pre-check must see
         // the admin's email as in use (409), not as free. GUEST rows have
         // no email to begin with.
         if (email == null || email.isBlank()) {
@@ -252,7 +252,7 @@ public class JpaUserRepository implements UserRepository {
     @Override
     @Transactional(readOnly = true)
     public List<User> findAccountPage(long offset, int limit) {
-        // The tab's population is REGISTERED + ADMIN (W2-A): GUEST rows are
+        // The tab's population is REGISTERED + ADMIN: GUEST rows are
         // excluded in the SQL, so a page never loads — and never decrypts
         // — the whole account population. One batched claims query for the
         // page (the findAll idiom).

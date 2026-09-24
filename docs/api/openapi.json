@@ -181,7 +181,7 @@
             "type" : "boolean"
           },
           "inaccurateReports" : {
-            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — W2-A: EITHER report kind drives the reported state. Open means not dismissed (a dismissed report stops counting).",
+            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — EITHER report kind drives the reported state. Open means not dismissed (a dismissed report stops counting).",
             "format" : "int32",
             "type" : "integer"
           },
@@ -1132,7 +1132,7 @@
         "type" : "object"
       },
       "RegisterRequest" : {
-        "description" : "Registration payload (03-auth.puml). No national ID code is collected (remove-national-id M1).",
+        "description" : "Registration payload (03-auth.puml). No national ID code is collected (remove-national-id).",
         "properties" : {
           "email" : {
             "description" : "The account e-mail — a login contact and the e-mail verification channel.",
@@ -1189,7 +1189,7 @@
           },
           "communityPulse" : {
             "$ref" : "#/components/schemas/CommunityPulse",
-            "description" : "DETAIL-read only (M9 community pulse): the fresh (≤ 2 h) report aggregates behind the detail page's gauges + recent log — the plain fresh counts, the trust-weighted shares (the gauge arrow's position) and the anonymized recent-report log. Null on every other projection (public list, /mine, admin)."
+            "description" : "DETAIL-read only (community pulse): the fresh (≤ 2 h) report aggregates behind the detail page's gauges + recent log — the plain fresh counts, the trust-weighted shares (the gauge arrow's position) and the anonymized recent-report log. Null on every other projection (public list, /mine, admin)."
           },
           "createdAt" : {
             "format" : "date-time",
@@ -1209,7 +1209,7 @@
             "type" : "boolean"
           },
           "inaccurateReports" : {
-            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — the community's 'this data is wrong' reports, W2-A: EITHER report kind turns the pin red when open. Open means not dismissed (a dismissed report stops counting). Additive to nonexistentReports — that field keeps its meaning; the pin/badge logic is the OR of the two.",
+            "description" : "The open 'inaccurate information' subset of the community reports (WRONG_LOCATION + OTHER; 0 when none) — the community's 'this data is wrong' reports, EITHER report kind turns the pin red when open. Open means not dismissed (a dismissed report stops counting). Additive to nonexistentReports — that field keeps its meaning; the pin/badge logic is the OR of the two.",
             "format" : "int32",
             "type" : "integer"
           },
@@ -2555,7 +2555,7 @@
             "description" : "Unexpected server error — the uniform error body."
           }
         },
-        "summary" : "The M3 throttle-abuse alerts",
+        "summary" : "The throttle-abuse alerts",
         "tags" : [ "Admin moderation" ],
         "x-admin-only" : {
           "value" : "true"
@@ -7580,7 +7580,7 @@
     },
     "/api/shelters/mine" : {
       "get" : {
-        "description" : "Author-scoped read (Bearer JWT), ALL statuses (D5) — authenticated even though the rest of /api/shelters/** is public.",
+        "description" : "Author-scoped read (Bearer JWT), ALL statuses — authenticated even though the rest of /api/shelters/** is public.",
         "operationId" : "mine",
         "responses" : {
           "200" : {
@@ -9597,6 +9597,9 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
+    "name" : "Data source",
+    "description" : "The public provenance read (official-dataset-csv): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
+  }, {
     "name" : "Admin guidance",
     "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably)."
   }, {
@@ -9632,8 +9635,5 @@
   }, {
     "name" : "Admin site texts",
     "description" : "The admin-editable popup/header/footer texts (site_texts). Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup (never a role claim in the token). Anonymous → 401; non-admin → 403; a disallowed key/locale/value/URL → 400."
-  }, {
-    "name" : "Data source",
-    "description" : "The public provenance read (official-dataset-csv M5): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
   } ]
 }

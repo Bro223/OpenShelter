@@ -23,7 +23,7 @@ public record DataExportResponse(
     /**
      * The account's identity anchor + verified levels. {@code phone} is
      * {@code null} for the provisioned admin (no phone route —
-     * admin-moderation D1).
+     * admin-moderation).
      */
     public record ExportedProfile(String name, String email, String phone,
                                   List<VerificationLevel> levels) {

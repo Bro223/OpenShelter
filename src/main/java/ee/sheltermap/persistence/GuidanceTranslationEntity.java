@@ -38,7 +38,7 @@ public class GuidanceTranslationEntity {
     @Column(nullable = false, length = 255)
     private String title;
 
-    /** The server-sanitized body for this locale (D2). */
+    /** The server-sanitized body for this locale. */
     @Column(name = "body_html", nullable = false)
     private String bodyHtml;
 

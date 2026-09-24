@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The P2-9 thumbnail derivative renderer: the width set, the same-format
+ * The thumbnail derivative renderer: the width set, the same-format
  * policy (JPEG→JPEG, PNG→PNG — the JDK has no WebP), the no-upscale rule,
  * the undecodable-body skip, the magic-byte GATE on the encoder output
  * (the guard 6 extension), and the derived name contract. Fixtures are
@@ -45,7 +45,7 @@ class MediaDerivativesTest {
         return out.toByteArray();
     }
 
-    // ---- EXIF orientation (Wave 13: the portrait-upload distortion) -------
+    // ---- EXIF orientation (the portrait-upload distortion) -------
     //
     // A phone portrait photo stores LANDSCAPE sensor pixels plus an EXIF
     // Orientation tag (the browser rotates the ORIGINAL at render time).

@@ -19,7 +19,7 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
      *  post lives in another locale both answer empty, like an unknown slug. */
     Optional<GuidancePostEntity> findBySlugAndStatusAndLocale(String slug, GuidanceStatus status, String locale);
 
-    /** Every post, drafts included, in the stored manual order (the admin list, D2). */
+    /** Every post, drafts included, in the stored manual order (the admin list). */
     List<GuidancePostEntity> findAllByOrderBySortOrderAscIdDesc();
 
     /**
@@ -32,17 +32,17 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
             + "ORDER BY sort_order ASC, published_at DESC NULLS LAST, id DESC", nativeQuery = true)
     List<GuidancePostEntity> findAllInStoredGlobalOrder();
 
-    /** The posts using one asset as their hero (D8); the id tie-break keeps the 409 list stable. */
+    /** The posts using one asset as their hero; the id tie-break keeps the 409 list stable. */
     List<GuidancePostEntity> findByHeroImageIdOrderByUpdatedAtDescIdDesc(Long heroImageId);
 
     /** One row per referenced asset: [heroImageId, post count] — the batched
-     *  reused-by count / in-use check (D8, no N+1); unreferenced assets are absent. */
+     * reused-by count / in-use check (no N+1); unreferenced assets are absent. */
     @Query("select p.heroImageId, count(p) from GuidancePostEntity p "
             + "where p.heroImageId is not null group by p.heroImageId")
     List<Object[]> countsByHeroImageId();
 
     /** The highest stored manual position, or null when there are no posts
-     *  (guidance-manual-order D4: create appends max + 1). */
+     * (guidance-manual-order: create appends max + 1). */
     @Query("select max(p.sortOrder) from GuidancePostEntity p")
     Integer maxSortOrder();
 }

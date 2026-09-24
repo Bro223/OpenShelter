@@ -12,7 +12,7 @@
       <div class="shelter-detail__title-row">
         <h1 class="page-title">{{ shelter()?.name ?? ('detail.titleFallback' | t) }}</h1>
         @if (shelter(); as s) {
-          <!-- Source/trust badge (community-review-queue D5): registry rows
+          <!-- Source/trust badge (community-review-queue): registry rows
                say which registry; USER rows say their trust state (NEW =
                "Newly added" on the unverified-yellow badge pair, CONFIRMED
                = "Community-checked" on the verified green tint; the badge
@@ -32,7 +32,7 @@
           @if (isPrivateLocation(s)) {
             <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
           }
-          <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
+          <!-- Trust badges (shelter-trust-and-reports): same copy rules
                as the map list row — reported /
                fresh-CLOSED (amber; fresh OPEN renders no badge) /
                occupancy. -->
@@ -67,14 +67,14 @@
           <p class="community-warning">{{ 'account.contrib.inaccurate' | t }}</p>
         }
         @if (isPrivateLocation(s)) {
-          <!-- The private-home declaration (D7): resident-offered, not an
+          <!-- The private-home declaration: resident-offered, not an
                official facility. Every PRIVATE row, on every visit. -->
           <p class="private-note">{{ 'shelter.privateNote' | t }}</p>
         }
       }
       @if (shelter(); as s) {
         @if (hasCoordinates(s)) {
-          <!-- Navigate actions (map-crisis-actions D3): small secondary
+          <!-- Navigate actions (map-crisis-actions): small secondary
                links near the name — they leave the app to the phone's own
                navigation app, they do not navigate within it, and they do
                not compete with the back link. The visible labels are the
@@ -121,13 +121,13 @@
       }
       @if (shelter(); as s) {
         @if (hasCoordinates(s)) {
-          <!-- The coordinate line (D6): .num-tabular keeps the figures from
+          <!-- The coordinate line: .num-tabular keeps the figures from
                shifting (the submit page's readout uses the same class). -->
           <p class="shelter-detail__coords num-tabular">{{ coordinateLine(s) }}</p>
         }
       }
       @if (distanceKm() !== null) {
-        <!-- Distance honesty (location-navigation D6): the
+        <!-- Distance honesty (location-navigation): the
              straight line from the user's browser position — never a
              walking-route or official claim. -->
         <p class="shelter-detail__distance-line num-tabular" role="status">
@@ -137,7 +137,7 @@
         <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
       }
       @if (shelter(); as s) {
-        <!-- Last verified: the per-entry server-derived stamp (M8:
+        <!-- Last verified: the per-entry server-derived stamp (
              registry rows name the registry the check came from). For NEW
              community rows the line IS the not-yet-verified signal ("Newly
              added X d ago — not yet verified"). .num-tabular keeps the
@@ -189,7 +189,7 @@
         </section>
       }
 
-      <!-- Report how full (shelter-trust-and-reports D4/D6): three large
+      <!-- Report how full (shelter-trust-and-reports): three large
            band buttons, one tap, latest-wins. The user's current band is
            pre-selected from yourOccupancyBand; the current aggregate +
            recency render ONLY while fresh (the null block shows nothing).
@@ -197,7 +197,7 @@
            redirect vocabulary. -->
       <section class="detail-section" aria-labelledby="occupancy-heading">
         <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
-        <!-- Community pulse (M9): the how-full gauge moved to the shared
+        <!-- Community pulse: the how-full gauge moved to the shared
              bottom container directly above the recent log (placement
              pass) — this section keeps the band picker. -->
         @if (auth.initialized() && auth.authenticated()) {
@@ -247,7 +247,7 @@
            picker is where the signal lives. -->
       <section class="detail-section" aria-labelledby="open-status-heading">
         <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
-        <!-- Community pulse (M9): the open/closed gauge moved to the
+        <!-- Community pulse: the open/closed gauge moved to the
              shared bottom container directly above the recent log
              (placement pass) — this section keeps the state picker. -->
         @if (auth.initialized() && auth.authenticated()) {
@@ -288,7 +288,7 @@
         }
       </section>
 
-      <!-- Report this shelter (shelter-trust-and-reports D1/D6): the typed
+      <!-- Report this shelter (shelter-trust-and-reports): the typed
            report (verified only, one per type). The factual types
            (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
       <section class="detail-section" aria-labelledby="report-shelter-heading">
@@ -374,7 +374,7 @@
         }
       </section>
 
-      <!-- Community pulse (M9): the two gauges, moved to the bottom of
+      <!-- Community pulse: the two gauges, moved to the bottom of
            the page — DIRECTLY above the recent log they summarise
            (owner placement decision; the pickers stay in their own
            sections above). The weighted shares (server-derived) drive
@@ -471,7 +471,7 @@
         }
       </div>
 
-      <!-- Report log (M9 community pulse): the merged CHRONOLOGICAL log —
+      <!-- Report log (community pulse): the merged CHRONOLOGICAL log —
            what was reported + when, newest first, capped server-side,
            with NO 2-hour window (the gauges above are the windowed
            tally; the heading + the window line say so). NO reporter

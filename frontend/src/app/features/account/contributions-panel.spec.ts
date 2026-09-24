@@ -157,13 +157,13 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain('Community Cellar');
   });
 
-  // ---- shelter rows: edit (M5 — the shared /submit form) --------------------
+  // ---- shelter rows: edit (the shared /submit form) --------------------
 
   it('Edit is a link to the shared /submit form in edit mode (?edit=<id>) — no inline form', async () => {
     shelters.mine.mockResolvedValue([SHELTER_ROW]);
     const { element } = await open();
 
-    // The inline edit form is gone (M5): no form inputs, no Save/Cancel.
+    // The inline edit form is gone: no form inputs, no Save/Cancel.
     expect(element.querySelector('#contrib-name')).toBeNull();
     expect(element.querySelector('.contrib-edit')).toBeNull();
     // The Edit entry opens the SAME creation form prefilled with the row —
@@ -450,7 +450,7 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).not.toContain('Admin note');
   });
 
-  it('a marked row carries the single-sourced inaccurate warning line (M10 slice 4)', async () => {
+  it('a marked row carries the single-sourced inaccurate warning line ', async () => {
     shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, inaccurate: true }]);
     const { element } = await open();
 

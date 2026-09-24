@@ -14,7 +14,7 @@ import java.time.Clock;
 import java.util.Objects;
 
 /**
- * The env-provisioned admin (admin-moderation D1): an {@link ApplicationRunner}
+ * The env-provisioned admin (admin-moderation): an {@link ApplicationRunner}
  * that creates the ADMIN-kind account at startup — and ONLY then.
  *
  * <p>Semantics (create-if-absent, the whole contract):
@@ -42,7 +42,7 @@ import java.util.Objects;
  *
  * <p>Login is the normal {@code POST /auth/login} (emailOrPhone + password)
  * — no dedicated endpoint, no backdoor path, same JWT shape as every other
- * user (principal = userId, NO role claim — D2). The in-app account surface
+ * user (principal = userId, NO role claim). The in-app account surface
  * REFUSES to mutate this account — deletion, suspension, password reset
  * and contact-detail change all answer 403 (it is the deployment's access
  * path; the env vars own its identity). De-provisioning = remove the env

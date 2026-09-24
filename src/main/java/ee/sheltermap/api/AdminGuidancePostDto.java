@@ -5,12 +5,12 @@ import ee.sheltermap.domain.GuidanceStatus;
 import java.time.Instant;
 
 /**
- * The admin guidance post (crisis-guidance D3) — the full field set
+ * The admin guidance post (crisis-guidance) — the full field set
  * behind {@code GET /admin/guidance} (every post, drafts included, in the
  * stored manual order) and {@code GET /admin/guidance/{id}}.
  *
  * <p>{@code bodyHtml} is the stored (sanitized) HTML — the editor
- * round-trips exactly what is stored (D2/D9). The hero fields are the
+ * round-trips exactly what is stored. The hero fields are the
  * full reference: {@code heroImageId} (the media-library picker's key),
  * the serving {@code heroImageUrl} and the stored alt — all three
  * {@code null} when the post has no hero. {@code heroImportUrl} is the
@@ -34,11 +34,11 @@ import java.time.Instant;
  * columns — is always {@code homeLocale}.
  *
  * <p>{@code sortOrder} is the post's stored manual position
- * (guidance-manual-order D1): the shared slot every translation of the
+ * (guidance-manual-order): the shared slot every translation of the
  * post sorts by (the public index orders by it ascending, with the
  * {@code publishedAt}/{@code id} tie-breakers).
  *
- * <p>{@code heroImageSrcset} (P2-9, additive) is the hero's derivative
+ * <p>{@code heroImageSrcset} (additive) is the hero's derivative
  * {@code srcset} string — one {@code w} descriptor per derivative that
  * EXISTS on disk, in ascending width order, or {@code null} when the post's
  * asset has none (a WebP original, a pre-feature upload) — the slot then
@@ -55,7 +55,7 @@ public record AdminGuidancePostDto(
         String homeLocale,
         GuidanceStatus status,
         boolean pinned,
-        /** The stored manual position (the shared slot, guidance-manual-order D1). */
+        /** The stored manual position (the shared slot, guidance-manual-order). */
         int sortOrder,
         Long heroImageId,
         String heroImageUrl,
@@ -64,7 +64,7 @@ public record AdminGuidancePostDto(
         Long createdBy,
         Instant createdAt,
         Instant updatedAt,
-        /** P2-9: the hero's derivative {@code srcset} (one {@code w} descriptor per derivative on disk); null = plain src. */
+        /** the hero's derivative {@code srcset} (one {@code w} descriptor per derivative on disk); null = plain src. */
         String heroImageSrcset,
         /** The hero import that FAILED at the save producing this DTO (write responses only —
          *  list/detail reads and successful saves answer null): the post was still stored, the

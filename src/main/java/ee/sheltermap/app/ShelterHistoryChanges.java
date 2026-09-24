@@ -11,7 +11,7 @@ import java.util.Objects;
 
 /**
  * The compact {@code changes} JSON of a shelter_history EDITED row
- * (moderation-dashboard-completion, D4):
+ * (moderation-dashboard-completion):
  * {@code {"field": [old, new], ...}} over exactly the fields that MOVED on a
  * PUT, in canonical field order (name, description, capacity, latitude,
  * longitude, locationKind).

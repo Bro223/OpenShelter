@@ -14,7 +14,7 @@ import java.time.Instant;
 
 /**
  * JPA entity for {@code shelter_history} (V18,
- * moderation-dashboard-completion, D4) — one immutable row per
+ * moderation-dashboard-completion) — one immutable row per
  * USER-shelter lifecycle event, written in the same transaction as the
  * event it records.
  */

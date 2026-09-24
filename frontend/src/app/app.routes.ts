@@ -13,7 +13,7 @@ import { MapPage } from './features/map/map-page';
  *  - /map is the Leaflet browse map; /shelters/:id the public detail page
  *    (marker/row navigation lands there; the trust-layer controls branch on
  *    auth/verification in-component), /submit (AuthGuard + VerifiedGuard)
- *    — and /submit?edit=<id> (M5, shelter editing reuses the add form):
+ * — and /submit?edit=<id> (shelter editing reuses the add form):
  *    the SAME form in an explicit edit mode. A query param, not a new
  *    route, keeps ONE route entry + ONE lazy chunk + the same guards, and
  *    the creation path /submit is literally unchanged (no param). The
@@ -98,7 +98,7 @@ export const routes: Routes = [
     data: { title: 'title.shelterDetail' },
     canActivate: [titleGuard],
   },
-  // Public: the crisis-guidance index (crisis-guidance D4/D6) — permit-all,
+  // Public: the crisis-guidance index (crisis-guidance) — permit-all,
   // the top-nav item lands here.
   {
     path: 'blog',
@@ -109,7 +109,7 @@ export const routes: Routes = [
     canActivate: [titleGuard],
   },
   // Public: one published guidance post by slug — a draft slug and an
-  // unknown slug answer the SAME 404 (D4, the page renders not-found).
+  // unknown slug answer the SAME 404 (the page renders not-found).
   {
     path: 'blog/:slug',
     // Lazy (bundle budget): a post is only needed after an index click.
@@ -119,7 +119,7 @@ export const routes: Routes = [
     canActivate: [titleGuard],
   },
   // Verified accounts only — mirrors the backend 403 (design decision 5).
-  // /submit?edit=<id> (M5): this same component in edit mode — see the
+  // /submit?edit=<id>: this same component in edit mode — see the
   // route-map comment above; the ?edit param is read by the page itself
   // (ActivatedRoute), no route change.
   {
@@ -131,7 +131,7 @@ export const routes: Routes = [
     data: { title: 'title.submit' },
     canActivate: [titleGuard, authGuard, verifiedGuard],
   },
-  // Admin-kind only (admin-moderation D2): adminGuard sends BOTH anonymous
+  // Admin-kind only (admin-moderation): adminGuard sends BOTH anonymous
   // and authenticated non-admins home; the backend re-checks kind per
   // request, so this is UX, not enforcement.
   {

@@ -18,14 +18,14 @@ import java.util.Objects;
  * layer's auto-hide, the community-report auto-hide and the admin
  * hide/restore move it.
  * {@code reviewStatus} is the community trust state
- * (community-review-queue v2 D1/D2) — a separate dimension: there is no
+ * (community-review-queue v2) — a separate dimension: there is no
  * blocking queue, community rows publish immediately as NEW and move to
  * CONFIRMED automatically (a positive community report from a
  * non-submitter) or via the rare admin CONFIRM; REJECT hides via
  * {@code status = INACTIVE}. Defaults {@code CONFIRMED}, matching the
  * V11 backfill for registry rows; the submission service sets NEW on new
  * USER rows. {@code locationKind} is the submitter's private-home
- * declaration (D7).
+ * declaration.
  */
 public class Shelter {
 
@@ -46,7 +46,7 @@ public class Shelter {
     /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
     private Long createdBy;
     /**
-     * Write-time trust snapshot (V31, W2-A part 2 of the erasure fix): the
+     * Write-time trust snapshot (V31, part 2 of the erasure fix): the
      * submitter's verified standing AS AT THE MOMENT OF SUBMISSION —
      * {@code true} when the submitting account had at least one active
      * verification claim when it wrote the row, {@code false} when it did
@@ -66,7 +66,7 @@ public class Shelter {
      */
     private boolean autoHideDisarmed;
     /**
-     * Community trust state (community-review-queue v2 D1/D2). Defaults
+     * Community trust state (community-review-queue v2). Defaults
      * {@code CONFIRMED} — matching the V11 backfill for registry rows
      * (official data), so registry imports keep their exact state;
      * only the submission service creates a NEW row.
@@ -74,7 +74,7 @@ public class Shelter {
     private ReviewStatus reviewStatus = ReviewStatus.CONFIRMED;
     /** The admin's note (the REJECT reason); {@code null} while nothing is said. */
     private String reviewNote;
-    /** The submitter's private-home declaration (community-review-queue v2 D7). */
+    /** The submitter's private-home declaration (community-review-queue v2). */
     private LocationKind locationKind = LocationKind.PUBLIC;
     /**
      * "Mark inaccurate" stamp (moderation-dashboard-completion):

@@ -70,7 +70,7 @@ export class AuthStore {
   readonly levels = signal<VerificationLevel[]>([]);
 
   /**
-   * True for the ADMIN-kind account (admin-moderation D1/D2): adopted from
+   * True for the ADMIN-kind account (admin-moderation): adopted from
    * the fetched profile (`isAdmin` is always present — false for every
    * regular user) and reset to false with the profile. The kind is the
    * truth server-side (fresh lookup per /admin/* request, never a JWT

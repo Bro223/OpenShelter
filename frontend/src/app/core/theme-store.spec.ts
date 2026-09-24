@@ -29,7 +29,7 @@ function blackYellowApplied(): boolean {
   );
 }
 
-describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
+describe('ThemeStore (toggle + persistence, no flash)', () => {
   let store: ThemeStore;
 
   beforeEach(() => {

@@ -13,7 +13,7 @@ import java.util.Optional;
 
 /**
  * JPA implementation of {@link ShelterOccupancyRepository} (approach B).
- * The upsert (one live report per user per shelter, D4) is a
+ * The upsert (one live report per user per shelter) is a
  * find-then-save on the unique {@code (shelter_id, user_id)} constraint.
  */
 @Repository

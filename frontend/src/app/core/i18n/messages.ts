@@ -199,7 +199,7 @@ export interface Messages {
    *  triangle at one confirmed channel, a circle at two or more. */
   'map.legend.partialVerified': string;
   'map.legend.fullVerified': string;
-  /** The legend filter's affordance line (wave 7 — the legend IS the
+  /** The legend filter's affordance line (the legend IS the
    *  filter): the one-line mechanic the pin-tone toggle entries implement.
    *  It doubles as the accessible description of every toggle entry
    *  (aria-describedby), so the how is text, never a colour cue. */
@@ -327,7 +327,7 @@ export interface Messages {
   'detail.cancel': string;
   'detail.verifyAccount': string;
 
-  // --- community pulse (M9 — report aggregation UI): the gauge end labels
+  // --- community pulse (report aggregation UI): the gauge end labels
   // double as the recent-log kind labels (one set of short state nouns),
   // the log entry line ("a community member reported: {kind}" — privacy:
   // never who) and the count/empty-state copy. {open}/{closed}/
@@ -388,7 +388,7 @@ export interface Messages {
   'shelter.status.closed': string;
   'shelter.status.open': string;
   'shelter.status.openNoReports': string;
-  /** Hedged band heads (D4) — exactly one fresh report (a lone claim).
+  /** Hedged band heads — exactly one fresh report (a lone claim).
    *  The FIRM heads (two+) are detail.band.* above, byte-identical EN. */
   'shelter.occupancy.hedged.space': string;
   'shelter.occupancy.hedged.gettingFull': string;
@@ -405,7 +405,7 @@ export interface Messages {
   'shelter.recency.date': string;
   /** {count} is the NON_EXISTENT report subset that drives the badge. */
   'shelter.reportedBadge': string;
-  /** The private-home declaration badge (community-review-queue D7). */
+  /** The private-home declaration badge (community-review-queue). */
   'shelter.privateBadge': string;
   /** The detail-page note for PRIVATE rows: resident-offered, not an
    *  official facility. */
@@ -437,7 +437,7 @@ export interface Messages {
   'shelter.submitterVerification.full': string;
   'shelter.distance.meters': string;
   'shelter.distance.kilometers': string;
-  // Report-flow notices (shelter-trust-and-reports D6; the dampened
+  // Report-flow notices (shelter-trust-and-reports; the dampened
   // variant is community-self-moderation).
   'shelter.notice.reportSubmitted': string;
   'shelter.notice.reportSubmittedDamped': string;
@@ -698,7 +698,7 @@ export interface Messages {
   'verify.alreadyVerified': string;
   'verify.verifiedNotice': string;
 
-  // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
+  // --- crisis guidance (/blog — crisis-guidance). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.
   'guidance.title': string;
   'guidance.subtitle': string;
@@ -742,7 +742,7 @@ export interface Messages {
   'guidance.pageOutOfRange': string;
   'guidance.pageFirst': string;
 
-  // --- admin: guidance tab + editor + media library (crisis-guidance D8).
+  // --- admin: guidance tab + editor + media library (crisis-guidance).
   // The admin surface is i18n'd from the guidance tabs on: every string
   // below runs through the `t` pipe; post TITLES/BODIES are admin copy
   // (rendered verbatim), never catalog keys.
@@ -901,7 +901,7 @@ export interface Messages {
   /** The chip rendering every row (dismissed included, dimmed). */
   'admin.reports.filter.all': string;
   /** The chip rendering the OPEN scope only (the dismissed verdicts out).
-   *  The scope the pin counts express (W2-A). */
+   * The scope the pin counts express. */
   'admin.reports.filter.open': string;
   /** The empty state of the OPEN scope (the filter hides the dismissed
    *  rows — distinct from the unfiltered "no reports yet"). */
@@ -916,7 +916,7 @@ export interface Messages {
   /** The audit trail's out-of-range page notice (same shape). */
   'admin.audit.pageOutOfRange': string;
 
-  // alerts tab: the M3 abuse-limits queue.
+  // alerts tab: the abuse-limits queue.
   'admin.alerts.loading': string;
   'admin.alerts.empty': string;
   /** The table region aria-label. */
@@ -1030,7 +1030,7 @@ export interface Messages {
   'admin.guidance.col.actions': string;
   /** Accessible name of the keyboard-focusable posts table region. */
   'admin.guidance.posts.aria': string;
-  // Manual ordering (guidance-manual-order D6): the hint above the list
+  // Manual ordering (guidance-manual-order): the hint above the list
   // and the per-row move buttons (visible labels + the accessible names
   // that name the post and the direction — a screen reader announces
   // "Move {post} to the top").
@@ -1076,7 +1076,7 @@ export interface Messages {
   'admin.guidance.success.translationDeleted': string;
 
   // guidance editor (the create/edit form). The body is a plain textarea
-  // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance D9 is
+  // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance is
   // defence-in-depth on the server sanitizer).
   'admin.guidance.editor.createTitle': string;
   'admin.guidance.editor.editTitle': string;
@@ -1251,7 +1251,7 @@ export interface Messages {
   'admin.media.success.uploaded': string;
   'admin.media.success.deleted': string;
 
-  // --- legal pages (legal-i18n M4): /privacy + /terms were English-only
+  // --- legal pages (legal-i18n): /privacy + /terms were English-only
   // static text; every paragraph/heading is now a catalog key, one key
   // per block, with splice segments around the inline <strong>/<em>/
   // <code> and cross-page links (the account-area pattern).
@@ -1270,7 +1270,7 @@ export interface Messages {
   //
   // These are legal texts: translated faithfully and conservatively, NOT
   // reviewed by a lawyer or a native speaker — the owner's review list
-  // is docs/i18n-review.md ("Legal pages (M4)"). The bracket
+  // is docs/i18n-review.md ("Legal pages "). The bracket
   // placeholders ([OPERATOR LEGAL NAME], …) are fill-in tokens, kept
   // verbatim in all locales.
   /** Shared table-of-contents aria-label (both legal pages). */

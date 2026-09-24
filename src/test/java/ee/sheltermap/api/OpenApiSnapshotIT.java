@@ -94,13 +94,13 @@ class OpenApiSnapshotIT extends AbstractPersistenceIT {
     /**
      * Deterministic normalization: every object's keys sorted recursively,
      * arrays untouched (their order is semantic), {@code servers} dropped
-     * (host-free snapshot — D4).
+     * (host-free snapshot).
      */
     static JsonNode normalize(JsonNode node) {
         if (node.isObject()) {
             ObjectNode sorted = JsonNodeFactory.instance.objectNode();
             // fieldNames() is an Iterator (no Stream#sorted): collect the keys,
-            // sort them, then copy - deterministic key order per D4.
+            // sort them, then copy - deterministic key order per .
             List<String> fields = new ArrayList<>();
             node.fieldNames().forEachRemaining(fields::add);
             Collections.sort(fields);

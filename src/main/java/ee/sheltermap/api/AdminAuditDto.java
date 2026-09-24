@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the moderation audit trail (community-review-queue D4) —
+ * One row of the moderation audit trail (community-review-queue) —
  * newest first.
  *
  * <p>{@code shelterName} is resolved at read time and renders "Deleted

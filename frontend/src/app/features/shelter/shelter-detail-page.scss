@@ -67,7 +67,7 @@
   font-size: var(--text-sm);
 }
 
-/* The private-home declaration note (D7): the same subtle inset language
+/* The private-home declaration note: the same subtle inset language
    as the warning — a description of what the location is, not a caveat. */
 .private-note {
   margin: 0;
@@ -79,7 +79,7 @@
   font-size: var(--text-sm);
 }
 
-/* Navigate actions (map-crisis-actions D3): small secondary text links
+/* Navigate actions (map-crisis-actions): small secondary text links
    deliberately quieter than the back link — they open the phone's own
    navigation app (Google Maps walking / Apple Maps), never in-app routes. */
 .shelter-detail__navigate {
@@ -122,7 +122,7 @@
 }
 
 /* The distance-from-you result line (location-navigation) — the same
-   muted meta language as the coordinate line: a measured fact (the D6
+   muted meta language as the coordinate line: a measured fact (the
    straight-line honesty format + " from you"), not a caveat. */
 .shelter-detail__distance-line {
   margin: 0;
@@ -139,7 +139,7 @@
   font-size: var(--text-sm);
 }
 
-/* The coordinate line (D6) — .num-tabular (styles.scss) keeps the figures
+/* The coordinate line — .num-tabular (styles.scss) keeps the figures
    tabular so digits do not shift. */
 .shelter-detail__coords {
   margin: 0;
@@ -147,7 +147,7 @@
   font-size: var(--text-sm);
 }
 
-/* The last-verified line + the community report count line (M8: two
+/* The last-verified line + the community report count line (two
    separate, self-contained facts — never one string). The same muted meta
    language as the coordinate line: facts about the row's freshness and its
    report history, not caveats (the unverified caveat already lives in
@@ -260,8 +260,8 @@
   }
 }
 
-/* Report how full (shelter-trust-and-reports D4/D6): three large band
-   buttons. The .btn base carries the 48px minimum target (D5); the active
+/* Report how full (shelter-trust-and-reports): three large band
+   buttons. The .btn base carries the 48px minimum target; the active
    band is the user's CURRENT report (yourOccupancyBand pre-select) and
    flips to the primary fill. Occupancy is display-only — the active state
    is the primary colour, never success/crisis. */
@@ -289,7 +289,7 @@
   }
 }
 
-/* The current aggregate + recency line (D4) — neutral muted copy; it
+/* The current aggregate + recency line — neutral muted copy; it
    renders ONLY while occupancy is fresh (null = nothing shown). */
 .occupancy-line {
   margin: 0;
@@ -326,7 +326,7 @@
   }
 }
 
-/* The trust-layer pickers (D1/D2): inline expansion (the app's convention
+/* The trust-layer pickers: inline expansion (the app's convention
    — no modals), one picker open at a time. Radio rows are the interactive
    targets, so each carries the 48px minimum. */
 .report-form {
@@ -375,7 +375,7 @@
   flex-wrap: wrap;
 }
 
-/* Community pulse (M9 — report aggregation UI): the explicit empty state
+/* Community pulse (report aggregation UI): the explicit empty state
    line (no fresh reports → NO neutral gauge) and the recent-report log.
    The pulse block itself stacks (layout pass): the arrows row, then the
    captions column below it. */
@@ -395,7 +395,7 @@
   color: var(--color-muted);
 }
 
-/* The pulse block (M9 community pulse, layout pass): a COLUMN — the
+/* The pulse block (community pulse, layout pass): a COLUMN — the
    arrows row, then the captions column below it. The owner's overlay
    fix: the count lines (the captions — each gauge's accessible text,
    associated via aria-describedby) used to sit under their arrows in

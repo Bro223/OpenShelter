@@ -85,7 +85,7 @@ describe('TermsPage', () => {
     expect(links).toContain('/privacy');
   });
 
-  it('re-renders on a language switch (fully catalog-driven, i18n M4)', async () => {
+  it('re-renders on a language switch (fully catalog-driven, i18n)', async () => {
     expect(text()).toContain('Terms of use');
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');

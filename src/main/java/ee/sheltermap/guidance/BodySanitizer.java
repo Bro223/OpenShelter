@@ -4,8 +4,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
 
 /**
- * The single producer of a guidance post's {@code body_html}
- * (crisis-guidance D2): every body write (create AND update) runs through
+ * The single producer of a guidance post's {@code body_html} — every body
+ * write (create AND update) runs through
  * this allowlist before it is stored, so the column holds sanitizer
  * output only — the same value every future reader gets, and a payload
  * posted by any client (a direct API call that never touched the
@@ -28,7 +28,7 @@ import org.jsoup.safety.Safelist;
  *     dropped.</li>
  * </ul>
  *
- * <p>Why a library and not a hand-rolled parser (D2): sanitizer bypasses
+ * <p>Why a library and not a hand-rolled parser: sanitizer bypasses
  * come from parser DIFFERENTIALS between what the sanitizer sees and what
  * the browser executes, so the parser itself must be a maintained
  * implementation. This repo hand-rolls a lot (the token-bucket limiter,
@@ -44,7 +44,7 @@ import org.jsoup.safety.Safelist;
 public final class BodySanitizer {
 
     /**
-     * The frozen allowlist (crisis-guidance D2): elements {@code
+     * The frozen allowlist: elements {@code
      * h2 h3 p br strong em ul ol li a blockquote}, exactly
      * {@code a[href]}, protocols {@code http|https|mailto}.
      */

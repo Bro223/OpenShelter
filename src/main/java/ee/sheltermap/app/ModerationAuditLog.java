@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * The append-only moderation audit trail (community-review-queue v2
- * D4) — one row per moderation-relevant action: admin status change,
+ *) — one row per moderation-relevant action: admin status change,
  * hard delete, shelter report dismiss, the admin CONFIRM/REJECT decisions,
  * CONFIRM/REJECT decisions, and the automatic AUTO_CONFIRM promotion
  * (the reporting user is its actor of record). The row is written in
@@ -42,13 +42,13 @@ public interface ModerationAuditLog {
         // itself lives on the shelter row, the trail records the decision).
         MARK_INACCURATE,
         CLEAR_INACCURATE,
-        // Guidance/media rows (crisis-guidance D12): the action names its
+        // Guidance/media rows (crisis-guidance): the action names its
         // subject in the row's subjectLabel (a snapshot — no FK to the new
         // tables); both shelterId and subjectUserId are null for these rows.
         GUIDANCE_PUBLISH,
         GUIDANCE_UNPUBLISH,
         GUIDANCE_DELETE,
-        // guidance-manual-order: the atomic full-list reorder (D3) — the
+        // guidance-manual-order: the atomic full-list reorder — the
         // subject is the fixed label "Guidance post order" (a reorder has
         // no single subject post, and the label stays readable).
         GUIDANCE_REORDER,
@@ -57,7 +57,7 @@ public interface ModerationAuditLog {
 
     /**
      * One audit row as read by the admin projection. {@code subjectLabel}
-     * (crisis-guidance D12) is the human-readable subject snapshot of a
+     * (crisis-guidance) is the human-readable subject snapshot of a
      * guidance/media row (e.g. {@code Guidance post "…" (slug)}); NULL for
      * every pre-V23 row, and resolved FIRST at read time when present
      * (shelter/account fallback only when it is null).
@@ -96,7 +96,7 @@ public interface ModerationAuditLog {
 
     /**
      * Records one guidance/media action in the caller's transaction
-     * (crisis-guidance D12): a row with NO shelter and NO subject account
+     * (crisis-guidance): a row with NO shelter and NO subject account
      * — the subject is the {@code subjectLabel} snapshot (e.g. {@code
      * Guidance post "…" (slug)}) that outlives the deleted target, exactly
      * like a dangling {@code shelter_id} renders "Deleted shelter". The
@@ -108,7 +108,7 @@ public interface ModerationAuditLog {
 
     /**
      * The reporter's own rows of one action — the second input of the
-     * derived trust weight (community-self-moderation, D1): how many of
+     * derived trust weight (community-self-moderation): how many of
      * the reporter's positive reports caused an AUTO_CONFIRM promotion.
      */
     long countByModeratorAndAction(long moderatorId, Action action);
@@ -134,14 +134,14 @@ public interface ModerationAuditLog {
     /**
      * The newest rows first (created_at descending, id descending as the
      * same-timestamp tie-break), the page starting at {@code offset} with
-     * at most {@code limit} rows (paged since W2-A — the trail is
+     * at most {@code limit} rows (paged since the trail is
      * append-only between retention prunings, so the read stays a
      * bounded slice, not a trim of a full load).
      */
     List<Row> findLatest(long offset, int limit);
 
     /**
-     * The trail's row count WITHOUT paging (the W2-A
+     * The trail's row count WITHOUT paging (the
      * {@code X-Total-Count} header value for the audit list).
      */
     long countAll();

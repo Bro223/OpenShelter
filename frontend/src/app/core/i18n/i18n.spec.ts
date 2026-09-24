@@ -20,7 +20,7 @@ import { TranslatePipe } from './translate-pipe';
  *    untranslated string can never silently ship blank.
  */
 
-describe('I18nService (i18n-et-en M14)', () => {
+describe('I18nService (i18n-et-en)', () => {
   beforeEach(() => {
     // Fresh service per test (TestBed auto-reset) reads localStorage in
     // its constructor — clear it BEFORE the first inject.

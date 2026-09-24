@@ -3,14 +3,14 @@ package ee.sheltermap.guidance;
 import java.util.function.Predicate;
 
 /**
- * The guidance locale/slug validation vocabulary (W3-A: extracted from
+ * The guidance locale/slug validation vocabulary (extracted from
  * {@link GuidanceService}).
  *
  * <p>The locale: the VARCHAR(5) column bound and the three distinct
  * absences — a PRESENT-but-blank value on a public read is a 400 (an
  * explicit {@code ?locale=} is a request, not an absence), a required
  * locale that is absent/blank is a 400, and an omitted POST-home locale
- * defaults from the configured primary language (D11, no 400). The
+ * defaults from the configured primary language (no 400). The
  * messages differ on purpose (the pre-extraction wording, pinned by the
  * suite) — one home for all of them is the point.
  *
@@ -21,7 +21,7 @@ import java.util.function.Predicate;
  */
 final class GuidanceValidation {
 
-    /** The locale column width (V23 {@code guidance_posts.locale VARCHAR(5)}) — the service bound. */
+    /** The locale column width ({@code guidance_posts.locale VARCHAR(5)}) — the service bound. */
     static final int MAX_LOCALE_LENGTH = 5;
 
     private GuidanceValidation() {
@@ -77,7 +77,7 @@ final class GuidanceValidation {
         return requireLocaleLength(locale.trim());
     }
 
-    /** Locale defaults from the configured primary language when omitted (D11). */
+    /** Locale defaults from the configured primary language when omitted. */
     static String localeOrDefault(String locale, String defaultLocale) {
         return locale == null || locale.isBlank() ? defaultLocale : locale.trim();
     }
@@ -91,7 +91,7 @@ final class GuidanceValidation {
     }
 
     /**
-     * The admin-supplied slug, used exactly as given (D5): validated to
+     * The admin-supplied slug, used exactly as given: validated to
      * the generated shape (400) and refused on a collision (409 naming
      * the slug). On an update, a blank slug keeps the current one, and
      * a slug equal to the current one is a no-op, not a collision. The
@@ -121,7 +121,7 @@ final class GuidanceValidation {
     }
 
     /**
-     * The auto-generated slug (D5): from the title; a collision — with a
+     * The auto-generated slug: from the title; a collision — with a
      * draft OR a published post, the uniqueness spans both — takes
      * {@code -2}, {@code -3}, ... and takes the first free value. The
      * translation variant scopes the same walk to the locale through the

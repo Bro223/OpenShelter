@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Community pulse acceptance (M9 — report aggregation UI) — full-stack
+ * Community pulse acceptance (report aggregation UI) — full-stack
  * MockMvc against the real services, security chain, JWT filter and
  * Postgres: the detail read carries the fresh-window aggregates (the
  * plain open/closed counts and the empty/partial/full distribution),

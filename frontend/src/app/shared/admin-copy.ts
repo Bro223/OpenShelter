@@ -40,7 +40,7 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   USER_UNSUSPEND: 'User unsuspended',
   MARK_INACCURATE: 'Marked inaccurate',
   CLEAR_INACCURATE: 'Inaccurate cleared',
-  // Guidance/media rows (crisis-guidance D12): the subject is the row's
+  // Guidance/media rows (crisis-guidance): the subject is the row's
   // subjectLabel snapshot ("Guidance post \"…\" (slug)" / "Media asset
   // \"…\" (stored)") — the tab's Subject column renders it verbatim.
   GUIDANCE_PUBLISH: 'Guidance published',

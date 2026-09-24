@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The admin moderation API (admin-moderation D3) — thin shell: parse,
+ * The admin moderation API (admin-moderation) — thin shell: parse,
  * validate, authorize, delegate to {@link AdminModerationService}.
  *
- * <p>Authorization (D2): a FRESH user lookup per request — the JWT's
+ * <p>Authorization: a FRESH user lookup per request — the JWT's
  * userId is loaded and its kind checked, never a role claim in the token.
  * A JWT minted before a demotion/deletion keeps failing the instant the
  * kind changes. Anonymous callers never reach the guard: {@code /admin/**}
@@ -47,8 +47,8 @@ import java.util.Map;
  * to NEW), hard delete (USER rows only — registry rows are import-
  * owned, 409), the shelter-report queue with idempotent dismiss, the
  * community
- * review decisions (community-review-queue v2 D2: CONFIRM/REJECT — the
- * rare manual override), the moderation audit trail (v2 D4), and the
+ * review decisions (community-review-queue v2: CONFIRM/REJECT — the
+ * rare manual override), the moderation audit trail (v2), and the
  * throttle-abuse alerts (abuse-limits: the in-memory ring the
  * caps + duplicate detector append to). All writes are single-row; no
  * bulk endpoints. Reporter identity is served from this API ONLY.
@@ -81,7 +81,7 @@ public class AdminController {
     }
 
     /**
-     * The admin shelter list (D3): every shelter including hidden, with
+     * The admin shelter list: every shelter including hidden, with
      * report counts, status flag, occupancy and the
      * submitter's name; {@code status} exact-match filter, {@code source}
      * the group filter (REGISTRY / USER / ALL), {@code q} the
@@ -139,7 +139,7 @@ public class AdminController {
             @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
         // The bounds are checked BEFORE the read: a rejected page never
-        // pays for the (filtered) list load. W2-A: the filters and the
+        // pays for the (filtered) list load. The filters and the
         // slice run in SQL, the batches run over the page's ids only, and
         // the total is the count twin — the filtered length WITHOUT
         // paging (always present, the paging ITs pin it).
@@ -151,7 +151,7 @@ public class AdminController {
                 .body(paged.rows());
     }
 
-    /** Manual hide/restore; a restore disarms auto-hide (D3). 204; 404 unknown; 409 registry rows. */
+    /** Manual hide/restore; a restore disarms auto-hide. 204; 404 unknown; 409 registry rows. */
     @PostMapping("/shelters/{id}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Manual hide/restore of a shelter",
@@ -249,7 +249,7 @@ public class AdminController {
     }
 
     /**
-     * The community review decision (community-review-queue v2 D2) —
+     * The community review decision (community-review-queue v2) —
      * the rare manual override: CONFIRM promotes the row to CONFIRMED
      * (status untouched, note cleared); REJECT hides it (REJECTED +
      * INACTIVE, reason stored as the note). 200 {"ok":true}; 404
@@ -272,11 +272,11 @@ public class AdminController {
 
     /**
      * The moderation audit trail, newest first (community-review-queue
-     * v2 D4): every moderation-relevant action (admin AND automatic
+     * v2): every moderation-relevant action (admin AND automatic
      * AUTO_CONFIRM) with the shelter name resolved at read time
      * ("Deleted shelter" once the row is gone). {@code limit} is
      * 1..200, default 100 (anything else 400); {@code offset} is the
-     * non-negative page start (W2-A) and the {@code X-Total-Count} header
+     * non-negative page start and the {@code X-Total-Count} header
      * is the trail's length WITHOUT paging (always present).
      */
     @GetMapping("/audit")
@@ -325,7 +325,7 @@ public class AdminController {
      * idiom as {@code /admin/audit}).
      */
     @GetMapping("/alerts")
-    @Operation(summary = "The M3 throttle-abuse alerts",
+    @Operation(summary = "The throttle-abuse alerts",
             description = "Newest first: the daily submission cap (429), the "
                     + "per-contact OTP cap (429) and the near-duplicate rejection "
                     + "(409). The ring is IN-MEMORY — it clears on a backend "
@@ -354,13 +354,13 @@ public class AdminController {
      * The shelter report queue, newest first (optional shelter filter).
      * {@code limit} is 1..200, default 100 (anything else 400) — the same
      * bound as {@code /admin/audit}; {@code offset} is the non-negative
-     * page start (W2-A) and the {@code X-Total-Count} header is the
+     * page start and the {@code X-Total-Count} header is the
      * queue's length WITHOUT paging (always present). The queue's table
      * is append-only, so the read is paged in SQL. {@code excludeDismissed}
      * is the moderator's hide-dismissed filter: absent/{@code false}
      * renders EVERYTHING (nothing hidden silently — the dismissed rows
      * stay in, dimmed); {@code true} renders the OPEN reports only (the
-     * resolved verdicts out — the scope the pin counts express, W2-A).
+     * resolved verdicts out — the scope the pin counts express).
      */
     @GetMapping("/reports")
     @Operation(summary = "The shelter report queue",
@@ -424,7 +424,7 @@ public class AdminController {
      * The account list behind the Users tab: every REGISTERED
      * and ADMIN account with its suspension state, id-ordered.
      * {@code limit} (1..200; absent = the whole list) and {@code offset}
-     * (>= 0) page it (W2-A — the owner's "every admin list pages" rule),
+     * (>= 0) page it (the owner's "every admin list pages" rule),
      * and the {@code X-Total-Count} header is the tab's population
      * WITHOUT paging (always present).
      */

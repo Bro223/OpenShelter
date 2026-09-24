@@ -1,5 +1,5 @@
 /**
- * The persisted UI theme (accessibility-dialog, extending D2): three
+ * The persisted UI theme (accessibility-dialog, extending): three
  * options — the light DEFAULT (absent key / no attribute), the
  * high-contrast SCSS token override (the [data-theme='high-contrast']
  * block in styles.scss) and the black-and-yellow theme.

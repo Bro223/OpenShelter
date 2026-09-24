@@ -4,8 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
- * Magic-byte sniffing + header dimension reading for the media library
- * (crisis-guidance D7).
+ * Magic-byte sniffing + header dimension reading for the media library.
  *
  * <p>Dependency-free on purpose: Java's {@code ImageIO} understands JPEG
  * and PNG but has NO WebP reader, and the library listing needs the
@@ -19,7 +18,7 @@ import java.util.Optional;
  * {@code Content-Type} are validated against this result upstream, never
  * the other way round.
  *
- * <p><b>EXIF orientation (Wave 13).</b> A JPEG photo from a phone camera
+ * <p><b>EXIF orientation.</b> A JPEG photo from a phone camera
  * stores SENSOR-orientation pixels plus an EXIF Orientation tag (5–8
  * rotate the image 90°/270° and swap the sides). Every browser applies
  * the tag at render time, so the dimensions this reader reports are the
@@ -116,7 +115,7 @@ public final class MediaImageInspector {
      * dimensions are the VISUAL ones (swapped for orientations 5–8).
      */
     private static Optional<ImageInfo> readJpeg(byte[] b) {
-        int i = 2; // skip the SOI (FF D8)
+        int i = 2; // skip the SOI (0xFFD8)
         int orientation = 1;
         boolean exifSeen = false;
         while (i + 4 <= b.length) {

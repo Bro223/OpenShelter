@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Fixture byte arrays for the magic-byte sniffing + header dimension
- * reader (crisis-guidance D7) — the fixtures encode real header layouts,
+ * reader (crisis-guidance) — the fixtures encode real header layouts,
  * so a regression in the byte offsets of any format shows up here.
  */
 class MediaImageInspectorTest {
@@ -35,7 +35,7 @@ class MediaImageInspectorTest {
         assertThat(info.height()).isEqualTo(480);
     }
 
-    // ---- EXIF orientation (Wave 13: the portrait-upload distortion) --------
+    // ---- EXIF orientation (the portrait-upload distortion) --------
     //
     // A phone portrait photo stores LANDSCAPE sensor pixels plus an EXIF
     // Orientation tag; the browser rotates it at render time. The stored

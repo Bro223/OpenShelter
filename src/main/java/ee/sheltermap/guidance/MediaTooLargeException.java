@@ -2,7 +2,7 @@ package ee.sheltermap.guidance;
 
 /**
  * The uploaded file exceeds the configured size cap
- * ({@code app.media.max-bytes}, default 5 MiB — crisis-guidance D7).
+ * ({@code app.media.max-bytes}, default 5 MiB).
  * The message names the cap, per the spec. Mapped to 413 by
  * {@link ee.sheltermap.api.ApiErrorHandler}.
  */

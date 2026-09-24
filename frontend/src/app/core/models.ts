@@ -19,7 +19,7 @@ export type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
 export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
 
 /**
- * Community trust state (community-review-queue D1/D2): where a USER row
+ * Community trust state (community-review-queue): where a USER row
  * stands in the trust lifecycle. NEW rows are public IMMEDIATELY (amber
  * "just added" treatment, unverified warning); CONFIRMED rows are the
  * checked community rows (green); REJECTED rows are hidden (status
@@ -32,7 +32,7 @@ export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
 export type ReviewStatus = 'NEW' | 'CONFIRMED' | 'REJECTED';
 
 /**
- * Submitter-declared location kind (community-review-queue D7): PRIVATE =
+ * Submitter-declared location kind (community-review-queue): PRIVATE =
  * the submitter declared the location is a private home or private shelter offered
  * as a refuge. PRIVATE rows are NOT demoted or hidden — every surface
  * (list row, detail, admin list) shows a "Private location" badge and the
@@ -144,7 +144,7 @@ export interface CreateShelterRequest {
   description?: string;
   capacity?: number;
   /**
-   * The private-home declaration (community-review-queue D7): 'PRIVATE'
+   * The private-home declaration (community-review-queue): 'PRIVATE'
    * when the submitter ticks the declaration checkbox, 'PUBLIC' otherwise
    * (the default). Always sent explicitly.
    */
@@ -165,16 +165,16 @@ export interface UpdateShelterRequest {
   description?: string;
   capacity?: number;
   /**
-   * The private-home declaration (community-review-queue D7): absent/null
+   * The private-home declaration (community-review-queue): absent/null
    * keeps the row's current value (backend contract). The shared form
-   * (M5) always sends it explicitly — checked = PRIVATE, unchecked =
+   * always sends it explicitly — checked = PRIVATE, unchecked =
    * PUBLIC — exactly like the create payload.
    */
   locationKind?: LocationKind;
 }
 
 // ---------------------------------------------------------------------------
-// Trust layer: typed reports + occupancy (shelter-trust-and-reports D1/D2/D4)
+// Trust layer: typed reports + occupancy (shelter-trust-and-reports)
 // ---------------------------------------------------------------------------
 
 /** Typed shelter report (POST /api/shelters/{id}/reports — verified only). */
@@ -189,7 +189,7 @@ export interface ReportShelterRequest {
 
 /**
  * The write outcome of a shelter report (POST /api/shelters/{id}/reports)
- * (community-self-moderation D4): `damped` is true when the stored
+ * (community-self-moderation): `damped` is true when the stored
  * report is a self-interested rival vote (the reporter holds their own
  * other USER listing of the same place) — recorded and flagged in the
  * admin queue, counting zero toward the weighted auto-hide tally.
@@ -199,7 +199,7 @@ export interface ShelterReportResult {
 }
 
 /**
- * The fresh (≤ 2 h) open/closed aggregate (M9 community pulse): the PLAIN
+ * The fresh (≤ 2 h) open/closed aggregate (community pulse): the PLAIN
  * fresh-tap counts + the server-derived TRUST-WEIGHTED share of votes that
  * say OPEN (0..1; 0.5 = an exact equal split → the gauge's straight-up
  * needle). `null` on the detail = nothing fresh (the explicit empty state).
@@ -214,7 +214,7 @@ export interface CommunityPulseOpenClosed {
 }
 
 /**
- * The fresh (≤ 2 h) how-full aggregate (M9 community pulse): the PLAIN
+ * The fresh (≤ 2 h) how-full aggregate (community pulse): the PLAIN
  * fresh-report counts per band + the server-derived TRUST-WEIGHTED
  * position from empty to full (SPACE = 0, GETTING_FULL = 0.5, FULL = 1;
  * 0.5 = an exact empty/full tie → the gauge's straight-up needle).
@@ -232,7 +232,7 @@ export interface CommunityPulseOccupancy {
 }
 
 /**
- * One recent-report log entry (M9 community pulse): what was reported
+ * One recent-report log entry (community pulse): what was reported
  * (the OPEN/CLOSED taps, the SPACE/GETTING_FULL/FULL bands) and when.
  * NO reporter identity — the public surface says "a community member".
  */
@@ -243,7 +243,7 @@ export interface CommunityPulseRecentReport {
 }
 
 /**
- * The community pulse (M9 — report aggregation UI): the detail-read fresh
+ * The community pulse (report aggregation UI): the detail-read fresh
  * (≤ 2 h) aggregates behind the detail page's gauges + recent log. The
  * plain counts feed the visible count lines (the accessible equivalent of
  * the needle); the weighted shares feed the needle angles. `null`
@@ -267,7 +267,7 @@ export interface ReportOccupancyRequest {
 }
 
 /**
- * Server-derived occupancy block (D4 — computed at read time over the last
+ * Server-derived occupancy block (computed at read time over the last
  * 2 h of updated_at). `reportCount` is the number of fresh reports agreeing
  * with `band`: 1 = the UI hedges ("Reported full"), >= 2 = firm ("Full").
  * `null` on the DTO = nothing fresh — the UI shows nothing.
@@ -311,7 +311,7 @@ export interface OpenStatusDto {
 }
 
 /**
- * Optional trust filters for GET /api/shelters (D5) — composable with the
+ * Optional trust filters for GET /api/shelters — composable with the
  * source filter. Absent fields are omitted from the query string entirely.
  * (The `reviewed` filter is gone with the review model; "Open" is a
  * client-side chip — the BE has no param for it.)
@@ -343,7 +343,7 @@ export interface MeResponse {
   phone: string;
   levels: VerificationLevel[];
   /**
-   * True for the ADMIN-kind account (admin-moderation D1/D2). The kind is
+   * True for the ADMIN-kind account (admin-moderation). The kind is
    * the truth (fresh lookup server-side, never a JWT claim); ALWAYS present
    * — false for every regular user.
    */
@@ -375,7 +375,7 @@ export interface ShelterDto {
   /**
    * True when the shelter's creator exists and has a completed verification;
    * false for registry shelters (no author) and for creators whose account
-   * no longer exists (accessibility-and-provenance D3, backend-computed —
+   * no longer exists (accessibility-and-provenance, backend-computed —
    * the UI never re-derives it).
    */
   submitterVerified: boolean;
@@ -393,29 +393,29 @@ export interface ShelterDto {
    */
   submitterVerification?: SubmitterVerification | null;
   /**
-   * Non-existence reports (D1): 0 when none, > 0 = the orange reported
+   * Non-existence reports: 0 when none, > 0 = the orange reported
    * state (marker + "Reported" badge). Five reach auto-hide server-side —
-   * the public list simply no longer contains the row. W2-B: EITHER report
+   * the public list simply no longer contains the row. EITHER report
    * kind drives the reported state — the pin/badge logic is the OR of this
    * and {@link inaccurateReports} (the backend contract note); the FE ORs
    * the two in hasReports() / markerTone().
    */
   nonexistentReports: number;
   /**
-   * Open 'inaccurate information' reports (W2-B): the community's
+   * Open 'inaccurate information' reports: the community's
    * "this data is wrong" subset (WRONG_LOCATION + OTHER); 0 when none.
    * Together with {@link nonexistentReports} it drives the reported state
    * (the OR of the two — the backend contract note). Open means not
    * dismissed — a dismissed report stops counting server-side.
    *
    * Optional on purpose: an older backend omits the field — absent reads
-   * as 0, so a pre-W2-B payload renders exactly as before (the
+   * as 0, so a pre-payload renders exactly as before (the
    * submitterVerification idiom).
    */
   inaccurateReports?: number;
   /** Fresh open/closed; null = nothing fresh in the last 2 h. */
   openStatus: OpenStatusDto | null;
-  /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
+  /** Fresh occupancy; null = nothing fresh in the last 2 h (show nothing). */
   occupancy: ShelterOccupancy | null;
   /**
    * Community trust state (community-review-queue): NEW/CONFIRMED for USER
@@ -430,7 +430,7 @@ export interface ShelterDto {
    * TOTAL community shelter-report count, all types, lifetime
    * (last-verified-meta backend-computed) — the open
    * `nonexistentReports` + `inaccurateReports` sum is what drives the
-   * orange "Reported" badge (the OR of the two, W2-B); this is the whole
+   * orange "Reported" badge (the OR of the two); this is the whole
    * community-signal count and is NOT what the badge shows.
    */
   reportCount: number;
@@ -463,7 +463,7 @@ export interface ShelterDetailDto extends ShelterDto {
   yourOccupancyBand: OccupancyBand | null;
   yourOpenStatus: OpenState | null;
   /**
-   * The community pulse (M9 — detail read only): the fresh-window gauge
+   * The community pulse (detail read only): the fresh-window gauge
    * aggregates + the anonymized recent-report log. Undefined from an
    * older BE — treat as null (the FE ships ahead of the API safely).
    */
@@ -474,7 +474,7 @@ export interface ShelterDetailDto extends ShelterDto {
  * The owner's view of one of their own shelters (GET /api/shelters/mine):
  * the public list projection (incl. reviewStatus + locationKind) plus the
  * admin's `reviewNote` — the REJECT reason, stored server-side and shown
- * under the row's status badge (community-review-queue D2) — and the row's
+ * under the row's status badge (community-review-queue) — and the row's
  * moderator→submitter information request (`infoRequest`;
  * null when none). The exchange is private: the public list/detail DTOs
  * carry it as null and this surface is the only place it renders for the
@@ -488,7 +488,7 @@ export interface MineShelterDto extends ShelterDto {
 }
 
 /**
- * POST /admin/shelters/{id}/review body (community-review-queue D2):
+ * POST /admin/shelters/{id}/review body (community-review-queue):
  * the rare MANUAL override — the primary trust flow is the automatic
  * community one (AUTO_CONFIRM). CONFIRM sets review_status=CONFIRMED
  * (status untouched); REJECT sets review_status=REJECTED +
@@ -534,7 +534,7 @@ export interface AdminInfoRequestDto extends InfoRequestDto {
 }
 
 // ---------------------------------------------------------------------------
-// Admin moderation (admin-moderation D3): the /admin/* DTOs. Every field is
+// Admin moderation (admin-moderation): the /admin/* DTOs. Every field is
 // admin-only data (hidden rows, reporter identity) — never rendered outside
 // the /admin feature.
 // ---------------------------------------------------------------------------
@@ -589,7 +589,7 @@ export interface AdminShelterDto {
   status: ShelterStatus;
   nonexistentReports: number;
   /**
-   * Open 'inaccurate information' reports (W2-B): the OR with
+   * Open 'inaccurate information' reports: the OR with
    * nonexistentReports drives the reported state — the Reports column
    * shows the sum of the two open subsets (the same count the public
    * "Reported" badge shows). Optional: an older backend omits the field —
@@ -686,7 +686,7 @@ export interface AdminShelterReportDto {
 
 /**
  * The recorded moderation actions (GET /admin/audit, community-review-
- * queue D4). The trust transitions are CONFIRM (admin manual) and
+ * queue). The trust transitions are CONFIRM (admin manual) and
  * AUTO_CONFIRM (the automatic promotion by a positive community report —
  * the row's actor is the reporting user); the rest are the pre-existing
  * admin actions that all write an audit row in the same transaction.
@@ -704,13 +704,13 @@ export type AdminAuditAction =
   | 'USER_UNSUSPEND'
   | 'MARK_INACCURATE'
   | 'CLEAR_INACCURATE'
-  // Guidance/media rows (crisis-guidance D12): the subject is the row's
+  // Guidance/media rows (crisis-guidance): the subject is the row's
   // subjectLabel snapshot (both shelterId and subjectUserId are null) —
   // the tab's "Subject" column renders it as the shelterName text.
   | 'GUIDANCE_PUBLISH'
   | 'GUIDANCE_UNPUBLISH'
   | 'GUIDANCE_DELETE'
-  // Manual ordering (guidance-manual-order D6): one row per changing
+  // Manual ordering (guidance-manual-order): one row per changing
   // reorder, the subject is the fixed label "Guidance post order".
   | 'GUIDANCE_REORDER'
   | 'MEDIA_DELETE';
@@ -860,7 +860,7 @@ export interface DataSourceDto {
 }
 
 // ---------------------------------------------------------------------------
-// Crisis guidance (public /blog reads — crisis-guidance D3/D4)
+// Crisis guidance (public /blog reads — crisis-guidance)
 // ---------------------------------------------------------------------------
 
 /**
@@ -884,11 +884,11 @@ export interface GuidancePostDto {
   /** The stored hero alt text; null when the post has no hero. */
   heroImageAlt: string | null;
   /**
-   * P2-9: the hero's derivative `srcset` string — one `w` descriptor per
+   * the hero's derivative `srcset` string — one `w` descriptor per
    * derivative that EXISTS on disk (built from disk truth server-side), or
    * null when the post's asset has none (a WebP original, a pre-feature
    * upload): the slot then renders the original via plain `src`. Optional
-   * — absent on responses from a pre-P2-9 backend.
+   * — absent on responses from a pre-backend.
    */
   heroImageSrcset?: string | null;
   /** Pinned posts sort first in the public index. */
@@ -922,7 +922,7 @@ export interface GuidancePostDto {
 }
 
 // ---------------------------------------------------------------------------
-// Crisis guidance (admin authoring — crisis-guidance D3/D8/D9): the
+// Crisis guidance (admin authoring — crisis-guidance): the
 // /admin/guidance* + /admin/media* DTOs. Every field is admin-only data
 // (drafts, hero references, asset inventory) — never rendered outside the
 // /admin feature.
@@ -982,10 +982,10 @@ export interface AdminGuidancePostDto {
   /** The stored hero alt; null when the post has no hero. */
   heroImageAlt: string | null;
   /**
-   * P2-9: the hero's derivative `srcset` string — one `w` descriptor per
+   * the hero's derivative `srcset` string — one `w` descriptor per
    * derivative that EXISTS on disk (built from disk truth server-side), or
    * null when the post's asset has none: the slot then renders the original
-   * via plain `src`. Optional — absent on responses from a pre-P2-9 backend.
+   * via plain `src`. Optional — absent on responses from a pre-backend.
    */
   heroImageSrcset?: string | null;
   /**
@@ -1013,7 +1013,7 @@ export interface AdminGuidancePostDto {
 }
 
 /**
- * PUT /admin/guidance/order body (guidance-manual-order D5; admin-locale-scope
+ * PUT /admin/guidance/order body (guidance-manual-order; admin-locale-scope
  * extends it with the optional `?locale=`). UNSCOPED: the FULL ordered id
  * list of every guidance post, in exactly the order the admin table shows
  * it (pinned block first, then the rest) — the server validates it as a
@@ -1030,10 +1030,10 @@ export interface ReorderGuidanceRequest {
 }
 
 /**
- * POST /admin/guidance body (crisis-guidance D3/D4/D5/D11). `title` +
+ * POST /admin/guidance body (crisis-guidance). `title` +
  * `body` are required (400 otherwise); `slug` omitted = the server derives
  * one from the title (a given slug is used exactly as given — collision →
- * 409 naming it); `locale` omitted = the server default (D11); the alt is
+ * 409 naming it); `locale` omitted = the server default; the alt is
  * MANDATORY IFF a hero is set (the cross-field 400 rule); an explicit
  * `status` PUBLISHED makes the create a one-shot write-and-publish
  * (DRAFT otherwise).
@@ -1080,7 +1080,7 @@ export interface UpdateGuidancePostRequest {
   body: string;
   locale?: string;
   pinned: boolean;
-  /** null = clear the hero (the previous asset stays in the library, D8). */
+  /** null = clear the hero (the previous asset stays in the library). */
   heroImageId: number | null;
   /** null when there is no hero (the 400 pairing rule, both directions). */
   heroImageAlt: string | null;
@@ -1088,8 +1088,8 @@ export interface UpdateGuidancePostRequest {
    * The hero import (guidance-hero-import): omitted (or null) when blank
    * — that CLEARS the import URL (the PUT is a full replace). A non-null
    * URL is fetched, validated and stored AT SAVE, draft or published
-   * alike (the Wave 9 trigger); a changed URL re-imports (superseding the
-   * previous hero — the replaced asset stays in the library, D8). A
+   * alike (the trigger); a changed URL re-imports (superseding the
+   * previous hero — the replaced asset stays in the library). A
    * failed import never blocks the update: the response's
    * `heroImportError` names it and the URL is kept for a retry.
    */
@@ -1165,7 +1165,7 @@ export interface UpdateGuidanceTranslationRequest {
 }
 
 /**
- * One media-library asset (crisis-guidance D8): GET /admin/media (every
+ * One media-library asset (crisis-guidance): GET /admin/media (every
  * asset, newest first), POST /admin/media (201 — the stored asset), and
  * DELETE /admin/media/{id} (200 — the pre-delete snapshot). `url` is the
  * public serving URL (`/api/media/<stored filename>`) — the admin
@@ -1193,7 +1193,7 @@ export interface MediaAssetDto {
   /** How many posts use the asset as their hero image (0 = unused). */
   reusedBy: number;
   /**
-   * P2-9: the thumbnail `srcset` string — one `w` descriptor per
+   * the thumbnail `srcset` string — one `w` descriptor per
    * derivative the server has on disk (e.g.
    * `/api/media/<name>-t96.png 96w, /api/media/<name>-t192.png 192w`).
    * Null/absent when the asset has no derivatives (a WebP original, a

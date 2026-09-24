@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for {@link GuidanceTranslation} (bilingual-guidance, V26).
+ * Persistence seam for {@link GuidanceTranslation}. Implementations live
  * Implementations live in {@code ee.sheltermap.persistence}; tests use the
  * in-memory fake in the test tree.
  *
- * <p>Uniqueness is structural (the V26 constraints): {@code (post_id, locale)}
+ * <p>Uniqueness is structural (the UNIQUE constraints): {@code (post_id, locale)}
  * and {@code (locale, slug)}. The JPA implementation surfaces a duplicate as a
  * {@code DataIntegrityViolationException}; the service pre-checks with the
  * {@code existsBy*} methods and maps the expected duplicate to a readable 409.
@@ -28,7 +28,7 @@ public interface GuidanceTranslationRepository {
 
     Optional<GuidanceTranslation> findById(long id);
 
-    /** The post's one translation in a locale — at most one (V26 uniqueness). */
+    /** The post's one translation in a locale — at most one (UNIQUE constraint). */
     Optional<GuidanceTranslation> findByPostIdAndLocale(long postId, String locale);
 
     /** Every translation of a post, in locale order (the admin detail / alternates). */
@@ -43,7 +43,7 @@ public interface GuidanceTranslationRepository {
 
     /**
      * EVERY translation row, in ANY locale (the unscoped admin list's
-     * search — admin-guidance-search: a locale-absent query matches any of
+     * search: a locale-absent query matches any of
      * the post's locale content). Deterministic (post_id, id) order.
      */
     List<GuidanceTranslation> findAll();
@@ -73,6 +73,6 @@ public interface GuidanceTranslationRepository {
     /** Deletes one row. */
     void delete(GuidanceTranslation translation);
 
-    /** Deletes every translation of a post (the hard-delete cascade, D8). */
+    /** Deletes every translation of a post (the hard-delete cascade). */
     void deleteAllByPostId(long postId);
 }

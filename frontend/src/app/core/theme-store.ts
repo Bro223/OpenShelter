@@ -8,7 +8,7 @@ import {
 } from './theme-tokens';
 
 /**
- * Where the UI theme preference lives in localStorage (D2,
+ * Where the UI theme preference lives in localStorage (
  * accessibility-and-provenance; extended by accessibility-dialog). Only
  * the non-default values are ever stored — the default (light) theme is
  * the ABSENCE of the key (mirrors the pre-paint script in index.html,
@@ -17,7 +17,7 @@ import {
 const THEME_KEY = 'openshelter-theme';
 
 /**
- * The persisted UI theme (D2: persistence, no flash — extended to the
+ * The persisted UI theme (persistence, no flash — extended to the
  * three contrast options of the accessibility dialog).
  *
  * Signal-based, same persistence shape as TokenStore (key constant +

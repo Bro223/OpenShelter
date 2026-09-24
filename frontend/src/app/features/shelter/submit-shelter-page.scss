@@ -37,7 +37,7 @@
   }
 }
 
-/* The private-home declaration (community-review-queue D7): a plain label +
+/* The private-home declaration (community-review-queue): a plain label +
    checkbox row — the label wraps for narrow widths.
 
    The checkbox escapes the global `.field input { width: 100% }` form rule:
@@ -83,14 +83,14 @@
   }
 }
 
-/* Edit mode (M5): the loading line while the ?edit row is fetched. */
+/* Edit mode: the loading line while the ?edit row is fetched. */
 .submit-state {
   margin: 0;
   font-size: var(--text-base);
   color: var(--color-muted);
 }
 
-/* Edit mode (M5): the not-found state (stale or foreign ?edit id) — a
+/* Edit mode: the not-found state (stale or foreign ?edit id) — a
    neutral card, not the success tint: nothing was saved here. */
 .edit-not-found {
   padding: var(--space-12) var(--space-16);
@@ -117,7 +117,7 @@
   }
 }
 
-/* Edit mode (M5): the session-expired state — the /mine load 401'd, the
+/* Edit mode: the session-expired state — the /mine load 401'd, the
    central interceptor cleared the session and routed to /login. Same
    neutral card as the not-found state (nothing can load or save here),
    with the login link as the single way forward. This state never mounts

@@ -22,9 +22,9 @@ import java.util.List;
  * {@code submitterVerified} is {@code true} when the shelter's creator exists
  * and has a completed verification, {@code false} for registry shelters (no
  * author) and for creators whose account no longer exists
- * (accessibility-and-provenance D3).
+ * (accessibility-and-provenance).
  *
- * <p>Trust layer (shelter-trust-and-reports D1/D4/D5):
+ * <p>Trust layer (shelter-trust-and-reports):
  * {@code nonexistentReports} is 0 when none — the UI's orange "Reported"
  * affordance fires at {@code > 0}; {@code openStatus} is the live
  * open/closed block (same level as capacity) — the fresh (≤ 2 h) latest
@@ -41,7 +41,7 @@ import java.util.List;
  * are computed server-side in the batched projection — never
  * client-computed.
  *
- * <p>Community trust (community-review-queue v2 D2/D5/D7): every row
+ * <p>Community trust (community-review-queue v2): every row
  * carries {@code reviewStatus} — NEW (unverified community row, the
  * amber "newly added" treatment), CONFIRMED (community-checked, or
  * registry rows, which backfill CONFIRMED), REJECTED (hidden; only
@@ -126,7 +126,7 @@ public record ShelterDto(
         int nonexistentReports,
         @Schema(description = "The open 'inaccurate information' subset of the "
                 + "community reports (WRONG_LOCATION + OTHER; 0 when none) — "
-                + "the community's 'this data is wrong' reports, W2-A: EITHER "
+                + "the community's 'this data is wrong' reports, EITHER "
                 + "report kind turns the pin red when open. Open means not "
                 + "dismissed (a dismissed report stops counting). "
                 + "Additive to nonexistentReports — that field keeps its "
@@ -185,7 +185,7 @@ public record ShelterDto(
                 + "the public list and detail reads (the exchange is "
                 + "private between the admin and the author).")
         InfoRequest infoRequest,
-        @Schema(description = "DETAIL-read only (M9 community pulse): the "
+        @Schema(description = "DETAIL-read only (community pulse): the "
                 + "fresh (≤ 2 h) report aggregates behind the detail page's "
                 + "gauges + recent log — the plain fresh counts, the "
                 + "trust-weighted shares (the gauge arrow's position) and "
@@ -195,7 +195,7 @@ public record ShelterDto(
 
     /**
      * The live open/closed block (same level as capacity): the LATEST
-     * fresh tap's state (the tie-break is exactly the occupancy D4
+     * fresh tap's state (the tie-break is exactly the occupancy
      * derivation), the number of fresh taps agreeing with that state, and
      * the newest fresh tap's time. Null when nothing is fresh (≤ 2 h).
      */
@@ -209,7 +209,7 @@ public record ShelterDto(
     }
 
     /**
-     * The fresh occupancy block (D4): the latest fresh report's band, the
+     * The fresh occupancy block: the latest fresh report's band, the
      * number of fresh reports agreeing with that band (1 = hedged copy,
      * 2+ = firm), and the newest fresh report's time.
      */
@@ -242,13 +242,13 @@ public record ShelterDto(
     }
 
     /**
-     * The community pulse (M9 — report aggregation UI): the DETAIL-read
-     * fresh-window (≤ 2 h — the SAME read-time window as the occupancy D4
+     * The community pulse (report aggregation UI): the DETAIL-read
+     * fresh-window (≤ 2 h — the SAME read-time window as the occupancy
      * and open/closed taps) aggregates behind the detail page's gauges and
      * the recent-report log. Plain counts are the UNWEIGHTED fresh counts
      * (the "general count" + the accessible text); the shares are
      * TRUST-WEIGHTED with the same derived weight the auto-hide tally uses
-     * (community-self-moderation D1 — baseline 1, +1 a cross-verified own
+     * (community-self-moderation baseline 1, +1 a cross-verified own
      * submission, +1 two own AUTO_CONFIRM actions, capped at 3) and drive
      * the gauge arrow (0.5 = an exact equal split = straight up). Taps and
      * bands carry no damp flag (damping is a NON_EXISTENT-report concept),

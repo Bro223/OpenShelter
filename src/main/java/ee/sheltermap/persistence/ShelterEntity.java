@@ -71,7 +71,7 @@ public class ShelterEntity {
     private Long createdBy;
 
     /**
-     * Write-time trust snapshot (V31, W2-A): the submitter's verified
+     * Write-time trust snapshot (V31): the submitter's verified
      * standing as at write time; NULL = no snapshot (pre-V31 rows, registry
      * rows) — the read falls back to the live author derivation.
      */
@@ -96,7 +96,7 @@ public class ShelterEntity {
     private Long version;
 
     /**
-     * Auto-hide disarm flag (V9, D1): while FALSE the 5th NON_EXISTENT
+     * Auto-hide disarm flag (V9): while FALSE the 5th NON_EXISTENT
      * report may auto-hide the shelter; the admin restore
      * sets it TRUE.
      */
@@ -104,7 +104,7 @@ public class ShelterEntity {
     private boolean autoHideDisarmed;
 
     /**
-     * Community trust state (V11, community-review-queue v2 D1/D2). NOT
+     * Community trust state (V11, community-review-queue v2). NOT
      * NULL with the DB default NEW; the V11 backfill is the authority for
      * existing rows (USER → NEW, registry → CONFIRMED). The domain
      * aggregate carries the CONFIRMED default (the registry side), so
@@ -118,7 +118,7 @@ public class ShelterEntity {
     @Column(name = "review_note", length = 500)
     private String reviewNote;
 
-    /** The submitter's private-home declaration (V11, community-review-queue v2 D7). */
+    /** The submitter's private-home declaration (V11, community-review-queue v2). */
     @Enumerated(EnumType.STRING)
     @Column(name = "location_kind", nullable = false, length = 10)
     private LocationKind locationKind;

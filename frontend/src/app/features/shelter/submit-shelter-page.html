@@ -3,7 +3,7 @@
 
   <header>
     @if (editMode()) {
-      <!-- Edit mode (M5): the heading names the mode — this is a save of an
+      <!-- Edit mode: the heading names the mode — this is a save of an
            existing shelter, not a new submission. 'account.edit' ('Edit') is
            the existing catalog key; a dedicated 'submit.editTitle' would be
            the better fit once the i18n lane lands it (reported, not added).
@@ -19,7 +19,7 @@
 
   <!-- Success panel (community-review-queue): the row is public NOW (NEW
        state) — no "awaiting review"; the panel links to the live detail
-       page. The form stays for a second submission. In edit mode (M5) the
+       page. The form stays for a second submission. In edit mode the
        same panel IS the save confirmation: the edit publishes immediately
        and carries the same NEW (pending-verification) state a new
        submission gets. -->
@@ -39,7 +39,7 @@
     </p>
   }
 
-  <!-- Edit-mode states (M5): while the ?edit row loads; when the id is not
+  <!-- Edit-mode states: while the ?edit row loads; when the id is not
        the caller's (or the param is malformed) — the not-found state, never
        a prefill of someone else's shelter. (A /mine LOAD FAILURE renders
        neither — the error banner above carries the message and no form can
@@ -125,7 +125,7 @@
       }
     </div>
 
-    <!-- The private-home declaration (community-review-queue D7): default
+    <!-- The private-home declaration (community-review-queue): default
          unchecked = PUBLIC. The row stays a public result; the declaration
          adds the "Private location" badge + the resident-offered note. -->
     <div class="field">
@@ -226,7 +226,7 @@
         </button>
       </div>
 
-      <!-- D6 (map-crisis-actions): the shared .num-tabular class keeps the
+      <!-- (map-crisis-actions): the shared .num-tabular class keeps the
            coordinate figures from shifting while they update. -->
       <p class="location-readout num-tabular" [class.location-readout--empty]="location() === null">
         {{ locationReadout() }}
@@ -240,7 +240,7 @@
     </fieldset>
 
     <!-- The submit button: create mode says "Submit shelter" (a new row);
-         edit mode (M5) says "Save changes" — this is a save, not a new
+         edit mode says "Save changes" — this is a save, not a new
          submission. The pending copy matches the mode ('Saving…'). -->
     <button type="submit" class="btn btn--primary" [disabled]="pending() || editLoading()">
       {{

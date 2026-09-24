@@ -5,16 +5,16 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code POST /admin/guidance} body (crisis-guidance D3/D4/D5/D11).
+ * {@code POST /admin/guidance} body (crisis-guidance).
  *
  * <p>The bean constraints MIRROR the service rules (the service re-checks
  * everything — it is the authority, the annotations are the early 400).
  * {@code slug} is optional: absent the server generates one from the
- * title (D5); when given it is validated to the generated shape and used
+ * title; when given it is validated to the generated shape and used
  * exactly as given (collision → 409 naming the slug). {@code status} is
  * optional: absent (or DRAFT) the post is created as a draft, an explicit
- * PUBLISHED makes it a one-shot "write and publish" (D4). {@code locale}
- * defaults from {@code app.guidance.default-locale} when omitted (D11).
+ * PUBLISHED makes it a one-shot "write and publish" . {@code locale}
+ * defaults from {@code app.guidance.default-locale} when omitted.
  * {@code heroImageId} + {@code heroImageAlt}: the alt is mandatory iff
  * the hero is set — the cross-field rule the service enforces (400).
  * {@code heroImportUrl} (guidance-hero-import): an OPTIONAL hero import

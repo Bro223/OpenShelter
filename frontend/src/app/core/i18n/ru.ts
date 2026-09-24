@@ -193,13 +193,13 @@ export const RU: Messages = {
   'map.legend.registry': 'Реестр (Päästeamet)',
   'map.legend.partialVerified': 'Добавлено частично подтверждённым пользователем',
   'map.legend.fullVerified': 'Добавлено полностью подтверждённым пользователем',
-  // Unverified community tone (wave 8 — green = verified, unverified is
+  // Unverified community tone (green = verified, unverified is
   // the YELLOW tone; the pin palette is green/yellow/blue/red only, there
   // is no grey in it). MACHINE DRAFT — awaiting native Russian review;
   // do not treat as final.
   'map.legend.unverified': 'Добавлено неподтверждённым пользователем',
   'map.legend.reported': 'Сообщено',
-  // Legend filter affordance line (wave 7). MACHINE DRAFT — awaiting native
+  // Legend filter affordance line. MACHINE DRAFT — awaiting native
   // Russian review; do not treat as final.
   'map.legend.hint': 'Нажмите, чтобы выбрать или снять выделение',
   'map.geoNote':
@@ -294,7 +294,7 @@ export const RU: Messages = {
   'detail.submitReport': 'Отправить сообщение',
   'detail.cancel': 'Отмена',
   'detail.verifyAccount': 'Подтвердите аккаунт',
-  // community pulse (M9): концы шкалы = виды последних сообщений.
+  // community pulse: концы шкалы = виды последних сообщений.
   'detail.pulse.kind.open': 'Открыто',
   'detail.pulse.kind.closed': 'Закрыто',
   'detail.pulse.kind.space': 'Есть места',

@@ -18,7 +18,7 @@ class FakeShelterGateway {
   update = vi.fn();
   mine = vi.fn();
   constructor() {
-    // Edit mode (M5) loads the row from /mine; creation never calls it.
+    // Edit mode loads the row from /mine; creation never calls it.
     this.mine.mockResolvedValue([]);
   }
 }
@@ -87,7 +87,7 @@ const CREATED: ShelterDto = {
   description: 'Basement with two exits',
   capacity: 40,
   // The submitter is verified (creation is verified-gated) — the created
-  // row comes back already proven (D3/D4).
+  // row comes back already proven.
   submitterVerified: true,
   nonexistentReports: 0,
   openStatus: null,
@@ -408,7 +408,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(leaflet.pickCalls.at(-1)).toEqual([59, 26]);
     expect(leaflet.flyToCalls.at(-1)).toEqual([59, 26]);
     expect(element.textContent).toContain('59.00000, 26.00000');
-    // D6 (map-crisis-actions): the coordinate readout uses the shared
+    // (map-crisis-actions): the coordinate readout uses the shared
     // tabular-figures class so digits do not shift while they update.
     expect(element.querySelector('.location-readout')?.classList.contains('num-tabular')).toBe(
       true,
@@ -510,7 +510,7 @@ describe('SubmitShelterPage (/submit)', () => {
   // Cross-mode capture race: a stale async settle must no-op
   // ---------------------------------------------------------------------
 
-  it('a late geolocation success (stale generation) never overwrites a typed pin (M3)', async () => {
+  it('a late geolocation success (stale generation) never overwrites a typed pin ', async () => {
     const pending = deferredGeolocation();
     setGeolocation(pending.fake);
     const { element, fixture } = await open();
@@ -541,7 +541,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(button(element, 'Use my location').disabled).toBe(false);
   });
 
-  it('a late geolocation ERROR (stale generation) never clears a set pin (M3)', async () => {
+  it('a late geolocation ERROR (stale generation) never clears a set pin ', async () => {
     const pending = deferredGeolocation();
     setGeolocation(pending.fake);
     const { element, fixture } = await open();
@@ -568,7 +568,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.querySelector('.location-field .field-error')).toBeNull();
   });
 
-  it('a late short-link 400 (stale generation) never clears a map pick (M3)', async () => {
+  it('a late short-link 400 (stale generation) never clears a map pick ', async () => {
     let rejectResolve!: (e: unknown) => void;
     geo.resolve.mockReturnValue(
       new Promise<{ latitude: number; longitude: number }>((_, reject) => {
@@ -748,7 +748,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.textContent).not.toContain('temporarily unavailable');
   });
 
-  it('a 502 short-link resolve shows the temporarily-unavailable copy (M5)', async () => {
+  it('a 502 short-link resolve shows the temporarily-unavailable copy ', async () => {
     geo.resolve.mockRejectedValue(
       ApiError.fromHttp(
         502,
@@ -778,7 +778,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.textContent).toContain('No location yet');
   });
 
-  it('a network-failure short-link resolve shows the temporarily-unavailable copy (M5)', async () => {
+  it('a network-failure short-link resolve shows the temporarily-unavailable copy ', async () => {
     geo.resolve.mockRejectedValue(ApiError.fromNetwork());
     const { element, fixture } = await open();
     fillValidForm(element);
@@ -1214,7 +1214,7 @@ describe('SubmitShelterPage (/submit)', () => {
   });
 
   // ---------------------------------------------------------------------
-  // Edit mode (M5): /submit?edit=<id> — the SAME form, prefilled
+  // Edit mode: /submit?edit=<id> — the SAME form, prefilled
   // ---------------------------------------------------------------------
 
   const EDIT_ROW: MineShelterDto = {

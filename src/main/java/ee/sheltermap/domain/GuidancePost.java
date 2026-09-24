@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One crisis-guidance post (crisis-guidance D1/D4/D6).
+ * One crisis-guidance post (crisis-guidance).
  *
  * <p>The hero image is a <b>reference</b> ({@code heroImageId}), never an
  * image URL or a copy: the reference is always either a live media asset
@@ -23,7 +23,7 @@ import java.util.Objects;
  * itself is always a stored-asset reference or {@code null} — a page never
  * renders from the URL.
  *
- * <p>Publication state (D4): publishing stamps {@code publishedAt} from
+ * <p>Publication state: publishing stamps {@code publishedAt} from
  * the instant the caller passes (the service's injected Clock);
  * unpublishing clears it. {@code updatedAt} moves on every write
  * ({@code createdAt} on create).
@@ -34,7 +34,7 @@ import java.util.Objects;
  * tie-breakers), so a post's slot is its {@code sortOrder}: publishing or
  * unpublishing NEVER moves a post. Create appends {@code max + 1} (last
  * position); the reorder endpoint renumbers 1..N. The value is
- * NOT uniqueness-constrained (the D1 decision) — the writers guarantee
+ * NOT uniqueness-constrained (the decision) — the writers guarantee
  * uniqueness, the order contract's tie-breakers make a duplicate harmless.
  *
  * <p>Pure Java — no Spring imports in {@code domain/} (a repo invariant).
@@ -52,7 +52,7 @@ public class GuidancePost {
     private String heroImageAlt;
     /** The hero's source URL (guidance-hero-import): {@code null} when the hero is a plain library reference (or absent). */
     private String heroImportUrl;
-    /** The stored manual position (guidance-manual-order D1); 1 = first. */
+    /** The stored manual position (guidance-manual-order); 1 = first. */
     private int sortOrder;
     private Instant publishedAt;
     private Long createdBy;
@@ -173,7 +173,7 @@ public class GuidancePost {
     }
 
     /**
-     * Clears the hero image (id and alt together, D8): the post stays
+     * Clears the hero image (id and alt together): the post stays
      * fully renderable — no image element, title and body intact. The
      * asset itself is untouched in the media library. The import URL is
      * left alone when it is present — the next save re-imports it (a
@@ -234,12 +234,12 @@ public class GuidancePost {
         return title;
     }
 
-    /** The stored (sanitized) body — the admin read returns it verbatim (D2). */
+    /** The stored (sanitized) body — the admin read returns it verbatim. */
     public String getBodyHtml() {
         return bodyHtml;
     }
 
-    /** The stored locale (D11: a stored attribute, no translation workflow in v1). */
+    /** The stored locale (a stored attribute, no translation workflow in v1). */
     public String getLocale() {
         return locale;
     }
@@ -252,13 +252,13 @@ public class GuidancePost {
         return status == GuidanceStatus.PUBLISHED;
     }
 
-    /** Pinning floats a published post to the top of the public list (D6). */
+    /** Pinning floats a published post to the top of the public list. */
     public boolean isPinned() {
         return pinned;
     }
 
     /**
-     * The stored manual position (guidance-manual-order D1): the public
+     * The stored manual position (guidance-manual-order): the public
      * index decides the non-pinned order by this value ascending, and the
      * admin list renders in the same order. Publish/unpublish/delete never
      * move it — the service's reorder is the only writer after create.
@@ -313,7 +313,7 @@ public class GuidancePost {
         return createdAt;
     }
 
-    /** Moves on every write; visible in the admin list only (D4). */
+    /** Moves on every write; visible in the admin list only. */
     public Instant getUpdatedAt() {
         return updatedAt;
     }

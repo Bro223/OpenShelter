@@ -46,8 +46,8 @@ import java.util.stream.Collectors;
  * verification state, report counts and fresh occupancy are each computed
  * in <strong>one batched query</strong> per listing instead of one
  * {@code findByShelterId} per shelter — no N+1 (the creator
- * batch is accessibility-and-provenance D3; the trust batch is
- * shelter-trust-and-reports D1/D4).
+ * batch is accessibility-and-provenance; the trust batch is
+ * shelter-trust-and-reports).
  *
  * <p>Trust derivations are computed HERE, server-side, never client-
  * computed from raw report lists: {@code nonexistentReports} (0 when
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  * band wins, hedged at one agreeing report, firm at two+, silent past 2
  * h). Admin-dismissed reports count in neither.
  *
- * <p>D5: the public list projection is ACTIVE-only (auto-hidden shelters
+ * <p>the public list projection is ACTIVE-only (auto-hidden shelters
  * disappear from the map and list); the trust filter
  * ({@code hasCapacity}) is applied in-memory over the
  * already-fetched list (Estonia-scale data). (Rating demotion, completed
@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
  * model — an unknown {@code minRating} parameter is ignored for API
  * compatibility.)
  *
- * <p>Community trust (community-review-queue v2 D2): the public list and
+ * <p>Community trust (community-review-queue v2): the public list and
  * detail reads are UNCHANGED by the trust model — there is no blocking
  * queue. {@code reviewStatus} is display/trust data on the DTOs (NEW
  * community rows are public, carrying the unverified treatment); only
@@ -83,10 +83,10 @@ import java.util.stream.Collectors;
 @Service
 public class ShelterQueryService {
 
-    /** Freshness window for the live state blocks (occupancy D4, and the open/closed tap on the same level): reports older than this are silent. */
+    /** Freshness window for the live state blocks (occupancy, and the open/closed tap on the same level): reports older than this are silent. */
     public static final Duration OCCUPANCY_FRESHNESS_WINDOW = Duration.ofHours(2);
 
-    /** The recent-report log length the community pulse answers (M9): newest first, the rest scroll away. */
+    /** The recent-report log length the community pulse answers: newest first, the rest scroll away. */
     public static final int RECENT_REPORTS_CAP = 10;
 
     private final ShelterRepository shelterRepository;
@@ -123,14 +123,14 @@ public class ShelterQueryService {
     }
 
     /**
-     * The public list: ACTIVE rows only (D5) — with the optional trust
+     * The public list: ACTIVE rows only — with the optional trust
      * filter applied in-memory.
      * {@code hasCapacity} keeps shelters with capacity data.
      * A {@code false} boolean is the negation. (V21: no {@code minRating}
      * parameter exists any more — an unknown {@code minRating} is ignored for
      * API compatibility.)
      * NEW community rows are listed like any other ACTIVE row
-     * (community-review-queue v2 D2 — no visibility gate).
+     * (community-review-queue v2 — no visibility gate).
      *
      * <p>No viewport, no paging (shelter-bbox-paging): delegates to the
      * full overload with everything omitted, which is EXACTLY the
@@ -143,10 +143,10 @@ public class ShelterQueryService {
 
     /**
      * The public list with the optional viewport filter and offset/limit
-     * paging (shelter-bbox-paging D2, real paging since W2-A):
+     * paging (shelter-bbox-paging, real paging since):
      *
      * <p>UNPAGED (both paging params absent) — byte-identical to the
-     * pre-W2-A behaviour: the full ACTIVE projection (inside the inclusive
+     * pre-behaviour: the full ACTIVE projection (inside the inclusive
      * {@code bbox} when one is given, id-ascending), the batched DTO
      * mapping, the in-memory trust filters ({@code hasCapacity},
      * {@code provenance}).
@@ -242,7 +242,7 @@ public class ShelterQueryService {
      * only — an anonymous or other-user detail read gets null (ids are
      * sequential, so an unscoped note would be enumerable).
      *
-     * <p>M9 community pulse: the detail read is ALSO the only projection
+     * <p>community pulse: the detail read is ALSO the only projection
      * that carries {@code communityPulse} (the fresh-window aggregates +
      * recent log behind the detail page's gauges) — it is public (guests
      * read it too) and is NOT caller-scoped.
@@ -255,7 +255,7 @@ public class ShelterQueryService {
         return Optional.of(toDtos(List.of(shelter), callerId, true).get(0));
     }
 
-    /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows).
+    /** The caller's own shelters, all statuses and all review states (the owner list keeps hidden rows).
      *  The /mine projection additionally carries each row's moderator→submitter
      *  information request and the moderator's REJECT reason ({@code reviewNote})
      *  — both are owner-only, so the
@@ -270,7 +270,7 @@ public class ShelterQueryService {
         return toDtos(shelters, callerId, false, false, false);
     }
 
-    /** The detail read: the shared projection + the community pulse (M9). */
+    /** The detail read: the shared projection + the community pulse. */
     private List<ShelterDto> toDtos(List<Shelter> shelters, Long callerId, boolean withPulse) {
         return toDtos(shelters, callerId, false, withPulse, false);
     }
@@ -289,7 +289,7 @@ public class ShelterQueryService {
             return List.of();
         }
         Batches batches = batchesFor(shelters, withInfoRequests, withPulse);
-        // The caller's own live states are DETAIL-only fields (D5): one
+        // The caller's own live states are DETAIL-only fields: one
         // indexed lookup each, and only for the single-shelter read — the
         // list paths (public + /mine) pass a null caller and stay pure
         // batch queries.
@@ -317,7 +317,7 @@ public class ShelterQueryService {
 
     private Batches batchesFor(List<Shelter> shelters, boolean withInfoRequests, boolean withPulse) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
-        // Provenance (accessibility-and-provenance D3): the batch's creators in
+        // Provenance (accessibility-and-provenance): the batch's creators in
         // ONE lookup — distinct non-null author ids; missing ids (deleted users)
         // simply stay absent from the returned map.
         Set<Long> authorIds = shelters.stream()
@@ -325,12 +325,12 @@ public class ShelterQueryService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<Long, User> authors = userRepository.findByIds(authorIds);
-        // Trust layer (D1): report counts by type for the whole batch in ONE query.
+        // Trust layer: report counts by type for the whole batch in ONE query.
         Map<Long, Map<ShelterReportType, Long>> reportCounts = reportRepository
                 .countByTypeForShelterIds(ids).stream()
                 .collect(Collectors.groupingBy(ReportTypeCount::shelterId,
                         Collectors.toMap(ReportTypeCount::type, ReportTypeCount::count)));
-        // Trust layer (D4): the fresh occupancy rows for the whole batch in
+        // Trust layer: the fresh occupancy rows for the whole batch in
         // ONE query (the 2 h window is applied in SQL); the derivation —
         // latest band wins, agreeing count, newest timestamp — is in memory.
         Map<Long, ShelterDto.Occupancy> occupancy = deriveOccupancy(occupancyRepository
@@ -356,7 +356,7 @@ public class ShelterQueryService {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet()))
                 : Map.of();
-        // Community pulse (M9 — report aggregation UI): the fresh-window
+        // Community pulse (report aggregation UI): the fresh-window
         // aggregates + recent log, DETAIL-read only. The distinct-reporter
         // trust weights are per-reporter lookups over the (small) fresh set,
         // so the batched list/mine/admin reads stay pulse-free (no N+1).
@@ -474,7 +474,7 @@ public class ShelterQueryService {
         // null key: registry row / pre-V7 legacy row — no author lookup
         Long createdById = shelter.getCreatedBy();
         User author = createdById == null ? null : batches.authors().get(createdById);
-        // "Completed verification" (W2-A part 2): rows written after V31
+        // "Completed verification" (part 2): rows written after V31
         // carry the submitter's standing AS AT WRITE TIME — account
         // erasure (created_by is SET NULL, V7) cannot change it, so the
         // snapshot is the answer when present. When it is null (pre-V31
@@ -498,9 +498,9 @@ public class ShelterQueryService {
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
-        // W2-A report semantics: the open "inaccurate information" count
+        // report semantics: the open "inaccurate information" count
         // (WRONG_LOCATION + OTHER) — open means not dismissed (the batched
-        // per-type count already excludes dismissed reports, the W3-B
+        // per-type count already excludes dismissed reports, the
         // dismiss filter), so a dismissed report stops counting.
         long inaccurate = typeCounts.getOrDefault(ShelterReportType.WRONG_LOCATION, 0L)
                 + typeCounts.getOrDefault(ShelterReportType.OTHER, 0L);
@@ -553,7 +553,7 @@ public class ShelterQueryService {
     }
 
     /**
-     * The admin shelter list (admin-moderation D3): every shelter, ALL
+     * The admin shelter list (admin-moderation): every shelter, ALL
      * statuses (auto-hidden rows included), id-ordered, with the same
      * batched trust derivations as the public list plus the submitter's
      * profile name (the provenance join — one batched lookup, no N+1).
@@ -563,7 +563,7 @@ public class ShelterQueryService {
      * user submissions — the same grouping as the public list); {@code q}
      * is a case-insensitive substring over name OR address.
      *
-     * <p>Paging (W2-A): absent {@code limit}/{@code offset} = the
+     * <p>Paging: absent {@code limit}/{@code offset} = the
      * unpaged read, byte-identical to the pre-change path (the full
      * projection, in-memory filters). Present, the filters and the slice
      * ride into the SQL (LIKE with the caller-trimmed, lowercased, escaped
@@ -579,7 +579,7 @@ public class ShelterQueryService {
         String needle = q == null || q.isBlank() ? null : q.trim().toLowerCase(Locale.ROOT);
         List<ShelterSource> sources = source == null ? List.of(ShelterSource.values()) : source.sources();
         if (limit == null && offset == null) {
-            // The unpaged read — the pre-W2-A path, byte-identical.
+            // The unpaged read — the pre-path, byte-identical.
             List<Shelter> shelters = shelterRepository.findAll().stream()
                     .filter(s -> status == null || s.getStatus() == status)
                     .filter(s -> source == null || source.sources().contains(s.getSource()))
@@ -645,7 +645,7 @@ public class ShelterQueryService {
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
-        // W2-A report semantics: the open "inaccurate information" count
+        // report semantics: the open "inaccurate information" count
         // (WRONG_LOCATION + OTHER), same derivation as the public DTO.
         long inaccurate = typeCounts.getOrDefault(ShelterReportType.WRONG_LOCATION, 0L)
                 + typeCounts.getOrDefault(ShelterReportType.OTHER, 0L);
@@ -685,7 +685,7 @@ public class ShelterQueryService {
     }
 
     /**
-     * D4 over the fresh rows (the 2 h window already applied in SQL):
+     * over the fresh rows (the 2 h window already applied in SQL):
      * the MOST RECENT report's band wins (ties broken by user id — the
      * timestamptz precision makes ties vanishingly rare, but the output
      * stays deterministic), {@code reportCount} is the number of fresh
@@ -715,8 +715,8 @@ public class ShelterQueryService {
     /**
      * Live open/closed state (same level as capacity) over the fresh rows
      * (the 2 h window already applied in SQL, the same window as
-     * occupancy D4): the MOST RECENT tap's state wins — the tie-break is
-     * exactly the occupancy D4 derivation (ties broken by user id — the
+     * occupancy): the MOST RECENT tap's state wins — the tie-break is
+     * exactly the occupancy derivation (ties broken by user id — the
      * timestamptz precision makes ties vanishingly rare, but the output
      * stays deterministic), {@code reportCount} is the number of fresh
      * taps agreeing with that state, and {@code reportedAt} is the newest
@@ -742,16 +742,16 @@ public class ShelterQueryService {
         return result;
     }
 
-    // ---- community pulse (M9 — report aggregation UI) -----------------------
+    // ---- community pulse (report aggregation UI) -----------------------
 
     /**
-     * The community pulse (M9 — report aggregation UI), DETAIL-read only.
+     * The community pulse (report aggregation UI), DETAIL-read only.
      *
      * <p>The fresh window is the SAME 2 h read-time window as the occupancy
-     * D4 and open/closed taps (clock minus the window, applied at read —
+     * and open/closed taps (clock minus the window, applied at read —
      * no cleanup job). The plain counts are unweighted; the shares are
      * trust-weighted with the SAME derived weight the auto-hide tally uses
-     * (community-self-moderation D1 — see {@code ShelterReportService});
+     * (community-self-moderation see {@code ShelterReportService});
      * taps and bands carry no damp flag (damping is a NON_EXISTENT-report
      * concept), so every fresh report contributes at least the baseline
      * weight. The recent log is the merged fresh taps + bands, newest
@@ -870,7 +870,7 @@ public class ShelterQueryService {
         return weights.getOrDefault(userId, ReporterTrust.BASELINE);
     }
 
-    /** D5: the trust filters over the projected list (absent = no filter).
+    /** the trust filters over the projected list (absent = no filter).
      *  {@code provenance} (shelter-provenance-taxonomy) keeps the rows
      *  whose derived taxonomy value matches — in-memory over the projected
      *  list, the same Estonia-scale precedent as the trust filters. */

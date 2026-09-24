@@ -47,7 +47,7 @@ const BASEMENT = shelter({
   source: 'USER',
   description: 'Neighbourhood basement',
   capacity: 12,
-  reviewStatus: 'NEW', // D3: USER rows backfill NEW (badge only — the pin carries depth, not recency)
+  reviewStatus: 'NEW', // USER rows backfill NEW (badge only — the pin carries depth, not recency)
 });
 const CONFIRMED_BASEMENT = shelter({
   ...BASEMENT,
@@ -110,7 +110,7 @@ describe('LeafletService', () => {
     expect(container.querySelector('img[src*="tile.openstreetmap.org"]') !== null).toBe(true);
   });
 
-  it('renders one divIcon per row — the trust palette (D5)', () => {
+  it('renders one divIcon per row — the trust palette ', () => {
     service.renderShelters([TALLINN, PERNU, BASEMENT, CONFIRMED_BASEMENT]);
 
     const markers = renderedMarkers(container);
@@ -322,7 +322,7 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--new')).toBe(false);
   });
 
-  it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of trust colour (D1)', () => {
+  it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of trust colour ', () => {
     const reportedRegistry = shelter({
       id: 3,
       name: 'Reported Registry Row',
@@ -360,7 +360,7 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--registry')).toBe(false);
   });
 
-  it('an open inaccurate-information report turns the pin reported (W2-B: the OR of the two kinds)', () => {
+  it('an open inaccurate-information report turns the pin reported (the OR of the two kinds)', () => {
     const inaccurateRegistry = shelter({
       id: 30,
       name: 'Inaccurate Registry Row',
@@ -386,7 +386,7 @@ describe('LeafletService', () => {
     expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(0);
   });
 
-  it('inaccurate reports still beat the verification SHAPE (the safety affordance, W2-B)', () => {
+  it('inaccurate reports still beat the verification SHAPE (the safety affordance)', () => {
     const inaccurateFull = shelter({
       id: 32,
       name: 'Inaccurate Full Cellar',
@@ -503,7 +503,7 @@ describe('LeafletService', () => {
     expect(renderedMarkers(container)).toHaveLength(0);
   });
 
-  it('showShelter: an inaccurate-reported detail row pins reported (W2-B)', () => {
+  it('showShelter: an inaccurate-reported detail row pins reported ', () => {
     service.showShelter({
       latitude: TALLINN.latitude,
       longitude: TALLINN.longitude,
@@ -560,7 +560,7 @@ describe('LeafletService', () => {
     expect(container.querySelectorAll('.leaflet-map-pane')).toHaveLength(1);
   });
 
-  it('a map-surface click invokes the mapClick callback with [lat, lng] (M5 mini-map)', () => {
+  it('a map-surface click invokes the mapClick callback with [lat, lng] (mini-map)', () => {
     const onMapClick = vi.fn();
     service.mapClick = onMapClick;
 
@@ -595,7 +595,7 @@ describe('LeafletService', () => {
     expect(() => uncreated.setPick(null, null)).not.toThrow();
   });
 
-  it('setAnchor drops one fixed anchor pin, re-centers on update, removes on null (M12)', () => {
+  it('setAnchor drops one fixed anchor pin, re-centers on update, removes on null ', () => {
     // Coexists with the shelter markers — its own field, never the
     // markers layer group (renderShelters keeps the anchor alive).
     service.renderShelters([TALLINN, PERNU]);
@@ -620,7 +620,7 @@ describe('LeafletService', () => {
     expect(anchor()).toHaveLength(0);
   });
 
-  it('the anchor pin is fixed and non-interactive — no drag, no click handler, out of the tab order (M12)', () => {
+  it('the anchor pin is fixed and non-interactive — no drag, no click handler, out of the tab order ', () => {
     service.setAnchor(58.8, 25.0, EN['map.searched']);
     const el = container.querySelector<HTMLElement>('.shelter-marker--anchor');
     expect(el).not.toBeNull();
@@ -629,15 +629,15 @@ describe('LeafletService', () => {
     expect(el?.getAttribute('tabindex')).toBeNull();
     expect(el?.getAttribute('role')).toBeNull();
     // The tooltip text (the native title) names what the pin is — its
-    // accessible name (M8: the origin marker).
+    // accessible name (the origin marker).
     expect(el?.getAttribute('title')).toBe(EN['map.searched']);
-    // Smaller than the 14px shelter dots (M8): the origin is a reference
+    // Smaller than the 14px shelter dots: the origin is a reference
     // point, not a data point — and it must not cover a co-located shelter.
     expect(el?.style.width).toBe('12px');
     expect(el?.style.height).toBe('12px');
   });
 
-  it('a shelter at the anchor point is never obscured — shelters outrank the origin pin in z-order (M8)', () => {
+  it('a shelter at the anchor point is never obscured — shelters outrank the origin pin in z-order ', () => {
     // Same coordinates for shelter and anchor: the shelter marker (the
     // DATA) must draw above the origin pin at the zooms the app uses.
     service.renderShelters([TALLINN]);
@@ -658,7 +658,7 @@ describe('LeafletService', () => {
     );
   });
 
-  it('setAnchor is a safe no-op before create and destroy clears the pin (M12)', () => {
+  it('setAnchor is a safe no-op before create and destroy clears the pin ', () => {
     const uncreated = new LeafletService();
     expect(() => uncreated.setAnchor(58.8, 25.0, EN['map.searched'])).not.toThrow();
 
@@ -715,7 +715,7 @@ describe('markerTone — the tone resolution the pin is made of', () => {
     expect(fresh('FULL')).toBe('full');
   });
 
-  it('a fresh row with an open report of EITHER kind resolves reported, beating the depth tone (W2-B)', () => {
+  it('a fresh row with an open report of EITHER kind resolves reported, beating the depth tone ', () => {
     expect(
       markerTone({ source: 'USER', nonexistentReports: 1, submitterVerification: 'FULL' }),
     ).toBe('reported');

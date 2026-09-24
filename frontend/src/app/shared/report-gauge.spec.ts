@@ -2,13 +2,13 @@ import { TestBed } from '@angular/core/testing';
 import { ReportGauge } from './report-gauge';
 
 /**
- * The semicircular report gauge (M9 community pulse): the needle angle
+ * The semicircular report gauge (community pulse): the needle angle
  * follows the weighted share (50/50 → straight up at 90°, all-one-way →
  * the 0°/180° extremes), zero data renders the explicit empty state
  * (NO neutral arrow), and the count line + end labels are visible text —
  * the angle is never the only carrier of meaning.
  */
-describe('ReportGauge (M9 community pulse)', () => {
+describe('ReportGauge (community pulse)', () => {
   let fixture: ReturnType<typeof TestBed.createComponent<ReportGauge>>;
 
   beforeEach(() => {

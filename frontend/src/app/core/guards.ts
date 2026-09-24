@@ -7,7 +7,7 @@
  *    (used by /login, /register, /reset)
  *  - VerifiedGuard -> has a verification claim? allow : redirect
  *    /verify?returnUrl=... (used by /submit; mirrors the backend 403)
- *  - AdminGuard (admin-moderation D2) -> authenticated AND admin-kind? allow
+ * - AdminGuard (admin-moderation) -> authenticated AND admin-kind? allow
  *    : redirect home. Anonymous AND non-admin alike go home — unlike
  *    authGuard it deliberately does NOT offer /login (the admin tool has no
  *    guest value, and the backend answers 401/403 the same way).
@@ -88,7 +88,7 @@ export const verifiedGuard: CanActivateFn = async (_route, state): Promise<boole
 };
 
 /**
- * Admin-kind accounts only (admin-moderation D2): mirrors the backend's
+ * Admin-kind accounts only (admin-moderation): mirrors the backend's
  * /admin/* authorization (fresh kind lookup per request — no JWT claim).
  * ANYONE else — anonymous OR an authenticated non-admin — is sent home:
  * the admin tool is not something a regular user is logged in FOR. Reads

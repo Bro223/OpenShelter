@@ -11,7 +11,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The specification of the sanitizer (crisis-guidance D2): the exact
+ * The specification of the sanitizer (crisis-guidance): the exact
  * treatment of disallowed markup is pinned here rather than asserted in
  * the design — the allowlist, the protocol rules, malformed markup,
  * idempotence and the usual XSS kit.

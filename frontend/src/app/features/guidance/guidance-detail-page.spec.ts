@@ -62,7 +62,7 @@ function fakeAuthStore(
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation D5: the shell's nav item reads this — default false.
+    // admin-moderation: the shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -367,7 +367,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Hero image (crisis-guidance D1): rendered when the post has one,
+  // Hero image (crisis-guidance): rendered when the post has one,
   // NOTHING (no element at all) when it does not.
   // ---------------------------------------------------------------------------
   describe('hero image', () => {
@@ -438,7 +438,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(img?.getAttribute('alt')).not.toBe('Hero without alt');
     });
 
-    // ---- P2-9: the derivative srcset (the index card's idiom) ----
+    // ---- the derivative srcset (the index card's idiom) ----
 
     it('renders the derivative srcset with the column-cap sizes when the server has one', async () => {
       const heroUrl = '/api/media/0123456789abcdef0123456789abcdef.jpg';
@@ -488,7 +488,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(img?.getAttribute('sizes')).toBe('704px');
     });
 
-    // ---- Wave 13: a real non-square file (the stretch cannot come back) ----
+    // ---- a real non-square file (the stretch cannot come back) ----
 
     it('a real non-square hero keeps its own ratio — a portrait file declares no fixed box', async () => {
       // The project's ambient node:fs types only cover the utf8 overload —
@@ -712,14 +712,14 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 360px viewport (M13, mobile-responsive-polish): no page-level horizontal
+  // 360px viewport (mobile-responsive-polish): no page-level horizontal
   // overflow. jsdom cannot measure a 360px viewport (no layout engine — every
-  // offsetWidth/scrollWidth is 0), so — like the M13 pins in
+  // offsetWidth/scrollWidth is 0), so — like the pins in
   // shelter-detail-page.spec.ts — the mechanisms that make overflow impossible
   // are pinned against the stylesheet. 360px viewport − 2 × 20px .shell-body
   // padding (page-shell.scss) = 320px of content on /blog/:slug.
   // ---------------------------------------------------------------------------
-  describe('no page-level horizontal overflow at 360px (M13 mechanism)', () => {
+  describe('no page-level horizontal overflow at 360px ', () => {
     const readDetailScss = (): string =>
       readFileSync(`${process.cwd()}/src/app/features/guidance/guidance-detail-page.scss`, 'utf8');
 

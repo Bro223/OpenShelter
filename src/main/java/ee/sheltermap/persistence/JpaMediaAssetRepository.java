@@ -117,7 +117,7 @@ public class JpaMediaAssetRepository implements MediaAssetRepository {
         // Force the SQL DELETE (and its ON DELETE SET NULL onto
         // guidance_posts.hero_image_id) to run NOW, not at an arbitrary
         // later auto-flush: a follow-up read of the posts in the same
-        // transaction must already see the reference cleared (D8).
+        // transaction must already see the reference cleared.
         assets.flush();
     }
 }

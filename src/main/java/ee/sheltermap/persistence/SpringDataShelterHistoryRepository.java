@@ -11,7 +11,7 @@ public interface SpringDataShelterHistoryRepository extends JpaRepository<Shelte
      * A shelter's history in ASCENDING order (id asc = created_at asc for a
      * monotonic identity sequence; the stable-order discipline, B7a).
      * Dangling shelter_id rows (a deleted shelter) match too — that is the
-     * point (D4: the delete's own row outlives the cascade).
+     * point (the delete's own row outlives the cascade).
      */
     List<ShelterHistoryEntity> findByShelterIdOrderByIdAsc(Long shelterId);
 }

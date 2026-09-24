@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * P2-9 over the REAL stack: the derivative URL shape
+ * over the REAL stack: the derivative URL shape
  * ({@code /api/media/<32hex>-t<width>.<ext>}) serves the rendered
  * thumbnail with the BASE asset's stored content type, its own on-disk
  * size and the immutable cache headers; a never-rendered width (an

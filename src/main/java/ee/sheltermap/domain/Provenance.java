@@ -12,7 +12,7 @@ package ee.sheltermap.domain;
  *       REJECTED}); the most specific statement the app has about the row.
  *   <li>{@link #REPORTED_INACTIVE} — an {@code INACTIVE} row with at least
  *       {@link ShelterReport#AUTO_HIDE_THRESHOLD} open reports of EITHER
- *       report kind (the W2-A report semantics): the
+ * report kind (the report semantics): the
  *       {@code NON_EXISTENT} count (the auto-hide path) or the
  *       "inaccurate information" count ({@code WRONG_LOCATION} +
  *       {@code OTHER} — the community's "this data is wrong" reports).
@@ -53,7 +53,7 @@ public enum Provenance {
      * @param inaccurateReports   the row's live open "inaccurate
      *                            information" report count
      *                            ({@code WRONG_LOCATION} + {@code OTHER};
-     *                            0 when none) — W2-A: EITHER kind drives
+     * 0 when none) — EITHER kind drives
      *                            the reported state
      */
     public static Provenance of(ShelterSource source, ReviewStatus reviewStatus,

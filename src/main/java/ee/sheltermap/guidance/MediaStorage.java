@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * File store for the crisis-guidance media library (crisis-guidance D7).
+ * File store for the crisis-guidance media library.
  *
  * <p>Uploads land under the configured directory
  * ({@code app.media.upload-dir}) as
@@ -30,7 +30,7 @@ import java.util.UUID;
  * {@code ProdJwtGuard}, so a misconfigured deployment is discovered at
  * deploy time rather than on the first upload.
  *
- * <p>P2-9 derivatives: a derivative of a stored file {@code <hex32>.<ext>}
+ * <p>Derivatives: a derivative of a stored file {@code <hex32>.<ext>}
  * sits BESIDE it as {@code <hex32>-t<width>.<ext>} (the derived name is
  * computed by {@link MediaDerivatives#derivativeName} from a base that
  * must already satisfy the serving contract — the derivative inherits
@@ -67,13 +67,13 @@ public class MediaStorage {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "Cannot create the media upload directory " + root
-                            + " — check the MEDIA_UPLOAD_DIR setting (crisis-guidance D7): "
+                            + " — check the MEDIA_UPLOAD_DIR setting: "
                             + e.getMessage(), e);
         }
         if (!Files.isWritable(root)) {
             throw new IllegalStateException(
                     "The media upload directory " + root + " is not writable — check the "
-                            + "MEDIA_UPLOAD_DIR setting (crisis-guidance D7)");
+                            + "MEDIA_UPLOAD_DIR setting");
         }
         initialized = true;
     }
@@ -110,7 +110,7 @@ public class MediaStorage {
     }
 
     /**
-     * Write a derivative of a stored file beside it (P2-9): the name is
+     * Write a derivative of a stored file beside it: the name is
      * DERIVED from the original's generated name (same stem, the
      * {@code -t<width>} marker, the same extension) — the derivative
      * can therefore never land outside the original's name space, and
@@ -144,8 +144,8 @@ public class MediaStorage {
     }
 
     /**
-     * The derivative widths that EXIST on disk for a stored file (P2-9,
-     * ascending) — the srcset is built from this, never from the row:
+     * The derivative widths that EXIST on disk for a stored file
+     * (ascending) — the srcset is built from this, never from the row:
      * the filesystem is the truth, so an asset without derivatives (a
      * pre-feature upload, a WebP original, a skipped decode) answers
      * empty and its slots render the original via plain {@code src}.
@@ -166,8 +166,8 @@ public class MediaStorage {
     }
 
     /**
-     * Remove a stored file AND every derivative that exists beside it
-     * (P2-9): the asset deletion must not leave orphan thumbnails the
+     * Remove a stored file AND every derivative that exists beside it:
+     * the asset deletion must not leave orphan thumbnails the
      * serving endpoint would 404-look-up against a gone row. Idempotent
      * like {@link #delete} (a concurrent delete already removed them).
      */

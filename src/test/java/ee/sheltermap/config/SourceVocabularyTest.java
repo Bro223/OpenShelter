@@ -11,7 +11,9 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
  * stays in the fast unit tier.
+ *
+ * <p>The walk also carries a matched-count floor: it must still see at least
+ * a fixed number of files under every scanned root and a fixed number of
+ * lines in total. A reformat that moves, renames or re-roots the sources
+ * must fail loudly — not shrink the walk until it checks nothing and passes
+ * on an empty tree. This is the same floor discipline the other guards in
+ * this repository apply to their citation and pattern counts.
  */
 class SourceVocabularyTest {
 
@@ -35,6 +44,17 @@ class SourceVocabularyTest {
      * Forbidden id shapes, each with the reader-visible gap it leaves behind.
      * Every pattern is anchored on id syntax that ordinary English and
      * ordinary code cannot produce — no bare words, no generic numbers.
+     *
+     * <p>Deliberately NOT forbidden, because a reader in this repository can
+     * resolve them: Flyway version numbers (a bare V plus digits — the
+     * migration files exist in the tree), i18n keys (dotted paths),
+     * specification paths, class and constant names, and the letters that
+     * name standards rather than planning rows (WGS84, EST97, E164, SHA256,
+     * the JPEG marker names). A shape lands in this list only after a census
+     * over the whole scanned tree shows it occurs as nothing but planning
+     * references; the one shape that collided with a hex byte (the
+     * start-of-image pair, written 0xFFD8) is refused as a standalone token
+     * by its word boundaries, which is why the byte must stay a hex literal.
      */
     private static final List<Pattern> FORBIDDEN_PATTERNS = List.of(
             // work-ledger row ids
@@ -59,7 +79,23 @@ class SourceVocabularyTest {
             // a calendar date followed by the word review: a dated pass
             // reference. A date on its own stays legal — fixtures, fixed
             // clocks and migration names carry them for real reasons
-            Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} review\\b")
+            Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} review\\b"),
+            // a rollout wave cited in prose: the word wave, capitalised or
+            // not, followed by a number. No ordinary sentence or code token
+            // pairs that word with a bare number.
+            Pattern.compile("\\bWave \\d+"),
+            Pattern.compile("\\bwave \\d+"),
+            // a wave-task id: a capital W, a number, a dash, a task letter
+            Pattern.compile("\\bW\\d+-[A-Z]\\b"),
+            // a decision id: a capital D followed by digits, standing alone
+            Pattern.compile("\\bD\\d+\\b"),
+            // a milestone id: a capital M, digits, an optional trailing
+            // letter. A test fixture that happens to carry this shape is a
+            // local name, not a reference — rename the fixture, do not
+            // allow-list the shape
+            Pattern.compile("\\bM\\d+[a-z]?\\b"),
+            // a plan-row id: a capital P, a number, a dash, a number
+            Pattern.compile("\\bP\\d+-\\d+\\b")
     );
 
     /** Source trees scanned, relative to the module root. */
@@ -71,22 +107,44 @@ class SourceVocabularyTest {
     /** Generated or dependency trees, never authored by hand. */
     private static final Set<String> SKIPPED_DIRECTORIES = Set.of("target", "node_modules", ".angular", "dist");
 
+    /**
+     * The floor a per-root walk must still clear: the number of authored
+     * files under that root. Measured on a clean tree as 358 / 184 / 224
+     * (main / test / frontend); the floors sit below the measurement so
+     * ordinary churn stays green and a moved or renamed tree goes red.
+     */
+    private record RootFloor(String root, int minFiles) { }
+
+    private static final List<RootFloor> ROOT_FLOORS = List.of(
+            new RootFloor("src/main/java", 300),
+            new RootFloor("src/test/java", 150),
+            new RootFloor("frontend/src", 180));
+
+    /** Total scanned lines across all roots (measured 136 518 on a clean tree). */
+    private static final int MIN_SCANNED_LINES = 110_000;
+
     @Test
     void sourceContainsNoUnresolvableIdReferences() {
         Path root = moduleRoot();
         List<String> hits = new ArrayList<>();
+        Map<String, Integer> filesPerRoot = new HashMap<>();
+        long[] scannedLines = new long[1];
         int scannedRoots = 0;
         for (String scannedRoot : SCANNED_ROOTS) {
             Path start = root.resolve(scannedRoot);
             if (Files.isDirectory(start)) {
                 scannedRoots++;
-                collectHits(root, start, hits);
+                collectHits(root, scannedRoot, start, hits, filesPerRoot, scannedLines);
             }
         }
         hits.sort(Comparator.naturalOrder());
         if (scannedRoots == 0) {
             fail("No scanned source root found under " + root + " — the walk started in the wrong "
                     + "directory, so this guard checked nothing.");
+        }
+        List<String> floorProblems = floorProblems(filesPerRoot, scannedLines[0]);
+        if (!floorProblems.isEmpty()) {
+            fail(String.join("\n", floorProblems));
         }
         if (!hits.isEmpty()) {
             fail(renderFailure(hits));
@@ -109,7 +167,8 @@ class SourceVocabularyTest {
     }
 
     /** Walks one scanned root and records every offending line found beneath it. */
-    private static void collectHits(Path root, Path start, List<String> hits) {
+    private static void collectHits(Path root, String rootKey, Path start, List<String> hits,
+                                    Map<String, Integer> filesPerRoot, long[] scannedLines) {
         try {
             Files.walkFileTree(start, new SimpleFileVisitor<>() {
                 @Override
@@ -122,7 +181,8 @@ class SourceVocabularyTest {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
                     if (hasScannedExtension(file)) {
-                        scanFile(root, file, hits);
+                        filesPerRoot.merge(rootKey, 1, Integer::sum);
+                        scannedLines[0] += scanFile(root, file, hits);
                     }
                     return FileVisitResult.CONTINUE;
                 }
@@ -138,14 +198,17 @@ class SourceVocabularyTest {
         }
     }
 
-    /** Records {@code relative/path:line: <trimmed line>} for each offending line of one file. */
-    private static void scanFile(Path root, Path file, List<String> hits) {
+    /**
+     * Records {@code relative/path:line: <trimmed line>} for each offending line of one
+     * file and returns the number of lines scanned — the floor's denominator.
+     */
+    private static int scanFile(Path root, Path file, List<String> hits) {
         List<String> lines;
         try {
             lines = Files.readAllLines(file, StandardCharsets.UTF_8);
         } catch (IOException e) {
             // Unreadable, undecodable or vanished: skip the file instead of failing the guard.
-            return;
+            return 0;
         }
         for (int index = 0; index < lines.size(); index++) {
             String line = lines.get(index).trim();
@@ -154,6 +217,7 @@ class SourceVocabularyTest {
                 hits.add(relativePath + ":" + (index + 1) + ": " + line);
             }
         }
+        return lines.size();
     }
 
     private static boolean containsForbiddenId(String line) {
@@ -173,6 +237,34 @@ class SourceVocabularyTest {
             }
         }
         return false;
+    }
+
+    /**
+     * The walk's own denominator: if the tree it scans has shrunk below the
+     * floors, the hit list above it is meaningless — a walk that checks
+     * nothing must not pass silently.
+     */
+    private static List<String> floorProblems(Map<String, Integer> filesPerRoot, long scannedLines) {
+        List<String> problems = new ArrayList<>();
+        for (RootFloor floor : ROOT_FLOORS) {
+            int seen = filesPerRoot.getOrDefault(floor.root(), 0);
+            if (seen < floor.minFiles()) {
+                problems.add("only " + seen + " source files were scanned under " + floor.root()
+                        + " (the floor is " + floor.minFiles() + ") — a tree move, rename or "
+                        + "skip-list change shrank the walk; this guard would check nothing");
+            }
+        }
+        if (scannedLines < MIN_SCANNED_LINES) {
+            problems.add("only " + scannedLines + " source lines were scanned in total "
+                    + "(the floor is " + MIN_SCANNED_LINES + ") — the walk shrank to a "
+                    + "fraction of the tree it is written for");
+        }
+        if (!problems.isEmpty()) {
+            problems.add(0, "The vocabulary walk degraded below its matched-count floors — restore "
+                    + "the tree layout, or change the floors deliberately with a reason, so a "
+                    + "reformat can never reduce this guard to checking nothing:");
+        }
+        return problems;
     }
 
     /** Renders the hit list plus the one-sentence fix a reader needs. */

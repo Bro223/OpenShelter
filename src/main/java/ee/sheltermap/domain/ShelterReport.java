@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One community shelter report (shelter-trust-and-reports D1).
+ * One community shelter report (shelter-trust-and-reports).
  *
  * <p>At most one report of a given type per user per shelter (unique
  * {@code shelterId + userId + type}, enforced by the database).
@@ -30,7 +30,7 @@ public class ShelterReport {
     public static final int AUTO_CONFIRM_THRESHOLD = 3;
     /**
      * The trust-weighted {@code NON_EXISTENT} hide tally at which an ACTIVE
-     * shelter is auto-hidden (shelter-trust-and-reports D1 — the 4→5
+     * shelter is auto-hidden (shelter-trust-and-reports — the 4→5
      * transition; community-self-moderation made the tally trust-
      * weighted: each distinct reporter contributes their derived weight,
      * dampened reports 0 — five baseline reporters still hide on the
@@ -46,10 +46,10 @@ public class ShelterReport {
     private final ShelterReportType type;
     private final String detail;
     private final Instant createdAt;
-    /** When an admin dismissed this report (V10, admin-moderation D3); {@code null} while unresolved. */
+    /** When an admin dismissed this report (V10, admin-moderation); {@code null} while unresolved. */
     private Instant dismissedAt;
     /**
-     * Dampened flag (community-self-moderation, D3): set once at write
+     * Dampened flag (community-self-moderation): set once at write
      * time when the reporter holds their own other USER listing of the
      * same place — a self-interested {@code NON_EXISTENT} vote that
      * contributes 0 to the weighted auto-hide tally. The report stays
@@ -122,7 +122,7 @@ public class ShelterReport {
     }
 
     /**
-     * Dismisses the report (admin-moderation D3). Set ONCE — a second call
+     * Dismisses the report (admin-moderation). Set ONCE — a second call
      * is a no-op, so a re-dismiss can never double-stamp the row. Dismissing
      * never deletes: the report stays recorded as resolved.
      */
@@ -132,13 +132,13 @@ public class ShelterReport {
         }
     }
 
-    /** {@code true} once the report was stored dampened (D3). */
+    /** {@code true} once the report was stored dampened. */
     public boolean isDamped() {
         return damped;
     }
 
     /**
-     * Marks the report dampened (D3). Set ONCE at write time — a
+     * Marks the report dampened. Set ONCE at write time — a
      * second call is a no-op, mirroring {@link #markDismissed}; the damp
      * decision never un-damps a stored row.
      */

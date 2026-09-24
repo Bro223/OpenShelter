@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * The single implementation of the reporter's derived trust weight
- * (community-self-moderation D1), shared by the auto-hide tally in
+ * (community-self-moderation), shared by the auto-hide tally in
  * {@link ShelterReportService} and the community-pulse projection in
  * {@code api.ShelterQueryService} so the two can never drift apart —
  * the weight is the multiplier of the {@code NON_EXISTENT} tally that

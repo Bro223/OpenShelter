@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The ONE shared contact-identity rule (W4-A): trim + root-locale
+ * The ONE shared contact-identity rule: trim + root-locale
  * lower-case. This spec pins the rule itself; the consumers
  * (registration uniqueness, login/reset rate-limit buckets, the OTP
  * limiter's windows, the alert subject, and

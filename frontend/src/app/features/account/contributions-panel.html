@@ -35,7 +35,7 @@
           <div class="contrib-row__info">
             <span class="contrib-row__title">
               {{ row.name }}
-              <!-- Trust state (community-review-queue D5): the /mine badge
+              <!-- Trust state (community-review-queue): the /mine badge
                    (panel-local translated set — trustBadgeLabel). -->
               <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
                 {{ trustBadgeLabel(row) }}
@@ -86,7 +86,7 @@
                 {{ infoFor() === row.id ? ('account.contrib.infoClose' | t) : ('account.contrib.info' | t) }}
               </button>
             }
-            <!-- M5: Edit opens the SHARED /submit form in edit mode — the
+            <!-- Edit opens the SHARED /submit form in edit mode — the
                  full creation form (same fields, same location capture
                  modes) prefilled with this row's values. The account area
                  no longer hosts a reduced inline edit form. String form

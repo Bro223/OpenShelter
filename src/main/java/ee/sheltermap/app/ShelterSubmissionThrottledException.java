@@ -7,7 +7,7 @@ package ee.sheltermap.app;
  * via the global exception handler.
  *
  * <p>Distinct from {@link ShelterLimitExceededException} (the 409
- * active-shelter cap, shelter-trust-and-reports D3): this one is a rate
+ * active-shelter cap, shelter-trust-and-reports): this one is a rate
  * limit on the SUBMITTING act, not a conflict on the row count. When the
  * thrower can compute when the window slides, {@link #retryAfterSeconds()}
  * carries the exact seconds until a retry may succeed and the handler adds

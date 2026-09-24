@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * JPA implementation of {@link ShelterHistoryLog} (moderation-dashboard-
- * completion, D4) — a plain JPA save in the CALLER's
+ * completion) — a plain JPA save in the CALLER's
  * transaction: every lifecycle event runs inside its {@code @Transactional}
  * service method, so the history row commits or rolls back with the event
  * it records (same-transaction write, no JdbcTemplate, no separate

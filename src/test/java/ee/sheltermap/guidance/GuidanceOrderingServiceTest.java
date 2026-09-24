@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted ordering seam (W3-A) directly: the full-list and
+ * The extracted ordering seam directly: the full-list and
  * locale-scoped reorders in {@link GuidanceOrderingService} — the
  * permutation validation, the shared-slot algorithm, the no-op idempotence
  * and the single audit row. The bean's delegating methods (transaction

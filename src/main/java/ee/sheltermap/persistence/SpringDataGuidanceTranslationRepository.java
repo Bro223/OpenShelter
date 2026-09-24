@@ -38,7 +38,7 @@ public interface SpringDataGuidanceTranslationRepository
      * The public index read: the translation rows of PUBLISHED posts that have
      * a translation in {@code locale}, in the public index order (pinned first,
      * the post's sort_order asc — the stored manual order, guidance-manual-order
-     * D2 — then published_at desc as the tie-breaker the non-unique sort_order
+     * then published_at desc as the tie-breaker the non-unique sort_order
      * requires, then the post id desc). Each row carries the owning post id;
      * the service batch-loads the posts for the hero image, pinned and published
      * stamp (one extra read, no per-row N+1).
@@ -50,7 +50,7 @@ public interface SpringDataGuidanceTranslationRepository
             nativeQuery = true)
     List<GuidanceTranslationEntity> findPublishedInLocale(@Param("locale") String locale);
 
-    /** The hard-delete cascade of a post onto its translations (D8). */
+    /** The hard-delete cascade of a post onto its translations. */
     @Modifying
     @Query("delete from GuidanceTranslationEntity t where t.postId = :postId")
     void deleteAllByPostId(@Param("postId") Long postId);

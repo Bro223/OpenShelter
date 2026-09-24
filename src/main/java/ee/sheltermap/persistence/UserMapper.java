@@ -69,7 +69,7 @@ final class UserMapper {
         User user = switch (entity.getKind()) {
             case GUEST -> new GuestUser();
             case REGISTERED -> new RegisteredUser(entity.getName(), email, phone);
-            // Admin-moderation D1: the ADMIN kind round-trips through
+            // Admin-moderation the ADMIN kind round-trips through
             // AdminUser — the claims are restored from storage below (a
             // reloaded admin reflects the stored claim state, revoked ones
             // included; the constructor does NOT pre-set them).
@@ -119,7 +119,7 @@ final class UserMapper {
         // AdminUser BEFORE the RegisteredUser check (it IS-A RegisteredUser):
         // the kind column is fixed at creation and must survive every save
         // of a loaded admin (a name/profile edit must not flip it to
-        // REGISTERED — kind is the truth, admin-moderation D2).
+        // REGISTERED — kind is the truth, admin-moderation).
         if (user instanceof AdminUser) {
             return UserKind.ADMIN;
         }

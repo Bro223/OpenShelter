@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * and then drop it.
  *
  * <p>{@code locationKind} is the private-home declaration
- * (community-review-queue v2 D7): {@code "PUBLIC" | "PRIVATE"} —
+ * (community-review-queue v2): {@code "PUBLIC" | "PRIVATE"} —
  * absent (or {@code null}) means PUBLIC; an unknown value is a 400
  * malformed body.
  */

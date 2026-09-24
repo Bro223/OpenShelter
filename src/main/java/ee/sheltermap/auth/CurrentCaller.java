@@ -9,12 +9,12 @@ import java.util.Objects;
 
 /**
  * The per-request authenticated-caller lookup, shared by every API
- * surface that resolves the JWT principal to a user (W3-A): before this
+ * surface that resolves the JWT principal to a user: before this
  * extraction the "read the principal, resolve the user" sequence had a
  * copy per caller ({@code ShelterController} twice — the column-only id
  * probe and the full row load — and {@code AdminAccess} once), and the
  * auth package's own account/verification controllers each carried a
- * third shape of it (W4-A: moved here from {@code ee.sheltermap.api},
+ * third shape of it (moved here from {@code ee.sheltermap.api},
  * the neutral home for the primitive — both the api and the auth
  * controllers consume it, and the api already depends on the auth
  * package, never the reverse). One implementation, three behaviours
@@ -98,7 +98,7 @@ public final class CurrentCaller {
      * The caller's row for an id already established by
      * {@link #requireUserId()}, or {@code null} when the row no longer
      * exists — the row-load half of the lookup WITHOUT deciding the
-     * error vocabulary (W4-A): the auth controllers resolve the id
+     * error vocabulary: the auth controllers resolve the id
      * through {@link #requireUserId()} (their 401 convention) and map a
      * gone or guest row to their own documented message, so the
      * per-surface status vocabulary stays exactly what each endpoint

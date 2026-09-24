@@ -113,7 +113,7 @@
 .proof-note {
   font-size: var(--text-md);
   color: var(--color-text);
-  /* Wave 15 (owner): the 3px primary left bar read as machine-generated —
+  /* (owner): the 3px primary left bar read as machine-generated —
      the subtle fill alone carries the note's boundary (the token's
      documented role: "the muted surface (inset notes, …)"), contrast-
      pinned in design-tokens.spec.ts as --color-text on --color-bg-subtle. */
@@ -139,7 +139,7 @@
   flex-wrap: wrap;
 }
 
-/* Kind badge (admin-moderation D5): the shared .badge pill (styles.scss)
+/* Kind badge (admin-moderation): the shared .badge pill (styles.scss)
    carries the typography, shape and the registry fill; account-local only:
    the layout extras for the row it rides in and the "Admin" green tint —
    the verified/trusted colour. */

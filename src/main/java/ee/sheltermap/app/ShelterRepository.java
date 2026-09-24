@@ -30,7 +30,7 @@ public interface ShelterRepository {
     List<Shelter> findAll();
 
     /**
-     * The public list projection (shelter-trust-and-reports D5): only
+     * The public list projection (shelter-trust-and-reports): only
      * {@code ACTIVE} rows — auto-hidden shelters disappear from the map
      * and list. Owner ({@link #findByCreatedBy}) and admin listings keep
      * all statuses.
@@ -46,7 +46,7 @@ public interface ShelterRepository {
     List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox);
 
     /**
-     * Paged public list read (W2-A: real paging, not a slice over the
+     * Paged public list read (real paging, not a slice over the
      * whole corpus): the rows of ONE page of the public projection —
      * {@code ACTIVE} rows of {@code sources} inside the optional
      * {@code bbox} (null = everywhere), with the trust filters pushed
@@ -63,7 +63,7 @@ public interface ShelterRepository {
                                  long offset, int limit);
 
     /**
-     * Paged admin list read (W2-A): EVERY status (the admin view, unlike
+     * Paged admin list read: EVERY status (the admin view, unlike
      * the public projection), the optional exact {@code status} and
      * {@code sources} filters and the case-insensitive name/address
      * substring {@code qPattern} (the caller lowercases and LIKE-escapes;
@@ -81,7 +81,7 @@ public interface ShelterRepository {
 
     /**
      * The caller's shelters with the given source/status — the input of
-     * the per-user active-shelter cap (shelter-trust-and-reports D3).
+     * the per-user active-shelter cap (shelter-trust-and-reports).
      */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
@@ -96,7 +96,7 @@ public interface ShelterRepository {
 
     /**
      * The user's USER submissions in one review state — the first input of
-     * the derived reporter trust weight (community-self-moderation, D1).
+     * the derived reporter trust weight (community-self-moderation).
      */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);

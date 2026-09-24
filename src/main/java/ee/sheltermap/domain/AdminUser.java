@@ -8,11 +8,11 @@ import java.time.Instant;
  * whose row kind, not its class in the domain, is the authorization truth.
  *
  * <p>Provisioning is env-driven, never the registration flow
- * (admin-moderation D1): the admin mailbox does not exist by design, so
+ * (admin-moderation): the admin mailbox does not exist by design, so
  * the account is born with EVERY verification claim pre-set and
  * {@link #canWrite()} is true from the first request, without any
  * email/SMS verification. Admin authorization is a fresh kind lookup per
- * request (no JWT role claim — D2), so this class never grants anything by
+ * request (no JWT role claim), so this class never grants anything by
  * itself; it only exists so the persistence layer can round-trip the
  * ADMIN kind (kinds are fixed at creation, verification is claims,
  * never subclasses — the TIJ "Bird" rule holds for the admin too).
@@ -31,7 +31,7 @@ public class AdminUser extends RegisteredUser {
     }
 
     /**
-     * A freshly provisioned admin (AdminSeeder, admin-moderation D1): every
+     * A freshly provisioned admin (AdminSeeder, admin-moderation): every
      * verification claim pre-set (EMAIL, PHONE, SMART_ID) — the account is
      * fully writable without the verification channels its non-existent
      * mailbox could never pass. No phone: the account is not a phone-login
@@ -39,7 +39,7 @@ public class AdminUser extends RegisteredUser {
      * account's real contact).
      *
      * <p>The SMART_ID claim's {@code external_ref} also carries the e-mail:
-     * no ID code is stored anywhere (remove-national-id D4), and the column
+     * no ID code is stored anywhere (remove-national-id), and the column
      * is NOT NULL — the e-mail is a stable, non-sensitive placeholder until
      * the real PKI flow lands and supplies its own external reference.
      *

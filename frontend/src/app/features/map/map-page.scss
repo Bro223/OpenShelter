@@ -28,7 +28,7 @@
   display: flex;
   gap: var(--space-20);
   align-items: stretch;
-  /* The legend's desktop containing block (wave 8): .map-legend is a
+  /* The legend's desktop containing block: .map-legend is a
      SIBLING of .map-page__map (it moved out of the map element for the
      narrow placement) and is absolutely positioned over the map's
      bottom-left corner at wide widths — the map starts at the layout's
@@ -60,7 +60,7 @@
 /* Legend swatches reuse the exact marker classes from styles.scss (the
    single source of truth for marker colours + geometry); the presentational
    slot in the legend below is the only size seam (see .legend-swatch-slot).
-   PLACEMENT (wave 8 — the owner's overlay-obscures-the-map report): the
+   PLACEMENT (the owner's overlay-obscures-the-map report): the
    legend is a SIBLING of the map element (map-page__layout child, DOM order
    map → legend → sidebar). The BASE rule below is the DESKTOP placement
    (≥900px): the absolute overlay over the map's bottom-left corner (the
@@ -106,7 +106,7 @@
     border-radius: var(--radius-md);
   }
 
-  /* The legend filter's affordance line (wave 7 — the legend IS the
+  /* The legend filter's affordance line (the legend IS the
      filter): the one-line mechanic the toggle entries implement. It is
      also their accessible description (aria-describedby) — the how is
      text, never a colour cue. */
@@ -116,7 +116,7 @@
     color: var(--color-muted);
   }
 
-  /* The toggle entries (wave 7): real <button>s — the UA button defaults
+  /* The toggle entries: real <button>s — the UA button defaults
      (font, text-align, border, padding, background) are undone the way
      .shelter-row does, so a row reads as a legend row, not a button box.
      The swatch keeps its EXACT marker classes (the single source of truth
@@ -243,11 +243,11 @@
   }
 }
 
-/* Crisis actions (map-crisis-actions D1): the safety-orange "Nearest
+/* Crisis actions (map-crisis-actions): the safety-orange "Nearest
    shelter" CTA is the ONLY consumer of --color-cta — the orange is the
    crisis affordance and must not become a general accent. The ghost
-   "Add shelter" (authenticated only, D4) stays on the functional palette.
-   Both reuse the global .btn (incl. its 48px min-height, D5). */
+   "Add shelter" (authenticated only) stays on the functional palette.
+   Both reuse the global .btn (incl. its 48px min-height). */
 .map-page__actions {
   display: flex;
   flex-direction: column;
@@ -427,7 +427,7 @@
     color: var(--color-muted);
   }
 
-  /* The straight-line distance (D6 honesty) — muted, secondary to the name.
+  /* The straight-line distance (honesty) — muted, secondary to the name.
      The '≈ … straight line' copy is pinned (community-review-queue). */
   .nearest-line__distance {
     color: var(--color-muted);
@@ -449,9 +449,9 @@
   }
 }
 
-/* Trust filters (shelter-trust-and-reports D6, review model gone): the
+/* Trust filters (shelter-trust-and-reports, review model gone): the
    practical chips — the "Open" (client-side) and "Has capacity" (server-side)
-   toggle chips. (The source-kind chip row was removed in wave 8 — the legend
+   toggle chips. (The source-kind chip row was removed in the legend
    is the page's only filter control; the source distinction is the legend's
    registry entry vs. its four community tones.)
    The shared .chip control (styles.scss) carries the pill styling — these
@@ -527,7 +527,7 @@
   }
 
   /* Address-anchor distance (location-navigation): the straight-line
-     distance from the searched point — the D6 honesty format, muted
+     distance from the searched point — the honesty format, muted
      (secondary to the badges), tabular figures like every distance line. */
   .shelter-row__anchor-distance {
     color: var(--color-muted);
@@ -584,7 +584,7 @@
   }
 }
 
-/* The trust-badge strip under the row meta (D6). */
+/* The trust-badge strip under the row meta. */
 .shelter-row__badges {
   display: flex;
   flex-wrap: wrap;
@@ -675,7 +675,7 @@
     height: 420px; /* page-specific layout dimension (documented exception) */
   }
 
-  /* Legend out of the map (wave 8): static = in-flow, so it renders
+  /* Legend out of the map: static = in-flow, so it renders
      BETWEEN the map and the sidebar — below the map, never over it, at
      every width <900px (mobile 375 and up, all tablets). It keeps the
      desktop COLUMN axis (one option per line, owner ruling: the wrapping

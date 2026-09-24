@@ -256,7 +256,7 @@ describe('ResetPage', () => {
       const { page, fixture } = await open('/reset');
       // The field-error copy for the length rule lives behind the
       // 'authPage.reset.newPasswordTooShort' key, which the i18n lane adds
-      // to the catalog this wave (see M7 report). The site-texts seam
+      // to the catalog this wave (see report). The site-texts seam
       // installs that exact copy here, so the assertion holds both before
       // and after the key lands (override value === catalog value).
       TestBed.inject(I18nService).setSiteTexts({

@@ -15,7 +15,7 @@ import java.time.Instant;
 
 /**
  * JPA entity for {@code moderation_actions} (V11, community-review-queue
- * D4) — one row per admin moderation action, written in the same
+ *) — one row per admin moderation action, written in the same
  * transaction as the action it records.
  */
 @Entity
@@ -39,7 +39,7 @@ public class ModerationActionEntity {
     @Column(name = "subject_user_id")
     private Long subjectUserId;
 
-    /** The human-readable subject snapshot (crisis-guidance D12): a
+    /** The human-readable subject snapshot (crisis-guidance): a
      *  guidance post or a media asset named for the admin read. NO FK in
      *  the DB: a deleted target must stay readable in the trail (the
      *  label is a snapshot, like the dangling shelter_id). NULL for every
@@ -48,7 +48,7 @@ public class ModerationActionEntity {
     @Column(name = "subject_label", length = 300)
     private String subjectLabel;
 
-    /** The acting user (V11, D4). Nullable since V14 (legal-recovery): when
+    /** The acting user (V11). Nullable since V14 (legal-recovery): when
      *  the actor's account is erased the audit row survives
      *  and this reference dangles (ON DELETE SET NULL) — the admin read
      *  renders "Unknown" for it, like a deleted shelter. */

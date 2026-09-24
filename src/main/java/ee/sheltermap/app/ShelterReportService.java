@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 /**
  * Typed shelter reports + live occupancy + live open/closed state
- * (shelter-trust-and-reports D1/D4).
+ * (shelter-trust-and-reports).
  *
  * <p>Every write requires a verified registered user (the same
  * {@code canWrite()} gate as submissions), a known shelter (404), and —
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * open/closed state tap does NOT count — a tap is a state, not a report
  * action, so it records nothing in the action log.
  *
- * <p>Auto-hide (D1, trust-weighted since community-self-moderation):
+ * <p>Auto-hide (trust-weighted since community-self-moderation):
  * an {@code ACTIVE} shelter whose {@code auto_hide_disarmed} is
  * {@code false} becomes {@code INACTIVE} on the {@code NON_EXISTENT}
  * report insert that brings the shelter's trust-weighted hide tally —
@@ -86,7 +86,7 @@ import java.util.stream.Collectors;
  * legitimate crossing actions, so the actor of record is a crossing
  * writer — the winner's — not necessarily "the" crossing report.
  *
- * <p>Duplicate dampening (D3): a {@code NON_EXISTENT} report is
+ * <p>Duplicate dampening: a {@code NON_EXISTENT} report is
  * stored {@code damped} when the reporter holds their own other USER
  * listing of the same place (same normalized name within
  * {@code app.limits.duplicate-coord-meters} haversine, any status) — a
@@ -118,7 +118,7 @@ public class ShelterReportService {
     private final ReporterTrustEvaluator trust;
     private final ShelterService sheltersService;
     private final Clock clock;
-    /** The near-duplicate haversine tolerance — one spelling of the duplicate rule (D3). */
+    /** The near-duplicate haversine tolerance — one spelling of the duplicate rule. */
     private final double duplicateCoordMeters;
 
     public ShelterReportService(ShelterRepository shelters,
@@ -146,7 +146,7 @@ public class ShelterReportService {
     /**
      * Stores the user's report for a shelter.
      *
-     * @return {@code true} when the stored report was dampened (D3)
+     * @return {@code true} when the stored report was dampened
      *         — recorded, flagged in the admin queue, contributing 0 to
      *         the weighted hide tally
      * @throws NotVerifiedException         guest or unverified registered user (→ 403)
@@ -198,7 +198,7 @@ public class ShelterReportService {
     }
 
     /**
-     * Upserts the user's live occupancy report (D4): one row per
+     * Upserts the user's live occupancy report: one row per
      * (shelter, user), re-reporting refreshes the band and
      * {@code updated_at}. Display is derived at read time; this write
      * never affects visibility, status or filters.
@@ -267,7 +267,7 @@ public class ShelterReportService {
     }
 
     /**
-     * The shelter's current trust-weighted hide tally (D2) — the sum
+     * The shelter's current trust-weighted hide tally — the sum
      * of the weights of its distinct {@code NON_EXISTENT} reporters,
      * dampened reports contributing 0, admin-dismissed reports excluded
      * entirely (one row per reporter by the (shelter, user, type)
@@ -280,7 +280,7 @@ public class ShelterReportService {
     }
 
     /**
-     * The duplicate dampening (D3): {@code true} when the reporter
+     * The duplicate dampening: {@code true} when the reporter
      * holds their OWN other USER listing of the same place — the same
      * normalized name within {@code duplicateCoordMeters} haversine of
      * the reported shelter, the reporter's row in ANY status (a deleted
@@ -302,7 +302,7 @@ public class ShelterReportService {
 
     /**
      * The 4→5 auto-hide (the weighted-tally crossing), the ONLY path
-     * that auto-hides (D1): an ACTIVE shelter whose disarm flag is still
+     * that auto-hides: an ACTIVE shelter whose disarm flag is still
      * {@code false} becomes INACTIVE. A manual status change or a
      * disarmed flag leaves the shelter alone.
      */

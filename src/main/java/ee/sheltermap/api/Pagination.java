@@ -110,7 +110,7 @@ public final class Pagination {
     }
 
     /**
-     * A paged read with its un-paged total (W2-A): the rows of ONE page
+     * A paged read with its un-paged total: the rows of ONE page
      * plus the length of the read WITHOUT the paging (the {@code
      * X-Total-Count} header value, always present on the admin list
      * endpoints). The total is the FILTERED length — filters and search

@@ -54,7 +54,7 @@ public class InMemoryMediaAssetRepository implements MediaAssetRepository {
 
     @Override
     public List<MediaAsset> findAll() {
-        // Newest first (D7); the id tie-break keeps same-timestamp rows stable.
+        // Newest first; the id tie-break keeps same-timestamp rows stable.
         return store.values().stream()
                 .sorted(Comparator.comparing(MediaAsset::getCreatedAt).reversed()
                         .thenComparing(MediaAsset::getId, Comparator.reverseOrder()))

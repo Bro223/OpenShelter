@@ -47,30 +47,37 @@ const MIN_ADMIN_TABS = 9;
 /**
  * Size ceiling for admin-page.ts — re-measured every time a seam comes
  * out. It stood at 2 535 lines (MEASURED when this guard landed,
- * 2026-09-22, HEAD 317cf08), was lowered to the size measured after
- * W3-B's continuation extracted the shelters paged view + its search
- * sync — the URL→state→load seam (the `shelterQ` / `source` /
- * `shelterPage` / `shelterSize` params, the fetch-sequence guard, the
- * row actions) — into `shelters-view.ts` (review 18 F3's fix note), and
- * is RAISED HERE, in the same commit, to the size measured after
- * admin-tab-persist made the active tab URL-backed (`tab`): the
- * snapshot-derived tab init, the normalizer's `tab` clause, the
- * onQueryChange URL-step branch, and the switchTab split into applyTab
- * (the shared half) + navigateTab (the URL write). The tab vocabulary
- * itself (parse/default/values) went to shared/admin-tab.ts; no larger
- * seam came out, so the ceiling moves with the measured number.
+ * 2026-09-22, HEAD 317cf08), was lowered after the shelters paged view +
+ * its search sync — the URL→state→load seam (the `shelterQ` / `source` /
+ * `shelterPage` / `shelterSize` params, the fetch-sequence guard, the row
+ * actions) — came out into `shelters-view.ts`, was RAISED when the active
+ * tab became URL-backed (the `tab` param): the snapshot-derived tab init,
+ * the normalizer's `tab` clause, the onQueryChange URL-step branch, and
+ * switchTab split into applyTab (the shared half) + navigateTab (the URL
+ * write). The tab vocabulary itself (parse/default/values) went to
+ * shared/admin-tab.ts; no larger seam came out, so the ceiling moved
+ * with the measured number. It is LOWERED HERE, in the same commit, to
+ * the size measured after two seams came out in the same pattern (a
+ * page-owned state object — the panels are already extracted, and the
+ * state must survive tab switches): the guidance tab's state (the post
+ * list + its search, the publishedAt merge, the editor lifecycle, the
+ * delete confirms, the translations, the content-locale subscription) into
+ * `guidance-view.ts`, and the four server-paged tabs (reports, users,
+ * media, audit) — the URL's namespaced page/size params, the view-key
+ * rule, the sequence guard, the out-of-range flag — into one shared
+ * `paged-view.ts` they are four instances of.
  * Same idiom as the count floors above: crossing the ceiling
  * fails the build, and RAISING it is a decision — change it in the same
  * commit that legitimately grows the file, with the reason, never as a
  * silent default; lowering it follows the same commit that legitimately
  * shrinks the file.
  *
- * What comes out FIRST when the ceiling bites next: the guidance tab's
- * state (the post list + its search, the editor lifecycle, the
- * translation rows) — the page's largest remaining tab, the same
- * pattern.
+ * What comes out FIRST when the ceiling bites next: the review-queue
+ * state (the full shelters list, the reject-reason editor, the
+ * confirm/reject row actions and their refetch) — the page's largest
+ * remaining tab, the same pattern.
  */
-const ADMIN_PAGE_MAX_LINES = 2126;
+const ADMIN_PAGE_MAX_LINES = 981;
 
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>

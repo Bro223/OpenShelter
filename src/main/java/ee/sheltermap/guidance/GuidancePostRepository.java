@@ -7,17 +7,16 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for {@link GuidancePost} (crisis-guidance D1/D4/D6).
- * Implementations live in {@code ee.sheltermap.persistence}; tests use
+ * Persistence seam for {@link GuidancePost}. Implementations live in {@code ee.sheltermap.persistence}; tests use
  * the in-memory fake in the test tree.
  *
  * <p>Ordering is part of the contract (the stable-order discipline —
  * same-value rows must not reorder between calls):
  * <ul>
  *   <li>{@link #findAllForAdmin()} — {@code sortOrder} ascending,
- *       {@code id} descending (guidance-manual-order D2: the admin list
- *       is the live preview of the public order — the stored manual
- *       order, not the newest-updated order);</li>
+ *       {@code id} descending (the admin list is the live preview of
+ *       the public order — the stored manual order, not the
+ *       newest-updated order);</li>
  *   <li>{@link #findAllInStoredGlobalOrder()} — the GLOBAL manual order
  *       across every locale: {@code sortOrder} ascending, then
  *       {@code publishedAt} descending (nulls last — a draft's NULL
@@ -26,7 +25,7 @@ import java.util.Optional;
  *       this order: the visible posts' SLOTS are their positions here;
  * </ul>
  *
- * <p>The PUBLISHED filter lives in the query itself (D4): no code path
+ * <p>The PUBLISHED filter lives in the query itself: no code path
  * can leak a draft by forgetting a check in the mapping layer — a draft
  * slug and an unknown slug answer the same 404 because both read through
  * {@link #findPublishedBySlugAndLocale(String, String)}. The public reads
@@ -43,13 +42,13 @@ public interface GuidancePostRepository {
     Optional<GuidancePost> findById(long id);
 
     /**
-     * Batched read by id (W2-A: the public index's post load — ONE query
-     * over the page's post ids instead of one detail fetch per row, the
+     * Batched read by id: the public index's post load — ONE query over
+     * the rows' post ids instead of one detail fetch per row (no
      * guidance-index N+1). Missing ids are simply absent from the result.
      */
     List<GuidancePost> findByIds(Collection<Long> ids);
 
-    /** A draft holds a slug too — the slug is unique across all posts (the V23 constraint). */
+    /** A draft holds a slug too — the slug is unique across all posts (the UNIQUE constraint). */
     Optional<GuidancePost> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
@@ -63,15 +62,15 @@ public interface GuidancePostRepository {
      * (nulls last — drafts after stamped rows), {@code id} descending.
      * The locale-scoped admin list and the locale-scoped reorder both
      * walk this order, so the visible posts' slots are stable and the
-     * two agree (admin-locale-scope).
+     * two agree.
      */
     List<GuidancePost> findAllInStoredGlobalOrder();
 
     /**
      * The highest stored {@code sortOrder}, or 0 when there are no posts
-     * (guidance-manual-order D4: create appends {@code max + 1} — a new
-     * draft sits at the bottom of the admin list, a created-and-published
-     * post at the end of the non-pinned block).
+     * (create appends {@code max + 1} — a new draft sits at the bottom of
+     * the admin list, a created-and-published post at the end of the
+     * non-pinned block).
      */
     int maxSortOrder();
 
@@ -81,11 +80,11 @@ public interface GuidancePostRepository {
      */
     Optional<GuidancePost> findPublishedBySlugAndLocale(String slug, String locale);
 
-    /** The posts currently using the media asset as their hero image (D8: the reused-by count and the in-use check). */
+    /** The posts currently using the media asset as their hero image (the reused-by count and the in-use check). */
     List<GuidancePost> findByHeroImageId(long mediaAssetId);
 
     /**
-     * Hard delete (D4): the media assets stay in the library (uploads
+     * Hard delete: the media assets stay in the library (uploads are
      * are inventory, not garbage), and the post's audit rows keep their
      * label snapshot.
      */

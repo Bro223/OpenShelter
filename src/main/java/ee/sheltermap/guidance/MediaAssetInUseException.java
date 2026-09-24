@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * Deleting a media asset that is still the hero image of one or more
- * guidance posts, without {@code confirm=true} (crisis-guidance D8) —
+ * guidance posts, without {@code confirm=true} —
  * 409. The message carries the affected posts (title + slug) so the admin
  * UI can turn the answer straight into the confirm dialog; the same call
  * with {@code confirm=true} deletes the asset and clears both

@@ -160,7 +160,7 @@ public class VerificationController {
     }
 
     private RegisteredUser currentUser() {
-        // W4-A: the principal read + row load is the shared CurrentCaller
+        // the principal read + row load is the shared CurrentCaller
         // primitive — this surface keeps its own documented 400 vocabulary
         // on top of it (a gone or guest row is "Account not found"). The
         // anonymous branch is unreachable over HTTP (/verify/** requires a

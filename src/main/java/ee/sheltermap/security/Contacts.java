@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * The ONE canonical contact-identity rule (W4-A): trim +
+ * The ONE canonical contact-identity rule: trim +
  * {@link Locale#ROOT} lower-case. Before this extraction the same
  * two-liner had a private copy in {@code verification.RollingContactOtpLimiter}
  * and {@code alerts.ThrottleAlertRecorder} and was inlined in

@@ -5,7 +5,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.function.Supplier;
 
 /**
- * The service-owned transaction seam (W4-A — the byte-identical private
+ * The service-owned transaction seam (the byte-identical private
  * {@code inTransaction(Supplier)} method was copy-pasted into
  * {@link PasswordResetService} and {@link ContactChangeService}, the
  * ShelterImportService idiom): runs {@code work} in ONE transaction when
