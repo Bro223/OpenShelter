@@ -75,7 +75,7 @@ Anchors, row by row:
   `.shelter-marker--anchor` (`frontend/src/styles.scss:907-920`).
 - Token values: light theme `frontend/src/styles.scss:91,102,115,171,182,187`; high-contrast
   `frontend/src/styles.scss:388,393,398,430-432`; black-and-yellow
-  `frontend/src/app/core/theme-tokens.ts:67,68-69,73,109,110-111,112`. The unverified
+  `frontend/src/app/core/theme-tokens.ts:97,98-99,103,139,140-141,142`. The unverified
   yellow is the *same* `#ffd400` in every theme
   (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:140-141`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner
