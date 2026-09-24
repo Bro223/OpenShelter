@@ -77,8 +77,10 @@ export class ReportsPanel {
   /** The i18n seam: the shared copy helpers resolve through the active
    *  locale (the map-page's idiom) — the queue reads in the moderator's
    *  language, not a frozen English const. */
-  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
-    this.i18n.t(key, params);
+  private readonly translate = (
+    key: MessageKey,
+    params?: Record<string, string | number>,
+  ): string => this.i18n.t(key, params);
 
   /** Queue-row age ("12 min ago") — the shared recency copy (active
    *  locale). */

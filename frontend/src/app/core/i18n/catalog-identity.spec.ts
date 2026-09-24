@@ -46,7 +46,8 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // Legal pages (legal-i18n): punctuation-only splice tails. A semicolon
   // or a period is a semicolon/period in every supported locale; the
   // translated sentence around them carries the language.
-  'legal.privacy.collect.li1.after': ';',  'legal.privacy.collect.li2.after': ';',
+  'legal.privacy.collect.li1.after': ';',
+  'legal.privacy.collect.li2.after': ';',
   'legal.privacy.collect.li3.after': ';',
   'legal.privacy.collect.p2.after': '.',
   'legal.privacy.rights.li1.after': '.',
@@ -85,7 +86,7 @@ function identicalToEn(catalog: Messages, locale: string): string[] {
   const violations: string[] = [];
   for (const [key, value] of Object.entries(catalog)) {
     const en = EN[key as MessageKey];
-    if (value === en && !(key as MessageKey in IDENTICAL_TO_EN_OK)) {
+    if (value === en && !((key as MessageKey) in IDENTICAL_TO_EN_OK)) {
       violations.push(`${locale}[${JSON.stringify(key)}] = ${JSON.stringify(value)}`);
     }
   }

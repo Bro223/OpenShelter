@@ -1,10 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { ThemeStore } from './theme-store';
-import {
-  BLACK_AND_YELLOW_TOKENS,
-  clearBlackAndYellowTokens,
-} from './theme-tokens';
+import { BLACK_AND_YELLOW_TOKENS, clearBlackAndYellowTokens } from './theme-tokens';
 
 /**
  * src/ — the test runner's cwd is the frontend project root
@@ -103,7 +100,7 @@ describe('ThemeStore (toggle + persistence, no flash)', () => {
 
   /* --- the three-option accessibility dialog (accessibility-dialog) --- */
 
-  it('set(\'black-and-yellow\') sets the attribute, applies the tokens AND persists the key', () => {
+  it("set('black-and-yellow') sets the attribute, applies the tokens AND persists the key", () => {
     store.set('black-and-yellow');
     expect(store.theme()).toBe('black-and-yellow');
     expect(store.highContrast()).toBe(false);
@@ -112,7 +109,7 @@ describe('ThemeStore (toggle + persistence, no flash)', () => {
     expect(localStorage.getItem('openshelter-theme')).toBe('black-and-yellow');
   });
 
-  it('set(\'default\') removes the attribute, the key AND the black-and-yellow tokens', () => {
+  it("set('default') removes the attribute, the key AND the black-and-yellow tokens", () => {
     store.set('black-and-yellow');
     store.set('default');
     expect(store.theme()).toBe('default');
@@ -167,7 +164,7 @@ describe('ThemeStore (toggle + persistence, no flash)', () => {
       '--color-chrome-border',
     ] as const;
 
-    it('black-and-yellow puts the band\'s black + yellow values on <html>', () => {
+    it("black-and-yellow puts the band's black + yellow values on <html>", () => {
       store.set('black-and-yellow');
       for (const token of CHROME) {
         expect(

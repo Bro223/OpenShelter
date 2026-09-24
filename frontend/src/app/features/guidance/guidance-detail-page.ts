@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, type OnDestroy, type OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  type OnDestroy,
+  type OnInit,
+  signal,
+} from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -99,7 +106,11 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
    * language (the flag is false then). A plain method (re-evaluated on
    * each CD pass — `post()` and the locale signal are the inputs).
    */
-  protected fallbackNotice(): { served: string; reader: string; alternateSlug: string | null } | null {
+  protected fallbackNotice(): {
+    served: string;
+    reader: string;
+    alternateSlug: string | null;
+  } | null {
     const p = this.post();
     if (p === null || !p.localeFallback) {
       return null;

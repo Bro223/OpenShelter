@@ -110,12 +110,7 @@
      page-shell.ts focuses it on every route change after the initial load
      too, so a client-side swap lands the keyboard the
      way a document load does. -->
-<main
-    class="shell-body"
-    id="main"
-    tabindex="-1"
-    [class.shell-body--admin]="adminWide()"
-  >
+<main class="shell-body" id="main" tabindex="-1" [class.shell-body--admin]="adminWide()">
   <router-outlet />
 </main>
 

@@ -40,7 +40,7 @@ import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import Quill from '../../../vendor/quill/2.0.3/dist/quill.js';
 import type { Subscription } from 'rxjs';
-import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js';// The snow theme's stylesheet loads WITH the editor: the editor's init
+import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js'; // The snow theme's stylesheet loads WITH the editor: the editor's init
 // path (ngOnInit) injects a <link> to a VERSIONED static asset — the
 // build copies the vendored quill.snow.css verbatim into dist (the
 // angular.json assets entry), and the link is fetched only when the
@@ -97,8 +97,7 @@ function loadSnowTheme(): void {
  *  form. The shape is checked where it is written (the TOOLBAR constant
  *  below); Quill's `modules` option accepts it and passes it through. */
 type QuillToolbarControl =
-  | string
-  | Record<string, string | number | boolean | Array<string | number | boolean>>;
+  string | Record<string, string | number | boolean | Array<string | number | boolean>>;
 
 /**
  * The generated-slug shape (the backend's SlugFactory validator
@@ -901,7 +900,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       // reference is the whole teardown.
       this.quill = null;
     });
-  };
+  }
 
   /**
    * The `value` accessor on the editor root — the old textarea's

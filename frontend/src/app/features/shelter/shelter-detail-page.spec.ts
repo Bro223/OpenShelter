@@ -1021,9 +1021,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
           communityPulse: {
             openClosed: null,
             occupancy: null,
-            recentReports: [
-              { kind: 'CLOSED', reportedAt: minutesAgo(12) },
-            ],
+            recentReports: [{ kind: 'CLOSED', reportedAt: minutesAgo(12) }],
           },
         }),
       );
@@ -1040,7 +1038,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // The derived word must not leak back into the info block.
       expect(infoRowValue(element, 'Status')).not.toContain('Reported closed');
       expect(
-        [...info!.querySelectorAll('dt')].some((d) => (d.textContent ?? '').trim() === 'Shelter status'),
+        [...info!.querySelectorAll('dt')].some(
+          (d) => (d.textContent ?? '').trim() === 'Shelter status',
+        ),
         'no derived "Shelter status" row on the public page',
       ).toBe(false);
     });
@@ -1900,7 +1900,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         (h) => h.textContent ?? '',
       );
       expect(hints.length, 'window hint + one general notice').toBe(2);
-      expect(hints.some((h) => h.includes('last 2 hours')), 'the window hint is kept').toBe(true);
+      expect(
+        hints.some((h) => h.includes('last 2 hours')),
+        'the window hint is kept',
+      ).toBe(true);
       const estimateNote = hints.find((h) => h.includes('calculated estimate'));
       expect(estimateNote, 'the general estimate notice renders').toBeDefined();
       expect(estimateNote).toContain('not confirmed data');
@@ -1912,7 +1915,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // The per-arrow notices are GONE — nothing renders or references the
       // deleted sentences (no stale id, no leftover text).
       expect(wrap!.querySelector('#pulse-open-note'), 'no per-arrow open notice').toBeNull();
-      expect(wrap!.querySelector('#pulse-occupancy-note'), 'no per-arrow how-full notice').toBeNull();
+      expect(
+        wrap!.querySelector('#pulse-occupancy-note'),
+        'no per-arrow how-full notice',
+      ).toBeNull();
       expect(wrap!.textContent).not.toContain('probability that this shelter is open');
       expect(wrap!.textContent).not.toContain('position from empty to full');
 
@@ -1956,9 +1962,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         (h) => h.textContent ?? '',
       );
       expect(hints.length, 'window hint + general notice render unconditionally').toBe(2);
-      expect(hints.some((h) => h.includes('calculated estimate')), 'general notice present').toBe(
-        true,
-      );
+      expect(
+        hints.some((h) => h.includes('calculated estimate')),
+        'general notice present',
+      ).toBe(true);
       // But no gauges: no captions column, no arrow figure — so nothing
       // can reference an absent count-line id (no dangling reference).
       expect(wrap!.querySelector('.pulse-gauges__captions')).toBeNull();
@@ -2045,11 +2052,12 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(notice!.className, 'the notice reuses the hint treatment').toContain(
         'pulse-gauges__hint',
       );
-      expect(notice!.textContent, 'the notice is the estimate line').toContain('calculated estimate');
-      expect(
-        notice!.nextElementSibling,
-        'the gauges row follows the notices',
-      ).toBe(element.querySelector('.pulse-gauges__arrows'));
+      expect(notice!.textContent, 'the notice is the estimate line').toContain(
+        'calculated estimate',
+      );
+      expect(notice!.nextElementSibling, 'the gauges row follows the notices').toBe(
+        element.querySelector('.pulse-gauges__arrows'),
+      );
 
       // The log is the LAST 10 reports (newest first, capped server-side),
       // not the 2-hour tally: its heading says so and makes no window claim
@@ -2060,10 +2068,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         heading!.textContent,
         'the heading presents the last 10 reports (no time-window framing)',
       ).toContain('Last 10 reports');
-      expect(
-        heading!.textContent,
-        'the log heading makes no window claim',
-      ).not.toContain('2 hours');
+      expect(heading!.textContent, 'the log heading makes no window claim').not.toContain(
+        '2 hours',
+      );
 
       // …and the window-free log still lists the older entries that the
       // 2-hour counts above do not include.
@@ -2128,9 +2135,14 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const { element } = await open('/shelters/1');
       const info = element.querySelector('#info-heading')?.closest('section');
       const labels = [...info!.querySelectorAll('dt')].map((d) => (d.textContent ?? '').trim());
-      expect(labels, 'exactly the two last-reported rows, in order').toEqual(['Status', 'Capacity']);
+      expect(labels, 'exactly the two last-reported rows, in order').toEqual([
+        'Status',
+        'Capacity',
+      ]);
       expect(
-        [...info!.querySelectorAll('dt')].some((d) => (d.textContent ?? '').trim() === 'Shelter status'),
+        [...info!.querySelectorAll('dt')].some(
+          (d) => (d.textContent ?? '').trim() === 'Shelter status',
+        ),
         'no derived status row on the public page',
       ).toBe(false);
       // The rows themselves still render their last-reported values.
@@ -2166,9 +2178,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         ]),
       );
       const { element, fixture } = await open('/shelters/1');
-      const times = [
-        ...element.querySelectorAll('section[aria-labelledby="info-heading"] time'),
-      ];
+      const times = [...element.querySelectorAll('section[aria-labelledby="info-heading"] time')];
       expect(times.length).toBe(2);
       // The unambiguous machine-readable instant (not only a formatted
       // string) is the report's own ISO instant.
@@ -2230,8 +2240,8 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const { element } = await open('/shelters/1');
       const infoSection = element.querySelector('#info-heading')?.closest('section');
       if (!infoSection) throw new Error('the Info section must render');
-      const labels = [...infoSection.querySelectorAll('dt')].map(
-        (d) => (d.textContent ?? '').trim(),
+      const labels = [...infoSection.querySelectorAll('dt')].map((d) =>
+        (d.textContent ?? '').trim(),
       );
       expect(labels).toEqual(['Status', 'Capacity']);
       expect(infoRowValue(element, 'Status')).toContain('Last reported as Open');

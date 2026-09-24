@@ -10,7 +10,12 @@ import {
 import { toObservable } from '@angular/core/rxjs-interop';
 import { DatePipe, NgClass } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink, type UrlTree, createUrlTreeFromSnapshot } from '@angular/router';
+import {
+  ActivatedRoute,
+  RouterLink,
+  type UrlTree,
+  createUrlTreeFromSnapshot,
+} from '@angular/router';
 import { skip } from 'rxjs';
 import type { MineShelterDto } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -134,7 +139,13 @@ export class ContributionsPanel implements OnInit {
         const tens = n % 100;
         const ones = n % 10;
         const word =
-          tens >= 11 && tens <= 14 ? 'отчётов' : ones === 1 ? 'отчёт' : ones >= 2 && ones <= 4 ? 'отчёта' : 'отчётов';
+          tens >= 11 && tens <= 14
+            ? 'отчётов'
+            : ones === 1
+              ? 'отчёт'
+              : ones >= 2 && ones <= 4
+                ? 'отчёта'
+                : 'отчётов';
         return `${n} ${word}`;
       }
       default:

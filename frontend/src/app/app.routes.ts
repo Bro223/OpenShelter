@@ -44,8 +44,7 @@ export const routes: Routes = [
   },
   {
     path: 'register',
-    loadComponent: () =>
-      import('./features/auth/register-page').then((m) => m.RegisterPage),
+    loadComponent: () => import('./features/auth/register-page').then((m) => m.RegisterPage),
     data: { title: 'title.register' },
     canActivate: [titleGuard, guestGuard],
   },
@@ -58,16 +57,14 @@ export const routes: Routes = [
   // Lazy (bundle budget): verification only happens after a login.
   {
     path: 'verify',
-    loadComponent: () =>
-      import('./features/account/verify-page').then((m) => m.VerifyPage),
+    loadComponent: () => import('./features/account/verify-page').then((m) => m.VerifyPage),
     data: { title: 'title.verify' },
     canActivate: [titleGuard, authGuard],
   },
   // Lazy (bundle budget): the account page only exists for signed-in users.
   {
     path: 'account',
-    loadComponent: () =>
-      import('./features/account/account-page').then((m) => m.AccountPage),
+    loadComponent: () => import('./features/account/account-page').then((m) => m.AccountPage),
     data: { title: 'title.account' },
     canActivate: [titleGuard, authGuard],
   },

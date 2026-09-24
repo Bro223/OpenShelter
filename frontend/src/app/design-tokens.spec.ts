@@ -1311,10 +1311,7 @@ describe('design tokens', () => {
       sideDeclarations,
       'the single-side border scan found no declarations at all — the guard is vacuous',
     ).toBeGreaterThanOrEqual(10);
-    expect(
-      offenders,
-      'a single-side accent border returned (the accent bar is back)',
-    ).toEqual([]);
+    expect(offenders, 'a single-side accent border returned (the accent bar is back)').toEqual([]);
   });
 
   it('account-page .proof-note — the confirmed case: the bar is gone and the subtle fill is its substitute (owner-confirmed)', () => {
@@ -1409,10 +1406,7 @@ describe('design tokens', () => {
       ]),
     ];
     const missing = required.filter(([t, f, b]) => !enforced.has(`${t}|${f}|${b}`));
-    expect(
-      missing,
-      'a substitution pair is missing from the enforced contrast list',
-    ).toEqual([]);
+    expect(missing, 'a substitution pair is missing from the enforced contrast list').toEqual([]);
   });
 
   it('the theme layer keeps its Leaflet map-chrome overrides (light-surface links + focus ring)', () => {
@@ -1554,10 +1548,7 @@ describe('design tokens', () => {
     // The DOM move itself: the leaflet container is closed, the map wrapper
     // is closed, and ONLY THEN does the legend start — it is no longer a
     // child of .map-page__map.
-    expect(
-      html,
-      'map-page.html must render the legend as a sibling of the map element',
-    ).toMatch(
+    expect(html, 'map-page.html must render the legend as a sibling of the map element').toMatch(
       /<div #mapEl class="map-page__leaflet"><\/div>\s*<\/div>[\s\S]*?<div class="map-legend"/,
     );
     // Desktop placement: the base rule is the overlay, the layout is the

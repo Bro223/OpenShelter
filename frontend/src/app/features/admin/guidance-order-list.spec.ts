@@ -106,9 +106,7 @@ describe('GuidanceOrderList presentation', () => {
     // The scope line names the CONTENT language (locale code, as the
     // catalog interpolates it: 'Posts in en — …').
     expect(el.querySelector('.admin-guidance-scope')!.textContent).toContain('Posts in en');
-    expect(el.querySelector('.admin-guidance-hint')!.textContent).toContain(
-      'in this order',
-    );
+    expect(el.querySelector('.admin-guidance-hint')!.textContent).toContain('in this order');
     const rows = el.querySelectorAll('tbody tr');
     expect(rows.length).toBe(3);
     // Row 1 (PUBLISHED, in the merge) shows its instant; the DRAFT row
@@ -122,8 +120,8 @@ describe('GuidanceOrderList presentation', () => {
 
   it('the 40 px thumb carries the derivative srcset when the server has one (sizes = 40px)', async () => {
     const srcset =
-      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
-      + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w';
+      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, ' +
+      '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w';
     // All three fixture rows carry a hero; only row 11's asset has
     // derivatives on disk (the srcset is built from disk truth).
     const rows = ORDERED_ROWS.map((row) =>

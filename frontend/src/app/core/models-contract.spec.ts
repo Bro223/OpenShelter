@@ -76,7 +76,9 @@ const PINNED: Record<string, string> = {
   ShelterReportResult: 'ShelterReportResult',
 };
 
-function loadSnapshot(): { components: { schemas: Record<string, { properties?: Record<string, unknown> }> } } {
+function loadSnapshot(): {
+  components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+} {
   try {
     return JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8')) as ReturnType<typeof loadSnapshot>;
   } catch {
@@ -118,7 +120,10 @@ function topLevelFields(body: string): string[] {
   const fields: string[] = [];
   let depth = 0;
   for (const raw of body.split('\n')) {
-    const line = raw.replace(/\/\*.*?\*\//g, '').replace(/\/\/.*$/, '').trim();
+    const line = raw
+      .replace(/\/\*.*?\*\//g, '')
+      .replace(/\/\/.*$/, '')
+      .trim();
     if (line.startsWith('*') || line.startsWith('/**')) continue;
     if (depth === 0) {
       const field = line.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*[?]?:\s/);

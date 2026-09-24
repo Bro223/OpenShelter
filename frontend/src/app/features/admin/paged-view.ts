@@ -1,16 +1,7 @@
-import {
-  computed,
-  signal,
-} from '@angular/core';
+import { computed, signal } from '@angular/core';
 import type { ActivatedRoute, Router, Params } from '@angular/router';
 import { bannerMessage } from '../../shared/error-copy';
-import {
-  PAGE_SIZE_DEFAULT,
-  clampPage,
-  lastPage,
-  parsePage,
-  parseSize,
-} from '../../shared/paging';
+import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '../../shared/paging';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 /**

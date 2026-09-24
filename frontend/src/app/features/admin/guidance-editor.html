@@ -7,8 +7,8 @@
           ? 'admin.guidance.editor.translationTitle'
           : translationEditMode() !== null
             ? 'admin.guidance.editor.translationEditTitle'
-            : 'admin.guidance.editor.editTitle')
-        | t
+            : 'admin.guidance.editor.editTitle'
+      ) | t
     }}
   </h2>
 
@@ -61,8 +61,8 @@
         {{
           (post() === null || translationTarget() !== null
             ? 'admin.guidance.editor.slugHint.create'
-            : 'admin.guidance.editor.slugHint.edit')
-            | t
+            : 'admin.guidance.editor.slugHint.edit'
+          ) | t
         }}
       </p>
       @if (slug().invalid && slug().touched) {
@@ -125,7 +125,12 @@
            choices, unchecking re-enables the controls. -->
       @if (translationTarget() === null && translationEditMode() === null) {
         <label class="guidance-editor__check-label" for="ge-hero-none">
-          <input id="ge-hero-none" type="checkbox" formControlName="noHero" (change)="onNoHeroChange($event)" />
+          <input
+            id="ge-hero-none"
+            type="checkbox"
+            formControlName="noHero"
+            (change)="onNoHeroChange($event)"
+          />
           {{ i18nKeys.heroNone | t }}
         </label>
       }
@@ -164,76 +169,79 @@
       }
 
       @if (translationTarget() === null && translationEditMode() === null) {
-        <div class="guidance-editor__hero-choices" [class.guidance-editor__hero-choices--disabled]="noHero().value">
-        <button
-          type="button"
-          class="btn btn--ghost"
-          (click)="heroPickerOpen.set(!heroPickerOpen())"
-          [disabled]="busy() || uploading() || noHero().value"
+        <div
+          class="guidance-editor__hero-choices"
+          [class.guidance-editor__hero-choices--disabled]="noHero().value"
         >
-          {{ 'admin.guidance.editor.hero.choose' | t }}
-        </button>
+          <button
+            type="button"
+            class="btn btn--ghost"
+            (click)="heroPickerOpen.set(!heroPickerOpen())"
+            [disabled]="busy() || uploading() || noHero().value"
+          >
+            {{ 'admin.guidance.editor.hero.choose' | t }}
+          </button>
 
-        @if (heroPickerOpen()) {
-          <div class="hero-picker" role="group" [attr.aria-label]="'admin.media.tab' | t">
-            @if (mediaAssets() === null) {
-              <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
-            } @else if (pickerAssets().length === 0) {
-              <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
-            } @else {
-              @for (asset of pickerAssets(); track asset.id) {
-                <button
-                  type="button"
-                  class="hero-picker__item"
-                  [class.hero-picker__item--selected]="heroImageId().value === asset.id"
-                  [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
-                  (click)="selectHero(asset)"
-                  [disabled]="busy() || uploading() || noHero().value"
-                >
-                  <!-- the derivative srcset when the asset has one
+          @if (heroPickerOpen()) {
+            <div class="hero-picker" role="group" [attr.aria-label]="'admin.media.tab' | t">
+              @if (mediaAssets() === null) {
+                <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
+              } @else if (pickerAssets().length === 0) {
+                <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
+              } @else {
+                @for (asset of pickerAssets(); track asset.id) {
+                  <button
+                    type="button"
+                    class="hero-picker__item"
+                    [class.hero-picker__item--selected]="heroImageId().value === asset.id"
+                    [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
+                    (click)="selectHero(asset)"
+                    [disabled]="busy() || uploading() || noHero().value"
+                  >
+                    <!-- the derivative srcset when the asset has one
                        (null → plain src; sizes = the slot's fixed 72 px
                        CSS width). -->
-                  <img
-                    [src]="asset.url"
-                    [alt]="asset.originalFilename"
-                    [attr.srcset]="asset.srcset ?? null"
-                    sizes="72px"
-                    width="72"
-                    height="72"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span class="hero-picker__name">{{ asset.originalFilename }}</span>
-                </button>
+                    <img
+                      [src]="asset.url"
+                      [alt]="asset.originalFilename"
+                      [attr.srcset]="asset.srcset ?? null"
+                      sizes="72px"
+                      width="72"
+                      height="72"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <span class="hero-picker__name">{{ asset.originalFilename }}</span>
+                  </button>
+                }
               }
-            }
-          </div>
-        }
+            </div>
+          }
 
-        <!-- Upload a hero image right here (no media-library detour): the
+          <!-- Upload a hero image right here (no media-library detour): the
              labelled file input (the backend accepts exactly these three
              types, magic-byte checked). On success the new asset is
              auto-selected as the hero; the control is busy-blocked while the
              upload is in flight. -->
-        <div class="guidance-editor__hero-upload">
-          <label for="ge-hero-upload">
-            {{
-              uploading()
-                ? ('admin.media.uploading' | t)
-                : ('admin.guidance.editor.hero.uploadLabel' | t)
-            }}
-          </label>
-          <input
-            id="ge-hero-upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            (change)="onHeroFileChange($event)"
-            [disabled]="busy() || uploading() || noHero().value"
-          />
-          <p class="field-note">{{ 'admin.media.uploadHint' | t }}</p>
-        </div>
+          <div class="guidance-editor__hero-upload">
+            <label for="ge-hero-upload">
+              {{
+                uploading()
+                  ? ('admin.media.uploading' | t)
+                  : ('admin.guidance.editor.hero.uploadLabel' | t)
+              }}
+            </label>
+            <input
+              id="ge-hero-upload"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              (change)="onHeroFileChange($event)"
+              [disabled]="busy() || uploading() || noHero().value"
+            />
+            <p class="field-note">{{ 'admin.media.uploadHint' | t }}</p>
+          </div>
 
-        <!-- Import a hero image from a URL (guidance-hero-import):
+          <!-- Import a hero image from a URL (guidance-hero-import):
              the URL is fetched, validated and stored AT SAVE (create and
              update, draft or published alike): a successful import becomes
              the hero (the URL is kept as its provenance), a changed URL
@@ -243,38 +251,38 @@
              type=text on purpose (the URL input's native validation would
              double the client check with a different rule set;
              heroImportUrlValidator mirrors the backend's write-time 400s). -->
-        <div class="guidance-editor__hero-import">
-          <label for="ge-hero-import-url">{{ i18nKeys.heroImportLabel | t }}</label>
-          <input
-            id="ge-hero-import-url"
-            type="text"
-            inputmode="url"
-            formControlName="heroImportUrl"
-            maxlength="2048"
-            autocomplete="off"
-            spellcheck="false"
-            (input)="onHeroImportUrlEdited()"
-          />
-          <p class="field-note">{{ i18nKeys.heroImportHint | t }}</p>
-          @if (heroImportUrl().invalid && heroImportUrl().touched) {
-            <p class="field-error">{{ i18nKeys.heroImportInvalid | t }}</p>
-          }
-          @if (heroImportError() !== null) {
-            <!-- The save stored the post; its hero import FAILED at save
+          <div class="guidance-editor__hero-import">
+            <label for="ge-hero-import-url">{{ i18nKeys.heroImportLabel | t }}</label>
+            <input
+              id="ge-hero-import-url"
+              type="text"
+              inputmode="url"
+              formControlName="heroImportUrl"
+              maxlength="2048"
+              autocomplete="off"
+              spellcheck="false"
+              (input)="onHeroImportUrlEdited()"
+            />
+            <p class="field-note">{{ i18nKeys.heroImportHint | t }}</p>
+            @if (heroImportUrl().invalid && heroImportUrl().touched) {
+              <p class="field-error">{{ i18nKeys.heroImportInvalid | t }}</p>
+            }
+            @if (heroImportError() !== null) {
+              <!-- The save stored the post; its hero import FAILED at save
                  (the write response carried the failure): the server's
                  message, against the field that describes it. Editing the
                  URL clears it; the next save retries the import. -->
-            <p class="field-error" role="alert">{{ i18nKeys.heroImportFailed | t }}</p>
-            <p class="field-error" role="alert">{{ heroImportError() }}</p>
-          }
-          @if (heroImportPending() !== '') {
-            <!-- The save-time result, said out loud: the image is
+              <p class="field-error" role="alert">{{ i18nKeys.heroImportFailed | t }}</p>
+              <p class="field-error" role="alert">{{ heroImportError() }}</p>
+            }
+            @if (heroImportPending() !== '') {
+              <!-- The save-time result, said out loud: the image is
                  fetched on save; a failed fetch keeps the previous hero
                  (or none) and the URL for a retry. -->
-            <p class="field-note">{{ i18nKeys.heroImportNote | t }}</p>
-          }
+              <p class="field-note">{{ i18nKeys.heroImportNote | t }}</p>
+            }
+          </div>
         </div>
-      </div>
       }
     </div>
 
@@ -299,7 +307,13 @@
     @if (translationTarget() === null && translationEditMode() === null) {
       <div class="field">
         <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
-        <input id="ge-locale" type="text" formControlName="locale" maxlength="5" autocomplete="off" />
+        <input
+          id="ge-locale"
+          type="text"
+          formControlName="locale"
+          maxlength="5"
+          autocomplete="off"
+        />
         <p class="field-note">{{ 'admin.guidance.editor.localeHint' | t }}</p>
         @if (locale().invalid && locale().touched) {
           <p class="field-error">{{ 'admin.guidance.editor.localeTooLong' | t }}</p>

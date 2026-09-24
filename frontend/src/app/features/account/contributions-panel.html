@@ -70,7 +70,9 @@
             @if (row.inaccurate) {
               <span class="contrib-row__note">{{ 'account.contrib.inaccurate' | t }}</span>
             }
-            <span class="contrib-row__meta">{{ row.createdAt | date: 'medium': undefined: i18n.locale() }}</span>
+            <span class="contrib-row__meta">{{
+              row.createdAt | date: 'medium' : undefined : i18n.locale()
+            }}</span>
           </div>
           <div class="contrib-row__actions">
             <a [routerLink]="['/shelters', row.id]" class="btn btn--ghost">
@@ -83,7 +85,11 @@
                 (click)="toggleInfo(row)"
                 [disabled]="busy()"
               >
-                {{ infoFor() === row.id ? ('account.contrib.infoClose' | t) : ('account.contrib.info' | t) }}
+                {{
+                  infoFor() === row.id
+                    ? ('account.contrib.infoClose' | t)
+                    : ('account.contrib.info' | t)
+                }}
               </button>
             }
             <!-- Edit opens the SHARED /submit form in edit mode — the
@@ -127,7 +133,9 @@
                   (click)="confirmDeleteShelter(row.id)"
                   [disabled]="busy()"
                 >
-                  {{ busy() ? ('account.deleting' | t) : ('account.contrib.deleteConfirmButton' | t) }}
+                  {{
+                    busy() ? ('account.deleting' | t) : ('account.contrib.deleteConfirmButton' | t)
+                  }}
                 </button>
                 <button
                   type="button"
@@ -151,7 +159,9 @@
                   <span class="contrib-info__label">{{ 'account.contrib.infoQuestion' | t }}</span>
                   {{ req.message }}
                 </p>
-                <span class="contrib-row__meta">{{ req.requestedAt | date: 'medium': undefined: i18n.locale() }}</span>
+                <span class="contrib-row__meta">{{
+                  req.requestedAt | date: 'medium' : undefined : i18n.locale()
+                }}</span>
                 @if (req.replyMessage === null) {
                   <div class="field">
                     <label for="contrib-info-reply">{{ 'account.contrib.replyLabel' | t }}</label>
@@ -187,7 +197,9 @@
                     <span class="contrib-info__label">{{ 'account.contrib.reply' | t }}</span>
                     {{ req.replyMessage }}
                   </p>
-                  <span class="contrib-row__meta">{{ req.repliedAt | date: 'medium': undefined: i18n.locale() }}</span>
+                  <span class="contrib-row__meta">{{
+                    req.repliedAt | date: 'medium' : undefined : i18n.locale()
+                  }}</span>
                 }
               </div>
             }

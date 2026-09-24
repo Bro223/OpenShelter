@@ -515,7 +515,9 @@ describe('locale seam (N7 i18n-completeness)', () => {
     );
     // Locale proof: the ET render is NOT the EN string.
     expect(occupancyText(occ('FULL', 2, at(12)), NOW, et)).not.toBe('Full \u00b7 12 min ago');
-    expect(recencyText(at(12), NOW, et)).toBe(interpolate(ET['shelter.recency.minutes'], { minutes: 12 }));
+    expect(recencyText(at(12), NOW, et)).toBe(
+      interpolate(ET['shelter.recency.minutes'], { minutes: 12 }),
+    );
     expect(openStatusBadgeText({ state: 'CLOSED', reportedAt: at(0), reportCount: 1 }, et)).toBe(
       ET['shelter.status.reportedClosed'],
     );
@@ -537,12 +539,21 @@ describe('locale seam (N7 i18n-completeness)', () => {
     );
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: at2(120), reviewStatus: 'CONFIRMED', createdAt: at2(60 * 24 * 400), source: 'USER' },
+        {
+          lastVerifiedAt: at2(120),
+          reviewStatus: 'CONFIRMED',
+          createdAt: at2(60 * 24 * 400),
+          source: 'USER',
+        },
         NOW2,
         et,
         MONTH_ABBREVS.et,
       ),
-    ).toBe(interpolate(ET['shelter.lastVerified'], { ago: interpolate(ET['shelter.recency.hours'], { hours: 2 }) }));
+    ).toBe(
+      interpolate(ET['shelter.lastVerified'], {
+        ago: interpolate(ET['shelter.recency.hours'], { hours: 2 }),
+      }),
+    );
     expect(
       lastVerifiedText(
         { lastVerifiedAt: null, reviewStatus: 'NEW', createdAt: at2(60 * 24 * 3), source: 'USER' },
@@ -557,7 +568,12 @@ describe('locale seam (N7 i18n-completeness)', () => {
     );
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: null, reviewStatus: 'REJECTED', createdAt: at2(60 * 24 * 400), source: 'USER' },
+        {
+          lastVerifiedAt: null,
+          reviewStatus: 'REJECTED',
+          createdAt: at2(60 * 24 * 400),
+          source: 'USER',
+        },
         NOW2,
         et,
         MONTH_ABBREVS.et,

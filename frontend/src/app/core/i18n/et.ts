@@ -27,15 +27,13 @@ export const ET: Messages = {
   //  site_texts kaudu (I18nService kattekiht taganeb nendele
   //  väärtustele, kui muudatust rea pole).
   'a11y.popup.title': 'Kättesaadavus',
-  'a11y.popup.body':
-    'Vali, kuidas OpenShelter sulle näeb välja. Sinu valik kohaldatakse kohe.',
+  'a11y.popup.body': 'Vali, kuidas OpenShelter sulle näeb välja. Sinu valik kohaldatakse kohe.',
   'a11y.option.default': 'Vaikimisi',
   'a11y.option.default.desc': 'Tavaline heleda välimus.',
   'a11y.option.highContrast': 'Kõrge kontrast',
   'a11y.option.highContrast.desc': 'Tume taust ja heledad tähed.',
   'a11y.option.blackYellow': 'Must-kollane',
-  'a11y.option.blackYellow.desc':
-    'Kollane tekst musta taustal.',
+  'a11y.option.blackYellow.desc': 'Kollane tekst musta taustal.',
   'a11y.popup.footer':
     'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
   'a11y.popup.close': 'Sulge',
@@ -510,7 +508,8 @@ export const ET: Messages = {
   'account.delete.copy':
     'Kustutab sinu konto ja kogu sellega seotud. Varjupaikad, mille sa deklareerisid privaatseks koduks, eemaldatakse; sinu esitatud avalikud varjupaikad jäävad kaardile ilma esitajata. Seda ei ole võimalik tagasi pöörata.',
   'account.delete.typeHint': 'Kinnitamiseks kirjuta DELETE',
-  'account.delete.armed': 'Nupp „Kustuta minu konto“ on nüüd aktiivne. Selle valimine kustutab sinu konto jäädavalt.',
+  'account.delete.armed':
+    'Nupp „Kustuta minu konto“ on nüüd aktiivne. Selle valimine kustutab sinu konto jäädavalt.',
   'account.delete.button': 'Kustuta minu konto',
   'account.legal': 'Juriidiline',
   'account.legal.lead': 'Loe',
@@ -1049,8 +1048,7 @@ export const ET: Messages = {
   'legal.privacy.why.li5.strong': 'Esitatud sisu',
   'legal.privacy.why.li5.after':
     ' - kuvatakse avalikul kaardil ja kasutatakse haldurite poolt modereerimiseks ja kuritarvituste ennetamiseks.',
-  'legal.privacy.why.p2':
-    'Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED].',
+  'legal.privacy.why.p2': 'Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED].',
   'legal.privacy.verification.p1':
     'Kaarti saab vaadata ilma kontota. Varjupaiku või teateid esitamiseks pead looma konto ja kinnitama nii oma e-posti aadressi kui ka telefoninumbri. Kinnitamine toimib nii, et igale kontaktile saadetakse ühekordne kood; seni, kuni mõlemad on kinnitatud, saad sisse logida, kuid ei saa sisu esitada.',
   'legal.privacy.verification.p2':
@@ -1115,8 +1113,7 @@ export const ET: Messages = {
     'kustutatakse sama kustutusreegli järgi, mis kehtib konto kustutamisel, ja modereerimise ning auditeerimise kirjed, mis on vanemad kui ',
   'legal.privacy.retention.p2.strong2': '24 kuud',
   'legal.privacy.retention.p2.after': 'eemaldatakse.',
-  'legal.privacy.retention.p3.before':
-    'Nende perioodide täitmist juhib deploy-tasemel lüliti (',
+  'legal.privacy.retention.p3.before': 'Nende perioodide täitmist juhib deploy-tasemel lüliti (',
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
   'legal.privacy.retention.p3.after':
     '): kui lüliti on väljas, jäävad mitteaktiivsed kontod ja vanad auditeerimise kirjed alles.',

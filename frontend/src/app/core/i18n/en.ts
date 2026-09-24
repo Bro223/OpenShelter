@@ -26,15 +26,13 @@ export const EN: Messages = {
   // — every string below is admin-editable via site_texts (the overlay in
   // I18nService falls back to these values when no override row exists).
   'a11y.popup.title': 'Accessibility',
-  'a11y.popup.body':
-    'Choose how OpenShelter looks to you. Your choice applies immediately.',
+  'a11y.popup.body': 'Choose how OpenShelter looks to you. Your choice applies immediately.',
   'a11y.option.default': 'Default',
   'a11y.option.default.desc': 'The standard light appearance.',
   'a11y.option.highContrast': 'High contrast',
   'a11y.option.highContrast.desc': 'A dark background with bright text.',
   'a11y.option.blackYellow': 'Black and yellow',
-  'a11y.option.blackYellow.desc':
-    'Yellow text on a black background.',
+  'a11y.option.blackYellow.desc': 'Yellow text on a black background.',
   'a11y.popup.footer': 'Your choice is stored on this device only — it is not shared with anyone.',
   'a11y.popup.close': 'Close',
 
@@ -344,7 +342,8 @@ export const EN: Messages = {
     'Your location is now listed and marked as newly added. Community reports confirm it.',
   'submit.success.viewLocation': 'View your location',
   'submit.success.viewContributions': 'View your contributions',
-  'submit.verifyHint': 'This account can no longer submit because its verification is no longer valid.',
+  'submit.verifyHint':
+    'This account can no longer submit because its verification is no longer valid.',
   'submit.verifyHint.link': 'Go to verification',
   'submit.nameLabel': 'Name *',
   'submit.namePlaceholder': 'e.g. Kalamaja community shelter',
@@ -508,7 +507,8 @@ export const EN: Messages = {
   'account.delete.copy':
     'Erases your account and everything tied to it. Shelters you declared as a private home are removed; public shelters you submitted stay on the map without a submitter. This cannot be undone.',
   'account.delete.typeHint': 'Type DELETE to confirm',
-  'account.delete.armed': 'The “Delete my account” button is now enabled. Selecting it erases your account permanently.',
+  'account.delete.armed':
+    'The “Delete my account” button is now enabled. Selecting it erases your account permanently.',
   'account.delete.button': 'Delete my account',
   'account.legal': 'Legal',
   'account.legal.lead': 'Read the',
@@ -1009,7 +1009,7 @@ export const EN: Messages = {
   'legal.privacy.who.p2.after':
     ' and not an emergency service. Official shelter data shown in the application is imported from the Estonian Rescue Board (Päästeamet) open data, but the application itself is operated independently.',
   'legal.privacy.scope.p1':
-    "This policy describes how OpenShelter collects, uses, stores and deletes personal data when you use the web application. It does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and OpenStreetMap).",
+    'This policy describes how OpenShelter collects, uses, stores and deletes personal data when you use the web application. It does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and OpenStreetMap).',
 
   'legal.privacy.collect.p1':
     'We collect only what the application needs to work. When you create an account we store:',
@@ -1049,8 +1049,7 @@ export const EN: Messages = {
   'legal.privacy.why.li5.strong': 'Submitted content',
   'legal.privacy.why.li5.after':
     ' - shown on the public map and used by administrators for moderation and abuse prevention.',
-  'legal.privacy.why.p2':
-    'The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED].',
+  'legal.privacy.why.p2': 'The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED].',
   'legal.privacy.verification.p1':
     'You may browse the map without an account. To submit shelters or reports you must create an account and verify both your e-mail address and your phone number. Verification works by sending a one-time code to each contact; until both are verified you can sign in but cannot contribute.',
   'legal.privacy.verification.p2':
@@ -1116,10 +1115,10 @@ export const EN: Messages = {
   'legal.privacy.retention.p2.strong2': '24 months',
   'legal.privacy.retention.p2.after': ' are removed.',
   'legal.privacy.retention.p3.before':
-    "Enforcement of these periods is a deployment-level switch (",
+    'Enforcement of these periods is a deployment-level switch (',
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
   'legal.privacy.retention.p3.after':
-    "): where the switch is off, inactive accounts and old audit records are kept.",
+    '): where the switch is off, inactive accounts and old audit records are kept.',
   'legal.privacy.retention.p4':
     'Public community submissions are never removed automatically: they stay on the map without attribution until a moderator removes them.',
 

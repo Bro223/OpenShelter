@@ -1,24 +1,10 @@
 import {
   Injector,
   afterNextRender,
-
- 
- computed
-,
-
- 
- signal
-,
-
- 
- type
- Signal
-,
-
- 
- type
- WritableSignal
-,
+  computed,
+  signal,
+  type Signal,
+  type WritableSignal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { skip } from 'rxjs';
@@ -33,13 +19,7 @@ import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import { ConfirmAction } from '../../shared/confirm-action';
-import {
-  PAGE_SIZE_DEFAULT,
-  clampPage,
-  lastPage,
-  parsePage,
-  parseSize,
-} from '../../shared/paging';
+import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '../../shared/paging';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { LOCALES, type Locale } from '../../core/i18n/locale';
 import type { GuidanceEditorSave } from './guidance-editor';
@@ -131,9 +111,7 @@ export class GuidanceView {
   readonly page = signal(1);
   readonly size = signal(PAGE_SIZE_DEFAULT);
   readonly pages = computed(() => lastPage(this.total(), this.size()));
-  readonly outOfRange = computed(
-    () => this.total() > 0 && this.page() > this.pages(),
-  );
+  readonly outOfRange = computed(() => this.total() > 0 && this.page() > this.pages());
   /** Manual order (the move buttons, the drag & drop AND the full-list
    *  order PUT) is ALL-ROWS-by-nature: available only while the whole
    *  (searched, scoped) list fits the current page. */
@@ -357,9 +335,7 @@ export class GuidanceView {
   private refreshPublishedIndex(): void {
     this.deps.publicGuidance
       .list()
-      .then((posts) =>
-        this.publishedAt.set(new Map(posts.map((p) => [p.slug, p.publishedAt]))),
-      )
+      .then((posts) => this.publishedAt.set(new Map(posts.map((p) => [p.slug, p.publishedAt]))))
       .catch(() => this.publishedAt.set(new Map()));
   }
 
@@ -647,9 +623,7 @@ export class GuidanceView {
           save.update!,
           this.deps.i18n.contentLocale(),
         );
-        this.rows.update((rows) =>
-          (rows ?? []).map((r) => (r.id === result.id ? result : r)),
-        );
+        this.rows.update((rows) => (rows ?? []).map((r) => (r.id === result.id ? result : r)));
         this.deps.success.set(this.deps.i18n.t('admin.guidance.success.updated'));
       }
       if (result.heroImportError !== null && result.heroImportError !== undefined) {

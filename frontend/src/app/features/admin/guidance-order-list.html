@@ -22,7 +22,9 @@
   <!-- admin-locale-scope + admin-locale-split: the list is the CONTENT
        language's — the line names the language being managed (the
        other languages' posts are edited from their own lists). -->
-  <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}</p>
+  <p class="admin-guidance-scope">
+    {{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}
+  </p>
   <!-- guidance-manual-order: the list order IS the public order —
        the hint names the two mechanisms (PRIMARY: the keyboard-
        reachable move buttons; SECONDARY: drag & drop). Paged multi-page
@@ -33,7 +35,12 @@
   } @else {
     <p class="admin-guidance-hint">{{ 'admin.guidance.order.pagedHint' | t: { max: 100 } }}</p>
   }
-  <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.guidance.posts.aria' | t">
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.guidance.posts.aria' | t"
+  >
     <table class="admin-table">
       <thead>
         <tr>
@@ -100,9 +107,7 @@
             <td class="admin-cell--nowrap">{{ row.locale }}</td>
             <td class="admin-cell--nowrap">
               {{
-                row.pinned
-                  ? ('admin.guidance.pinned.yes' | t)
-                  : ('admin.guidance.pinned.no' | t)
+                row.pinned ? ('admin.guidance.pinned.yes' | t) : ('admin.guidance.pinned.no' | t)
               }}
             </td>
             <td class="admin-cell--nowrap">
@@ -144,9 +149,7 @@
                     class="btn btn--ghost admin-guidance-move__btn"
                     [disabled]="busy() || !reorderable() || index(row) >= (rows() ?? []).length - 1"
                     (click)="movePost(row.id, 'down')"
-                    [attr.aria-label]="
-                      'admin.guidance.move.down.aria' | t: { title: row.title }
-                    "
+                    [attr.aria-label]="'admin.guidance.move.down.aria' | t: { title: row.title }"
                   >
                     {{ 'admin.guidance.move.down' | t }}
                   </button>
@@ -168,9 +171,7 @@
                       [disabled]="busy()"
                     >
                       {{
-                        busy()
-                          ? ('admin.guidance.working' | t)
-                          : ('admin.guidance.unpublish' | t)
+                        busy() ? ('admin.guidance.working' | t) : ('admin.guidance.unpublish' | t)
                       }}
                     </button>
                   } @else {
@@ -180,9 +181,7 @@
                       (click)="onPublish(row)"
                       [disabled]="busy()"
                     >
-                      {{
-                        busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
-                      }}
+                      {{ busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t) }}
                     </button>
                   }
                   <button

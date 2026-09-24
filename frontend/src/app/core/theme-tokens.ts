@@ -143,7 +143,8 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
      --color-reported above, a separate owner decision. */
   '--color-danger': '#ffd400',
   '--color-danger-bg': '#2a2408' /* danger on it 10.83:1 (dark amber tint) */,
-  '--color-danger-border': '#b89600' /* on #000 7.40:1 — the full border, the non-colour error cue */,
+  '--color-danger-border':
+    '#b89600' /* on #000 7.40:1 — the full border, the non-colour error cue */,
   '--color-error': '#ffd400' /* = --color-danger (one voice, like the light theme's red) */,
   '--color-warning': '#ffb84d',
   '--color-warning-bg': '#292008' /* warning on it 9.37:1 */,

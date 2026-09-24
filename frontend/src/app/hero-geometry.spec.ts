@@ -59,8 +59,7 @@ function ownDeclarations(source: string, selectorText: string): string {
   expect(open, `opening brace after ${JSON.stringify(selectorText)}`).toBeGreaterThanOrEqual(0);
   const nextOpen = clean.indexOf('{', open + 1);
   const close = clean.indexOf('}', open + 1);
-  const end =
-    nextOpen === -1 || (close !== -1 && close < nextOpen) ? close : nextOpen;
+  const end = nextOpen === -1 || (close !== -1 && close < nextOpen) ? close : nextOpen;
   expect(end, `closing delimiter for ${JSON.stringify(selectorText)}`).toBeGreaterThanOrEqual(0);
   return clean.slice(open + 1, end);
 }
@@ -477,12 +476,10 @@ const cssCache = new Map<string, string>();
 function compileCss(file: string): string {
   let css = cssCache.get(file);
   if (css === undefined) {
-    css = sass
-      .compile(file, {
-        loadPaths: [`${process.cwd()}/node_modules`],
-        style: 'expanded',
-      })
-      .css;
+    css = sass.compile(file, {
+      loadPaths: [`${process.cwd()}/node_modules`],
+      style: 'expanded',
+    }).css;
     cssCache.set(file, css);
   }
   return css;

@@ -1427,7 +1427,13 @@ describe('SubmitShelterPage (/submit)', () => {
     gateway.mine.mockRejectedValue(
       ApiError.fromHttp(
         401,
-        { timestamp: 't', status: 401, error: 'Unauthorized', message: 'Authentication required', path: '/api/shelters/mine' },
+        {
+          timestamp: 't',
+          status: 401,
+          error: 'Unauthorized',
+          message: 'Authentication required',
+          path: '/api/shelters/mine',
+        },
         '/api/shelters/mine',
       ),
     );

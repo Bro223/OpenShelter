@@ -3964,7 +3964,7 @@ describe('AdminPage', () => {
       expect(router.url).toBe('/admin');
     });
 
-    it('a user-initiated tab switch is ONE navigation (a real history entry in the browser) and keeps the other tabs\' params', async () => {
+    it("a user-initiated tab switch is ONE navigation (a real history entry in the browser) and keeps the other tabs' params", async () => {
       admin.listShelters.mockResolvedValue({ rows: [USER_ROW], total: 25 });
       admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
       const { element, fixture } = await openAdmin();
@@ -4001,7 +4001,7 @@ describe('AdminPage', () => {
       expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
     });
 
-    it('a URL step back to the tab-less URL (the back button\'s step) returns the previous tab', async () => {
+    it("a URL step back to the tab-less URL (the back button's step) returns the previous tab", async () => {
       admin.listShelters.mockResolvedValue(paged([USER_ROW]));
       const { element, fixture } = await openAdmin();
       buttonByText(element, 'Shelters')!.click();
@@ -4018,7 +4018,7 @@ describe('AdminPage', () => {
       expect(router.url).toBe('/admin');
     });
 
-    it('an illegal ?tab normalizes in the SAME pass as the lists\' params (one atomic pass, the fix is the only second navigation)', async () => {
+    it("an illegal ?tab normalizes in the SAME pass as the lists' params (one atomic pass, the fix is the only second navigation)", async () => {
       admin.listShelters.mockResolvedValue(paged([USER_ROW]));
       const { element, fixture } = await openAdmin();
       let navigations = 0;
@@ -4080,10 +4080,7 @@ describe('AdminPage', () => {
       // pins the union against the URL vocabulary: a tab that exists in
       // the union but not in ADMIN_TABS would be unaddressable by URL
       // (the parse rejects it) while its button still renders.
-      const source = readFileSync(
-        `${process.cwd()}/src/app/features/admin/admin-page.ts`,
-        'utf8',
-      );
+      const source = readFileSync(`${process.cwd()}/src/app/features/admin/admin-page.ts`, 'utf8');
       const start = source.indexOf('export type AdminTab =');
       const end = source.indexOf(';', start);
       const values: string[] = [];
