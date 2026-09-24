@@ -174,18 +174,18 @@ their inputs from the same dismissed-excluded store query
   legend's `tones` param "is the SINGLE source of truth (URL-only persistence — no
   localStorage)" (`frontend/src/app/features/map/map-page.ts:330-336`); the admin page
   carries the same idiom ("the view IS the URL",
-  `frontend/src/app/features/admin/admin-page.ts:515`). Public surfaces use page-level
+  `frontend/src/app/features/admin/admin-page.ts:368`). Public surfaces use page-level
   routes, admin tab panels use tab-namespaced query params
   (`frontend/src/app/shared/list-state.ts:16-20`).
 - **Clamp/normalize discipline.** A hand-typed illegal value is sanitized to the nearest
   legal value — never an error — and the URL is normalized in place (`replaceUrl`, no history
   entry), so the control and the URL can never quietly disagree
   (`frontend/src/app/features/map/map-page.ts:80-95,504-505`;
-  `frontend/src/app/features/admin/admin-page.ts:575-602,651-656`).
+  `frontend/src/app/features/admin/admin-page.ts:419-509`).
 - **Per-list namespaced parameters.** Each admin paged list owns its own `{list}Page` /
   `{list}Size` pair — `guidancePage/guidanceSize`, `shelterPage/shelterSize`,
   `reportPage/reportSize`, `userPage/userSize`, `mediaPage/mediaSize`, `auditPage/auditSize`
-  (`frontend/src/app/features/admin/admin-page.ts:603-618`).
+  (`frontend/src/app/features/admin/admin-page.ts:453-468`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
   (`frontend/src/app/shared/paging.ts:1-13`); constants at `:20,24,27,31`;
@@ -198,7 +198,7 @@ their inputs from the same dismissed-excluded store query
   `requireLimit` `:50-58`, `requireOffset` `:66-74`, `slice` `:102-110`).
 - **`X-Total-Count`** is the filtered length WITHOUT paging, always present on the paged
   reads (`src/main/java/ee/sheltermap/api/Pagination.java:112-122`), exposed cross-origin by
-  name — never a wildcard (`src/main/java/ee/sheltermap/config/SecurityConfig.java:192-196`)
+  name — never a wildcard (`src/main/java/ee/sheltermap/config/SecurityConfig.java:183-188`)
   — and read on the frontend with an honest degrade: a missing/blank/negative header falls
   back to the fetched page's own length (`frontend/src/app/shared/paging.ts:71-79`).
 - **The map's legend IS the filter** (wave 7), and **the source chips are gone** (wave 8): the
@@ -219,23 +219,23 @@ their inputs from the same dismissed-excluded store query
 - **The import runs at save time — create and update, draft or published alike** (Wave 9
   moved it from publish to save):
   `src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:24-27`,
-  `src/main/java/ee/sheltermap/guidance/GuidanceService.java:801-806`,
+  `src/main/java/ee/sheltermap/guidance/GuidanceService.java:802-807`,
   `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql:4-5`.
 - **A failed import never blocks the save.** The import runs in its own transaction
   (`REQUIRES_NEW`): a failure rolls back only the asset row and propagates to the save, which
   **stores the post anyway** and surfaces the error against the hero field
   (`src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:28-33`; the catch that
-  says it in code: `src/main/java/ee/sheltermap/guidance/GuidanceService.java:839-848`).
+  says it in code: `src/main/java/ee/sheltermap/guidance/GuidanceService.java:839-850`).
 - **Hero state after a failure:** the hero falls back to the request's library reference, or
   — none given — to what the post already had; a fresh post is simply hero-less (which renders
   fine). The import URL is kept on the post as a retryable pending import — the next save
   retries it. A hero is always a validated stored asset or nothing: the import URL is never a
   rendering source, on any page, in any state
-  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:845-847`;
+  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:845-849`;
   `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql:13-20`).
 - **Idempotent re-save:** if the post's current hero is exactly this URL's own import (its
   asset's `source_url` records it), a same-URL save does not re-fetch or duplicate
-  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:826-834,851-858`).
+  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:826-834,853-860`).
 
 ## 6. Data provenance — the registry import
 
