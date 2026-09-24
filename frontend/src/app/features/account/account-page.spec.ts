@@ -471,6 +471,32 @@ describe('AccountPage', () => {
     expect((element.querySelector('#change-phone-new') as HTMLInputElement).disabled).toBe(true);
   });
 
+  it('code-style inputs disable spellcheck (the 6-digit codes + the typed DELETE literal)', async () => {
+    const { page, element, fixture } = await open();
+    // The delete arming input is always rendered for a non-admin profile —
+    // the browser must not underline the typed literal.
+    expect(
+      (element.querySelector('#delete-confirm') as HTMLInputElement).getAttribute('spellcheck'),
+    ).toBe('false');
+
+    // The change-proof code inputs render in their code phase.
+    page.newEmail.setValue('new@example.ee');
+    account.requestEmailChange.mockResolvedValue(ACK);
+    await page.emailSend();
+    fixture.detectChanges();
+    expect(
+      (element.querySelector('#change-email-code') as HTMLInputElement).getAttribute('spellcheck'),
+    ).toBe('false');
+
+    page.newPhone.setValue('+37250000002');
+    account.requestPhoneChange.mockResolvedValue(ACK);
+    await page.phoneSend();
+    fixture.detectChanges();
+    expect(
+      (element.querySelector('#change-phone-code') as HTMLInputElement).getAttribute('spellcheck'),
+    ).toBe('false');
+  });
+
   it('the done state renders the server truth, not the form value (F5)', async () => {
     const { page, element, fixture } = await open();
     // The user types a local phone form; the backend stores E.164.

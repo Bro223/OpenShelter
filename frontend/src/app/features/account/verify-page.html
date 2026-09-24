@@ -35,6 +35,7 @@
             type="text"
             [formControl]="codes[level]"
             autocomplete="one-time-code"
+            spellcheck="false"
             [attr.inputmode]="level === 'PHONE' ? 'numeric' : 'text'"
             [attr.autocapitalize]="level === 'EMAIL' ? 'characters' : 'none'"
             [placeholder]="ch.placeholderKey | t"

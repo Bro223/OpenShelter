@@ -217,6 +217,20 @@ export class LeafletService {
   }
 
   /**
+   * The current map center as [lat, lng] (the /submit keyboard pick — a
+   * keyboard user pans the focusable map with the arrow keys, then
+   * confirms the center; a pointer user clicks/drags instead). Null
+   * before create / after destroy.
+   */
+  mapCenter(): [number, number] | null {
+    if (!this.map) {
+      return null;
+    }
+    const center = this.map.getCenter();
+    return [center.lat, center.lng];
+  }
+
+  /**
    * Shows ONE static shelter location (the /shelters/:id "Location" map):
    * a single non-interactive divIcon pin, toned exactly like
    * `renderShelters` (reported override, then the trust palette). Null

@@ -7,6 +7,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import { focusFirstInvalidField } from '../../shared/form-helpers';
 
 /**
  * /login (GuestGuard). Login by email or phone + password.
@@ -55,6 +56,11 @@ export class LoginPage implements OnInit {
   async submit(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      // Blocked submit: land keyboard focus on the first invalid field.
+      focusFirstInvalidField(this.form, [
+        ['emailOrPhone', 'login-contact'],
+        ['password', 'login-password'],
+      ]);
       return;
     }
     this.pending.set(true);

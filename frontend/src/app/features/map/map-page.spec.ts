@@ -1158,6 +1158,17 @@ describe('MapPage', () => {
       expect(element.querySelector('.anchor-search__error')).toBeNull();
     });
 
+    it('the anchor search input opts out of the autocomplete heuristics (the /submit address-search convention)', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      const { element } = await open('/map');
+
+      // A plain street-address box: the browser's autofill heuristics must
+      // not treat it as an auth field — the same convention the /submit
+      // address search already carries.
+      const input = element.querySelector<HTMLInputElement>('#anchor-search-input');
+      expect(input?.getAttribute('autocomplete')).toBe('off');
+    });
+
     it('selecting a result anchors: pin + fly to neighbourhood scale + per-row distances + distance sort', async () => {
       gateway.list.mockResolvedValue([NEAR, FAR]);
       geocode.search.mockResolvedValue(ANCHOR_RESULT);

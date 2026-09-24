@@ -508,6 +508,7 @@ export interface Messages {
   'submit.osmAttribution': string;
   'submit.useMyLocation': string;
   'submit.locating': string;
+  'submit.useMapCenter': string;
   'submit.location.empty': string;
   'submit.submit': string;
   'submit.submitting': string;

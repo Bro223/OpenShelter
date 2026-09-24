@@ -8,6 +8,7 @@ import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import { focusFirstInvalidField } from '../../shared/form-helpers';
 
 /**
  * /register (GuestGuard). Validators mirror the backend RegisterRequest
@@ -64,6 +65,13 @@ export class RegisterPage {
   async submit(): Promise<void> {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      // Blocked submit: land keyboard focus on the first invalid field.
+      focusFirstInvalidField(this.form, [
+        ['name', 'register-name'],
+        ['email', 'register-email'],
+        ['phone', 'register-phone'],
+        ['password', 'register-password'],
+      ]);
       return;
     }
     this.pending.set(true);

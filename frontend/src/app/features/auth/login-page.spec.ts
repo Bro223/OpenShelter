@@ -118,6 +118,27 @@ describe('LoginPage', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Password is required.');
   });
 
+  it('a blocked submit moves keyboard focus to the first invalid field (both empty: the contact)', async () => {
+    const { page, element, fixture } = await open('/login');
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.login).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#login-contact'));
+  });
+
+  it('a blocked submit skips the valid contact and lands on the empty password', async () => {
+    const { page, element, fixture } = await open('/login');
+    page.form.controls.emailOrPhone.setValue('test@example.ee');
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.login).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#login-password'));
+  });
+
   it('exposes invalid fields to assistive tech (aria-invalid + describedby + alert, WCAG 4.1.3)', async () => {
     const { page, element, fixture } = await open('/login');
     const root = fixture.nativeElement as HTMLElement;

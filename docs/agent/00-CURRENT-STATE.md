@@ -94,8 +94,8 @@ Anchors, row by row:
   the browse anchor is a diamond against shelter circles on shape — the code's own words
   are "not a circle — the shape IS the distinction"
   (`frontend/src/styles.scss:915-920`; `setAnchor` at
-  `frontend/src/app/shared/leaflet-service.ts:317,327,338`; the pick pin is `setPick` at
-  `frontend/src/app/shared/leaflet-service.ts:274,285`).
+  `frontend/src/app/shared/leaflet-service.ts:331,341,352`; the pick pin is `setPick` at
+  `frontend/src/app/shared/leaflet-service.ts:288,285`).
 - The legend swatches reuse these exact marker classes — the section's own note
   (`frontend/src/styles.scss:806-809`) — so map and legend can never drift. Legend copy:
   the `map.legend.` entries at `frontend/src/app/core/i18n/en.ts:177,179-180,185-186,190`.

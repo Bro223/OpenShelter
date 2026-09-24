@@ -107,6 +107,18 @@ describe('ResetPage', () => {
         'A valid email is required.',
       );
     });
+
+    it('a blocked request submit moves keyboard focus to the email field', async () => {
+      const { page, fixture } = await open('/reset');
+
+      await page.requestReset();
+      fixture.detectChanges();
+
+      expect(gateway.requestPasswordReset).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(
+        (fixture.nativeElement as HTMLElement).querySelector('#reset-email'),
+      );
+    });
   });
 
   describe('sent state (code + new password, in-page)', () => {
@@ -177,6 +189,55 @@ describe('ResetPage', () => {
       expect((fixture.nativeElement as HTMLElement).textContent).toContain(
         'The passwords do not match.',
       );
+    });
+
+    it('a blocked confirm submit moves keyboard focus to the first invalid field (the code)', async () => {
+      const { page, fixture } = await open('/reset');
+      await request(page, fixture);
+      page.confirmForm.setValue({
+        code: '',
+        password: 'new-secret',
+        passwordAgain: 'new-secret',
+      });
+
+      await page.confirmReset();
+      fixture.detectChanges();
+
+      expect(gateway.resetPassword).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(
+        (fixture.nativeElement as HTMLElement).querySelector('#reset-code'),
+      );
+    });
+
+    it('a blocked confirm submit lands on the repeat field for a mismatch (both passwords valid, different)', async () => {
+      const { page, fixture } = await open('/reset');
+      await request(page, fixture);
+      page.confirmForm.setValue({
+        code: '123456',
+        password: 'one-secret',
+        passwordAgain: 'other-secret',
+      });
+      page.confirmForm.markAllAsTouched();
+
+      await page.confirmReset();
+      fixture.detectChanges();
+
+      expect(gateway.resetPassword).not.toHaveBeenCalled();
+      // No control is invalid (both filled, over the length floor) — the
+      // mismatch error sits on the repeat field, and that is what gets focus.
+      expect(document.activeElement).toBe(
+        (fixture.nativeElement as HTMLElement).querySelector('#reset-password-again'),
+      );
+    });
+
+    it('the reset code input disables spellcheck (a 6-digit code is not a word)', async () => {
+      const { page, fixture } = await open('/reset');
+      await request(page, fixture);
+
+      const code = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        '#reset-code',
+      );
+      expect(code?.getAttribute('spellcheck')).toBe('false');
     });
 
     it('exposes field errors to assistive tech (aria-invalid + describedby + alert, WCAG 4.1.3)', async () => {

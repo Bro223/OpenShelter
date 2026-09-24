@@ -188,6 +188,7 @@
               [formControl]="emailCode"
               autocomplete="one-time-code"
               inputmode="numeric"
+              spellcheck="false"
               [placeholder]="'account.codePlaceholder' | t"
               [attr.aria-invalid]="emailCodeInvalid ? 'true' : null"
               [attr.aria-describedby]="emailCodeInvalid ? 'change-email-code-error' : null"
@@ -299,6 +300,7 @@
               [formControl]="phoneCode"
               autocomplete="one-time-code"
               inputmode="numeric"
+              spellcheck="false"
               [placeholder]="'account.codePlaceholder' | t"
               [attr.aria-invalid]="phoneCodeInvalid ? 'true' : null"
               [attr.aria-describedby]="phoneCodeInvalid ? 'change-phone-code-error' : null"
@@ -401,6 +403,7 @@
             type="text"
             [formControl]="deleteConfirm"
             autocomplete="off"
+            spellcheck="false"
             placeholder="DELETE"
           />
         </div>

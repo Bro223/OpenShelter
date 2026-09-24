@@ -61,6 +61,10 @@ class FakeLeafletService {
       this.flyToCalls.push([lat, lng]);
     }
   });
+  /** The current map center (the "Use map center" keyboard pick reads it);
+   *  null before create / after destroy — the real service's contract. */
+  center: [number, number] = [58.6, 25.0];
+  mapCenter = vi.fn((): [number, number] | null => (this.alive ? this.center : null));
   destroy = vi.fn(() => void this.destroyed++);
 }
 
@@ -385,6 +389,54 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.querySelector('.submit-success')).not.toBeNull();
   });
 
+  // A blocked submit moves keyboard focus to the first field with the
+  // inline error ("focus first error on submit") — the keyboard and
+  // screen-reader user lands where the fix already is.
+  it('a blocked submit moves keyboard focus to the first invalid field (the name)', async () => {
+    const { element, fixture } = await open();
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    fixture.detectChanges();
+
+    expect(gateway.create).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#shelter-name'));
+  });
+
+  it('a blocked submit skips valid fields and lands on the invalid capacity', async () => {
+    const { page, element, fixture } = await open();
+    typeLocation(element, '59.437, 24.754');
+    const name = input(element, 'shelter-name');
+    name.value = 'Kalamaja community shelter';
+    name.dispatchEvent(new Event('input'));
+    page.form.get('capacity')?.setValue(150_000); // above the 100 000 bound
+    fixture.detectChanges();
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    fixture.detectChanges();
+
+    expect(gateway.create).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#shelter-capacity'));
+  });
+
+  it('a blocked submit with a valid form lands on the location capture input (nothing picked yet)', async () => {
+    const { element, fixture } = await open();
+    const name = input(element, 'shelter-name');
+    name.value = 'Kalamaja community shelter';
+    name.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    fixture.detectChanges();
+
+    expect(gateway.create).not.toHaveBeenCalled();
+    // The form controls are valid — the missing location is the only
+    // blocker, and the capture input is where a keyboard user starts.
+    expect(document.activeElement).toBe(element.querySelector('#shelter-location-input'));
+    expect(element.querySelector('.location-field .field-error')?.textContent).toContain(
+      'Pick a location on the map',
+    );
+  });
+
   it('a map pick writes the shared location state and drops the pick marker (no flyTo)', async () => {
     const { element, fixture } = await open();
     expect(leaflet.mapClick).not.toBeNull(); // the page wired the callback
@@ -397,6 +449,29 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(leaflet.pickCalls.at(-1)).toEqual([58.8, 25.1]);
     expect(leaflet.flyToCalls).toEqual([]); // a pick never re-centers the map
     expect(element.textContent).toContain('Location from the map');
+  });
+
+  it('the map pick is reachable without a pointer: "Use map center" places the pin at the map center', async () => {
+    leaflet.center = [59.43703, 24.75353];
+    const { element, fixture } = await open();
+
+    // A real button in the tab order next to "Use my location": a keyboard
+    // user pans the focused map (leaflet's arrow keys), then confirms the
+    // center — the pointer click/drag stays the other way in.
+    const pick = button(element, 'Use map center');
+    expect(pick.closest('.location-actions')).not.toBeNull();
+    pick.focus();
+    expect(document.activeElement).toBe(pick);
+    pick.click(); // Enter on a focused button is a click
+    fixture.detectChanges();
+
+    expect(leaflet.mapCenter).toHaveBeenCalled();
+    expect(leaflet.pickCalls.at(-1)).toEqual([59.43703, 24.75353]);
+    // The same shared write as the pointer pick: source 'map', no flyTo
+    // (the point is already centered).
+    expect(element.textContent).toContain('59.43703, 24.75353');
+    expect(element.textContent).toContain('Location from the map');
+    expect(leaflet.flyToCalls).toEqual([]);
   });
 
   it('typed coordinates via Enter move the marker, fly the map, update the readout', async () => {
@@ -983,6 +1058,32 @@ describe('SubmitShelterPage (/submit)', () => {
     }
     expect(link.textContent).toContain('© OpenStreetMap contributors');
     expect(link.getAttribute('href')).toBe('https://www.openstreetmap.org/copyright');
+  });
+
+  it('the address results + error region is a persistent live region — present before any search', async () => {
+    // A screen reader only announces a region that exists before its
+    // content changes, so the region renders from page load: the result
+    // list arriving AND the "no results" notice both land inside it.
+    const { element } = await open();
+
+    const region = element.querySelector('.location-search [role="status"]');
+    expect(region, 'the live region must exist before the first search').not.toBeNull();
+    expect(region?.querySelector('.address-results')).toBeNull();
+    expect(region?.querySelector('.field-error')).toBeNull();
+  });
+
+  it('the "no results" notice lands inside the live region (a screen reader hears it)', async () => {
+    geocode.search.mockResolvedValue([]);
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    const region = element.querySelector('.location-search [role="status"]');
+    expect(region?.textContent).toContain('No Estonian address found');
   });
 
   it('"Use my location" places the marker with an accuracy hint (high accuracy, 10 s, no cache)', async () => {

@@ -8,7 +8,7 @@ import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
-import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
+import { CODE_SIX_DIGITS, focusFirstInvalidField } from '../../shared/form-helpers';
 import { ResendCountdown } from '../../shared/resend-countdown';
 
 export type ResetMode = 'request' | 'sent';
@@ -112,6 +112,8 @@ export class ResetPage implements OnDestroy {
   async requestReset(): Promise<void> {
     if (this.requestForm.invalid) {
       this.requestForm.markAllAsTouched();
+      // Blocked submit: land keyboard focus on the invalid email field.
+      focusFirstInvalidField(this.requestForm, [['email', 'reset-email']]);
       return;
     }
     this.pending.set(true);
@@ -163,6 +165,17 @@ export class ResetPage implements OnDestroy {
   async confirmReset(): Promise<void> {
     if (!this.email || this.confirmForm.invalid || this.confirmMismatch()) {
       this.confirmForm.markAllAsTouched();
+      // Blocked submit: land keyboard focus on the first invalid field —
+      // or on the repeat field when the only blocker is a mismatch
+      // (both passwords filled, so no control is invalid).
+      const formFieldFocused = focusFirstInvalidField(this.confirmForm, [
+        ['code', 'reset-code'],
+        ['password', 'reset-password'],
+        ['passwordAgain', 'reset-password-again'],
+      ]);
+      if (!formFieldFocused && this.confirmMismatch()) {
+        document.getElementById('reset-password-again')?.focus();
+      }
       return;
     }
     this.pending.set(true);

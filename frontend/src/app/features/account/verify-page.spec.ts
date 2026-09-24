@@ -136,6 +136,18 @@ describe('VerifyPage', () => {
     expect(text(fixture)).toContain('Text code to my phone');
   });
 
+  it('the channel code input disables spellcheck (a code is not a word)', async () => {
+    const { page, element, fixture } = await open();
+    verifyGateway.request.mockResolvedValue(ACK);
+
+    await page.request('EMAIL');
+    fixture.detectChanges();
+
+    expect(
+      (element.querySelector('#verify-code-email') as HTMLInputElement).getAttribute('spellcheck'),
+    ).toBe('false');
+  });
+
   it('does not call confirm while the code is malformed (format mirrors the backend)', async () => {
     const { page, fixture } = await open();
     verifyGateway.request.mockResolvedValue(ACK);

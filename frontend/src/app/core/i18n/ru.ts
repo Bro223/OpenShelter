@@ -393,6 +393,7 @@ export const RU: Messages = {
   'submit.osmAttribution': '© участники OpenStreetMap',
   'submit.useMyLocation': 'Моё местоположение',
   'submit.locating': 'Определяем местоположение…',
+  'submit.useMapCenter': 'Центр карты',
   'submit.location.empty': 'Местоположение ещё не указано',
   'submit.submit': 'Добавить укрытие',
   'submit.submitting': 'Добавляем…',

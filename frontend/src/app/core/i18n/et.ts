@@ -382,6 +382,7 @@ export const ET: Messages = {
   'submit.osmAttribution': '© OpenStreetMap kaasajajad',
   'submit.useMyLocation': 'Kasuta mu asukohta',
   'submit.locating': 'Asukohta määratakse…',
+  'submit.useMapCenter': 'Kasuta kaardi keskpunkti',
   'submit.location.empty': 'Asukohta pole veel',
   'submit.submit': 'Lisa varjupaik',
   'submit.submitting': 'Saadetakse…',

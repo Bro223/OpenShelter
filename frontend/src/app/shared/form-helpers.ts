@@ -1,4 +1,4 @@
-import { type AbstractControl, type ValidationErrors } from '@angular/forms';
+import { type AbstractControl, type FormGroup, type ValidationErrors } from '@angular/forms';
 
 /**
  * Shared form helpers: one implementation of the shelter-form rules for both
@@ -37,4 +37,28 @@ export function capacityValidator(control: AbstractControl): ValidationErrors | 
  */
 export function nameBlankValidator(control: AbstractControl): ValidationErrors | null {
   return String(control.value ?? '').trim() === '' ? { blank: true } : null;
+}
+
+/**
+ * Moves keyboard focus to the first field that blocks submission — the
+ * web-guidelines "focus first error on submit" rule. `fields` are the
+ * page's fields in visual order: the form control key + the input's DOM
+ * id. The first invalid control's input receives focus.
+ * @returns whether it focused a field — a page-managed field with no
+ *   control (e.g. the /submit location, captured outside the form) is the
+ *   caller's fallback.
+ */
+export function focusFirstInvalidField(
+  form: FormGroup,
+  fields: ReadonlyArray<readonly [string, string]>,
+): boolean {
+  for (const [key, id] of fields) {
+    const control = form.get(key);
+    if (control === null || control.valid) {
+      continue;
+    }
+    document.getElementById(id)?.focus();
+    return true;
+  }
+  return false;
 }

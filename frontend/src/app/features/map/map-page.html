@@ -164,6 +164,7 @@
               id="anchor-search-input"
               class="anchor-search__input"
               type="text"
+              autocomplete="off"
               [placeholder]="'map.anchorPlaceholder' | t"
               [value]="anchor.anchorQuery()"
               (input)="anchor.onQueryChange($event)"

@@ -125,6 +125,32 @@ describe('RegisterPage', () => {
     expect(text).toContain('A valid email is required.');
   });
 
+  it('a blocked submit moves keyboard focus to the first invalid field (the name)', async () => {
+    const { page, element, fixture } = await open();
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.register).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#register-name'));
+  });
+
+  it('a blocked submit skips valid fields and lands on the invalid email', async () => {
+    const { page, element, fixture } = await open();
+    page.form.setValue({
+      name: 'Test User',
+      email: '',
+      phone: '+37250000001',
+      password: 's3cret!',
+    });
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.register).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(element.querySelector('#register-email'));
+  });
+
   it('blocks a 7-character password client-side with the too-short error (mirrors the backend @Size(min = 8))', async () => {
     const { page, fixture } = await open();
     page.form.setValue({

@@ -377,6 +377,7 @@ export const EN: Messages = {
   'submit.osmAttribution': '© OpenStreetMap contributors',
   'submit.useMyLocation': 'Use my location',
   'submit.locating': 'Locating…',
+  'submit.useMapCenter': 'Use map center',
   'submit.location.empty': 'No location yet',
   'submit.submit': 'Submit shelter',
   'submit.submitting': 'Submitting…',

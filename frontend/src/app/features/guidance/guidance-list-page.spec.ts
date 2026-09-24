@@ -749,5 +749,15 @@ describe('GuidanceListPage (/blog)', () => {
         'titles and dates are unbounded server strings — a nowrap would turn the first long one into page-level overflow',
       ).not.toMatch(/white-space:\s*nowrap/);
     });
+
+    it('the card title wraps long unbreakable words (overflow-wrap) — a word without a break opportunity wraps inside the card instead of stretching the page', () => {
+      const scss = readListScss();
+      const title = scss.match(/\.guidance-post__title \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(title, 'the title rule must exist').not.toEqual('');
+      expect(
+        title,
+        'the title must break long unbreakable words inside the card (the card min-width: 0 alone cannot break a word with no break opportunity)',
+      ).toMatch(/overflow-wrap:\s*anywhere/);
+    });
   });
 });

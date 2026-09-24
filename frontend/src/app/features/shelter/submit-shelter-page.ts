@@ -26,7 +26,7 @@ import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { capacityValidator, nameBlankValidator } from '../../shared/form-helpers';
+import { capacityValidator, focusFirstInvalidField, nameBlankValidator } from '../../shared/form-helpers';
 import {
   isGooShortLink,
   normalizeShortLinkUrl,
@@ -562,6 +562,24 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
+  /**
+   * The keyboard path for the map pick: places the pin at the map's
+   * current center. Leaflet makes the map container focusable (arrow
+   * keys pan, +/− zoom), so a keyboard user reaches the place first and
+   * confirms with this button — the pointer click/drag stays the other
+   * way in. Same shared write as the pointer pick (source 'map-pick',
+   * no flyTo — the point is already centered).
+   */
+  protected useMapCenter(): void {
+    const center = this.leaflet.mapCenter();
+    if (center === null) {
+      return; // the mini-map is not alive yet — the form renders with it
+    }
+    // A pick is a capture — it supersedes any pending capture.
+    this.captureGeneration++;
+    this.setLocation(center[0], center[1], 'map-pick', false, false);
+  }
+
   /** maps.app.goo.gl → POST /api/geo/resolve (JWT, per-IP 5/min). */
   private async resolveShortLink(url: string): Promise<void> {
     this.resolvingLink.set(true);
@@ -742,6 +760,16 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       this.locationError.set('missing');
     }
     if (this.form.invalid || this.location() === null) {
+      // Blocked submit: land keyboard focus on the first field with the
+      // inline error — the location capture input when the form controls
+      // are valid but nothing was picked yet.
+      const formFieldFocused = focusFirstInvalidField(this.form, [
+        ['name', 'shelter-name'],
+        ['capacity', 'shelter-capacity'],
+      ]);
+      if (!formFieldFocused && this.location() === null) {
+        document.getElementById('shelter-location-input')?.focus();
+      }
       return;
     }
 

@@ -68,6 +68,10 @@
 .guidance-post__title {
   margin: 0;
   font-size: var(--text-lg);
+  /* A long unbreakable word wraps inside the card instead of stretching
+     the track and the 360px layout (min-width: 0 alone cannot break a
+     word with no break opportunity). */
+  overflow-wrap: anywhere;
 
   a {
     color: var(--color-primary);

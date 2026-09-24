@@ -198,29 +198,36 @@
               'submit.osmAttribution' | t
             }}</a>
           </p>
-          @if (addressResults().length !== 0) {
-            <ul class="address-results">
-              @for (result of addressResults(); track result.displayName) {
-                <li>
-                  <button
-                    type="button"
-                    class="address-result"
-                    (click)="selectAddressResult(result)"
-                  >
-                    <span class="address-result__name">{{ result.displayName }}</span>
-                    <span class="address-result__type">{{ result.type }}</span>
-                  </button>
-                </li>
-              }
-            </ul>
-          }
-          @if (addressErrorText(); as addressErrorMsg) {
-            @if (addressError() === 'no-results') {
-              <p class="location-note">{{ addressErrorMsg }}</p>
-            } @else {
-              <p class="field-error" role="alert">{{ addressErrorMsg }}</p>
+          <!-- The results + error region is a PERSISTENT live region: a
+               screen reader only announces a region that exists before its
+               content changes, so the wrapper renders from page load and
+               the result list and the "no results" notice both arrive
+               inside it. -->
+          <div role="status">
+            @if (addressResults().length !== 0) {
+              <ul class="address-results">
+                @for (result of addressResults(); track result.displayName) {
+                  <li>
+                    <button
+                      type="button"
+                      class="address-result"
+                      (click)="selectAddressResult(result)"
+                    >
+                      <span class="address-result__name">{{ result.displayName }}</span>
+                      <span class="address-result__type">{{ result.type }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
             }
-          }
+            @if (addressErrorText(); as addressErrorMsg) {
+              @if (addressError() === 'no-results') {
+                <p class="location-note">{{ addressErrorMsg }}</p>
+              } @else {
+                <p class="field-error" role="alert">{{ addressErrorMsg }}</p>
+              }
+            }
+          </div>
         </div>
 
         <div class="location-actions">
@@ -231,6 +238,13 @@
             [disabled]="locating() || resolvingLink()"
           >
             {{ locating() ? ('submit.locating' | t) : ('submit.useMyLocation' | t) }}
+          </button>
+          <!-- The keyboard path for the map pick: a pointer user clicks/
+               drags the map, a keyboard user pans the focusable map and
+               confirms the center here (the same capture, source
+               'map-pick'). -->
+          <button type="button" class="btn" (click)="useMapCenter()">
+            {{ 'submit.useMapCenter' | t }}
           </button>
         </div>
 
