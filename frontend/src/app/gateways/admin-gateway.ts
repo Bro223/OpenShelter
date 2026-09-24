@@ -35,7 +35,8 @@ import { parseTotal } from '../shared/paging';
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The thirty-two methods, 1:1 (one line per public method below):
+ * The endpoints, one line each (thirty-two endpoints over thirty-one
+ * methods — the bare and the paged guidance list share one):
  *
  *   GET    /admin/shelters?status=&source=&q=&limit=&offset= -> AdminShelterDto[] (+ X-Total-Count)
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -230,9 +231,9 @@ export class AdminGateway {
   /**
    * GET /admin/users -> the account list behind the Users tab: every
    * REGISTERED + ADMIN account, id-ordered, with its suspension state
-   * (null = active). Optional `limit` (1..200; absent = the whole list)
-   * / `offset` page it server-side; the un-paged population comes back
-   * as the X-Total-Count header.
+   * (null = active). Optional `limit` (1..200; absent = the backend's
+   * default 100) / `offset` page it server-side; the un-paged population
+   * comes back as the X-Total-Count header.
    */
   listUsers(options?: AdminListPageOptions): Promise<PagedRows<AdminUserDto>> {
     return lastValueFrom(
@@ -343,8 +344,8 @@ export class AdminGateway {
    * POST /admin/guidance/{id}/publish -> 204 (no body). Stamps publishedAt
    * from the server clock (a re-publish stamps a FRESH instant);
    * idempotent — an already-published post is a 204 no-op that writes no
-   * audit row. 404 unknown id. The hero import moved to SAVE time (the
-   * trigger): this call never fetches, validates or stores
+   * audit row. 404 unknown id. The hero import happens at SAVE time
+   * (create/update): this call never fetches, validates or stores
    * anything — a post with an unimported or failed hero URL publishes
    * exactly as stored, so publishing is never the moment an image can
    * fail for the first time.
@@ -515,13 +516,8 @@ export class AdminGateway {
 }
 
 /**
- * The list query string: fixed order (status, source, q), only the fields
- * actually set appear (no trailing `&`, no empty values). `q` is a free
- * name/address substring — URL-encoded.
- */
-/**
  * The optional `?locale=` scope (admin-locale-scope) — empty string when
- * absent (the unscoped, legacy read).
+ * absent (the unscoped read).
  */
 function localeQuery(locale?: string): string {
   return locale ? `?locale=${encodeURIComponent(locale)}` : '';
@@ -604,6 +600,12 @@ function pagedResult<T>(body: T[], headers: HttpHeaders): PagedRows<T> {
   };
 }
 
+/**
+ * GET /admin/shelters?source=&q=&limit=&offset= — fixed param order, only
+ * the fields actually set appear (no trailing `&`, no empty values). `q`
+ * is a free name/address substring — URL-encoded. The backend's optional
+ * `status` filter is not part of AdminShelterFilters, so it is never sent.
+ */
 function adminSheltersPath(filters?: AdminShelterFilters): string {
   const params: string[] = [];
   if (filters?.source !== undefined) {

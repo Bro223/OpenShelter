@@ -1,9 +1,12 @@
 /**
  * Field-for-field TypeScript mirror of the backend DTOs/request records.
  *
- * Contract source: docs/agent/02-CONTEXT-API.md, verified against the real
- * Spring controllers/records in src/main/java/ee/sheltermap. JSON is
- * camelCase and maps 1:1 — nothing is renamed or reshaped here.
+ * Contract source: frontend/docs/agent/02-CONTEXT-API.md, verified against
+ * the real Spring controllers/records in src/main/java/ee/sheltermap. JSON
+ * is camelCase and maps 1:1 — nothing is renamed or reshaped here.
+ * `core/models-contract.spec.ts` pins every response-DTO field name against
+ * the committed OpenAPI snapshot, so a field the API never sends fails the
+ * suite instead of rendering blank.
  *
  * NOTE (deliberate deviation): 02-CONTEXT-API.md
  * types `ShelterDto.address` as `string`, but the backend stores `null` for
@@ -297,7 +300,7 @@ export interface PutOpenStatusRequest {
  * Server-derived open/closed block — computed at read
  * time over the last 2 h of open-status reports, the same window and
  * reportCount semantics as the occupancy block: 1 = the UI hedges
- * ("Reported closed"), >= 2 = firm ("Closed")). `null` on the DTO =
+ * ("Reported closed"), >= 2 = firm ("Closed"). `null` on the DTO =
  * nothing fresh — the UI falls back to the lifecycle status. On ALL list
  * rows and the detail projection.
  */
@@ -311,10 +314,11 @@ export interface OpenStatusDto {
 }
 
 /**
- * Optional trust filters for GET /api/shelters — composable with the
+ * Optional trust filter for GET /api/shelters — composable with the
  * source filter. Absent fields are omitted from the query string entirely.
- * (The `reviewed` filter is gone with the review model; "Open" is a
- * client-side chip — the BE has no param for it.)
+ * The vocabulary is exactly `hasCapacity`: there is no `reviewed` param
+ * (no server-side review queue to filter on) and no "Open" param (the chip
+ * is client-side).
  */
 export interface ShelterTrustFilter {
   /** hasCapacity=true — capacity data present. */
@@ -544,10 +548,9 @@ export interface AdminInfoRequestDto extends InfoRequestDto {
  * as the public list's `ShelterOccupancy` (`ShelterDto.Occupancy`:
  * `{band, reportCount, lastReportedAt}`), same 2 h window, same semantics
  * (reportCount 1 = hedged copy, >= 2 = firm). The field names must match
- * the API byte for byte: this block used to read a `reportedAt` the API
- * never sends, so every row rendered "just now" (reviews/11 F1) —
- * `core/models-contract.spec.ts` now pins the field set against the
- * OpenAPI snapshot so the drift cannot return.
+ * the API byte for byte: `core/models-contract.spec.ts` pins this field set
+ * against the OpenAPI snapshot, so a name the API never sends (a
+ * `reportedAt`, say) fails the suite instead of rendering blank.
  */
 export interface AdminOccupancy {
   band: OccupancyBand;
@@ -622,11 +625,16 @@ export interface AdminShelterDto {
   infoRequest: AdminInfoRequestDto | null;
 }
 
-/** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
+/**
+ * Optional filters for GET /admin/shelters (absent = omitted from the URL).
+ * The backend also accepts an optional `status` exact-match filter; the FE
+ * never sends it — the admin list is always the full, hidden-inclusive
+ * scope, and hiding is a per-row action, not a filter.
+ */
 export interface AdminShelterFilters {
-  /** The frontend-facing source grouping the backend now speaks
-   *  (REGISTRY = Päästeamet + municipality imports; USER = community
-   *  submissions) — the same grouping as the public map filter. */
+  /** The frontend-facing source grouping (REGISTRY = Päästeamet +
+   *  municipality imports; USER = community submissions) — the same
+   *  grouping as the public map filter. */
   source?: ShelterSourceFilter;
   /** Name/address substring. */
   q?: string;

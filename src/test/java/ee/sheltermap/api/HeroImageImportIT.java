@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static ee.sheltermap.guidance.PngFixtures.png;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -114,7 +115,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                     + "AAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==");
 
     /** A 33-byte PNG whose HEADER claims 100001×1 (the pixel-cap fixture). */
-    private static final byte[] PNG_HUGE_DIMS = pngWithDimensions(100_001, 1);
+    private static final byte[] PNG_HUGE_DIMS = png(100_001, 1);
 
     static HttpServer remote;
     static int port;
@@ -197,21 +198,6 @@ class HeroImageImportIT extends AbstractPersistenceIT {
     }
 
     /** Signature + IHDR with the given dimensions (the inspector reads the header only). */
-    private static byte[] pngWithDimensions(int width, int height) {
-        byte[] b = new byte[33];
-        b[0] = (byte) 0x89; b[1] = 0x50; b[2] = 0x4E; b[3] = 0x47;
-        b[4] = 0x0D; b[5] = 0x0A; b[6] = 0x1A; b[7] = 0x0A;
-        b[8] = 0; b[9] = 0; b[10] = 0; b[11] = 13;
-        b[12] = 'I'; b[13] = 'H'; b[14] = 'D'; b[15] = 'R';
-        b[16] = (byte) (width >>> 24); b[17] = (byte) (width >>> 16);
-        b[18] = (byte) (width >>> 8); b[19] = (byte) width;
-        b[20] = (byte) (height >>> 24); b[21] = (byte) (height >>> 16);
-        b[22] = (byte) (height >>> 8); b[23] = (byte) height;
-        b[24] = 8;
-        b[25] = 2;
-        return b;
-    }
-
     // ---------- the address-policy seam (the one stubbed layer) ----------
 
     /**
@@ -308,6 +294,7 @@ class HeroImageImportIT extends AbstractPersistenceIT {
      * lifecycle, needed to reach the injected DataSource): by then every
      * test transaction has been rolled back, so the DELETE waits on
      * nothing.
+     */
     @org.junit.jupiter.api.AfterAll
     void removeLeakedImportedAssets() {
         deleteImportedAssets();

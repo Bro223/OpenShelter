@@ -8,7 +8,6 @@ import ee.sheltermap.guidance.GuidanceNotFoundException;
 import ee.sheltermap.guidance.GuidanceSearch;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.guidance.GuidanceService.SavedPost;
-import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -162,83 +161,40 @@ public class AdminGuidanceController {
         Pagination.requireLimit(limit);
         Pagination.requireOffset(offset);
         String resolved = guidance.optionalAdminLocale(locale);
-        String query = requireSearch(q);
-        boolean scoped = resolved != null;
-        List<GuidancePost> all = scoped
-                ? guidance.listForAdmin(resolved)
-                : guidance.listForAdmin();
-        Map<Long, GuidanceTranslation> content = scoped
-                ? guidance.translationsInLocale(resolved)
-                : Map.of();
-        // Unscoped search matches ANY locale content: every translation row,
-        // keyed by post (one query, no per-post loop). Scoped search only
-        // needs the locale's row (or the home columns) — already in `content`.
-        Map<Long, List<GuidanceTranslation>> allTranslations = scoped
+        String query = GuidanceSearch.requireSearch(q);
+        List<GuidancePost> all = resolved == null
+                ? guidance.listForAdmin()
+                : guidance.listForAdmin(resolved);
+        // The read's per-post content source: the locale's row when
+        // scoped (a post without a row there renders its home columns);
+        // empty when unscoped, where the search matches ANY locale
+        // content instead — every translation row, keyed by post (one
+        // query, no per-post loop).
+        Map<Long, GuidanceTranslation> content = resolved == null
                 ? Map.of()
-                : guidance.translationsByPost();
+                : guidance.translationsInLocale(resolved);
+        Map<Long, List<GuidanceTranslation>> allTranslations = resolved == null
+                ? guidance.translationsByPost()
+                : Map.of();
         // The search filter runs over the RENDERED content, in the stored
         // manual order — the order is UNCHANGED, so search and reorder
         // never fight over sorting.
         List<GuidancePost> filtered = all.stream()
-                .filter(post -> matchesPost(post, content.get(post.getId()),
-                        allTranslations, scoped, query))
+                .filter(post -> GuidanceSearch.matchesPost(post, content.get(post.getId()),
+                        allTranslations.getOrDefault(post.getId(), List.of()), query))
                 .toList();
         int total = filtered.size();
         // The slice runs LAST, over the (filtered) stored manual order.
         List<GuidancePost> paged = Pagination.slice(filtered, offset, limit);
-        // ONE batched read for the its hero URLs (the pre-change
+        // ONE batched read for the page's hero URLs (the pre-change
         // hero index loaded the WHOLE media library for every request).
         Map<Long, MediaAsset> heroes = heroIndex(paged);
         List<AdminGuidancePostDto> dtos = paged.stream()
-                .map(post -> toAdminDto(post, heroes, content.get(post.getId())))
+                .map(post -> toAdminDto(post, heroes, content.get(post.getId()), null))
                 .toList();
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(total))
                 .body(dtos);
-    }
-
-    /**
-     * Does a post match the search term? Scoped: the list renders the
-     * locale's content (the translation row, or the home columns when the
-     * post's home IS the locale) — match exactly that. Unscoped: match the
-     * home columns OR any translation row. A null needle is no filter.
-     */
-    private static boolean matchesPost(GuidancePost post, GuidanceTranslation scopedContent,
-                                       Map<Long, List<GuidanceTranslation>> allTranslations,
-                                       boolean scoped, String query) {
-        if (query == null) {
-            return true;
-        }
-        if (scoped) {
-            String title = scopedContent != null ? scopedContent.getTitle() : post.getTitle();
-            String body = scopedContent != null ? scopedContent.getBodyHtml() : post.getBodyHtml();
-            return GuidanceSearch.matchesSearch(title, body, query);
-        }
-        if (GuidanceSearch.matchesSearch(post.getTitle(), post.getBodyHtml(), query)) {
-            return true;
-        }
-        for (GuidanceTranslation row : allTranslations.getOrDefault(post.getId(), List.of())) {
-            if (GuidanceSearch.matchesSearch(row.getTitle(), row.getBodyHtml(), query)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** The search-term bound (admin-guidance-search): absent/blank = no
-     *  filter (the public {@code q}-less behaviour — never a 400); a
-     *  present-but-over-long value is a 400 (the uniform vocabulary, the
-     *  locale bound's shape). */
-    private static String requireSearch(String q) {
-        if (q == null || q.isBlank()) {
-            return null;
-        }
-        String trimmed = q.trim();
-        if (trimmed.length() > GuidanceSearch.MAX_SEARCH_LENGTH) {
-            throw new GuidanceValidationException("q must be at most "
-                    + GuidanceSearch.MAX_SEARCH_LENGTH + " characters");
-        }
-        return trimmed;
     }
 
     /**
@@ -268,16 +224,7 @@ public class AdminGuidanceController {
         adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
         GuidancePost post = guidance.getById(id);
-        GuidanceTranslation content = null;
-        if (resolved != null) {
-            content = guidance.translationInLocale(id, resolved).orElse(null);
-            if (content == null && !post.getLocale().equals(resolved)) {
-                // No content in the requested locale — the same 404 as an
-                // unknown id (never reveal which locale the post is in).
-                throw new GuidanceNotFoundException(GuidanceService.POST_NOT_FOUND_MESSAGE);
-            }
-        }
-        return toAdminDto(post, heroIndexFor(post), content);
+        return toAdminDto(post, heroIndexFor(post), detailContent(post, resolved), null);
     }
 
     /**
@@ -374,22 +321,14 @@ public class AdminGuidanceController {
                                        @RequestParam(required = false) String locale,
                                        @Valid @RequestBody UpdateGuidancePostRequest request) {
         long adminId = adminAccess.requireAdmin();
-        String resolved = guidance.optionalAdminLocale(locale);
-        SavedPost saved;
-        if (resolved == null) {
-            saved = guidance.update(adminId, id, request.title(), request.slug(),
-                    request.body(), request.locale(), request.pinned(), request.heroImageId(),
-                    request.heroImageAlt(), request.heroImportUrl());
-        } else {
-            saved = guidance.updateInLocale(adminId, id, resolved, request.title(), request.slug(),
-                    request.body(), request.locale(), request.pinned(), request.heroImageId(),
-                    request.heroImageAlt(), request.heroImportUrl());
-        }
+        String editLocale = guidance.optionalAdminLocale(locale);
+        SavedPost saved = savePost(adminId, id, editLocale, request);
         GuidancePost post = saved.post();
-        GuidanceTranslation content = null;
-        if (resolved != null) {
-            content = guidance.translationInLocale(id, resolved).orElse(null);
-        }
+        // The response renders the locale that was just written — its
+        // row (an unscoped write renders the home columns: no row).
+        GuidanceTranslation content = editLocale == null
+                ? null
+                : guidance.translationInLocale(id, editLocale).orElse(null);
         return toAdminDto(post, heroIndexFor(post), content, saved.heroImportError());
     }
 
@@ -682,31 +621,54 @@ public class AdminGuidanceController {
                 .orElse(Map.of());
     }
 
-    private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes) {
-        return toAdminDto(post, heroes, null);
-    }
-
     /**
-     * The admin DTO with an OPTIONAL content source (admin-locale-scope):
-     * the translation row the read is scoped to. When present, the content
-     * fields (title/slug/body/alt) and the DTO's {@code locale} come from
-     * the row (the locale being shown/edited); when absent, from the
-     * post's home columns (the legacy read — the DTO's {@code locale} is
-     * then the home locale, as before). {@code homeLocale} is always the
-     * post's own, and {@code sortOrder} the shared stored manual position.
-     * READS pass a {@code null} heroImportError — the import's failure is
-     * carried by the WRITE responses only (create/update).
+     * The admin detail's content row for the requested locale: the
+     * translation row when the post has one; {@code null} when the
+     * post's home IS the locale (the home columns are that locale's
+     * content). A post with NO content in the locale answers the same
+     * 404 as an unknown id — the response must not reveal which locale
+     * the post is in.
      */
-    private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes,
-                                            GuidanceTranslation content) {
-        return toAdminDto(post, heroes, content, null);
+    private GuidanceTranslation detailContent(GuidancePost post, String locale) {
+        if (locale == null) {
+            return null;
+        }
+        GuidanceTranslation content = guidance.translationInLocale(post.getId(), locale).orElse(null);
+        if (content == null && !post.getLocale().equals(locale)) {
+            throw new GuidanceNotFoundException(GuidanceService.POST_NOT_FOUND_MESSAGE);
+        }
+        return content;
     }
 
     /**
-     * The write-response variant: {@code heroImportError} carries the
-     * hero import that FAILED at this save (the post was still stored —
-     * a failed import never blocks a save); {@code null} when no import
-     * ran or it succeeded.
+     * The save behind the full-replace endpoint: the same editable
+     * fields either way — {@code editLocale} picks the flavour: absent
+     * ({@code null}) = the unscoped full replace (the home columns),
+     * present = that locale's translation row (the post-level fields
+     * stay shared on the post).
+     */
+    private SavedPost savePost(long adminId, long id, String editLocale,
+                               UpdateGuidancePostRequest request) {
+        if (editLocale == null) {
+            return guidance.update(adminId, id, request.title(), request.slug(),
+                    request.body(), request.locale(), request.pinned(), request.heroImageId(),
+                    request.heroImageAlt(), request.heroImportUrl());
+        }
+        return guidance.updateInLocale(adminId, id, editLocale, request.title(), request.slug(),
+                request.body(), request.locale(), request.pinned(), request.heroImageId(),
+                request.heroImageAlt(), request.heroImportUrl());
+    }
+
+    /**
+     * The admin DTO: the post's shared fields plus the content of ONE
+     * source — {@code content} (the locale row the read is scoped to)
+     * when present, the post's home columns when absent — so the DTO's
+     * {@code locale} names the content's locale and {@code homeLocale} the
+     * post's own, and {@code sortOrder} the shared stored manual
+     * position. {@code heroImportError} is the write responses'
+     * (create/update) hero import that FAILED at this save — the post
+     * was still stored, a failed import never blocks a save; reads pass
+     * {@code null} (the import's failure is never part of a read).
      */
     private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes,
                                             GuidanceTranslation content, String heroImportError) {

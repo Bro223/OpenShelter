@@ -13,6 +13,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultMatcher;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
@@ -135,8 +136,11 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
         return login(email, "s3cret123");
     }
 
-    /** Runs one admin route with a JSON body where the method expects one. */
-    private void performAdminRoute(String method, String path, String token) throws Exception {
+    /** One RequestBuilder per admin route — a JSON body where the method
+     *  expects one, so the 401/403 comes from the guard, not a 400 first
+     *  (the @NotNull postIds / the @Valid body would answer 400 ahead of
+     *  the authorization check on an empty body). */
+    private MockHttpServletRequestBuilder adminRouteRequest(String method, String path) {
         var builder = switch (method) {
             case "GET" -> get(path);
             case "DELETE" -> delete(path);
@@ -148,7 +152,7 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
             // from the guard (the @NotNull postIds would 400 first).
             builder = builder.contentType(MediaType.APPLICATION_JSON)
                     .content("{\"postIds\":[1]}".getBytes(StandardCharsets.UTF_8));
-        } else if (method.equals("POST") && path.equals("/admin/guidance")
+        } else if ((method.equals("POST") && path.equals("/admin/guidance"))
                 || method.equals("PUT")) {
             builder = builder.contentType(MediaType.APPLICATION_JSON)
                     .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}".getBytes(StandardCharsets.UTF_8));
@@ -157,35 +161,23 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
             builder = multipart("/admin/media")
                     .file(new MockMultipartFile("file", "x.png", "image/png", PNG_1X1));
         }
+        return builder;
+    }
+
+    private void performAdminRoute(String method, String path, String token) throws Exception {
+        var request = adminRouteRequest(method, path);
         if (token != null) {
-            builder = builder.header("Authorization", "Bearer " + token);
+            request = request.header("Authorization", "Bearer " + token);
         }
-        mvc.perform(builder)
+        mvc.perform(request)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(hardeningHeadersAndNoCookie());
     }
 
     private void performAdminRoute403(String method, String path, String token) throws Exception {
-        var builder = switch (method) {
-            case "GET" -> get(path);
-            case "DELETE" -> delete(path);
-            case "POST" -> post(path);
-            default -> put(path);
-        };
-        if (method.equals("PUT") && path.equals("/admin/guidance/order")) {
-            builder = builder.contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"postIds\":[1]}".getBytes(StandardCharsets.UTF_8));
-        } else if (method.equals("POST") && path.equals("/admin/guidance")
-                || method.equals("PUT")) {
-            builder = builder.contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}".getBytes(StandardCharsets.UTF_8));
-        }
-        if (method.equals("POST") && path.equals("/admin/media")) {
-            builder = multipart("/admin/media")
-                    .file(new MockMultipartFile("file", "x.png", "image/png", PNG_1X1));
-        }
-        mvc.perform(builder.header("Authorization", "Bearer " + token))
+        mvc.perform(adminRouteRequest(method, path)
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(hardeningHeadersAndNoCookie());

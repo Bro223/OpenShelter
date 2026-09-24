@@ -1,12 +1,13 @@
 /* The page fills the shell body, so the map+sidebar block stretches to
-   the viewport instead of a fixed 560px block floating above the footer.
+   the viewport instead of a fixed block floating above the footer.
    Angular renders the routed component AFTER the <router-outlet> as a
-   sibling (not inside it — see the router-outlet rule in page-shell.scss),
-   so the growth is declared on the host itself; without it the host stays
-   a content-height block and .map-page's flex: 1 has nothing to grow
-   into. Chain: shell-body > app-map-page (:host) > .map-page >
-   map-page__layout. No min-height: 0 on the host: a short viewport must
-   scroll (the 725px layout min) rather than clip under the footer. */
+   sibling (not inside it — see the router-outlet rule in page-shell.
+   scss), so the growth is declared on the host itself; without it the
+   host stays a content-height block and .map-page's flex: 1 has
+   nothing to grow into. Chain: shell-body > app-map-page (:host) >
+   .map-page > map-page__layout. No min-height: 0 on the host: a short
+   viewport must scroll (the 725px layout min) rather than clip under
+   the footer. */
 :host {
   display: flex;
   flex-direction: column;
@@ -28,12 +29,11 @@
   display: flex;
   gap: var(--space-20);
   align-items: stretch;
-  /* The legend's desktop containing block: .map-legend is a
-     SIBLING of .map-page__map (it moved out of the map element for the
-     narrow placement) and is absolutely positioned over the map's
-     bottom-left corner at wide widths — the map starts at the layout's
-     top-left and stretches to its bottom (align-items: stretch), so the
-     overlay sits exactly where the in-map legend sat. */
+  /* The legend's desktop containing block: the legend is a SIBLING of
+     .map-page__map (it sits OUT of the map element for the narrow
+     placement) and is absolutely positioned over the map's bottom-left
+     corner at wide widths — the map starts at the layout's top-left and
+     stretches to its bottom (align-items: stretch). */
   position: relative;
   /* Flex-fill the remaining height; the 725px min keeps the map at a
      usable size on the typical desktop (below it the page scrolls). */
@@ -47,9 +47,8 @@
   min-width: 0;
 
   .map-page__leaflet {
-    /* page-specific layout dimension (documented exception, not spacing):
-       fills the flex-height row (the 560px fixed value left dead space
-       between the block and the footer on tall desktops). */
+    /* page-specific layout dimension (documented exception, not
+       spacing): fills the flex-height row. */
     height: 100%;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -58,18 +57,20 @@
 }
 
 /* Legend swatches reuse the exact marker classes from styles.scss (the
-   single source of truth for marker colours + geometry); the presentational
-   slot in the legend below is the only size seam (see .legend-swatch-slot).
-   PLACEMENT (the owner's overlay-obscures-the-map report): the
-   legend is a SIBLING of the map element (map-page__layout child, DOM order
-   map → legend → sidebar). The BASE rule below is the DESKTOP placement
-   (≥900px): the absolute overlay over the map's bottom-left corner (the
-   layout is its containing block — see the .map-page__layout note). At the
-   narrow breakpoint the @media block below switches it to position: static
-   so the stacked column renders it IN FLOW below the map (keeping the
-   column axis) instead of on top of it. The entries are real buttons in BOTH
-   placements, so keyboard operability + the hint line's aria-describedby
-   are placement-independent (pinned in map-page.spec.ts). */
+   single source of truth for marker colours + geometry); the
+   presentational slot in the legend is the only size seam (see
+   .legend-swatch-slot).
+   PLACEMENT: the legend is a SIBLING of the map element (a
+   map-page__layout child; DOM order map → legend → sidebar). The BASE
+   rule is the DESKTOP placement (≥900px): the absolute overlay over the
+   map's bottom-left corner (this layout is its containing block — see
+   the note above). At the narrow breakpoint the @media block below
+   switches it to position: static so the stacked column renders it IN
+   FLOW below the map (keeping the column axis) instead of on top of it
+   — the placement a 360px viewport requires (pinned in
+   map-page.spec.ts). The entries are real buttons in BOTH placements,
+   so keyboard operability + the hint line's aria-describedby are
+   placement-independent (pinned in map-page.spec.ts). */
 .map-legend {
   position: absolute;
   left: var(--space-12);
@@ -90,40 +91,41 @@
     align-items: center;
     gap: var(--space-6);
     /* Single-line labels: pin the line box to the font so every row is
-       exactly slot + padding tall. Without this the inert anchor entry's
-       text inherits the body's 1.5 line-height (the toggle buttons keep
-       the UA's normal) and its row comes out ~4px taller — its swatch
-       centre then drifts 2px from the toggle rows' centres (measured).
-       Slot 14px > 12.8px font, so the slot still drives the row height. */
+       exactly slot + padding tall. Without this the inert anchor
+       entry's text inherits the body's 1.5 line-height (the toggle
+       buttons keep the UA's normal) and its row comes out ~4px taller —
+       its swatch centre then drifts 2px from the toggle rows' centres
+       (measured). Slot 14px > 12.8px font, so the slot still drives
+       the row height. */
     line-height: 1;
-    /* Shared by the toggle buttons AND the inert anchor entry below: the
-       same padding + transparent border on every entry keeps each swatch's
-       slot (and centre) at the same x in every row — the anchor entry used
-       to sit 7px left of the toggles, which split the legend's swatch
-       column (owner report: the entries do not read as one set). */
+    /* Shared by the toggle buttons AND the inert anchor entry: the same
+       padding + transparent border on every entry keeps each swatch's
+       slot (and centre) at the same x in every row — the entries must
+       read as one set. */
     padding: var(--space-4) var(--space-6);
     border: 1px solid transparent;
     border-radius: var(--radius-md);
   }
 
-  /* The legend filter's affordance line (the legend IS the
-     filter): the one-line mechanic the toggle entries implement. It is
-     also their accessible description (aria-describedby) — the how is
-     text, never a colour cue. */
+  /* The legend IS the filter: the affordance line is the one-line
+     mechanic the toggle entries implement. It is also their accessible
+     description (aria-describedby) — the how is text, never a colour
+     cue. */
   .legend-hint {
     margin: 0;
     font-size: var(--text-2xs);
     color: var(--color-muted);
   }
 
-  /* The toggle entries: real <button>s — the UA button defaults
-     (font, text-align, border, padding, background) are undone the way
-     .shelter-row does, so a row reads as a legend row, not a button box.
-     The swatch keeps its EXACT marker classes (the single source of truth
-     for the pin geometry + colour) — the selection state styles the ROW,
-     never the swatch, so a selected entry renders the same pin the map
-     draws. The non-colour selection cue is the border + fill (shape); the
-     pressed state is aria-pressed, so colour is never the only cue. */
+  /* The toggle entries: real <button>s — the UA button defaults (font,
+     text-align, border, padding, background) are undone the way
+     .shelter-row does, so a row reads as a legend row, not a button
+     box. The swatch keeps its EXACT marker classes (the single source
+     of truth for the pin geometry + colour) — the selection state
+     styles the ROW, never the swatch, so a selected entry renders the
+     same pin the map draws. The non-colour selection cue is the border
+     + fill (shape); the pressed state is aria-pressed, so colour is
+     never the only cue. */
   .legend-item--toggle {
     background: none;
     color: inherit;
@@ -142,13 +144,12 @@
     }
   }
 
-  /* The presentational SLOT — one fixed box for EVERY legend entry
-     (owner report: nothing unified the box each shape was drawn in, so the
-     entries did not read as one set). The slot is pure layout: the shape,
-     colour, edge and shadow still come ENTIRELY from the marker classes
-     below (styles.scss is the single source — the map pins and the legend
-     swatches cannot drift). 14px = the map's own marker size (leaflet
-     iconSize [14, 14]), so the legend is a 1:1 key, not a rescaled one. */
+  /* The presentational SLOT — one fixed box for EVERY legend entry,
+     pure layout: the shape, colour, edge and shadow still come
+     ENTIRELY from the marker classes (styles.scss is the single source
+     — the map pins and the legend swatches cannot drift). 14px = the
+     map's own marker size (leaflet iconSize [14, 14]), so the legend
+     is a 1:1 key, not a rescaled one. */
   .legend-swatch-slot {
     width: 14px;
     height: 14px;
@@ -162,28 +163,31 @@
     height: 14px;
     /* The verification TRIANGLE (.shelter-marker--user in styles.scss):
        that shape draws its 2px edge with absolutely-positioned
-       pseudo-elements (clip-path on the element cannot carry a border). A
-       static span would let them resolve against .map-legend instead,
+       pseudo-elements (clip-path on the element cannot carry a border).
+       A static span would let them resolve against the legend instead,
        painting a legend-sized triangle — this makes the swatch their
-       containing block, exactly like Leaflet's absolute .leaflet-marker-icon
-       does on the map. */
+       containing block, exactly like Leaflet's absolute
+       .leaflet-marker-icon does on the map. */
     position: relative;
 
-    /* Consistent inscription: every shape's RENDERED bounding box lands on
-       the slot's 14px, which means each shape is fit to the slot by its
-       OWN class geometry (no parallel geometry — the triangle's edge and
-       the diamond's rotation are declared in styles.scss, not here):
+    /* Consistent inscription: every shape's RENDERED bounding box lands
+       on the slot's 14px, which means each shape is fit to the slot by
+       its OWN class geometry (no parallel geometry — the triangle's
+       edge and the diamond's rotation are declared in styles.scss, not
+       here):
        • circle — 14px element, the 2px edge sits INSIDE the box:
          14.0 × 14.0 (its exact map size);
-       • triangle — the class's edge extends the element by 2px per side
-         (inset: -2px), so a 10px element inscribes the 14.0 × 14.0 edge
-         triangle (ink 12.88, the class's own 4% corner inset);
-       • diamond — the class rotates the square 45°, so its bounding box is
-         element × √2: 9.9px inscribes the 14.0 × 14.0 diamond (9.9 × √2
-         = 14.00).
-       The map keeps its full pin geometry untouched (shape is load-bearing
-       there — the class→token mapping is pinned in design-tokens.spec.ts);
-       only the legend's presentational fit is local. */
+       • triangle — the class's edge extends the element by 2px per
+         side (inset: -2px), so a 10px element inscribes the
+         14.0 × 14.0 edge triangle (ink 12.88, the class's own 4%
+         corner inset);
+       • diamond — the class rotates the square 45°, so its bounding box
+         is element × √2: 9.9px inscribes the 14.0 × 14.0 diamond
+         (9.9 × √2 = 14.00).
+       The map keeps its full pin geometry untouched (shape is
+       load-bearing there — the class→token mapping is pinned in
+       design-tokens.spec.ts); only the legend's presentational fit is
+       local. */
     &.shelter-marker--user {
       width: 10px;
       height: 10px;
@@ -197,57 +201,59 @@
 }
 
 .map-page__sidebar {
-  /* page-specific layout dimension (documented exception, not spacing).
-     344px (was 320px): the trust-chip row needs the extra room so the
-     chips wrap cleanly instead of clipping. */
+  /* page-specific layout dimension (documented exception, not spacing):
+     the trust-chip row needs the room to wrap cleanly instead of
+     clipping. */
   width: 344px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
 
-  /* The banner is only in the DOM while an error is set (map-page.html wraps
-     it in @if (error(); as err)), so chips + list are the sole flex children
-     and stay exactly one gap apart — no phantom empty-host gap here. */
+  /* The banner is only in the DOM while an error is set (map-page.html
+     wraps it in @if (error(); as err)), so chips + list are the sole
+     flex children and stay exactly one gap apart — no phantom
+     empty-host gap here. */
   .shelter-list {
     list-style: none;
     margin: 0;
     padding: 0;
     overflow-y: auto;
-    /* Flex-fill the row (its height is driven by the 560px map) instead of a
-       fixed 560px max-height: chips + gap overhead made a 560px list 54px
-       taller than the map, so the scroll area's bottom edge hung below the
-       map frame and cropped the last rows.
-       `flex: 1 1 0` — the unitless zero basis matters: the sidebar column
-       has an auto height, where a percentage basis (the `flex: 1` shorthand's
-       0%) resolves against content and the 300-row list would drive the
-       whole layout row to its full ~37kpx content height. min-height: 0
-       lets the column shrink the scroll area below its content size. */
+    /* Flex-fill the row instead of a fixed max-height: chips + gap
+       overhead made a fixed-height list taller than the map, so the
+       scroll area's bottom edge hung below the map frame and cropped
+       the last rows.
+       `flex: 1 1 0` — the unitless zero basis matters: the sidebar
+       column has an auto height, where a percentage basis (the `flex:
+       1` shorthand's 0%) resolves against content and a 300-row list
+       would drive the whole layout row to its full ~37kpx content
+       height. min-height: 0 lets the column shrink the scroll area
+       below its content size. */
     flex: 1 1 0;
     min-height: 0;
 
-    /* No scroll-snap: fast mouse-wheel spins dead-stopped under both snap
-       modes, and free scrolling is the only regime that guarantees
-       proportional scrolling for every input:
-       • y proximity: controlled headless tests show discrete fast spins
-         still scroll (594/600px, with ±1px proximity settling creep —
-         visible micro-jitter), but real wheel momentum flings fight
-         proximity snap containment in Chrome: fast spin → no scroll at
-         all.
-       • y mandatory with the stop-always variant: true one-row carousel
-         steps, which feel worse than free scrolling.
-       Snap-free verification (headless Chromium, 300 rows): normal spin
-       6×100px → 600, fast spin 6×100px @16ms → 600 (held, no reset),
-       decaying momentum flick → 885/885. The list is therefore a plain
-       fast-scrolling overflow area. */
+    /* Deliberately NO scroll-snap: fast mouse-wheel spins dead-stopped
+       under both snap modes, and free scrolling is the only regime
+       verified proportional for every input speed:
+       • y proximity: real wheel momentum flings fight proximity snap
+         containment in Chrome — a fast spin scrolls no distance at
+         all (headless tests: 594/600px, with ±1px proximity settling
+         creep).
+       • y mandatory with the stop-always variant: true one-row
+         carousel steps, which feel worse than free scrolling.
+       Snap-free verification (headless Chromium, 300 rows): normal
+       spin 6×100px → 600, fast spin 6×100px @16ms → 600 (held, no
+       reset), decaying momentum flick → 885/885. The list is therefore
+       a plain fast-scrolling overflow area (pinned in
+       map-page.spec.ts). */
   }
 }
 
-/* Crisis actions (map-crisis-actions): the safety-orange "Nearest
-   shelter" CTA is the ONLY consumer of --color-cta — the orange is the
-   crisis affordance and must not become a general accent. The ghost
-   "Add shelter" (authenticated only) stays on the functional palette.
-   Both reuse the global .btn (incl. its 48px min-height). */
+/* The safety-orange "Nearest shelter" CTA is the ONLY consumer of
+   --color-cta — the orange is the crisis affordance and must not
+   become a general accent. The ghost "Add shelter" (authenticated only)
+   stays on the functional palette. Both reuse the global .btn (incl.
+   its 48px min-height). */
 .map-page__actions {
   display: flex;
   flex-direction: column;
@@ -263,18 +269,18 @@
   }
 }
 
-/* Geolocation consent line under the CTA (legal-recovery):
-   muted, secondary — it explains the consent, not an action. */
+/* Geolocation consent line under the CTA: muted, secondary — it
+   explains the consent, not an action. */
 .map-page__geo-note {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-muted);
 }
 
-/* Address-search anchor (location-navigation): the fallback for the
-   geolocation CTA — the SAME Nominatim contract as /submit (one request
-   per deliberate press, attribution always rendered), styled on the
-   functional palette (the crisis orange stays reserved for the CTA). */
+/* Address-search anchor: the fallback for the geolocation CTA — the
+   SAME Nominatim contract as /submit (one request per deliberate
+   press, attribution always rendered), styled on the functional
+   palette (the crisis orange stays reserved for the CTA). */
 .map-page__anchor-search {
   display: flex;
   flex-direction: column;
@@ -313,13 +319,10 @@
     flex-shrink: 0;
     /* The bare .btn has no background of its own — the UA ButtonFace,
        which does not follow [data-theme] and lands light-grey under the
-       dark themes' bright text (the owner's "bright on bright": 1.24:1
-       enabled in black-and-yellow, 1.15:1 in high-contrast, OS light
-       scheme). The token trio keeps the button theme-driven in all three
-       themes: black + the theme gold + the theme yellow in black-and-
-       yellow (the enabled-state pairs are enforced in design-tokens.
-       spec.ts), the page background in light, the dark background in
-       high-contrast. */
+       dark themes' bright text (1.24:1 enabled in black-and-yellow,
+       1.15:1 in high-contrast, OS light scheme). The token trio keeps
+       the button theme-driven in all three themes: the enabled-state
+       pairs are enforced in design-tokens.spec.ts. */
     background: var(--color-bg);
     border-color: var(--color-border);
     color: var(--color-text);
@@ -337,8 +340,9 @@
   }
 
   .anchor-search__error {
-    /* The weight is the non-colour error cue (WCAG 1.4.1): in black-and-
-       yellow this line is the theme yellow like any other text. */
+    /* The weight is the non-colour error cue (WCAG 1.4.1): in
+       black-and-yellow this line is the theme yellow like any other
+       text. */
     margin: 0;
     font-size: var(--text-sm);
     font-weight: var(--font-weight-medium);
@@ -384,9 +388,9 @@
   }
 }
 
-/* The active anchor line (location-navigation): the searched point
-   the per-row distances are measured from + its single Clear action.
-   Muted — a reference line, not an alarm (the .nearest-line family). */
+/* The active anchor line: the searched point the per-row distances are
+   measured from + its single Clear action. Muted — a reference line,
+   not an alarm (the .nearest-line family). */
 .anchor-line {
   margin: 0;
   font-size: var(--text-sm);
@@ -412,8 +416,8 @@
   }
 }
 
-/* The one-line state under the CTA: the found shelter ("Nearest: …"), the
-   empty-list offer, or the per-error copy (the submit page's vocabulary). */
+/* The one-line state under the CTA: the found shelter ("Nearest: …"),
+   the empty-list offer, or the per-error copy. */
 .nearest-line {
   margin: 0;
   font-size: var(--text-sm);
@@ -427,45 +431,46 @@
     color: var(--color-muted);
   }
 
-  /* The straight-line distance (honesty) — muted, secondary to the name.
-     The '≈ … straight line' copy is pinned (community-review-queue). */
+  /* The straight-line distance (honesty) — muted, secondary to the
+     name. The '≈ … straight line' copy is pinned (map-page.spec.ts). */
   .nearest-line__distance {
     color: var(--color-muted);
   }
 
   &--error {
-    /* The weight is the non-colour error cue (WCAG 1.4.1) — in black-and-
-       yellow this line is the theme yellow like any other text. */
+    /* The weight is the non-colour error cue (WCAG 1.4.1) — in
+       black-and-yellow this line is the theme yellow like any other
+       text. */
     color: var(--color-danger);
     font-weight: var(--font-weight-medium);
   }
 
   /* The community unverified warning under a community nearest row:
-     muted text on purpose — a caveat, NOT the crisis orange (the --color-cta
-     hue stays reserved for the CTA). */
+     muted text on purpose — a caveat, NOT the crisis orange (the
+     --color-cta hue stays reserved for the CTA). */
   &--warning {
     color: var(--color-muted);
     margin-top: var(--space-4);
   }
 }
 
-/* Trust filters (shelter-trust-and-reports, review model gone): the
-   practical chips — the "Open" (client-side) and "Has capacity" (server-side)
-   toggle chips. (The source-kind chip row was removed in the legend
-   is the page's only filter control; the source distinction is the legend's
-   registry entry vs. its four community tones.)
-   The shared .chip control (styles.scss) carries the pill styling — these
-   two trust chips carry the `chip` class too; layout-local only.
-   Every control is a new interactive target, so each carries the 48px
-   minimum. */
+/* Practical filter chips — "Open" (client-side) and "Has capacity"
+   (server-side) — composing with the legend tone filter (the legend is
+   the page's only filter control; the source distinction is the
+   legend's registry entry vs. its four community tones). The shared
+   .chip control (styles.scss) carries the pill styling — these two
+   chips carry the `chip` class too; layout-local only. Every control
+   is an interactive target, so each carries the 48px minimum. */
 .filter-trust {
   display: flex;
   gap: var(--space-6);
   flex-wrap: wrap;
   align-items: center;
   /* The chips FILL the row: each chip grows to share the space equally
-     (the row spans exactly the shelter list's width, so the chips' edges
-     line up with it — no dead space between text-width buttons). */
+     (the row spans exactly the shelter list's width, so the chips'
+     edges line up with it — no dead space between text-width buttons).
+     The row wraps and each chip may shrink below its label — the
+     360px-overflow pin (map-page.spec.ts). */
 
   .trust-chip {
     flex: 1 1 0;
@@ -482,9 +487,9 @@
 }
 
 .shelter-row {
-  /* A <button> since the zoom-in-and-stay change: the row is an action
-     (select + zoom), not a link. The resets below (width/font/text-align/
-     cursor) undo the UA button defaults the anchor had none of. */
+  /* A <button>: the row is an action (select + zoom), not a link. The
+     resets below (width/font/text-align/cursor) undo the UA button
+     defaults. */
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -526,18 +531,18 @@
     color: var(--color-muted);
   }
 
-  /* Address-anchor distance (location-navigation): the straight-line
-     distance from the searched point — the honesty format, muted
-     (secondary to the badges), tabular figures like every distance line. */
+  /* The straight-line distance from the searched point — the honesty
+     format, muted (secondary to the badges), tabular figures like
+     every distance line. */
   .shelter-row__anchor-distance {
     color: var(--color-muted);
   }
 }
 
-/* The selected row's explicit navigation step (design decision 5) — the
-   only sidebar element that leaves /map. Sits directly under its row: the
-   negative top margin cancels the row's margin-bottom so the pair reads as
-   one unit, and the horizontal padding aligns the link with the row's
+/* The selected row's explicit navigation step — the only sidebar
+   element that leaves /map. Sits directly under its row: the negative
+   top margin cancels the row's margin-bottom so the pair reads as one
+   unit, and the horizontal padding aligns the link with the row's
    content instead of its border. */
 .shelter-row__details {
   display: block;
@@ -546,29 +551,28 @@
   padding-left: var(--space-12);
   padding-right: var(--space-12);
   text-align: left;
-  /* No .btn flex centering here: this step reads as part
-     of the row above it, so its label stays left-aligned to the row's
-     content (design decision 5). */
+  /* No .btn flex centering here: this step reads as part of the row
+     above it, so its label stays left-aligned to the row's content. */
   justify-content: flex-start;
 }
 
-/* Source/trust badge (community-review-queue): the shared .badge pill
-   (styles.scss) carries the typography and shape. Only the SOURCE/TRUST
-   badge gets a row-specific fill — keyed on the `badge--source` class
-   (map-page.html), never on a broad .badge base: a broad scoped base
-   overrode the global trust badges (the reported badge shipped blue
-   instead of red) and the black-and-yellow owner-ruling override
-   ((0,3,1) uniform badge language — the registry badge stayed blue in
-   B&Y). Scoped to .badge--source (0,2,0), both win where they apply.
-   The registry chip rides a COMPUTED 8% tint (audit: design-tokens.spec.ts
-   MIXED_PAIRS re-derives the mix, >= 4.5:1 in every theme — note RAISING
-   the tint makes the pair WORSE, the text is the same hue as its own
-   tint, so the percentage is spec-pinned). The Community-checked chip
-   rides the verified GREEN 8% mix for the same reason a yellow 8% mix
-   can't (yellow text on its own tint would measure 1.39:1 in light); the
-   Newly added chip takes the --color-badge-new tint pair (the global
-   .badge.badge--new pair, repeated here because this scoped rule would
-   otherwise win the cascade). */
+/* Source/trust badge: the shared .badge pill (styles.scss) carries the
+   typography and shape. Only the SOURCE/TRUST badge gets a row-specific
+   fill — keyed on the `badge--source` class (map-page.html), never on
+   a broad .badge base: a broad scoped base overrode the global trust
+   badges (the reported badge shipped blue instead of red) and the
+   black-and-yellow badge-language override. Scoped to .badge--source,
+   both win where they apply.
+   The registry chip rides a COMPUTED 8% tint (audit:
+   design-tokens.spec.ts MIXED_PAIRS re-derives the mix, >= 4.5:1 in
+   every theme — RAISING the tint makes the pair WORSE: the text is the
+   same hue as its own tint, so the percentage is spec-pinned). The
+   Community-checked chip rides the verified GREEN 8% mix for the same
+   reason a yellow 8% mix can't (yellow text on its own tint would
+   measure 1.39:1 in light); the Newly added chip takes the
+   --color-badge-new tint pair (the global .badge.badge--new pair,
+   repeated here because this scoped rule would otherwise win the
+   cascade). */
 .badge--source {
   background: color-mix(in srgb, var(--color-shelter-registry) 8%, var(--color-bg-surface));
   color: var(--color-shelter-registry);
@@ -592,19 +596,20 @@
   margin-top: var(--space-4);
 }
 
-/* "How OpenShelter works" (Workstream A): plain-language mechanics block
-   under the map layout. Editorial layout, deliberately NOT a card: no
-   border box, no background surface, no rounded corners — the page
-   background continues through the block and a single thin top hairline
-   (the documented 1px line-weight exception) divides it from the map.
-   The copy column is width-capped for a comfortable line length (65ch —
-   a page-specific layout dimension, like the sidebar width) and stays
+/* "How OpenShelter works": plain-language mechanics block under the
+   map layout. Editorial layout, deliberately NOT a card: no border
+   box, no background surface, no rounded corners — the page background
+   continues through the block and a single thin top hairline (the
+   documented 1px line-weight exception) divides it from the map. The
+   copy column is width-capped for a comfortable line length (65ch — a
+   page-specific layout dimension, like the sidebar width) and stays
    left-aligned with the rest of the map chrome; at narrow widths 65ch
-   exceeds the content width, so the block simply runs full width. Rhythm
-   instead of uniformity: the lede paragraph sits one type step up (it
-   carries the "not an emergency service, call 112" positioning) and the
-   closing guarantee gets a quiet medium weight. No @media needed: the
-   column and the action-free content reflow on their own at any width. */
+   exceeds the content width, so the block simply runs full width.
+   Rhythm instead of uniformity: the lede paragraph sits one type step
+   up (it carries the "not an emergency service, call 112" positioning)
+   and the closing guarantee gets a quiet medium weight. No @media
+   needed: the column and the action-free content reflow on their own
+   at any width. */
 .map-page__how {
   flex-shrink: 0;
   max-width: 65ch; /* comfortable line length (documented exception, not spacing) */
@@ -640,8 +645,8 @@
 
   /* The standing guarantee: the closing line of the block. Quiet
      emphasis (medium weight, no colour change) and a little more air
-     above it, so it reads as the end of the explanation rather than the
-     next item in a uniform stack. */
+     above it, so it reads as the end of the explanation rather than
+     the next item in a uniform stack. */
   .map-page__how-guarantee {
     margin-top: var(--space-16);
     font-weight: var(--font-weight-medium);
@@ -651,9 +656,9 @@
 /* Responsive (breakpoint: --bp-narrow; @media cannot consume var()):
    map on top, sidebar full-width below; no horizontal scroll at mobile
    widths. Wide-width rendering (and every class name) is untouched.
-   900px: tablet widths stack too — at <900px the side-by-side
-   344px sidebar + map leaves the filter row cramped, and stacked gives the
-   chips/select the full width so content never clips. */
+   900px: tablet widths stack too — at <900px the side-by-side 344px
+   sidebar + map leaves the filter row cramped, and stacked gives the
+   chips the full width so content never clips. */
 @media (max-width: 900px) {
   .map-page__layout {
     flex-direction: column;
@@ -663,26 +668,22 @@
     min-height: 0;
   }
 
-  /* Stacked layout: the row is full viewport width — space-between (the
-     base rule, no override here) spreads the three controls evenly
-     across it. */
+  /* Stacked: the row is full viewport width — space-between (the base
+     rule, no override here) spreads the controls across it. */
 
-  /* Stacked map; selectors mirror the nested base rules' specificity — the
-     previous bare single-class overrides lost the cascade to `.map-page__map
-     .map-page__leaflet` / `.map-page__sidebar .shelter-list`, so the 420px
-     values never applied. */
+  /* Stacked map; the selector mirrors the nested base rule's
+     specificity, so the 420px value wins the cascade. */
   .map-page__map .map-page__leaflet {
     height: 420px; /* page-specific layout dimension (documented exception) */
   }
 
-  /* Legend out of the map: static = in-flow, so it renders
-     BETWEEN the map and the sidebar — below the map, never over it, at
-     every width <900px (mobile 375 and up, all tablets). It keeps the
-     desktop COLUMN axis (one option per line, owner ruling: the wrapping
-     row paired the short "Reported" entry with its neighbour — the tone
-     filters read as a list, not a flow of chips); the full-width rows
-     double as big tap targets. Swatch geometry is untouched (the slot +
-     marker classes are the single source). */
+  /* Legend below 900px: static = in flow, so it renders BETWEEN the
+     map and the sidebar — below the map, never over it, at every width
+     <900px (mobile 375 and up, all tablets). It keeps the COLUMN axis
+     (one option per line: the tone filters read as a list, not a flow
+     of chips); the full-width rows double as big tap targets. Swatch
+     geometry is untouched (the slot + marker classes are the single
+     source). */
   .map-legend {
     position: static;
   }
@@ -692,9 +693,10 @@
   }
 
   .map-page__sidebar .shelter-list {
-    /* Stacked layout: the sidebar has no bounded height to flex-fill, so the
-       list is back to a bounded block scroll area matching the narrow map.
-       (flex: none = basis auto; flex: 1 would collapse it to 0px here.) */
+    /* Stacked layout: the sidebar has no bounded height to flex-fill,
+       so the list is back to a bounded block scroll area matching the
+       narrow map. (flex: none = basis auto; flex: 1 would collapse it
+       to 0px here.) */
     flex: none;
     max-height: 420px; /* matches the narrow map height above */
     /* Same plain block scroll area as the base block: overflow-y: auto

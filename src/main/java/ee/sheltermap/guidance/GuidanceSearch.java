@@ -1,5 +1,9 @@
 package ee.sheltermap.guidance;
 
+import ee.sheltermap.domain.GuidancePost;
+import ee.sheltermap.domain.GuidanceTranslation;
+
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -14,7 +18,9 @@ import java.util.Locale;
  * them, which is why a controller outside the feature reached into the
  * service class for a pure string operation. They live here, in the
  * feature's own seam, where the search policy (no ranking, no fuzzy
- * matching, markup is not a feature) has one home.
+ * matching, markup is not a feature) has one home. The admin list's
+ * query bound ({@link #requireSearch}) and its post-level match
+ * ({@link #matchesPost}) live here too — moved from that controller.
  *
  * <p>{@code GuidanceService.searchableBody}/{@code matchesSearch} remain
  * as delegates — the pre-extraction public surface (the
@@ -26,6 +32,28 @@ public final class GuidanceSearch {
     public static final int MAX_SEARCH_LENGTH = 200;
 
     private GuidanceSearch() {
+    }
+
+    /**
+     * The admin list's query bound (admin-guidance-search): absent or
+     * blank = no filter ({@code null} — the public {@code q}-less
+     * behaviour, never a 400); a present-but-over-long value is a 400
+     * (the uniform vocabulary, the locale bound's shape). The trimmed
+     * term otherwise.
+     *
+     * @throws GuidanceValidationException 400 — a present q over
+     *                                     {@link #MAX_SEARCH_LENGTH}
+     */
+    public static String requireSearch(String q) {
+        if (q == null || q.isBlank()) {
+            return null;
+        }
+        String trimmed = q.trim();
+        if (trimmed.length() > MAX_SEARCH_LENGTH) {
+            throw new GuidanceValidationException("q must be at most "
+                    + MAX_SEARCH_LENGTH + " characters");
+        }
+        return trimmed;
     }
 
     /**
@@ -62,5 +90,36 @@ public final class GuidanceSearch {
             return true;
         }
         return searchableBody(bodyHtml).toLowerCase(Locale.ROOT).contains(n);
+    }
+
+    /**
+     * The admin list's post-level match: does the post match the search
+     * term over EXACTLY the content the read renders for it. A scoped
+     * read passes the locale's row as {@code renderedRow} — the row IS
+     * the rendered content, so when a row exists the home columns are
+     * NOT searched (the match is what you see). A read whose rendered
+     * content is the home columns passes {@code null} there — the
+     * post's home IS the scoped locale (no row), or the read is
+     * unscoped — and the match then covers the home columns plus every
+     * row in {@code otherRows} (an unscoped read covers any locale's
+     * content). A null/blank term matches everything.
+     */
+    public static boolean matchesPost(GuidancePost post, GuidanceTranslation renderedRow,
+                                      List<GuidanceTranslation> otherRows, String query) {
+        if (query == null) {
+            return true;
+        }
+        if (renderedRow != null) {
+            return matchesSearch(renderedRow.getTitle(), renderedRow.getBodyHtml(), query);
+        }
+        if (matchesSearch(post.getTitle(), post.getBodyHtml(), query)) {
+            return true;
+        }
+        for (GuidanceTranslation row : otherRows) {
+            if (matchesSearch(row.getTitle(), row.getBodyHtml(), query)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

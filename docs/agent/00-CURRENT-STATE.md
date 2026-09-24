@@ -212,7 +212,7 @@ their inputs from the same dismissed-excluded store query
   refetch went with them — the list always fetches all sources
   (`frontend/src/app/features/map/map-page.ts:70-75,242-244`). The two remaining chips compose
   with the legend: "Open" is client-side (the backend has no open/closed param), "Has
-  capacity" is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:238-243`).
+  capacity" is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:321-329`).
 
 ## 5. The guidance hero — imported when the post is SAVED
 

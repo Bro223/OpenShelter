@@ -25,8 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static ee.sheltermap.guidance.PngFixtures.png;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
  * GuidanceService behaviour (crisis-guidance) against
@@ -111,21 +113,6 @@ class GuidanceServiceTest {
     }
 
     /** A minimal readable PNG (signature + IHDR) — the inspector's fixture shape. */
-    private static byte[] png(int width, int height) {
-        byte[] b = new byte[33];
-        b[0] = (byte) 0x89; b[1] = 0x50; b[2] = 0x4E; b[3] = 0x47;
-        b[4] = 0x0D; b[5] = 0x0A; b[6] = 0x1A; b[7] = 0x0A;
-        b[8] = 0; b[9] = 0; b[10] = 0; b[11] = 13; // IHDR chunk length
-        b[12] = 'I'; b[13] = 'H'; b[14] = 'D'; b[15] = 'R';
-        b[16] = (byte) (width >>> 24); b[17] = (byte) (width >>> 16);
-        b[18] = (byte) (width >>> 8); b[19] = (byte) width;
-        b[20] = (byte) (height >>> 24); b[21] = (byte) (height >>> 16);
-        b[22] = (byte) (height >>> 8); b[23] = (byte) height;
-        b[24] = 8; // bit depth
-        b[25] = 2; // colour type: truecolour
-        return b;
-    }
-
     private GuidancePost createDraft(String title) {
         return service.create(ADMIN_ID, title, null, "<p>body</p>", null, false, null, null, null, null).post();
     }
@@ -1489,11 +1476,9 @@ class GuidanceServiceTest {
     }
 
     /**
-     * WAVE 9 RED-PROOF (the owner's case): the import fires at SAVE —
-     * creating a DRAFT with a URL already fetches, validates and stores
-     * the image, so the fetched hero is inspectable while drafting.
-     * (RED against the old publish-only trigger: the draft carried a
-     * PENDING url and no asset — the fetch waited for publish.)
+     * The import fires at SAVE, not at publish: creating a DRAFT with a
+     * URL already fetches, validates and stores the image, so the fetched
+     * hero is inspectable while drafting.
      */
     @Test
     void savingADraftWithAUrlFetchesTheHeroAtSave() {
@@ -1509,11 +1494,9 @@ class GuidanceServiceTest {
     }
 
     /**
-     * WAVE 9 RED-PROOF: publish no longer fetches anything. A draft
-     * holding a URL whose import failed at save publishes as-is — a
-     * first-time import failure can no longer block or fail the publish.
-     * (RED against the old publish-time trigger: publish ran the import
-     * and threw with the default refusing client.)
+     * Publish no longer fetches anything. A draft holding a URL whose
+     * import failed at save publishes as-is — a first-time import failure
+     * can no longer block or fail the publish.
      */
     @Test
     void publishingNoLongerFetchesForTheFirstTime() {
@@ -1527,7 +1510,7 @@ class GuidanceServiceTest {
 
         // The publish is a pure stamp — it must not fetch (a fetch would
         // throw with the default refusing client).
-        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        assertDoesNotThrow(
                 () -> service.publish(ADMIN_ID, id));
         assertThat(posts.findById(id).orElseThrow().isPublished()).isTrue();
     }

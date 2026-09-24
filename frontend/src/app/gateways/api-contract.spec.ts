@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 
 /**
- * The FE/BE contract gate (SW-I2): every backend URL string used in
+ * The FE/BE contract gate: every backend URL string used in
  * frontend/src/app/gateways/*.ts must exist in the committed OpenAPI
  * snapshot (docs/api/openapi.json), so a gateway drifting from a renamed
  * or removed endpoint is a test failure instead of a runtime 404.

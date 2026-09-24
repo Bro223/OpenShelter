@@ -42,9 +42,8 @@ export class ShelterGateway {
    * MUNICIPALITY rows; USER = community submissions.
    *
    * `trust` (optional) composes with the source filter: hasCapacity=true.
-   * Inactive filters are omitted from the query string entirely. (The
-   * `reviewed` filter is gone with the review model; "Open" is a
-   * client-side chip and never reaches the query string.)
+   * Absent filters are omitted from the query string entirely. (There is
+   * no `reviewed` or "Open" server param — "Open" is a client-side chip.)
    */
   list(source: ShelterSourceFilter, trust?: ShelterTrustFilter): Promise<ShelterDto[]> {
     return lastValueFrom(this.api.get<ShelterDto[]>(listPath(source, trust)));
@@ -69,9 +68,9 @@ export class ShelterGateway {
    * the review state (community-review-queue): `reviewStatus` (NEW until
    * confirmed by the community or an admin) + `reviewNote` (the admin's
    * REJECT reason, when present) + `infoRequest` (the moderator→submitter
-   * information request — null when none). The public
-   * list/detail DTOs carry reviewStatus/locationKind too (v2 contract) —
-   * only reviewNote + infoRequest are owner-scoped.
+   * information request — null when none). The public list/detail DTOs
+   * carry reviewStatus/locationKind too — only reviewNote + infoRequest
+   * are owner-scoped.
    */
   mine(): Promise<MineShelterDto[]> {
     return lastValueFrom(this.api.get<MineShelterDto[]>('/api/shelters/mine'));

@@ -8,32 +8,29 @@
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
     </div>
-    <!-- The legend (OUT of the map element). Desktop (≥900px):
-         the layout is position:relative and .map-legend is absolutely
-         positioned back over the map's bottom-left corner — the overlay it
-         was before the DOM move, with the map starting at the layout's
-         top-left and stretching to its bottom. Below 900px (mobile +
-         tablet) the stacked column renders it IN FLOW between the map and
-         the sidebar — below the map, never over it (the owner's
-         overlay-obscures-the-map report). The legend IS the filter:
-         the five pin-tone entries below are toggle buttons (select/
-         unselect). The selection is the URL's ?tones= param (URL-only — no
-         localStorage) and is display-only (no refetch). The hint line is
-         the mechanic AND the entries' accessible description
-         (aria-describedby) — the how is text, never a colour cue. The DOM
-         order (map, legend, sidebar) keeps the tab order the same as the
-         old in-map placement. -->
+    <!-- The legend (OUT of the map element). Desktop (≥900px): the layout
+         is position:relative and .map-legend is absolutely positioned back
+         over the map's bottom-left corner. Below 900px the stacked column
+         renders it IN FLOW between the map and the sidebar — below the
+         map, never over it (both placements pinned in map-page.spec.ts).
+         The legend IS the filter: the five pin-tone entries below are
+         toggle buttons. The selection is the URL's ?tones= param
+         (URL-only — no localStorage) and is display-only (no refetch).
+         The hint line is the mechanic AND the entries' accessible
+         description (aria-describedby) — the how is text, never a colour
+         cue. The DOM order (map, legend, sidebar) keeps the tab order
+         the same as the in-map placement. -->
     <div class="map-legend" role="group" [attr.aria-label]="'map.legendAria' | t">
       <p class="legend-hint" id="map-legend-hint">{{ 'map.legend.hint' | t }}</p>
       <!-- Registry tone (blue) — toggle entry. -->
       <button
         type="button"
         class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="toneSelected('registry')"
-        [attr.aria-pressed]="toneSelected('registry')"
+        [class.legend-item--selected]="legend.toneSelected('registry')"
+        [attr.aria-pressed]="legend.toneSelected('registry')"
         [attr.aria-describedby]="'map-legend-hint'"
-        (click)="toggleTone('registry')"
-        (keydown)="onToneToggleKey('registry', $event)"
+        (click)="legend.toggleTone('registry')"
+        (keydown)="legend.onToneToggleKey('registry', $event)"
       >
         <span class="legend-swatch-slot">
           <span
@@ -43,44 +40,36 @@
         </span>
         {{ 'map.legend.registry' | t }}
       </button>
-      <!-- Community trust tone (the verified-green re-tint, owner decision — green
-             means verified, unverified is the YELLOW tone: the pin palette
-             is green/yellow/blue/red only, there is no grey in it). The
-             community pin a USER row whose submitter depth the API does
-             not report keeps — the trust-scale rung below the two verified
-             shapes. NEW is not a marker tone and not a legend entry (owner
-             decision: the pin carries verification depth, not recency —
-             the "Newly added" badge says NEW, never the pin). -->
+      <!-- Unverified community tone (yellow — the pin palette is
+           green/yellow/blue/red only, there is no grey in it): the pin
+           carries verification depth, not recency — NEW is a badge, never
+           a pin tone. -->
       <button
         type="button"
         class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="toneSelected('user')"
-        [attr.aria-pressed]="toneSelected('user')"
+        [class.legend-item--selected]="legend.toneSelected('user')"
+        [attr.aria-pressed]="legend.toneSelected('user')"
         [attr.aria-describedby]="'map-legend-hint'"
-        (click)="toggleTone('user')"
-        (keydown)="onToneToggleKey('user', $event)"
+        (click)="legend.toggleTone('user')"
+        (keydown)="legend.onToneToggleKey('user', $event)"
       >
         <span class="legend-swatch-slot"
           ><span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span
         ></span>
         {{ 'map.legend.unverified' | t }}
       </button>
-      <!-- Submitter verification depth (submitter-verification-badge,
-             owner logic): yellow = not fully verified, green =
-             verified — the triangle marks the UNVERIFIED submitter, the
-             yellow circle the half-verified one (exactly one confirmed
-             channel) and the green circle the fully verified one (two or
-             more). The trust state (newly added / community-checked)
-             stays on the row's badge text, so nothing is lost by moving
-             the marker colour to the verification family. -->
+      <!-- Verification depth by shape: yellow circle = one confirmed
+           channel (partial), green circle = two or more (full). The trust
+           state stays on the row's badge text — nothing is lost by the
+           marker colour. -->
       <button
         type="button"
         class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="toneSelected('partial')"
-        [attr.aria-pressed]="toneSelected('partial')"
+        [class.legend-item--selected]="legend.toneSelected('partial')"
+        [attr.aria-pressed]="legend.toneSelected('partial')"
         [attr.aria-describedby]="'map-legend-hint'"
-        (click)="toggleTone('partial')"
-        (keydown)="onToneToggleKey('partial', $event)"
+        (click)="legend.toggleTone('partial')"
+        (keydown)="legend.onToneToggleKey('partial', $event)"
       >
         <span class="legend-swatch-slot">
           <span
@@ -93,27 +82,27 @@
       <button
         type="button"
         class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="toneSelected('full')"
-        [attr.aria-pressed]="toneSelected('full')"
+        [class.legend-item--selected]="legend.toneSelected('full')"
+        [attr.aria-pressed]="legend.toneSelected('full')"
         [attr.aria-describedby]="'map-legend-hint'"
-        (click)="toggleTone('full')"
-        (keydown)="onToneToggleKey('full', $event)"
+        (click)="legend.toggleTone('full')"
+        (keydown)="legend.onToneToggleKey('full', $event)"
       >
         <span class="legend-swatch-slot">
           <span class="shelter-marker shelter-marker--full legend-swatch" aria-hidden="true"></span>
         </span>
         {{ 'map.legend.fullVerified' | t }}
       </button>
-      <!-- Reported state (shelter-trust-and-reports): the single
-             orange "reported" affordance — beats the trust colour. -->
+      <!-- Reported state: the single red-orange "reported" affordance —
+           beats the trust colour. -->
       <button
         type="button"
         class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="toneSelected('reported')"
-        [attr.aria-pressed]="toneSelected('reported')"
+        [class.legend-item--selected]="legend.toneSelected('reported')"
+        [attr.aria-pressed]="legend.toneSelected('reported')"
         [attr.aria-describedby]="'map-legend-hint'"
-        (click)="toggleTone('reported')"
-        (keydown)="onToneToggleKey('reported', $event)"
+        (click)="legend.toggleTone('reported')"
+        (keydown)="legend.onToneToggleKey('reported', $event)"
       >
         <span class="legend-swatch-slot">
           <span
@@ -124,15 +113,12 @@
         {{ 'map.legend.reported' | t }}
       </button>
       <!-- The origin marker: the searched address the per-row
-             "≈ N m straight line" distances are measured from. The
-             diamond shape (not a circle) is the non-colour-only
-             distinction from shelter markers; the swatch reuses the
-             exact pin class. The label reuses the existing `map.searched`
-             key — a dedicated `map.legend.anchor` key is requested from
-             the i18n lane (see the report). NOT a filter entry:
-             it is the browse REFERENCE POINT (at most one, dropped by its
-             Clear action) — a UI marker, not a shelter pin tone — so it
-             stays an inert legend entry. -->
+           "≈ N m straight line" distances are measured from. The diamond
+           shape (not a circle) is the non-colour-only distinction from
+           shelter markers; the swatch reuses the exact pin class. NOT a
+           filter entry: it is the browse REFERENCE POINT (at most one,
+           dropped by its Clear action) — a UI marker, not a shelter pin
+           tone — so it stays an inert legend entry. -->
       <span class="legend-item">
         <span class="legend-swatch-slot"
           ><span
@@ -145,32 +131,30 @@
     </div>
 
     <aside class="map-page__sidebar">
-      <!-- Crisis actions (map-crisis-actions): the single safety-
-           orange CTA (the ONLY consumer of --color-cta) and the
-           authenticated-only "Add shelter" entry — the /submit route guards
-           handle the verified redirect. Above the chips: this is "the"
-           action of the page. -->
+      <!-- The safety-orange CTA is the ONLY consumer of --color-cta; the
+           "Add shelter" entry renders only for authenticated users (the
+           /submit route guards handle the verified redirect). Above the
+           chips: this is "the" action of the page. -->
       <div class="map-page__actions">
         <button
           type="button"
           class="btn btn--block map-cta"
-          (click)="findNearest()"
-          [disabled]="locating() || loading() || error() !== null"
-          [attr.aria-busy]="locating()"
+          (click)="nearest.findNearest()"
+          [disabled]="nearest.locating() || loading() || error() !== null"
+          [attr.aria-busy]="nearest.locating()"
         >
-          {{ locating() ? ('map.locating' | t) : ('map.aroundYou' | t) }}
+          {{ nearest.locating() ? ('map.locating' | t) : ('map.aroundYou' | t) }}
         </button>
-        <!-- legal-recovery: the explicit consent line —
-             the CTA is the only geolocation trigger and the browser prompt
-             is the consent; the nearest ranking is client-side (no backend
-             call), so the promise "never sent" is the actual behavior. -->
+        <!-- The consent line: the CTA is the only geolocation trigger and
+             the browser prompt is the consent; the nearest ranking is
+             client-side (no backend call), so "never sent" is the actual
+             behaviour. -->
         <p class="map-page__geo-note">{{ 'map.geoNote' | t }}</p>
-        <!-- Address-search anchor (location-navigation): the fallback
-             for the geolocation CTA when location is denied, times out or
-             is unavailable — the SAME gateway + usage-policy contract as
-             the /submit address search (shelter-address-search), in the
-             browse context. Public: no auth needed. A failed search changes
-             nothing else (no anchor, no pin, list untouched). -->
+        <!-- The fallback for the geolocation CTA when location is denied,
+             times out or is unavailable — the SAME Nominatim
+             usage-policy contract as the /submit address search, in the
+             browse context. Public: no auth needed. A failed search
+             changes nothing else (no anchor, no pin, list untouched). -->
         <div class="map-page__anchor-search">
           <label class="anchor-search__label" for="anchor-search-input">{{
             'map.anchorLabel' | t
@@ -181,32 +165,32 @@
               class="anchor-search__input"
               type="text"
               [placeholder]="'map.anchorPlaceholder' | t"
-              [value]="anchorQuery()"
-              (input)="onAnchorQueryChange($event)"
-              (keydown)="onAnchorSearchKey($event)"
-              [disabled]="anchorSearching()"
+              [value]="anchor.anchorQuery()"
+              (input)="anchor.onQueryChange($event)"
+              (keydown)="anchor.onSearchKey($event)"
+              [disabled]="anchor.anchorSearching()"
             />
             <button
               type="button"
               class="btn anchor-search__button"
-              (click)="startAnchorSearch()"
-              [disabled]="anchorSearching() || anchorQuery().trim() === ''"
-              [attr.aria-busy]="anchorSearching()"
+              (click)="anchor.startSearch()"
+              [disabled]="anchor.anchorSearching() || anchor.anchorQuery().trim() === ''"
+              [attr.aria-busy]="anchor.anchorSearching()"
             >
-              {{ anchorSearching() ? ('map.searching' | t) : ('map.search' | t) }}
+              {{ anchor.anchorSearching() ? ('map.searching' | t) : ('map.search' | t) }}
             </button>
           </div>
-          <!-- Nominatim usage policy: the attribution is REQUIRED and always
-               rendered next to the search box (the /submit convention),
-               success or failure. -->
+          <!-- Nominatim usage policy: the attribution is REQUIRED and
+               always rendered next to the search box (the /submit
+               convention), success or failure. -->
           <p class="anchor-search__attribution">
             {{ 'map.attributionLead' | t }}
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">{{
               'map.osmAttribution' | t
             }}</a>
           </p>
-          @if (anchorErrorText(); as msg) {
-            @if (anchorError() === 'no-results') {
+          @if (anchor.errorText(); as msg) {
+            @if (anchor.anchorError() === 'no-results') {
               <p class="anchor-search__error">{{ msg | t }}</p>
             } @else {
               <!-- The two real failures get the alert role (the /submit
@@ -214,9 +198,9 @@
               <p class="anchor-search__error" role="alert">{{ msg | t }}</p>
             }
           }
-          @if (anchorResults().length) {
+          @if (anchor.anchorResults().length) {
             <ul class="anchor-search__results" [attr.aria-label]="'map.addressResultsAria' | t">
-              @for (result of anchorResults(); track $index) {
+              @for (result of anchor.anchorResults(); track $index) {
                 <li>
                   <button
                     type="button"
@@ -238,43 +222,44 @@
         }
       </div>
 
-      @if (nearest(); as n) {
+      @if (nearest.nearest(); as n) {
         <p class="nearest-line" role="status">
           {{ 'map.aroundYou' | t }}: {{ n.name }}
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
           }
-          <!-- Distance honesty (community-review-queue): the straight-line
-               distance the ranking actually computed — never a route claim. -->
-          @if (nearestKm() !== null) {
-            <span class="nearest-line__distance"> · {{ straightLineText(nearestKm()!) }}</span>
+          <!-- Distance honesty: the straight-line distance the ranking
+               actually computed — never a route claim. -->
+          @if (nearest.nearestKm() !== null) {
+            <span class="nearest-line__distance">
+              · {{ straightLineText(nearest.nearestKm()!) }}</span
+            >
           }
         </p>
         @if (n.source === 'USER') {
-          <!-- The unverified warning line: when the highlighted row is a
-               community row (any review status — map-browse delta). -->
+          <!-- The community warning: every USER nearest row, any review
+               status. -->
           <p class="nearest-line nearest-line--warning">{{ 'shelter.unverifiedWarning' | t }}</p>
         }
         @if (n.inaccurate) {
-          <!-- Marked inaccurate: the single-sourced warning —
-               the flag is the treatment, the row stays visible. -->
+          <!-- Marked inaccurate: the single-sourced warning — the flag is
+               the treatment, the row stays visible. -->
           <p class="nearest-line nearest-line--warning">{{ 'account.contrib.inaccurate' | t }}</p>
         }
-      } @else if (nearestEmpty()) {
+      } @else if (nearest.nearestEmpty()) {
         <p class="nearest-line">
           {{ 'map.nearestEmpty' | t }}
           @if (auth.initialized() && auth.authenticated()) {
             <a routerLink="/submit">{{ 'map.nearestEmpty.addFirst' | t }}</a>
           }
         </p>
-      } @else if (nearestError(); as nearestMsg) {
+      } @else if (nearest.nearestError(); as nearestMsg) {
         <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg | t }}</p>
       }
 
-      @if (anchor(); as a) {
-        <!-- The active browse anchor (location-navigation): the
-             searched point the per-row distances are measured from, with
-             its single Clear action. -->
+      @if (anchor.anchor(); as a) {
+        <!-- The active browse anchor: the searched point the per-row
+             distances are measured from, with its single Clear action. -->
         <p class="anchor-line" role="status">
           {{ 'map.searched' | t }} <span class="anchor-line__label">{{ a.label }}</span>
           <button type="button" class="anchor-line__clear" (click)="clearAnchor()">
@@ -284,12 +269,10 @@
       }
 
       <!-- Practical filter chips: "Open" (client-side — the BE has no
-           open/closed param, it filters the loaded list and re-renders the
-           markers) and "Has capacity" (server-side `?hasCapacity=`). Both
-           are composable with the legend tone filter (the legend is
-           the page's only filter control — the source-kind chips are gone,
-           the registry-versus-user distinction is the legend's registry
-           entry vs. its four community tones). -->
+           open/closed param: the loaded list is filtered, the markers
+           re-render) and "Has capacity" (server-side `?hasCapacity=`).
+           Both compose with the legend tone filter — the legend is the
+           page's only filter control. -->
       <div class="filter-trust" role="group" [attr.aria-label]="'map.trustFiltersAria' | t">
         <button
           type="button"
@@ -318,21 +301,21 @@
       @if (loading()) {
         <app-loading-indicator class="sidebar-state" [message]="'map.loading' | t" />
       } @else if (showEmpty()) {
-        <!-- The filtered list is empty: the shared empty-state notice (the
-             host class keeps the sidebar's muted, centred slot styling). -->
+        <!-- A filter that matches nothing gets the shared empty state,
+             never a blank map (the host class keeps the sidebar's muted,
+             centred slot styling). -->
         <app-list-state class="sidebar-state" [kind]="'empty'" [messageKey]="'map.emptyFilter'" />
       } @else if (sorted().length) {
         <ul #listEl class="shelter-list" [attr.aria-label]="'map.shelterListAria' | t">
           @for (shelter of sorted(); track shelter.id) {
-            <!-- The li is the per-shelter row element: the scroll-snap
-                 target (map-page.scss) and the row scrollRowIntoView looks
-                 up by data-shelter-id (marker click / nearest). -->
+            <!-- The li is the row element: the scrollRowIntoView target
+                 (data-shelter-id). -->
             <li [attr.data-shelter-id]="shelter.id">
               <!-- Row = button (a real action: select + zoom, keyboard
                    operable). It does NOT navigate — the click flies the
-                   map to street level and the user stays on /map (design
-                   decision 5). The accessible name is the row's own
-                   text (name + address + meta). -->
+                   map to street level and the user stays on /map. The
+                   accessible name is the row's own text (name + address
+                   + meta). -->
               <button
                 type="button"
                 class="shelter-row"
@@ -344,38 +327,35 @@
                   <span class="shelter-row__address">{{ shelter.address }}</span>
                 }
                 <span class="shelter-row__meta">
-                  <!-- Source/trust badge (community-review-queue): registry
-                       rows say which registry; USER rows say their trust
-                       state (NEW = "Newly added" on the unverified-yellow
-                       badge pair, CONFIRMED = "Community-checked" on the
-                       verified green tint). -->
+                  <!-- Source/trust badge: registry rows say which
+                       registry; USER rows say their trust state (NEW →
+                       "Newly added", CONFIRMED → "Community-checked"). -->
                   <span class="badge badge--source" [ngClass]="communityBadgeClass(shelter)">
                     {{ sourceTrustLabel(shelter) }}
                   </span>
                   @if (isPrivateLocation(shelter)) {
                     <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
                   }
-                  <!-- Address-anchor distance (location-navigation):
-                       the straight-line distance from the searched point —
+                  <!-- The straight-line distance from the searched point —
                        the same honesty format as the nearest line, never a
-                       route claim. Only while an anchor is active (the
-                       anchor() check, not the distance's truthiness — a
-                       0 km result would be falsy and must still render). -->
-                  @if (anchor() !== null) {
+                       route claim. Keyed on the anchor, not the distance's
+                       truthiness: a 0 km result would be falsy and must
+                       still render. -->
+                  @if (anchor.anchor() !== null) {
                     <span class="shelter-row__anchor-distance num-tabular">{{
-                      straightLineText(anchorDistance(shelter)!)
+                      straightLineText(anchor.distanceTo(shelter)!)
                     }}</span>
                   }
                 </span>
-                <!-- Trust badges (shelter-trust-and-reports): red-orange
-                     "Reported" (EITHER report kind open — the OR of
-                     nonexistentReports and inaccurateReports), the
-                     fresh-CLOSED reported-tone badge (amber — the
-                     warning-tone pair, not the red-orange reported fill;
-                     "Reported closed" at one fresh report, "Closed" at
-                     two+; a fresh OPEN row renders NO badge — open is the
-                     default), and the NEUTRAL occupancy badge with recency
-                     (hedged at one fresh report, firm at two+). -->
+                <!-- Trust badges: the red-orange "Reported" (EITHER report
+                     kind open — the OR of nonexistentReports and
+                     inaccurateReports), the fresh-CLOSED reported-tone
+                     badge (amber — the warning-tone pair, not the
+                     red-orange reported fill; "Reported closed" at one
+                     fresh report, "Closed" at two+; a fresh OPEN row
+                     renders NO badge — open is the default), and the
+                     NEUTRAL occupancy badge with recency (hedged at one
+                     fresh report, firm at two+). -->
                 @if (hasTrustBadges(shelter)) {
                   <span class="shelter-row__badges">
                     @if (hasReports(shelter)) {
@@ -410,25 +390,18 @@
         </ul>
       }
 
-      <!-- Safety notice lives in the page shell footer (page-shell.html):
-           it is app-wide, not map-only, and the shelter list below owns
-           the sidebar space. -->
+      <!-- The safety notice lives in the page shell footer: it is
+           app-wide, not map-only. -->
     </aside>
   </div>
 
-  <!-- "How OpenShelter works" (Workstream A): plain-language mechanics
-       block under the map layout. Editorial layout, not a card: the page
-       background continues, a single top hairline divides the block from
-       the map, and the copy sits in a width-capped column for a
-       comfortable line length (map-page.scss). Rhythm: the first
-       paragraph is the lede (larger type — it carries the "not an
-       emergency service, call 112" positioning) and the last is the
-       standing guarantee (quiet medium weight). The prose block is
-       deliberate: a five-step example list would restate what the
-       sources/report paragraphs already say. It is the only i18n'd copy
-       on this page today (the rest of the map chrome is still hardcoded
-       English);
-       the badge terms are quoted verbatim so the text matches what the
+  <!-- "How OpenShelter works": plain-language mechanics block under the
+       map layout. Editorial layout, not a card: the page background
+       continues, a single top hairline divides the block from the map,
+       and the copy sits in a width-capped column. Rhythm: the first
+       paragraph is the lede (it carries the "not an emergency service,
+       call 112" positioning) and the last is the standing guarantee.
+       The badge terms are quoted verbatim so the text matches what the
        map shows. -->
   <section class="map-page__how" aria-labelledby="how-title">
     <h2 class="map-page__how-title" id="how-title">{{ 'how.title' | t }}</h2>
