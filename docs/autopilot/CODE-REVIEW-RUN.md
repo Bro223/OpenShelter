@@ -35,6 +35,8 @@ Rewrite toward these, and stop when the code is plain; do not gold-plate:
 
 The skill texts are in `docs/skills/` and each is self-describing; follow the instructions inside the file you are given.
 
+**Skill rules that make this auditable:** `docs/skills/README.md` is the index and it is authoritative — it records each skill's source repository, the exact `npx skills use` command used to fetch it, its exit code, the date, what it is for, and which lane should use it. A lane may use **only** skills listed there; if you want one that is not listed, ask for it to be added rather than fetching your own, so the set stays visible and reproducible. The files themselves are third-party instructions copied verbatim — never edit, reformat or "clean up" them.
+
 | Skill file | Use it for |
 |---|---|
 | `clean-code.md` | every lane — the readability standard |
