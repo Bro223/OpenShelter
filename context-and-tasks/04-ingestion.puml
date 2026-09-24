@@ -11,9 +11,11 @@ package "ingestion" {
     ' source() declares which ShelterSource the fetched rows belong to;
     ' delisting is scoped to it (see the import note below).
     ' fetch() (official-dataset-csv M5) = fetchAll() plus the upstream data
-    ' version (HTTP Last-Modified / ETag) and the 304 "not modified" marker.
-    ' The default wraps fetchAll() unchanged, so version-less sources
-    ' (the dev fixture) need no override.
+    ' version (HTTP Last-Modified / ETag), the 304 "not modified" marker
+    ' and the externalIds the CLIENT rejected as unplaceable (they stay in
+    ' the delist keep-list - a live registry row is never deleted because
+    ' this run could not place it). The default wraps fetchAll() unchanged,
+    ' so version-less sources (the dev fixture) need no override.
   }
 
   class CsvRegistryClient {
@@ -30,9 +32,13 @@ package "ingestion" {
     ' (RegistryFetch([], version, notModified=true)). Retries transient
     ' failures only (network / 5xx) with exponential backoff; a
     ' deterministic 4xx fails fast (no retry). Coordinates arrive in
-    ' EPSG:3301 - LEst97Transformer applies unchanged; county/municipality
-    ' are split from the aadress field (the CSV publishes no capacity/
-    ' accessibility - null/false).
+    ' EPSG:3301: Lest97AxisOrder.resolve() fixes the axis order from the
+    ' VALUES (easting 300k-800k vs northing 6-7M - the published columns
+    ' can carry either order) BEFORE the transform; a row that cannot be
+    ' resolved is rejected per row (logged, counted as skipped, RETAINED -
+    ' never guessed, never delisted). county/municipality are split from
+    ' the aadress field (the CSV publishes no capacity/accessibility -
+    ' null/false).
     - csvUrl : String
     - maxRetries : int
     - restClient : RestClient
@@ -56,10 +62,13 @@ package "ingestion" {
     + rows : List<RegistryShelterDto>
     + dataVersion : String
     + notModified : boolean
+    + rejectedExternalIds : List<String>
     ' One fetch outcome: the raw rows, the upstream version stamp
-    ' (Last-Modified / ETag; null for version-less sources) and the 304
-    ' marker. A notModified fetch applies NOTHING in the import (in
-    ' particular no delist over an empty set) and is NOT a failure.
+    ' (Last-Modified / ETag; null for version-less sources), the 304
+    ' marker and the externalIds the client rejected as unplaceable
+    ' (they join the delist keep-list - see the import note). A
+    ' notModified fetch applies NOTHING in the import (in particular no
+    ' delist over an empty set) and is NOT a failure.
   }
 
   class DevRegistryClient {
@@ -68,10 +77,22 @@ package "ingestion" {
     ' Reads a local JSON fixture - dev/CI runs without network.
   }
 
+  class Lest97AxisOrder {
+    + {static} resolve(lestX : double, lestY : double) : Resolved
+    ' Resolved(easting : double, northing : double), or null when the
+    ' values fit neither axis order (not a coordinate pair at all).
+    ' The value-scale bands (EASTING 300 000-800 000 m vs NORTHING
+    ' 6 000 000-7 000 000 m) tell which column carries which axis - the
+    ' published header does not promise an order, so it is resolved from
+    ' the values BEFORE the transform. A null resolution is a REJECTED
+    ' row (counted, retained), never a guess.
+  }
+
   class LEst97Transformer {
-    + toWgs84(x : double, y : double) : GeoPoint
-    ' EPSG:3301 (L-EST97, meters) -> EPSG:4326 (WGS84) via proj4j.
-    ' CRS defined from parameters - no EPSG registry resource needed.
+    + toWgs84(easting : double, northing : double) : double[]
+    ' EPSG:3301 (L-EST97, meters) -> EPSG:4326 (WGS84) via proj4j -
+    ' returns [longitude, latitude]; null for non-finite input. CRS
+    ' defined from parameters - no EPSG registry resource needed.
   }
 
   class RegistryShelterDto <<record>> {
@@ -182,6 +203,7 @@ CsvRegistryClient ..|> ShelterRegistryClient
 DevRegistryClient ..|> ShelterRegistryClient
 ShelterRegistryClient ..> RegistryShelterDto
 CsvRegistryClient --> RegistryCsvParser : parses the downloaded body
+CsvRegistryClient --> Lest97AxisOrder : resolves the axis order from the values
 CsvRegistryClient --> LEst97Transformer : transforms EPSG:3301 -> WGS84
 CsvRegistryClient --> DataImportLog : findLatestBySource (the If-Modified-Since stamp)
 RegistryShelterParser ..|> ShelterParser
@@ -209,7 +231,9 @@ note right of ShelterImportService
   source).
   A zero-row fetch skips delisting entirely (rows retained, log.warn).
   Keep-list = EVERY externalId the registry served this run, including
-  rows that failed the length pre-check or parsing.
+  rows that failed the length pre-check or parsing, and rows the client
+  rejected as unplaceable (a live registry row must never be deleted
+  just because this run could not store or place it).
   User-added shelters (source USER) are never touched.
   Every run (OK / FAILED / NOT_MODIFIED / SKIPPED) writes ONE data_imports
   audit row - best-effort (an audit failure never breaks the import).
@@ -234,7 +258,7 @@ alt another run already in flight (overlap guard)
 end
 SIS -> RC : fetch()   ' If-Modified-Since = the last run's sourceVersion (data_imports)
 alt 304 (the upstream is unchanged)
-  RC --> SIS : RegistryFetch(rows=[], version, notModified=true)
+  RC --> SIS : RegistryFetch(rows=[], version, notModified=true, rejected=[])
   note right of SIS
     apply NOTHING - a delist over an empty fetched set would
     wipe the source - and NOT a failure
@@ -246,17 +270,23 @@ else registry unreachable
   SIS -> LOG : record(FAILED, message)
   SIS --> RegistryScheduler : ImportResult.failure(at)
 else
-  RC --> SIS : RegistryFetch(rows, version, notModified=false)
+  RC --> SIS : RegistryFetch(rows, version, notModified=false, rejected)
   note right of RC
     CsvRegistryClient (the default): one bulk download of the official
     open-data CSV; body parsed by RegistryCsvParser (header
     id;nimi;aadress;lest_x;lest_y enforced - a wrong header is a
-    deterministic no-retry failure; malformed rows dropped + counted;
-    L-EST97 -> WGS84 via LEst97Transformer); Last-Modified (fallback
-    ETag) stamps dataAsOf + sourceVersion.
+    deterministic no-retry failure; malformed rows dropped + counted);
+    Lest97AxisOrder fixes the axis order from the values, then L-EST97
+    -> WGS84 via LEst97Transformer (an unresolvable row is rejected per
+    row, counted as skipped, retained - never guessed); Last-Modified
+    (fallback ETag) stamps dataAsOf + sourceVersion.
   end note
   SIS -> P : parse(fitting dtos)   ' rows over the column limits counted as skipped first
   P --> SIS : List<Shelter>
+  note right of SIS
+    skipped = column-limit drops + client-rejected (unplaceable)
+    rows + parse drops - the rejected rows stay in the keep-list
+  end note
   loop each shelter (the apply phase runs in ONE transaction)
     SIS -> REPO : findByExternalId(externalId)
     alt existing

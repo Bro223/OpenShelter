@@ -30,6 +30,8 @@ package "auth" {
     - expiresAt : Instant
     - usedAt : Instant
     - attempts : int
+    - createdAt : Instant   ' V8 rotation anchor: the 60 s re-issue cooldown
+                            ' + the per-UTC-day cap read from this column
   }
 
   interface PasswordHasher {
@@ -46,12 +48,20 @@ package "auth" {
     + issue(user : RegisteredUser) : TokenResponse
     + refresh(refreshToken : String) : TokenResponse
     + revoke(refreshToken : String) : void
+    + validateAccessToken(accessToken : String) : Long
+    ' The JwtAuthenticationFilter's per-request validation seam - returns
+    ' the user id the token was issued to (sub claim); any failure is
+    ' InvalidAccessTokenException (the filter answers nothing on it).
   }
 
   class JwtTokenService {
     + issue(user : RegisteredUser) : TokenResponse
     + refresh(refreshToken : String) : TokenResponse
     + revoke(refreshToken : String) : void
+    + validateAccessToken(accessToken : String) : Long
+    ' refresh() additionally: refuses a SUSPENDED account (the freshly
+    ' loaded user, never a token claim) and stamps sign-in activity
+    ' (retention-pruning) on the fresh row.
   }
 
   interface RefreshTokenRepository {
@@ -87,21 +97,29 @@ package "auth" {
   interface UserCredentialsRepository {
     + save(credentials : UserCredentials) : void
     + findByUserId(userId : Long) : UserCredentials
-    + updateHash(newHash : String, now : Instant) : void
+    + updateHash(userId : Long, newHash : String) : void
   }
 
   interface PasswordResetTokenRepository {
     + save(token : PasswordResetToken) : void
     + findActiveByUserId(userId : Long, now : Instant) : PasswordResetToken
     + deleteActiveByUserId(userId : Long, now : Instant) : void
+    + findLatestCreatedAtByUserId(userId : Long) : Instant
+    + countCreatedOnUtcDayByUserId(userId : Long, utcDay : LocalDate) : long
+    + deleteExpiredByUserId(userId : Long, now : Instant) : void
+    ' The cooldown anchor is the latest row's createdAt (V8 rotation);
+    ' the per-UTC-day cap counts the rows created that day; the prune
+    ' bounds table growth for active users (S1c).
   }
 
   interface RateLimiter {
-    + tryAcquire(key : String) : boolean
+    + tryAcquire(key : String) : Result
+    ' Result(acquired : boolean, retryAfterSeconds : Integer) - the exact
+    ' seconds until the bucket refills, surfaced in the 429's Retry-After.
   }
 
   class TokenBucketRateLimiter {
-    + tryAcquire(key : String) : boolean
+    + tryAcquire(key : String) : Result
     ' Single instance per bucket set (in-memory map) - the app is a
     ' single instance; no cross-instance sharing.
   }
@@ -127,8 +145,13 @@ package "auth" {
   class Hashes {
     + {static} sha256Hex(raw : String) : String
     + {static} constantTimeEquals(a : String, b : String) : boolean
-    ' Tokens at rest are SHA-256 hashed; EVERY stored-vs-presented compare
-    ' is constant-time (MessageDigest.isEqual - no early exit, W9).
+    ' Thin delegate to verification.CodeHashes (ONE spelling - the
+    ' dependency rule keeps the authority below auth). Refresh tokens
+    ' at rest are SHA-256 hashed; the ONE-TIME codes (reset / contact
+    ' change / verification) are the keyed, domain-separated v2 hash
+    ' (PiiCrypto.codeHash) - a 6-digit space is brute-forceable from an
+    ' unkeyed dump, the keyed form is not. EVERY stored-vs-presented
+    ' compare is constant-time (MessageDigest.isEqual - no early exit).
   }
 
   class AuthController {
@@ -136,8 +159,16 @@ package "auth" {
     + login(request : LoginRequest) : TokenResponse
     + refresh(request : RefreshRequest) : TokenResponse
     + logout(refreshToken : String) : void
-    + requestPasswordReset(request : PasswordResetRequest) : void
+    + requestPasswordReset(request : PasswordResetRequest) : CodeSentDto
     + resetPassword(request : PasswordResetConfirmRequest) : void
+  }
+
+  class CodeSentDto <<record>> {
+    + resendAvailableAfterSeconds : int
+    ' The ack body of every "code sent" endpoint (verification request,
+    ' password-reset request, contact-change request): the server-
+    ' enforced resend cooldown the client counts down before asking
+    ' for the same code again (0 = no cooldown configured).
   }
 
   class RegisterRequest <<record>> {
@@ -175,32 +206,62 @@ package "auth" {
   class AccountController {
     + me() : MeResponse
     + updateProfile(request : ProfileUpdateRequest) : MeResponse
-    + requestEmailChange(request : ChangeEmailRequest) : void
+    + requestEmailChange(request : ChangeEmailRequest) : CodeSentDto
     + confirmEmailChange(request : ConfirmChangeRequest) : void
-    + requestPhoneChange(request : ChangePhoneRequest) : void
+    + requestPhoneChange(request : ChangePhoneRequest) : CodeSentDto
     + confirmPhoneChange(request : ConfirmChangeRequest) : void
     + dataExport() : DataExportResponse
     + deleteAccount() : void
     ' All 8 endpoints require JWT (user resolved from the token, never the
     ' body); the two change-request endpoints are additionally per-IP
-    ' rate-limited (changeRequestRateLimiter).
+    ' rate-limited (changeRequestRateLimiter) and ack with the cooldown.
+    ' deleteAccount: erasure is a RIGHT of any authenticated user - it
+    ' does NOT require identity verification (a user who cannot verify
+    ' must not be trapped in the system); the provisioned admin (kind
+    ' ADMIN) is refused 403; a repeat call is an idempotent no-op.
   }
 
   class AccountService {
     + profile(user : RegisteredUser) : MeResponse
     + updateProfile(user : RegisteredUser, request : ProfileUpdateRequest) : MeResponse
+    + dataExport(user : RegisteredUser) : DataExportResponse
     ' profile = real profile + REAL verified claims (frontend single source
     ' of truth); updateProfile verifies currentPassword against the Argon2
-    ' hash BEFORE any write (wrong -> 401, nothing updated).
+    ' hash BEFORE any write (wrong -> 401, nothing updated). dataExport =
+    ' the caller's own profile + EVERY author-scoped shelter row (all
+    ' statuses), one JSON document (legal-recovery).
+    + deleteAccount(user : RegisteredUser) : void
+    ' The account erasure, ONE transaction (legal-recovery): PURGE the
+    ' declared private homes (the submitter's personal data must not
+    ' outlive the request); ORPHAN the public community rows (created_by
+    ' -> NULL - map data outlives accounts, trust state untouched, the
+    ' REJECT note redacted); redact the user's audit reasons; erase the
+    ' user row (the DB cascades credentials, claims, pending changes,
+    ' tokens, reports). NO verification gate - it is a right, not a
+    ' verified-only action; the provisioned admin is refused (403 - the
+    ' env vars own that identity). Decision: keep (closing decisions #7).
   }
 
   class ContactChangeService {
     + requestEmailChange(user : RegisteredUser, newEmail : String) : void
-    + confirmEmailChange(user : RegisteredUser, code : String) : void
+    + confirmEmailChange(user : RegisteredUser, code : String) : ContactChangeResult
     + requestPhoneChange(user : RegisteredUser, newPhone : String) : void
-    + confirmPhoneChange(user : RegisteredUser, code : String) : void
+    + confirmPhoneChange(user : RegisteredUser, code : String) : ContactChangeResult
     ' Cross-channel: email change verified by SMS to current phone;
-    ' phone change verified by email to current email.
+    ' phone change verified by email to current email. The confirm side
+    ' RETURNS a code failure (its transaction commits the failed-attempt
+    ' increment) instead of throwing - the controller turns it into the
+    ' 400 AFTER the commit. The provisioned admin (kind ADMIN) is
+    ' refused at EVERY entry point with 403 (its contacts are the
+    ' environment's - the e-mail is the seeder's provisioning anchor).
+    ' Send-first-then-commit: the code is e-mailed/SMSed OUTSIDE any
+    ' transaction, and the pending row (the cooldown anchor) is written
+    ' ONLY after the channel accepts a refused send leaves no row and
+    ' anchors no cooldown.
+  }
+
+  class ContactChangeResult <<record>> {
+    + failureMessage : String   ' null on success; otherwise the 400 message
   }
 
   class PendingContactChange {
@@ -212,20 +273,28 @@ package "auth" {
     - attempts : int
     - expiresAt : Instant
     - createdAt : Instant
-    ' code hashed (SHA-256), attempts-limited, expiring;
-    ' unique (userId, type) - one pending change at a time.
+    ' code hashed (keyed, domain-separated - the PiiCrypto v2 slot;
+    ' confirm accepts the legacy unkeyed SHA-256 form until its TTL),
+    ' attempts-limited, expiring; unique (userId, type) - one pending
+    ' change at a time.
   }
 
   interface PendingContactChangeRepository {
     + findByUserIdAndType(userId : Long, type : ContactChangeType) : Optional<PendingContactChange>
     + save(change : PendingContactChange) : PendingContactChange
     + delete(change : PendingContactChange) : void
+    ' Atomic attempt counter (a conditional UPDATE - a read-modify-write
+    ' would lose updates under a concurrent wrong-code burst): 0 rows
+    ' updated = another confirm already reached the cap.
+    + incrementAttempts(id : Long, maxAttempts : int) : int
   }
 
   class AdminSeeder {
     ' The env-provisioned admin (admin-moderation D1): an ApplicationRunner
     ' - runs ONCE at startup, transactional. Create-if-absent is the whole
     ' contract (see the note below).
+    ' A password shorter than 8 characters REFUSES the boot (an
+    ' IllegalStateException the deploy must notice, not a warning).
     - email : String        ' app.admin.email  = ${ADMIN_EMAIL:}  (empty default)
     - password : String     ' app.admin.password = ${ADMIN_PASSWORD:} (empty default)
     + run(args : ApplicationArguments) : void
@@ -282,11 +351,13 @@ package "referenced from 01 (contracts only)" {
   }
 
   interface SmtpSender {
-    + send(email : String, message : String) : void
+    + send(email : String, message : String) : boolean
+    ' true = accepted, false = refused (logged, never thrown); a refused
+    ' send writes no pending row and anchors no cooldown.
   }
 
   interface SmsSender {
-    + send(phone : String, message : String) : void
+    + send(phone : String, message : String) : boolean
   }
 
   enum "VerificationLevel" as VL {
@@ -308,7 +379,8 @@ TokenBucketRateLimiter ..|> RateLimiter
 
 ' ==================== SERVICE WIRING ====================
 AuthController --> AuthService : all auth endpoints
-AuthController ..> RateLimiter : 5 buckets - register per IP; login per (IP, normalized contact) + per-IP aggregate; reset-request + reset-confirm per (IP, email)
+AuthController ..> RateLimiter : 6 buckets - register per IP; login per (IP, normalized contact) + per-IP aggregate; refresh + logout = session per IP; reset-request + reset-confirm per (IP, email)
+AuthController ..> RollingContactOtpLimiter : per-e-mail rolling cap on registration ATTEMPTS ("register:" namespace; a hit lands in the alert ring, then 429 + Retry-After)
 AuthController ..> ClientIps : resolves the rate-limit key IP
 AuthController ..> Codes : normalizes the login contact for the key (email lowercased; phone E.164 then lowercased)
 
@@ -365,27 +437,37 @@ note bottom of TokenService
 end note
 
 note bottom of PasswordResetService
-  Reset flow (emailed 6-digit code - no URL link):
-    1. requestReset(email) -> 6-digit code (shared Codes.sixDigitCode(),
-       same generator as contact-change); per-user re-issue throttle
-       (2026-09-08 W1/S1b): 60 s rotation cooldown + max 5 per UTC day -
-       either hit is a SILENT no-op (still 200, anti-enumeration kept);
-       otherwise delete the user's prior active code (one active code per
-       user)
-    2. store {tokenHash = SHA-256(code), expiresAt=15min, usedAt,
-       attempts=0} - hashed, single-use, 5-attempt limit (V6)
-    3. ALWAYS respond success ("if the account exists, we sent an
-       email") - never reveal whether an email is registered
-    4. send "OpenShelter password reset code: NNNNNN (valid 15 min)"
-       via SmtpSender (no URL, no app.frontend.base-url)
-       (AppInfo.APP_DISPLAY_NAME + " password reset code: ...")
-    5. reset(email, code, newPwd) -> find the account's active code,
-       verify attempts < 5 + hash (Hashes.constantTimeEquals) + expiry +
-       unused, hash new password, update UserCredentials, mark code used
-    6. revoke ALL refresh tokens for that user (stolen-session
-       protection - old sessions die on reset)
-    7. ONE transaction for 5+6; ANY failure (unknown email / no code /
-       over-limit / wrong / expired / used) -> ONE generic 400
+  Reset flow (emailed 6-digit code - no URL link), three phases:
+    1. decide() - one consistent read+prune snapshot: unknown e-mail ->
+       SILENT no-op (still the same 200, anti-enumeration kept); the
+       provisioned admin (kind ADMIN) -> 403 NAMING the environment
+       provisioning (a code e-mailed to its address would let anyone who
+       finds the mailbox re-key the deployment); 60 s re-issue cooldown
+       (anchored at the latest row's createdAt - V8 rotation) + max 5 per
+       UTC day -> SILENT no-op
+    2. the send, OUTSIDE any transaction: a FRESH 6-digit code (shared
+       Codes.sixDigitCode(), same generator as contact-change); a REFUSED
+       send writes no token row and anchors no cooldown (the outage costs
+       the user nothing, the retry is not suppressed)
+    3. the write, one transaction (atomic one-active-code): delete the
+       user's prior active code, store {tokenHash = the KEYED,
+       domain-separated v2 hash (PiiCrypto.codeHash) of the code - a
+       6-digit space is brute-forceable from an unkeyed dump, the legacy
+       unkeyed SHA-256 form is still matched until its TTL, expiresAt =
+       now + 15 min, attempts = 0}
+  reset(email, code, newPwd) - ONE transaction:
+    4. the provisioned admin's e-mail is refused 403 first (no code can
+       be issued for it, and a direct call must not rewrite the env's
+       credentials)
+    5. find the account's active code; verify attempts < 5 + hash match
+       (CodeHashes.matches - v2 or legacy, constant-time) + unused + not
+       expired; a wrong code PERSISTS its attempt increment (its failure
+       must not roll back the counter - reset() returns a boolean and the
+       controller answers the one generic 400 after the commit)
+    6. on success: hash the new password, update UserCredentials, mark
+       the code used (its hash is never re-usable, even before expiry),
+       revoke ALL refresh tokens for that user (stolen-session protection
+       - old sessions die on reset)
 end note
 
 note bottom of AuthController
@@ -393,17 +475,25 @@ note bottom of AuthController
   these 6 POST /auth/* endpoints (register, login, refresh, logout,
   password-reset request + confirm); GET /api/shelters/** (except /mine)
   + GET /api/data-source (M5 provenance read) + GET /api/site-texts
-  (the public site copy) + GET /api/guidance/** and
-  GET /api/media/** (public crisis-guidance reads) + actuator health/info
-  are the only other open routes; /swagger-ui + /v3/api-docs are open in
-  the dev/test profiles only - everything else is JWT (see 04-CONTEXT-AUTH
-  wiring). Rate limiting (2026-09-08
-  hardened, SDI Ch 4 token bucket, keys via ClientIps):
-    - /auth/register          per client IP (account spam)
+  (the public site copy) + GET /api/guidance/** (the /blog crisis
+  reads) + GET and HEAD /api/media/** (public media serving - the crisis
+  hero images; every other method stays authenticated) + actuator
+  health/info are the only other open routes; /swagger-ui + /v3/api-docs
+  are open in the dev/test profiles only (Profiles.isDevTestOnly - the
+  document is the full attack surface) - everything else is JWT (see
+  04-CONTEXT-AUTH wiring). Rate limiting (2026-09-08 hardened, SDI Ch 4
+  token bucket, keys via ClientIps):
+    - /auth/register          per client IP (account spam) PLUS a rolling
+                              per-e-mail cap on registration ATTEMPTS
+                              (RollingContactOtpLimiter, "register:" - every
+                              attempt counts, a 409 retry included; a hit
+                              lands in the admin alert ring before the
+                              429 + Retry-After)
     - /auth/login             per (IP, normalized contact) AND a per-IP
                               aggregate bucket (credential stuffing);
                               contact key = email lowercased or phone
                               E.164-lowered
+    - /auth/refresh + /auth/logout  one SHARED session bucket per client IP
     - /auth/password-reset/   per (IP, email)
         request
     - /auth/password-reset/   per (IP, email) anti-guess bucket - a 6-digit
@@ -412,7 +502,7 @@ note bottom of AuthController
                               LocationController is defined in the shelter
                               context (05), listed here because it shares
                               this RateLimiter bucket set
-end note
+  end note
 
 note bottom of ContactChangeService
   CROSS-CHANNEL contact change (hardening against single-channel

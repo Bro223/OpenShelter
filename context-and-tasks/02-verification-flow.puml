@@ -43,13 +43,16 @@ note over Person, VC
   Step 2 gap closed: verification is now reachable via
   POST /verify/request + POST /verify/confirm (Bearer JWT
   required; user resolved from the token, never the body).
-  SMART_ID -> 400 up front (stub in v1).
+  SMART_ID -> 400 up front (stub in v1). A level that is ALREADY
+  verified -> 409 (no code sent, no throttle budget consumed).
 end note
 note over VC, VS
   Anti-spam (Twilio plan): per-IP token bucket in the controller
-  (ClientIps) + resend cooldown + per-user daily cap in the
-  service (VerificationSendLog, file-backed, survives restarts).
-  Violations -> 429 with the uniform ErrorResponse.
+  (ClientIps) + resend cooldown + per-user daily cap in the service
+  (VerificationSendLog, file-backed, survives restarts) + the rolling
+  per-contact cap (RollingContactOtpLimiter - the burst valve on real
+  sends; a hit lands in the admin alert ring first). Violations -> 429
+  with the uniform ErrorResponse + Retry-After (seconds).
 end note
 
 == 2. Phone verification: request OTP ==
@@ -62,8 +65,8 @@ PP -> TW : sendSms(phone, "OpenShelter OTP: 123456")   ' AppInfo.APP_DISPLAY_NAM
 TW --> PP : sent
 PP --> VS : PendingVerification(PHONE, codeHash, expiry)
 VS -> DB : save pending
-VS -> SL : record(userId, PHONE, phone, now)
-VC --> Person : 202
+VS -> SL : record(userId, PHONE, phone, now)   ' the slot is consumed ONLY because the channel accepted the send
+VC --> Person : 202 (+ resend-cooldown ack)
 else throttled
 VC --> Person : 429
 end
@@ -81,12 +84,18 @@ VC --> Person : 200 | 400
 == 4. Email verification: request token ==
 Person -> VC : POST /verify/request {level=EMAIL}
 VC -> VS : requestVerification(user, EMAIL)
+VS -> SL : lastSentAt / countToday(userId, EMAIL)  (cooldown + daily cap)
+alt within limits
 VS -> EP : request(user)
 EP -> SM : send(email, "OpenShelter verification code: abcdef12")   ' AppInfo.APP_DISPLAY_NAME + " verification code: " + 8-char token
 SM --> EP : sent
 EP --> VS : PendingVerification(EMAIL, tokenHash, expiry)
 VS -> DB : save pending
-VC --> Person : 202
+VS -> SL : record(userId, EMAIL, email, now)
+VC --> Person : 202 (+ resend-cooldown ack)
+else throttled
+VC --> Person : 429
+end
 
 == 5. Email verification: confirm token ==
 Person -> VC : POST /verify/confirm {level=EMAIL, code}
@@ -122,6 +131,7 @@ SS --> Person : submitted (published immediately - community reports + confirmat
 
 ' Email = same two-phase shape (request -> confirm).
 ' Smart-ID = future session + polling (stub in v1).
-' No moderator: quality governed by community reports + confirmation
-' (ReviewStatus on the shelter - see 05-shelter-api.puml).
+' No blocking queue: quality is governed by community reports +
+' confirmation (ReviewStatus on the shelter) and the admin moderation
+' surface (see 05-shelter-api.puml).
 @enduml

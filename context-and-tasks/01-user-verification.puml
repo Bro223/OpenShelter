@@ -153,18 +153,27 @@ package "verification" {
 
   class EmailVerificationProvider {
     - sender : SmtpSender
+    - piiCrypto : PiiCrypto
+    - clock : Clock
     --
     + request(user : RegisteredUser) : PendingVerification
     + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+    ' Token hash at rest: the keyed, domain-separated code hash
+    ' (PiiCrypto.codeHash, the v2 slot); confirm accepts the legacy
+    ' unkeyed SHA-256 form until its TTL expires (CodeHashes.matches).
   }
 
   class PhoneVerificationProvider {
     - sender : SmsSender
+    - piiCrypto : PiiCrypto
+    - clock : Clock
     --
     + request(user : RegisteredUser) : PendingVerification
     + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
     ' providerCode() = "sms" (channel-agnostic — Twilio is swappable).
     ' E.164-normalizes the phone at the channel boundary (PhoneNumbers).
+    ' OTP hash at rest: the keyed, domain-separated code hash (v2 slot);
+    ' confirm accepts the legacy unkeyed SHA-256 form until its TTL.
   }
 
   class SmartIdVerificationProvider {
@@ -175,7 +184,11 @@ package "verification" {
   }
 
   interface SmsSender {
-    + send(phone : String, message : String) : void
+    + send(phone : String, message : String) : boolean
+    ' true = the channel accepted the message, false = delivery failed
+    ' (the sender logged the error, it never throws). A refused send
+    ' consumes NO daily slot; the contact-change flows ignore the
+    ' result and keep their always-succeeds contract.
   }
 
   class TwilioSmsSender {
@@ -183,18 +196,20 @@ package "verification" {
     - messagingServiceSid : String
     - fromNumber : String
     --
-    + send(phone : String, message : String) : void
+    + send(phone : String, message : String) : boolean
     ' Production channel: Twilio Programmable Messaging, send-only.
     ' Selected via app.sms.provider=twilio; credentials from env vars
-    ' (TWILIO_ACCOUNT_SID/AUTH_TOKEN + MESSAGING_SERVICE_SID or TWILIO_FROM).
-    ' Logs metadata only, never the OTP body. Delivery errors are logged,
-    ' never thrown (anti-enumeration).
+    ' (TWILIO_ACCOUNT_SID/AUTH_TOKEN + MESSAGING_SERVICE_SID or TWILIO_FROM),
+    ' MISSING credentials fail the boot (hardening) - a silently-failing
+    ' production sender is a misconfiguration the boot must refuse.
+    ' Logs metadata only, never the OTP body. Delivery errors are logged
+    ' and returned as false, never thrown (anti-enumeration).
     ' TwilioApi seam (SDK impl + hand-written fake in tests — no Mockito).
   }
 
   class DevSmsSender {
-    + send(phone : String, message : String) : void
-    ' Dev/CI: logs the message to the console (no real SMS).
+    + send(phone : String, message : String) : boolean
+    ' Dev/CI: logs the message to the console (no real SMS). Always true.
     ' Default bean via app.sms.provider=dev (matchIfMissing).
   }
 
@@ -214,44 +229,76 @@ package "verification" {
     --
     + FileVerificationSendLog(path : Path, clock : Clock)
     ' Durable store behind the anti-spam daily cap — survives restarts.
-    ' One line per send: userId<TAB>level<TAB>contact<TAB>epochMillis.
+    ' One line per send: userId<TAB>level<TAB>epochMillis - the contact is
+    ' NOT persisted (PII in an unencrypted log file); legacy 4-field lines
+    ' (with the contact column) are still parsed, the field ignored.
     ' Never throws on IO failures; prunes entries older than 2 days.
   }
 
   interface SmtpSender {
-    + send(email : String, message : String) : void
+    + send(email : String, message : String) : boolean
+    ' true = the channel accepted the message, false = delivery failed
+    ' (the sender logged the error, it never throws). Same contract as
+    ' SmsSender: refused sends consume no daily slot.
   }
 
   class DevSmtpSender {
-    + send(email : String, message : String) : void
-    ' Dev/CI: logs the message to the console (no real SMTP).
+    + send(email : String, message : String) : boolean
+    ' Dev/CI: logs the message to the console (no real SMTP). Always true.
     ' Default bean via app.mail.provider=dev (matchIfMissing) - exactly one
     ' SmtpSender exists at runtime (dev | smtp-pulse).
   }
 
   class SmtpPulseSmtpSender {
-    + send(email : String, message : String) : void
+    + send(email : String, message : String) : boolean
     ' Production channel: spring-boot-starter-mail + smtp-pulse.com, selected
     ' via app.mail.provider=smtp-pulse. Logs metadata only, never the body.
     ' Credentials via env vars only (spring.mail.username/password).
+    ' MailException -> logged, returned false (never thrown).
   }
 
   class VerificationService {
     - providers : Map<VerificationLevel, VerificationProvider>
+    - pendingRepository : PendingVerificationRepository
     - sendLog : VerificationSendLog
+    - contactLimiter : RollingContactOtpLimiter
     - properties : VerificationProperties
     - clock : Clock
+    - alerts : ThrottleAlertRecorder
     --
-    + VerificationService(providers : Map<VerificationLevel, VerificationProvider>, pendingRepository : PendingVerificationRepository, sendLog : VerificationSendLog, properties : VerificationProperties, clock : Clock)
+    + VerificationService(providers : Map<VerificationLevel, VerificationProvider>, pendingRepository : PendingVerificationRepository, sendLog : VerificationSendLog, contactLimiter : RollingContactOtpLimiter, properties : VerificationProperties, clock : Clock, alerts : ThrottleAlertRecorder)
     + requestVerification(user : RegisteredUser, level : VerificationLevel) : void
     + confirmVerification(user : RegisteredUser, level : VerificationLevel, code : String) : boolean
-    ' Anti-spam: resend cooldown + per-user daily cap (VerificationSendLog)
-    ' -> VerificationThrottledException -> 429. (No revoke method — claim
-    ' revocation is pure domain state: RegisteredUser.revoke.)
+    ' Anti-spam, in order: (1) requesting an ALREADY-VERIFIED level ->
+    ' 409 (AlreadyVerifiedException, no code sent, no budget consumed);
+    ' (2) resend cooldown + per-user daily cap (VerificationSendLog);
+    ' (3) the rolling PER-CONTACT cap (RollingContactOtpLimiter, the
+    ' atomic burst valve on real sends) - a cap hit lands in the admin
+    ' alert ring first. (2) and (3) -> VerificationThrottledException
+    ' -> 429 with Retry-After. The daily slot is consumed ONLY after the
+    ' channel ACCEPTS the send (a refused send persists no pending code
+    ' and consumes nothing - the endpoint still answers its plain ack).
+    ' (No revoke method — claim revocation is pure domain state:
+    ' RegisteredUser.revoke.)
+  }
+
+  class RollingContactOtpLimiter {
+    - maxPerWindow : int
+    - windowMillis : long
+    --
+    + tryAcquire(contact : String) : Result
+    ' Result(Decision decision, Integer retryAfterSeconds) - Decision =
+    ' OK | THROTTLED. Rolling-window cap per NORMALIZED contact
+    ' (e-mail / E.164 phone), namespaced by the caller ("verify:" /
+    ' "register:") - the volume valve on real OTP sends + registration
+    ' attempts. In-memory per process (same single-instance constraint
+    ' as TokenBucketRateLimiter); the file-backed per-user daily cap is
+    ' the durable backstop. maxPerWindow <= 0 disables the cap.
   }
 
   class PendingVerification {
     - id : Long
+    - userId : Long
     - level : VerificationLevel
     - contact : String
     - codeHash : String
@@ -301,6 +348,15 @@ interface ShelterRepository {
   }
 }
 
+package "alerts" {
+  class ThrottleAlertRecorder {
+    ' In-memory (ring) throttle/abuse alert feed - cleared on restart;
+    ' served by GET /admin/alerts (05). The verification per-contact cap
+    ' hits and the channel-refused sends land here before the 429 / plain
+    ' ack goes out. No database.
+  }
+}
+
 ' ==================== THE BIRD RULE ====================
 GuestUser --|> User
 RegisteredUser --|> User
@@ -343,17 +399,21 @@ UserRepository ..> User : persists
 VerificationService --> VerificationProvider : dispatches by level
 VerificationService --> PendingVerification : creates / validates
 VerificationService --> VerificationClaim : creates / revokes
+VerificationService --> RollingContactOtpLimiter : per-contact rolling cap (atomic check-and-acquire)
+VerificationService ..> ThrottleAlertRecorder : cap-hit + channel-refusal alerts
 RegisteredUser ..> VerificationPolicy : canWrite() delegates
 ShelterService ..> User : checks canWrite() first
-ShelterService ..> Shelter : creates ACTIVE shelter (no moderation)
+ShelterService ..> Shelter : creates ACTIVE + review_status NEW shelter
 ShelterService ..> ShelterRepository
 ShelterRepository ..> Shelter : persists
 
 note bottom of Shelter
-  User submissions are created ACTIVE immediately - nothing to approve,
-  there is no moderator. Quality is governed by community reports +
-  confirmation (ReviewStatus on the shelter) instead. (ShelterStatus.
-  PENDING/REJECTED were removed in the review-fix pass.)
+  User submissions are created ACTIVE + review_status = NEW immediately -
+  nothing to approve, there is no blocking queue. Quality is governed by
+  community reports + confirmation (ReviewStatus on the shelter) and the
+  admin moderation surface (CONFIRM/REJECT, hide/restore - see
+  05-shelter-api.puml). (ShelterStatus itself is just ACTIVE / INACTIVE;
+  its PENDING/REJECTED values were removed in the review-fix pass.)
 end note
 
 note bottom of User
