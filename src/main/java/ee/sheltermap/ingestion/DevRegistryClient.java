@@ -29,7 +29,7 @@ public class DevRegistryClient implements ShelterRegistryClient {
 
     @Override
     public ShelterSource source() {
-        // The fixture mirrors the Päästeamet (Maa-amet WFS) dataset.
+        // The fixture mirrors the Päästeamet open-data CSV dataset.
         return ShelterSource.PAASETEAMET;
     }
 

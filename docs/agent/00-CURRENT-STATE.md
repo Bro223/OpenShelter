@@ -273,14 +273,14 @@ both tallies read their inputs from the same dismissed-excluded store query
   rejection" (`src/main/java/ee/sheltermap/ingestion/Lest97AxisOrder.java:25-28`). Each such
   row is logged individually and the run logs a loud aggregate with the first ids; the import
   counts the rejections as skipped and **retains (never delists) the stored rows**
-  (`src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:138-146,202-209`). Rows that
+  (`src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:118-126,182-189`). Rows that
   die in the parser are logged too — the log is the only record of that loss
-  (`src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:120-126`).
+  (`src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:100-106`).
 - **The Estonia bounds guard:** a placed point outside the Estonia bbox (lat 57.5–59.7, lng
   21.5–28.2 — a sanity check, not a hard geopolitical border) is rejected at the boundary
   that produced it, with the parser's own guard kept as the backstop for every source
   (`src/main/java/ee/sheltermap/domain/GeoPoint.java:7-10,22-24`;
-  `src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:196-199,219-225`).
+  `src/main/java/ee/sheltermap/ingestion/CsvRegistryClient.java:176-179,199-205`).
 
 ## 7. Recurring hazards — know these before you edit or run
 

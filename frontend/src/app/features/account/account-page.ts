@@ -73,13 +73,7 @@ interface PendingError {
  */
 @Component({
   selector: 'app-account-page',
-  imports: [
-    ReactiveFormsModule,
-    RouterLink,
-    BannerComponent,
-    ContributionsPanel,
-    TranslatePipe,
-  ],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, ContributionsPanel, TranslatePipe],
   templateUrl: './account-page.html',
   styleUrl: './account-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

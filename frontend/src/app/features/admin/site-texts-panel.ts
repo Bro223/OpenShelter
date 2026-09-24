@@ -15,6 +15,14 @@ import { SiteTextsGateway } from '../../gateways/site-texts-gateway';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import type { SiteTextEntryDto } from '../../core/models';
 
+/** The drafts a fetched override map implies: one value draft per
+    (key, locale) and one URL draft per link key (read from the `en`
+    row — the single stored URL per link, shared by all locales). */
+interface Drafts {
+  values: Record<string, string>;
+  urls: Record<string, string>;
+}
+
 /**
  * The admin Settings panel — the site texts (site_texts): the
  * admin-editable popup / header / footer texts, three languages.
@@ -116,29 +124,32 @@ export class SiteTextsPanel {
     this.siteTexts
       .fetch()
       .then((texts) => {
-        const values: Record<string, string> = {};
-        const urls: Record<string, string> = {};
-        if (texts) {
-          for (const locale of LOCALES) {
-            for (const [key, entry] of Object.entries(texts[locale] ?? {})) {
-              values[`${key}::${locale}`] = entry.value;
-              // The server stores the URL on the `en` row (one URL per
-              // link key, shared by all locales).
-              if (entry.url && locale === 'en') {
-                urls[key] = entry.url;
-              }
-            }
-          }
-        }
-        this.values.set(values);
-        this.urls.set(urls);
-        this.loaded.set(
-          texts ?? { en: {}, et: {}, ru: {} },
-        );
+        const drafts = this.draftsFrom(texts);
+        this.values.set(drafts.values);
+        this.urls.set(drafts.urls);
+        this.loaded.set(texts ?? { en: {}, et: {}, ru: {} });
       })
       .catch(() => {
         this.loadError.set(this.i18n.t('admin.siteTexts.loadError'));
       });
+  }
+
+  private draftsFrom(texts: SiteTextsByLocale | null): Drafts {
+    const values: Record<string, string> = {};
+    const urls: Record<string, string> = {};
+    if (texts) {
+      for (const locale of LOCALES) {
+        for (const [key, entry] of Object.entries(texts[locale] ?? {})) {
+          values[`${key}::${locale}`] = entry.value;
+          // The server stores the URL on the `en` row (one URL per link
+          // key, shared by all locales).
+          if (entry.url && locale === 'en') {
+            urls[key] = entry.url;
+          }
+        }
+      }
+    }
+    return { values, urls };
   }
 
   /** Diff the drafts against the loaded overrides and PUT only what
@@ -149,42 +160,11 @@ export class SiteTextsPanel {
     if (this.saving() || loaded === null) {
       return;
     }
-    // Client-side mirror of the server rule: a non-blank link URL must be
-    // https (the server enforces it too — this is the fast path).
-    for (const link of SITE_TEXT_LINK_KEYS) {
-      const draft = (this.urls()[link] ?? '').trim();
-      if (draft !== '' && !draft.startsWith('https://')) {
-        this.status.set({
-          ok: false,
-          message: this.i18n.t('admin.siteTexts.urlError'),
-        });
-        return;
-      }
+    if (!this.requireHttpsLinkUrls()) {
+      return;
     }
 
-    const entries: SiteTextEntryDto[] = [];
-    for (const locale of LOCALES) {
-      for (const key of SITE_TEXT_KEYS) {
-        const current = loaded[locale]?.[key]?.value ?? '';
-        const draft = this.values()[`${key}::${locale}`] ?? '';
-        if (draft !== current) {
-          entries.push({ key, locale, value: draft });
-        }
-      }
-    }
-    for (const link of SITE_TEXT_LINK_KEYS) {
-      const currentUrl = loaded.en?.[link]?.url ?? '';
-      const draftUrl = (this.urls()[link] ?? '').trim();
-      if (draftUrl !== currentUrl) {
-        entries.push({
-          key: link,
-          locale: 'en',
-          value: loaded.en?.[link]?.value ?? '',
-          url: draftUrl === '' ? '' : draftUrl,
-        });
-      }
-    }
-
+    const entries = [...this.changedValueEntries(loaded), ...this.changedUrlEntries(loaded)];
     if (entries.length === 0) {
       this.status.set({ ok: true, message: this.i18n.t('admin.siteTexts.noChanges') });
       return;
@@ -212,6 +192,57 @@ export class SiteTextsPanel {
       .finally(() => {
         this.saving.set(false);
       });
+  }
+
+  /** Client-side mirror of the server rule: a non-blank link URL must
+      be https (the server enforces it too — this is the fast path). */
+  private requireHttpsLinkUrls(): boolean {
+    for (const link of SITE_TEXT_LINK_KEYS) {
+      const draft = (this.urls()[link] ?? '').trim();
+      if (draft !== '' && !draft.startsWith('https://')) {
+        this.status.set({
+          ok: false,
+          message: this.i18n.t('admin.siteTexts.urlError'),
+        });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** The value edits: every (key, locale) whose draft differs from the
+      loaded override (a blank draft = the reset the server deletes). */
+  private changedValueEntries(loaded: SiteTextsByLocale): SiteTextEntryDto[] {
+    const entries: SiteTextEntryDto[] = [];
+    for (const locale of LOCALES) {
+      for (const key of SITE_TEXT_KEYS) {
+        const current = loaded[locale]?.[key]?.value ?? '';
+        const draft = this.values()[`${key}::${locale}`] ?? '';
+        if (draft !== current) {
+          entries.push({ key, locale, value: draft });
+        }
+      }
+    }
+    return entries;
+  }
+
+  /** The URL edits: one per link key whose draft differs from the
+      stored URL, sent on the `en` row (the single stored URL). */
+  private changedUrlEntries(loaded: SiteTextsByLocale): SiteTextEntryDto[] {
+    const entries: SiteTextEntryDto[] = [];
+    for (const link of SITE_TEXT_LINK_KEYS) {
+      const currentUrl = loaded.en?.[link]?.url ?? '';
+      const draftUrl = (this.urls()[link] ?? '').trim();
+      if (draftUrl !== currentUrl) {
+        entries.push({
+          key: link,
+          locale: 'en',
+          value: loaded.en?.[link]?.value ?? '',
+          url: draftUrl,
+        });
+      }
+    }
+    return entries;
   }
 
   /** The override map the drafts imply (only non-blank values, the URL

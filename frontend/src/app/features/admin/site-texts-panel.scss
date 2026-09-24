@@ -22,13 +22,6 @@
   }
 }
 
-.site-texts-actions {
-  /* The save row follows the last translations block: a top margin puts the
-     gap on the element below it, where nothing can collapse it away or
-     absorb it into a parent's gap. Token-based, like the rest of this file. */
-  margin-top: var(--space-16);
-}
-
 .site-texts-row {
   display: flex;
   flex-wrap: wrap;
@@ -104,8 +97,10 @@
 
 /* The save row is the button-row role: space-8 everywhere a row of
    buttons wraps (the panel actions, the admin action rows, the picker
-   rows). This was the one space-12 holdout outside the dialog footers. */
+   rows). The top margin puts the gap on the element below it, where
+   nothing can collapse it away or absorb it into a parent's gap. */
 .site-texts-actions {
+  margin-top: var(--space-16);
   display: flex;
   align-items: center;
   justify-content: flex-end;

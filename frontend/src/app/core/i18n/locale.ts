@@ -19,6 +19,19 @@ export const LOCALES: readonly Locale[] = ['en', 'et', 'ru'];
  */
 export const MONTH_ABBREVS: Record<Locale, readonly string[]> = {
   en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-  et: ['jaan', 'veebr', 'märts', 'apr', 'mai', 'juuni', 'juuli', 'aug', 'sept', 'okt', 'nov', 'dets'],
+  et: [
+    'jaan',
+    'veebr',
+    'märts',
+    'apr',
+    'mai',
+    'juuni',
+    'juuli',
+    'aug',
+    'sept',
+    'okt',
+    'nov',
+    'dets',
+  ],
   ru: ['янв', 'февр', 'март', 'апр', 'мая', 'июн', 'июл', 'авг', 'сент', 'окт', 'нояб', 'дек'],
 };

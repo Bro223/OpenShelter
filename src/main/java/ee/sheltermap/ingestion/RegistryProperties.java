@@ -11,7 +11,8 @@ import java.time.Duration;
  * @param pageSize       rows per page request (vestigial — the WFS client
  *                       that paged was removed with its dead upstream)
  * @param maxRetries     retries after the initial attempt (0 = no retry)
- * @param politenessDelay sleep between page requests (never hammer a public service)
+ * @param politenessDelay sleep between page requests (vestigial — the bulk
+ *                       CSV client makes one request per run)
  * @param client         which {@code ShelterRegistryClient} bean to use: {@code csv} (default, official open-data CSV) or {@code dev} (fixture). The closed vocabulary is enforced at bind time — anything else fails the boot with a clear message (fail-closed, no silent fallback).
  * @param officialUrl    the publisher's open-data page, shown on the UI's provenance line
  * @param scheduleEnabled whether the weekly {@code @Scheduled} sync is active

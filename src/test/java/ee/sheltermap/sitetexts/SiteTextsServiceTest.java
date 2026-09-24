@@ -4,10 +4,16 @@ import ee.sheltermap.domain.SiteText;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Unit tests for {@link SiteTextsService} (site_texts): the closed
  * allowlist (unknown key/locale refused, the set itself pinned against
- * the frontend's list), the value cap, the URL rules (link keys only,
- * https only, en row only), blank = delete, last-wins dedupe and the
- * batch cap. A plain in-memory fake stands in for the seam.
+ * the frontend's list — names included), the value cap, the URL rules
+ * (link keys only, https only, en row only), blank = delete, last-wins
+ * dedupe and the batch cap. A plain in-memory fake stands in for the seam.
  */
 class SiteTextsServiceTest {
 
@@ -85,6 +91,23 @@ class SiteTextsServiceTest {
                 .allSatisfy(key -> assertThat(SiteTextKeys.FOOTER_KEYS).contains(key));
         assertThat(SiteTextKeys.KEYS)
                 .allMatch(key -> key.matches("[a-zA-Z][a-zA-Z0-9]*(\\.[a-zA-Z0-9]+)+"));
+
+        // The key NAMES are the frontend's, block for block: a key added
+        // or renamed on one side and not the other fails the build here.
+        String frontend = readFrontendAllowlist();
+        assertThat(SiteTextKeys.POPUP_KEYS).containsExactlyInAnyOrderElementsOf(
+                keysOf(frontend, "SITE_TEXT_POPUP_KEYS"));
+        assertThat(SiteTextKeys.HEADER_KEYS).containsExactlyInAnyOrderElementsOf(
+                keysOf(frontend, "SITE_TEXT_HEADER_KEYS"));
+        assertThat(SiteTextKeys.FOOTER_KEYS).containsExactlyInAnyOrderElementsOf(
+                keysOf(frontend, "SITE_TEXT_FOOTER_KEYS"));
+        assertThat(SiteTextKeys.LINK_KEYS).containsExactlyInAnyOrderElementsOf(
+                keysOf(frontend, "SITE_TEXT_LINK_KEYS"));
+        // The union of the three blocks is the whole allowlist.
+        assertThat(SiteTextKeys.KEYS).containsExactlyInAnyOrderElementsOf(union(
+                keysOf(frontend, "SITE_TEXT_POPUP_KEYS"),
+                keysOf(frontend, "SITE_TEXT_HEADER_KEYS"),
+                keysOf(frontend, "SITE_TEXT_FOOTER_KEYS")));
     }
 
     @Test
@@ -222,5 +245,66 @@ class SiteTextsServiceTest {
         service.update(null);
         assertThat(service.getAll().values())
                 .allSatisfy(map -> assertThat(map).isEmpty());
+    }
+
+    /* --- the frontend-file pin's file access -------------------------------- */
+
+    /** The frontend's allowlist (the server-side twin's source of truth
+        for the key names). */
+    private static String readFrontendAllowlist() {
+        Path file = repoRoot().resolve("frontend/src/app/core/i18n/site-texts.ts");
+        try {
+            return Files.readString(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new AssertionError(
+                    "Cannot read the frontend allowlist " + file
+                            + " — the lockstep pin cannot run", e);
+        }
+    }
+
+    /** The repo root — the test walks up from the working directory to
+        the pom.xml (the same idiom as the vocabulary guard, so it also
+        works from an IDE run). */
+    private static Path repoRoot() {
+        Path workingDirectory = Path.of("").toAbsolutePath();
+        for (Path candidate = workingDirectory; candidate != null; candidate = candidate.getParent()) {
+            if (Files.isRegularFile(candidate.resolve("pom.xml"))) {
+                return candidate;
+            }
+        }
+        throw new AssertionError("No pom.xml found above " + workingDirectory
+                + " — the pin must run from inside the repo (the Maven build does)");
+    }
+
+    /** The key literals of one {@code as const} array in the frontend
+        file. A loud failure when the shape changes: a guard that cannot
+        find its array must not pass. */
+    private static List<String> keysOf(String source, String constantName) {
+        int start = source.indexOf(constantName + ": readonly SiteTextKey[] = [");
+        if (start < 0) {
+            throw new AssertionError("Frontend allowlist array not found: " + constantName);
+        }
+        int open = source.indexOf('[', start) + 1;
+        int close = source.indexOf("] as const;", open);
+        if (close < 0) {
+            throw new AssertionError("Frontend allowlist array not closed: " + constantName);
+        }
+        List<String> keys = new ArrayList<>();
+        Matcher match = Pattern.compile("'([^']+)'").matcher(source.substring(open, close));
+        while (match.find()) {
+            keys.add(match.group(1));
+        }
+        if (keys.isEmpty()) {
+            throw new AssertionError("No keys extracted from " + constantName);
+        }
+        return keys;
+    }
+
+    private static List<String> union(List<String> popup, List<String> header,
+                                      List<String> footer) {
+        List<String> all = new ArrayList<>(popup);
+        all.addAll(header);
+        all.addAll(footer);
+        return all;
     }
 }

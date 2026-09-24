@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 /**
  * Extracts the first coordinate pair from a map URL — the backend mirror
  * of the frontend {@code shared/location-input.ts} pattern list
- * (shelter-location-input, design decision 4). Both parsers are unit
+ * (shelter-location-input). Both parsers are unit
  * tested against the same fixture table ({@code MapsUrlCoordinatesTest}
  * and the frontend spec) so a pinned location can never drift between
  * the two sides.
@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * {@code ?ll=}, Bing {@code bing.com/maps?q=}), then the Google share
  * path {@code !3d…!4d…}, then {@code /@lat,lng} (with an optional
  * {@code ,zoomz} suffix), then the Google search path
- * {@code /search/lat(+|,)lng} (the 2026-09 {@code maps.app.goo.gl}
+ * {@code /search/lat(+|,)lng} (the current {@code maps.app.goo.gl}
  * redirect target), then the generic first decimal pair anywhere
  * in the URL. A coordinate-carrying segment written with an Estonian
  * decimal comma ({@code 58,25} — a comma decimal with no point decimal in
@@ -47,7 +47,7 @@ public final class MapsUrlCoordinates {
     private static final Pattern AT_PAIR = Pattern.compile(
             "/@(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)(?:,\\d+(?:\\.\\d+)?z)?");
 
-    /** Google search path (the 2026-09 {@code maps.app.goo.gl} redirect
+    /** Google search path (the current {@code maps.app.goo.gl} redirect
      *  target): {@code /search/58.999669,+27.289732} — comma and/or plus
      *  (a URL-encoded space) as the separator — or the comma form
      *  {@code /search/59.437,24.753}. Only the raw path forms are matched;

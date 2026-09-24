@@ -35,12 +35,10 @@ export class ApiClient {
    */
   getWithHeaders<T>(path: string): Observable<{ body: T; headers: HttpHeaders }> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
-    return this.http
-      .request<T>('GET', url, { observe: 'response' })
-      .pipe(
-        map((response: HttpResponse<T>) => ({ body: response.body as T, headers: response.headers })),
-        catchError((error: unknown) => throwError(() => toApiError(error))),
-      );
+    return this.http.request<T>('GET', url, { observe: 'response' }).pipe(
+      map((response: HttpResponse<T>) => ({ body: response.body as T, headers: response.headers })),
+      catchError((error: unknown) => throwError(() => toApiError(error))),
+    );
   }
 
   post<T>(path: string, body?: unknown): Observable<T> {

@@ -26,14 +26,12 @@ import java.nio.charset.StandardCharsets;
  * Bulk-CSV client for the official Päästeamet shelter dataset
  * (official-dataset-csv).
  *
- * <p>The old Maa-amet WFS layer ({@code 1pdl2oh}) no longer publishes a
- * service ("Ei ole saadaval" — every WFS request 404s), so the official
- * source is the open-data CSV at {@code https://opendata.smit.ee/gis/varjumiskohad.csv}
- * (semicolon-separated, header {@code id;nimi;aadress;lest_x;lest_y},
- * EPSG:3301 coordinates — the existing {@link LEst97Transformer} applies
- * unchanged). One bulk download replaces the WFS page walk; the politeness
- * delay, transient-only retries with exponential backoff, and the
- * deterministic-4xx-no-retry rule carry over.
+ * <p>One bulk download per run from
+ * {@code https://opendata.smit.ee/gis/varjumiskohad.csv} (semicolon-separated,
+ * header {@code id;nimi;aadress;lest_x;lest_y}, EPSG:3301 coordinates —
+ * {@link LEst97Transformer} applies). Transient-only retries with
+ * exponential backoff; a deterministic 4xx (URL gone, forbidden…) never
+ * succeeds on retry, so it fails fast without burning the retry budget.
  *
  * <p>Versioning: the dataset publishes no version field, so the upstream
  * HTTP {@code Last-Modified} (fallback: {@code ETag}) stamps every row's
@@ -86,13 +84,7 @@ public class CsvRegistryClient implements ShelterRegistryClient {
 
     @Override
     public RegistryFetch fetch() {
-        // If-Modified-Since: the previous run's version stamp (data_imports).
-        // Only an HTTP-date stamp is reusable as If-Modified-Since; an ETag
-        // stamp just means "we cannot ask for a 304 this run".
-        String lastVersion = importLog == null ? null
-                : importLog.findLatestBySource(source().name())
-                        .map(DataImportLog.Row::sourceVersion)
-                        .orElse(null);
+        String lastVersion = previousVersionStamp();
         String ifModifiedSince = parseHttpDate(lastVersion);
 
         ResponseEntity<byte[]> response = download(ifModifiedSince);
@@ -104,19 +96,7 @@ public class CsvRegistryClient implements ShelterRegistryClient {
         String version = versionOf(response.getHeaders());
         String dataAsOf = dataAsOfOf(response.getHeaders());
 
-        RegistryCsvParser.Parsed parsed;
-        try {
-            // The file is UTF-8 (Estonian diacritics) but is served as
-            // application/octet-stream with no charset — decode explicitly.
-            String body = response.getBody() == null ? null
-                    : new String(response.getBody(), StandardCharsets.UTF_8);
-            parsed = RegistryCsvParser.parse(body);
-        } catch (IllegalArgumentException e) {
-            // A wrong header means the URL no longer serves the dataset —
-            // deterministic, retrying cannot help.
-            throw new RegistryUnavailableException(
-                    "Registry CSV rejected: " + e.getMessage(), e);
-        }
+        RegistryCsvParser.Parsed parsed = parseBody(response.getBody());
         if (parsed.dropped() > 0) {
             // Not visible in the import's skipped count (the parser never
             // saw these rows) — the log is the only record of the loss.
@@ -223,12 +203,12 @@ public class CsvRegistryClient implements ShelterRegistryClient {
                     row.lestX(), row.lestY());
             return null;
         }
-        String[] segments = splitAddress(row.address());
+        AddressSegments segments = splitAddress(row.address());
         return new RegistryShelterDto(
                 row.externalId(), row.name(), row.address(),
                 latitude, longitude,
                 null, false,          // the CSV publishes no capacity/accessibility
-                segments[0], segments[1],
+                segments.county(), segments.municipality(),
                 dataAsOf, SOURCE_NAME);
     }
 
@@ -237,11 +217,14 @@ public class CsvRegistryClient implements ShelterRegistryClient {
      * segment 1 is the county, segment 2 the municipality (the WFS-era
      * MK/OV attributes have no CSV equivalent).
      */
-    private static String[] splitAddress(String address) {
+    private static AddressSegments splitAddress(String address) {
         String[] parts = address.split(",");
-        String county = parts.length >= 1 ? parts[0].trim() : null;
-        String municipality = parts.length >= 2 ? parts[1].trim() : null;
-        return new String[]{county, municipality};
+        return new AddressSegments(parts[0].trim(),
+                parts.length >= 2 ? parts[1].trim() : null);
+    }
+
+    /** The county (segment 1) and municipality (segment 2) of an aadress. */
+    private record AddressSegments(String county, String municipality) {
     }
 
     /** The upstream stamp: Last-Modified as published, else the ETag. */
@@ -286,6 +269,37 @@ public class CsvRegistryClient implements ShelterRegistryClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RegistryUnavailableException("Interrupted while waiting between registry calls", e);
+        }
+    }
+
+    /**
+     * The previous run's version stamp (data_imports), or null when there is
+     * none. Only an HTTP-date stamp is reusable as If-Modified-Since; an ETag
+     * stamp just means "we cannot ask for a 304 this run" — parseHttpDate
+     * returns null for it.
+     */
+    private String previousVersionStamp() {
+        if (importLog == null) {
+            return null;
+        }
+        return importLog.findLatestBySource(source().name())
+                .map(DataImportLog.Row::sourceVersion)
+                .orElse(null);
+    }
+
+    /**
+     * Decodes and parses the CSV body. The file is UTF-8 (Estonian
+     * diacritics) but is served as application/octet-stream with no
+     * charset — decode explicitly. A rejected header means the URL no
+     * longer serves the dataset — deterministic, retrying cannot help.
+     */
+    private static RegistryCsvParser.Parsed parseBody(byte[] body) {
+        String csv = body == null ? null : new String(body, StandardCharsets.UTF_8);
+        try {
+            return RegistryCsvParser.parse(csv);
+        } catch (IllegalArgumentException e) {
+            throw new RegistryUnavailableException(
+                    "Registry CSV rejected: " + e.getMessage(), e);
         }
     }
 }

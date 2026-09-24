@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
  * {@code POST /api/geo/resolve} body (shelter-location-input).
  *
  * <p>{@code url} is expected to be a {@code maps.app.goo.gl} short link —
- * the only host the client ever sends (design decision 4). The
+ * the only host the client ever sends. The
  * http(s)-scheme and host-whitelist checks happen in
  * {@code app.LocationResolveService}; anything else is one generic 400
  * (no enumeration of failure reasons).

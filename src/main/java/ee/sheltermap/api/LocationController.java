@@ -36,15 +36,9 @@ import java.util.Set;
  * endpoints — keys via {@link ClientIps}, X-Forwarded-For aware. The
  * host whitelist, the ≤3-hop redirect walk and the bbox-gated
  * coordinate extraction live in {@link LocationResolveService}; this
- * class only maps its outcome:
- * <ul>
- *   <li>200 {@code {latitude, longitude}} — the frontend contract;</li>
- *   <li>400 ONE generic message — invalid input / no pair / outside
- *       Estonia (no enumeration);</li>
- *   <li>429 — per-IP bucket empty;</li>
- *   <li>502 ONE generic retry-later message — upstream
- *       timeout/network/server failure (no upstream detail).</li>
- * </ul>
+ * class only maps its outcome to the 200/400/429/502 contract in the
+ * OpenAPI annotations (one generic 400, one generic 502 — no
+ * enumeration of the reason).
  */
 @Tag(name = "Geo",
         description = "The short-link resolver (shelter-location-input). "
@@ -70,7 +64,6 @@ public class LocationController {
         this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
     }
 
-    /** Resolves a {@code maps.app.goo.gl} short link to coordinates (see class docs). */
     @PostMapping("/resolve")
     @Operation(summary = "Resolve a maps short link to coordinates",
             description = "Resolves a maps.app.goo.gl short link: 200 "
@@ -94,11 +87,17 @@ public class LocationController {
     })
     public LocationResolvedDto resolve(@Valid @RequestBody LocationResolveRequest request,
                                        HttpServletRequest http) {
-        RateLimiter.Result result = geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
-        if (!result.acquired()) {
-            throw new RateLimitExceededException(result.retryAfterSeconds());
+        RateLimiter.Result permit =
+                geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
+        if (!permit.acquired()) {
+            throw new RateLimitExceededException(permit.retryAfterSeconds());
         }
-        LocationResolveService.Outcome outcome = resolveService.resolve(request.url());
+        return toResponse(resolveService.resolve(request.url()));
+    }
+
+    /** Maps the sealed outcome to the HTTP contract — the one generic 400
+     *  and the one generic 502 (no enumeration of the reason). */
+    private static LocationResolvedDto toResponse(LocationResolveService.Outcome outcome) {
         return switch (outcome) {
             case LocationResolveService.Outcome.Resolved resolved ->
                     new LocationResolvedDto(resolved.latitude(), resolved.longitude());

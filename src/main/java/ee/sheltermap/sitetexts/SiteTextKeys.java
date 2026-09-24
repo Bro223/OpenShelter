@@ -1,5 +1,6 @@
 package ee.sheltermap.sitetexts;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -75,7 +76,7 @@ public final class SiteTextKeys {
     public static final int MAX_ENTRIES_PER_REQUEST = 200;
 
     static {
-        var all = new java.util.HashSet<String>();
+        var all = new HashSet<String>();
         all.addAll(POPUP_KEYS);
         all.addAll(HEADER_KEYS);
         all.addAll(FOOTER_KEYS);

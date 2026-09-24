@@ -752,7 +752,9 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
     try {
       const request = this.buildRequest();
       const result =
-        editId === null ? await this.gateway.create(request) : await this.gateway.update(editId, request);
+        editId === null
+          ? await this.gateway.create(request)
+          : await this.gateway.update(editId, request);
       // No navigation: the row is public NOW (an edit keeps the row's
       // status, so a published shelter stays published) — the success
       // panel links to the (already live) detail page.

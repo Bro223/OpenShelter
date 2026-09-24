@@ -13,7 +13,8 @@ import java.util.List;
  * header {@code id;nimi;aadress;lest_x;lest_y}, fields double-quoted in the
  * live file (addresses contain commas — the delimiter is the semicolon,
  * never the comma). The header is validated quote-aware, so the same five
- * column names are accepted whether or not the fields are quoted. Coordinates are EPSG:3301 (L-EST97) meters; the mapping to WGS84
+ * column names are accepted whether or not the fields are quoted.
+ * Coordinates are EPSG:3301 (L-EST97) meters; the mapping to WGS84
  * happens in the client via {@link LEst97Transformer}.
  *
  * <p>Malformed ROWS are dropped and counted (the import's "skipped"
@@ -55,11 +56,29 @@ public final class RegistryCsvParser {
         if (text.startsWith("\uFEFF")) { // UTF-8 BOM
             text = text.substring(1);
         }
-        String[] lines = text.split("\r?\n");
         List<Row> rows = new ArrayList<>();
         int dropped = 0;
+        for (String line : dataLinesAfterHeader(text)) {
+            Row row = toRow(splitFields(line));
+            if (row == null) {
+                dropped++;
+            } else {
+                rows.add(row);
+            }
+        }
+        return new Parsed(List.copyOf(rows), dropped);
+    }
+
+    /**
+     * The non-blank data lines after the header. The first non-blank line
+     * must be the expected header — a wrong or truncated one throws (the
+     * file is not the dataset, so the run must fail deterministically);
+     * blank lines before the header and between rows are ignored.
+     */
+    private static List<String> dataLinesAfterHeader(String text) {
+        List<String> data = new ArrayList<>();
         boolean headerSeen = false;
-        for (String line : lines) {
+        for (String line : text.split("\r?\n")) {
             if (line.isBlank()) {
                 continue;
             }
@@ -71,18 +90,9 @@ public final class RegistryCsvParser {
                 headerSeen = true;
                 continue;
             }
-            List<String> fields = splitFields(line);
-            Row row = toRow(fields);
-            if (row == null) {
-                dropped++;
-            } else {
-                rows.add(row);
-            }
+            data.add(line);
         }
-        if (text.strip().isEmpty()) {
-            return new Parsed(List.of(), 0);
-        }
-        return new Parsed(List.copyOf(rows), dropped);
+        return data;
     }
 
     /**
@@ -137,9 +147,9 @@ public final class RegistryCsvParser {
         if (fields.size() != 5) {
             return null;
         }
-        String id = fields.get(0) == null ? "" : fields.get(0).trim();
-        String name = fields.get(1) == null ? "" : fields.get(1).trim();
-        String address = fields.get(2) == null ? "" : fields.get(2).trim();
+        String id = fields.get(0).trim();
+        String name = fields.get(1).trim();
+        String address = fields.get(2).trim();
         if (id.isEmpty() || name.isEmpty() || address.isEmpty()) {
             return null; // no id cannot dedupe/delist; blank name/address are unusable
         }
@@ -152,9 +162,6 @@ public final class RegistryCsvParser {
     }
 
     private static double parseCoordinate(String raw) {
-        if (raw == null) {
-            return Double.NaN;
-        }
         try {
             double value = Double.parseDouble(raw.trim());
             return Double.isFinite(value) ? value : Double.NaN;

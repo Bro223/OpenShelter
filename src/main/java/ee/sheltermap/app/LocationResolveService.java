@@ -13,7 +13,7 @@ import java.util.function.LongSupplier;
 
 /**
  * Resolves {@code maps.app.goo.gl} short links to coordinates
- * (shelter-location-input, design decision 4).
+ * (shelter-location-input).
  *
  * <p>The resolver is deliberately narrow:
  * <ul>
@@ -24,16 +24,16 @@ import java.util.function.LongSupplier;
  *       upgraded to {@code https} — Google does exactly this on the first
  *       hop anyway, and without the upgrade a legitimate pasted
  *       {@code http://…} link would be rejected by the no-scheme-change hop
- *       rule below (a 502 for a valid link; the FE passes user URLs raw) —
- *       and any pasted {@code user:pass@} userInfo is DROPPED so it can
- *       never be transmitted to Google as an {@code Authorization: Basic}
- *       header. The https-only enforcement on HOPS is unchanged;</li>
+ *       rule below (a 502 for a valid link; the frontend passes user URLs
+ *       raw) — and any pasted {@code user:pass@} userInfo is DROPPED so it
+ *       can never be transmitted to Google as an {@code Authorization:
+ *       Basic} header;</li>
  *   <li>≤3 redirect hops, followed manually — the {@link RedirectClient}
  *       never auto-follows, so the service reads each {@code Location}
  *       header and counts the hop itself. EVERY hop target is re-validated
- *       BEFORE it is fetched: an {@code http} or {@code https} scheme (and
- *       the same scheme as the URL it was resolved from — no mid-walk
- *       scheme change), the default port, and a Google host (exactly
+ *       BEFORE it is fetched: an {@code https} scheme (the walk is pinned
+ *       to the normalized entry's scheme — no mid-walk scheme change), the
+ *       default port, and a Google host (exactly
  *       {@code maps.app.goo.gl} or a {@code google.com} host — the real
  *       chain runs {@code maps.app.goo.gl → maps.google.com →
  *       www.google.com}, so the re-check is a host set, not a single
@@ -58,7 +58,7 @@ import java.util.function.LongSupplier;
 @Service
 public class LocationResolveService {
 
-    /** The only host the client ever sends (design decision 4). */
+    /** The only host the client ever sends. */
     public static final String WHITELISTED_HOST = "maps.app.goo.gl";
 
     /** At most this many redirects are followed; the pair is read from
@@ -95,57 +95,91 @@ public class LocationResolveService {
      * @return a sealed outcome — never null
      */
     public Outcome resolve(String url) {
-        URI start;
-        try {
-            start = URI.create(url);
-        } catch (IllegalArgumentException e) {
+        String entry = validEntry(url);
+        if (entry == null) {
             return Outcome.NotFound.INSTANCE;
         }
-        if (!isHttpScheme(start.getScheme())
-                || !WHITELISTED_HOST.equalsIgnoreCase(start.getHost())
-                || start.getPort() != -1) {
-            // entry violation — generic 400, nothing is fetched
-            return Outcome.NotFound.INSTANCE;
+        String finalUrl = followRedirects(entry);
+        if (finalUrl == null) {
+            return Outcome.UpstreamFailure.INSTANCE;
         }
-
-        String current = normalizeEntry(start);
-        String currentScheme = "https";
-        long deadlineNanos = monotonicNanos.getAsLong() + budget.toNanos();
-
-        for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
-            if (monotonicNanos.getAsLong() >= deadlineNanos) {
-                // the walk is over budget — a stalled upstream, not bad input
-                return Outcome.UpstreamFailure.INSTANCE;
-            }
-            RedirectClient.RedirectHop next;
-            try {
-                next = redirectClient.fetch(current);
-            } catch (IOException | ClassCastException | IllegalArgumentException e) {
-                // timeout / connection failure / unfetchable target — no
-                // upstream detail leaks out
-                return Outcome.UpstreamFailure.INSTANCE;
-            }
-            if (!next.isRedirect()) {
-                if (next.status() >= 500) {
-                    // the short-link service itself is failing — retry later
-                    return Outcome.UpstreamFailure.INSTANCE;
-                }
-                break; // terminal response — the fetched URL is final
-            }
-            // Re-validate the hop target BEFORE fetching it: a malformed or
-            // non-Google Location is an upstream failure, never a fetch.
-            String target = validatedHopTarget(current, currentScheme, next.location());
-            if (target == null) {
-                return Outcome.UpstreamFailure.INSTANCE;
-            }
-            current = target;
-        }
-
-        GeoPoint point = MapsUrlCoordinates.extract(current);
+        GeoPoint point = MapsUrlCoordinates.extract(finalUrl);
         if (point == null) {
             return Outcome.NotFound.INSTANCE;
         }
         return new Outcome.Resolved(point.lat(), point.lng());
+    }
+
+    /**
+     * The normalized entry URL, or {@code null} when the entry is
+     * rejected — an unparseable URL, a non-http(s) scheme, a
+     * non-whitelisted host, or a non-default port (all map to the generic
+     * 400; nothing is fetched).
+     */
+    private static String validEntry(String url) {
+        URI start;
+        try {
+            start = URI.create(url);
+        } catch (IllegalArgumentException e) {
+            return null; // unparseable — generic 400
+        }
+        if (!isHttpScheme(start.getScheme())
+                || !WHITELISTED_HOST.equalsIgnoreCase(start.getHost())
+                || start.getPort() != -1) {
+            return null; // entry violation — generic 400, nothing is fetched
+        }
+        return normalizeEntry(start);
+    }
+
+    /**
+     * Follows the redirect chain from the normalized entry, re-validating
+     * every hop target before it is fetched.
+     *
+     * @return the URL the chain stops at (the pair is read from it — the
+     *         terminal response's URL, or the hop cap), or {@code null}
+     *         when the walk fails — budget expiry, a fetch error, a 5xx
+     *         terminal response, or a disallowed hop target (all map to
+     *         the generic 502)
+     */
+    private String followRedirects(String entryUrl) {
+        long deadlineNanos = monotonicNanos.getAsLong() + budget.toNanos();
+        String current = entryUrl;
+        for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
+            if (budgetExhausted(deadlineNanos)) {
+                return null; // over budget — a stalled upstream, not bad input
+            }
+            RedirectClient.RedirectHop next = fetch(current);
+            if (next == null) {
+                return null; // timeout / network / unfetchable — no detail leaks out
+            }
+            if (!next.isRedirect()) {
+                if (next.status() >= 500) {
+                    return null; // the short-link service itself is failing — retry later
+                }
+                return current; // terminal response — the fetched URL is final
+            }
+            String target = validatedHopTarget(current, next.location());
+            if (target == null) {
+                return null; // the hop is disallowed — never fetched
+            }
+            current = target;
+        }
+        return current; // the hop cap is reached — the pair is read from this URL
+    }
+
+    /** The next hop, or {@code null} when the fetch itself fails (the
+     *  generic 502 — no upstream detail leaks out). */
+    private RedirectClient.RedirectHop fetch(String url) {
+        try {
+            return redirectClient.fetch(url);
+        } catch (IOException | ClassCastException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** True when the walk's monotonic deadline has passed. */
+    private boolean budgetExhausted(long deadlineNanos) {
+        return monotonicNanos.getAsLong() >= deadlineNanos;
     }
 
     /**
@@ -178,26 +212,25 @@ public class LocationResolveService {
     }
 
     /**
-     * Resolves a {@code Location} header against the URL that carried it and
-     * re-validates the result against the Google hop policy.
+     * Resolves a {@code Location} header against the URL that carried it
+     * and re-validates the result against the hop policy: an
+     * {@code https} scheme (the walk is pinned to the entry's scheme — no
+     * mid-walk scheme change), the default port, and a Google host
+     * ({@code maps.app.goo.gl} or a {@code google.com} host).
      *
-     * @return the absolute target URL, or {@code null} when the Location is
-     *         malformed or the target is not an allowed Google hop
-     *         (an {@code http} or {@code https} scheme equal to the base
-     *         URL's scheme, default port, {@code maps.app.goo.gl} or a
-     *         {@code google.com} host)
+     * @return the absolute target URL, or {@code null} when the Location
+     *         is malformed or the target is not an allowed hop — a
+     *         disallowed target is never fetched
      */
-    private static String validatedHopTarget(String current, String currentScheme, String location) {
+    private static String validatedHopTarget(String current, String location) {
         URI target;
         try {
             target = URI.create(current).resolve(location);
         } catch (IllegalArgumentException e) {
             return null; // malformed Location — treat as upstream failure
         }
-        String scheme = target.getScheme();
-        if (!isHttpScheme(scheme) || !scheme.toLowerCase(Locale.ROOT).equals(currentScheme)) {
-            // non-http(s) scheme (file:, ftp:, …) or a mid-walk scheme change
-            return null;
+        if (!"https".equalsIgnoreCase(target.getScheme())) {
+            return null; // the walk is pinned to https — a scheme change is disallowed
         }
         if (target.getPort() != -1) {
             return null; // Google serves on the default port only

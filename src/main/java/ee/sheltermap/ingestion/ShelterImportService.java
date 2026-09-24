@@ -29,8 +29,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <ul>
  *   <li>existing {@code externalId} → <b>update</b>, new → <b>create</b>;</li>
- *   <li>registry rows missing from the latest fetch → <b>delete</b>
- *       ({@code source = REGISTRY} only — USER rows are sacred and never touched);</li>
+ *   <li>registry rows missing from the latest fetch → <b>delete</b>, but only
+ *       the source this run actually fetched — USER rows are sacred and
+ *       never touched, and a source without a fetcher keeps its rows;</li>
  *   <li>malformed rows are skipped and counted ({@code skipped}), as are
  *       intra-fetch duplicate {@code externalId}s;</li>
  *   <li>registry down → {@code ImportResult} with {@code failed = 1}, no crash.</li>
@@ -86,61 +87,76 @@ public class ShelterImportService {
     public ImportResult importFromRegistry() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Registry import already running — skipping overlapping run");
-            ImportResult result = ImportResult.skipped(clock.instant());
-            recordAudit(result, "SKIPPED", null);
-            return result;
+            ImportResult skipped = ImportResult.skipped(clock.instant());
+            recordAudit(skipped, "SKIPPED", null);
+            return skipped;
         }
+        Instant at = clock.instant();
         try {
-            Instant at = clock.instant();
-            try {
-                RegistryFetch fetched = client.fetch();
-                if (fetched.notModified()) {
-                    // 304: the local copy already is the latest — apply
-                    // nothing (a delist over an empty set would wipe the
-                    // source) and do not count it as a failure.
-                    ImportResult result = new ImportResult(0, 0, 0, 0, 0, at, false,
-                            fetched.dataVersion());
-                    recordAudit(result, "NOT_MODIFIED", null);
-                    log.info("Registry import: upstream unchanged ({}), nothing to apply",
-                            fetched.dataVersion());
-                    return result;
-                }
-                List<RegistryShelterDto> dtos = fetched.rows();
-                // Per-row length pre-check BEFORE the single apply
-                // transaction. An oversized value would abort the whole
-                // single-transaction import at the DB; the documented
-                // contract is "skipped and counted, never fatal".
-                List<RegistryShelterDto> fitting = new ArrayList<>(dtos.size());
-                int oversize = 0;
-                for (RegistryShelterDto dto : dtos) {
-                    if (fitsColumnLimits(dto)) {
-                        fitting.add(dto);
-                    } else {
-                        oversize++;
-                    }
-                }
-                if (oversize > 0) {
-                    log.warn("Registry import dropped {} row(s) exceeding column limits "
-                                    + "(name<=255, externalId<=128, address<=512, "
-                                    + "county/municipality<=255, dataAsOf<=32, "
-                                    + "sourceAttribution<=255) — counted as skipped",
-                            oversize);
-                }
-                ImportResult result = applyImport(dtos, fitting, oversize, at,
-                        fetched.rejectedExternalIds(), fetched.dataVersion());
-                log.info("Registry import finished: created={} updated={} removed={} skipped={} failed={}",
-                        result.created(), result.updated(), result.removed(), result.skipped(), result.failed());
-                recordAudit(result, "OK", null);
-                return result;
-            } catch (RegistryUnavailableException e) {
-                log.error("Registry import failed", e);
-                ImportResult result = ImportResult.failure(at);
-                recordAudit(result, "FAILED", e.getMessage());
+            RegistryFetch fetched = client.fetch();
+            if (fetched.notModified()) {
+                // 304: the local copy already is the latest — apply
+                // nothing (a delist over an empty set would wipe the
+                // source) and do not count it as a failure.
+                ImportResult result = new ImportResult(0, 0, 0, 0, 0, at, false,
+                        fetched.dataVersion());
+                log.info("Registry import: upstream unchanged ({}), nothing to apply",
+                        fetched.dataVersion());
+                recordAudit(result, "NOT_MODIFIED", null);
                 return result;
             }
+            ImportResult result = applyFetched(fetched, at);
+            log.info("Registry import finished: created={} updated={} removed={} skipped={} failed={}",
+                    result.created(), result.updated(), result.removed(), result.skipped(), result.failed());
+            recordAudit(result, "OK", null);
+            return result;
+        } catch (RegistryUnavailableException e) {
+            log.error("Registry import failed", e);
+            ImportResult failed = ImportResult.failure(at);
+            recordAudit(failed, "FAILED", e.getMessage());
+            return failed;
         } finally {
             running.set(false);
         }
+    }
+
+    /**
+     * The changed-upstream path: the per-row length pre-check, then the
+     * transactional apply (upsert + delist).
+     */
+    private ImportResult applyFetched(RegistryFetch fetched, Instant at) {
+        Fit fit = fitColumnLimits(fetched.rows());
+        if (fit.oversize() > 0) {
+            log.warn("Registry import dropped {} row(s) exceeding column limits "
+                            + "(name<=255, externalId<=128, address<=512, "
+                            + "county/municipality<=255, dataAsOf<=32, "
+                            + "sourceAttribution<=255) — counted as skipped",
+                    fit.oversize());
+        }
+        return applyImport(fetched.rows(), fit.fitting(), fit.oversize(), at,
+                fetched.rejectedExternalIds(), fetched.dataVersion());
+    }
+
+    /** Rows of one fetch split by the column-limit pre-check. */
+    private record Fit(List<RegistryShelterDto> fitting, int oversize) {
+    }
+
+    /**
+     * Column-limit pre-check BEFORE the single apply transaction. An
+     * oversized value would abort the whole single-transaction import at
+     * the DB; the documented contract is "skipped and counted, never fatal".
+     */
+    private static Fit fitColumnLimits(List<RegistryShelterDto> dtos) {
+        List<RegistryShelterDto> fitting = new ArrayList<>(dtos.size());
+        int oversize = 0;
+        for (RegistryShelterDto dto : dtos) {
+            if (fitsColumnLimits(dto)) {
+                fitting.add(dto);
+            } else {
+                oversize++;
+            }
+        }
+        return new Fit(fitting, oversize);
     }
 
     /** Transactional apply phase — fetch already happened outside the tx. */
@@ -167,18 +183,31 @@ public class ShelterImportService {
         }
 
         // Keep-list for delisting = every id the registry currently serves —
-        // including rows that failed the length pre-check or parsing, and rows
-        // the client rejected as unplaceable (a live registry row must never
-        // be deleted just because this run couldn't store or place it).
-        List<String> fetchedIds = fetchedIds(fetched);
-        fetchedIds.addAll(rejected);
+        // including rows that failed the length pre-check or parsing, and
+        // rows the client rejected as unplaceable (a live registry row must
+        // never be deleted just because this run couldn't store or place it).
+        List<String> keepIds = fetchedIds(fetched);
+        keepIds.addAll(rejected);
 
+        UpsertCounts upserted = upsert(parsed);
+        int removed = delist(client.source(), keepIds);
+        return new ImportResult(upserted.created(), upserted.updated(), removed,
+                skipped + upserted.duplicates(), 0, at, false, dataVersion);
+    }
+
+    /**
+     * Upserts the parsed rows of one fetch: a duplicate externalId in the
+     * same fetch is counted, first wins; an existing row is refreshed in
+     * place, a new one created.
+     */
+    private UpsertCounts upsert(List<Shelter> parsed) {
         int created = 0;
         int updated = 0;
+        int duplicates = 0;
         Set<String> seen = new HashSet<>();
         for (Shelter incoming : parsed) {
             if (!seen.add(incoming.getExternalId())) {
-                skipped++; // duplicate row in one fetch — counted, first wins
+                duplicates++; // duplicate row in one fetch — counted, first wins
                 continue;
             }
             Optional<Shelter> existing = shelters.findByExternalId(incoming.getExternalId());
@@ -190,22 +219,26 @@ public class ShelterImportService {
                 created++;
             }
         }
+        return new UpsertCounts(created, updated, duplicates);
+    }
 
-        // Delist ONLY the source this run actually fetched. A source
-        // without a fetcher (e.g. MUNICIPALITY today) keeps its rows — a
-        // delist over an empty fetched set would wipe them. The fetched
-        // source is declared by the client, so when a second registry
-        // client arrives, its own run delists its own source.
-        ShelterSource fetchedSource = client.source();
-        int removed;
-        if (fetchedIds.isEmpty()) {
+    /** The create/update/duplicate counts of one upsert pass. */
+    private record UpsertCounts(int created, int updated, int duplicates) {
+    }
+
+    /**
+     * Delists this run's source rows that vanished from the fetch — only
+     * the source the client actually fetched. A source without a fetcher
+     * (e.g. MUNICIPALITY today) keeps its rows, and an empty keep-list
+     * would blind-wipe the source it names.
+     */
+    private int delist(ShelterSource fetchedSource, List<String> keepIds) {
+        if (keepIds.isEmpty()) {
             log.warn("Registry returned zero rows for source {} — delisting skipped, "
                     + "existing rows retained", fetchedSource);
-            removed = 0;
-        } else {
-            removed = shelters.deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds);
+            return 0;
         }
-        return new ImportResult(created, updated, removed, skipped, 0, at, false, dataVersion);
+        return shelters.deleteBySourceAndExternalIdNotIn(fetchedSource, keepIds);
     }
 
     /**

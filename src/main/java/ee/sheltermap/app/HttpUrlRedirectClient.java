@@ -10,7 +10,7 @@ import java.net.URL;
 
 /**
  * The real {@link RedirectClient} over {@link HttpURLConnection}
- * (shelter-location-input, design decision 4):
+ * (shelter-location-input):
  *
  * <ul>
  *   <li>3 s connect / 5 s read timeouts;</li>
@@ -37,17 +37,7 @@ public class HttpUrlRedirectClient implements RedirectClient {
 
     @Override
     public RedirectHop fetch(String url) throws IOException {
-        URL target;
-        try {
-            target = new URI(url).toURL();
-        } catch (URISyntaxException e) {
-            throw new IOException("unfetchable redirect target: " + url, e);
-        }
-        String protocol = target.getProtocol();
-        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
-            throw new IOException("unfetchable redirect target: " + url);
-        }
-        HttpURLConnection connection = (HttpURLConnection) target.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) fetchableTarget(url).openConnection();
         connection.setInstanceFollowRedirects(false);
         connection.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
         connection.setReadTimeout(READ_TIMEOUT_MILLIS);
@@ -61,5 +51,24 @@ public class HttpUrlRedirectClient implements RedirectClient {
         } finally {
             connection.disconnect();
         }
+    }
+
+    /**
+     * The connection target, rejected as an {@link IOException} (the
+     * service's generic 502 vocabulary, never a 500) when the URL is
+     * malformed or not an {@code http}/{@code https} URL.
+     */
+    private static URL fetchableTarget(String url) throws IOException {
+        URL target;
+        try {
+            target = new URI(url).toURL();
+        } catch (URISyntaxException e) {
+            throw new IOException("unfetchable redirect target: " + url, e);
+        }
+        String protocol = target.getProtocol();
+        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
+            throw new IOException("unfetchable redirect target: " + url);
+        }
+        return target;
     }
 }

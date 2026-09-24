@@ -42,13 +42,42 @@ const LITERAL_ATTRS = new Set(['placeholder', 'aria-label', 'title', 'alt', 'mes
  * scroll tokens, booleans, locale codes, input/autocomplete values.
  */
 const STRUCTURAL_VALUES = new Set([
-  'medium', 'short', 'long', 'full',
-  'required', 'email', 'pattern', 'minlength', 'maxlength', 'min', 'max', 'equalto',
-  'smooth', 'instant', 'center', 'nearest', 'auto', 'block', 'start', 'end',
-  'true', 'false',
-  'en', 'et', 'ru',
-  'tel', 'password', 'text', 'numeric', 'decimal', 'one-time-code', 'new-password',
-  'current-password', 'walking', 'on', 'off',
+  'medium',
+  'short',
+  'long',
+  'full',
+  'required',
+  'email',
+  'pattern',
+  'minlength',
+  'maxlength',
+  'min',
+  'max',
+  'equalto',
+  'smooth',
+  'instant',
+  'center',
+  'nearest',
+  'auto',
+  'block',
+  'start',
+  'end',
+  'true',
+  'false',
+  'en',
+  'et',
+  'ru',
+  'tel',
+  'password',
+  'text',
+  'numeric',
+  'decimal',
+  'one-time-code',
+  'new-password',
+  'current-password',
+  'walking',
+  'on',
+  'off',
 ]);
 
 /** A namespaced message key (a.b, a.b.c) — the `| t` seam's argument. */
@@ -72,7 +101,12 @@ function interpLiteralIsCopy(value: string, allowed: Set<string>): boolean {
 }
 
 /** Consume a quoted interpolation literal run; report copy literals. */
-function scanInterpolation(expr: string, line: number, allowed: Set<string>, out: Violation[]): void {
+function scanInterpolation(
+  expr: string,
+  line: number,
+  allowed: Set<string>,
+  out: Violation[],
+): void {
   let k = 0;
   while (k < expr.length) {
     const c = expr[k];
@@ -196,7 +230,12 @@ export function scanTemplate(source: string, perFile: Record<Kind, Set<string>>)
           k++;
         }
       }
-      scanInterpolation(source.slice(i + 2, Math.max(i + 2, k - 2)), startLine, perFile.interp, out);
+      scanInterpolation(
+        source.slice(i + 2, Math.max(i + 2, k - 2)),
+        startLine,
+        perFile.interp,
+        out,
+      );
       step(k - i);
       continue;
     }
@@ -217,7 +256,11 @@ export function scanTemplate(source: string, perFile: Record<Kind, Set<string>>)
           let j = vStart - 1;
           while (
             j > tagStart &&
-            (source[j] === ' ' || source[j] === '=' || source[j] === '[' || source[j] === ']' || source[j] === q)
+            (source[j] === ' ' ||
+              source[j] === '=' ||
+              source[j] === '[' ||
+              source[j] === ']' ||
+              source[j] === q)
           ) {
             j--;
           }
