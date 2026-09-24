@@ -11,6 +11,7 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
+import ee.sheltermap.domain.User;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,6 +143,22 @@ class RetentionPruningIT extends AbstractPersistenceIT {
         List<Long> surviving = jdbc.queryForList(
                 "SELECT shelter_id FROM moderation_actions ORDER BY shelter_id", Long.class);
         assertThat(surviving).containsExactly(91002L);
+    }
+
+    @Test
+    void theCandidateQueryLeavesAdminRowsOut() {
+        // The FIRST gate of the admin carve-out, pinned on its own: the
+        // candidate query is REGISTERED-kind only, so an admin never even
+        // reaches the service's domain-kind re-check. (The service-side
+        // re-check is pinned in RetentionServiceTest — together the two
+        // gates each have a test that fails when only that gate is gone.)
+        AdminUser admin = new AdminUser("Admin", "retention-admin-2@example.ee", null);
+        users.save(admin);
+        users.markActive(admin.getId(), monthsBefore(NOW, 60));
+
+        List<User> candidates = users.findInactiveBefore(monthsBefore(NOW, 24));
+
+        assertThat(candidates).extracting(User::getId).doesNotContain(admin.getId());
     }
 
     @Test

@@ -5,6 +5,7 @@ import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.ShelterRepository;
+import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.AccountService;
 import ee.sheltermap.auth.InMemoryUserCredentialsRepository;
 import ee.sheltermap.auth.MutableClock;
@@ -13,6 +14,7 @@ import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -121,6 +123,45 @@ class RetentionServiceTest {
         assertThat(users.findById(admin.getId())).isNotNull();
         assertThat(users.findById(idle25.getId())).isNull();
         assertThat(report.accountsPruned()).isEqualTo(1);
+    }
+
+    /**
+     * The second gate on its own: the candidate query's kind filter is the
+     * first gate, but this fake bypasses it (a simulated query regression
+     * — every idle row, admin included, is a candidate). AdminUser is-a
+     * RegisteredUser, so without the service's domain-kind check the
+     * erasure path would run on the admin. Both gates are pinned
+     * individually — the combined admin test cannot see a single gate
+     * failing while the other holds.
+     */
+    @Test
+    void anAdminLeakingIntoTheCandidateQueryIsNeverErased() {
+        AdminUser admin = new AdminUser("Admin", "admin-leak@example.ee", null);
+        users.save(admin);
+        users.markActive(admin.getId(), monthsBefore(NOW, 60));
+        RegisteredUser idle25 = saveUser("Old", "old@example.ee");
+        users.markActive(idle25.getId(), monthsBefore(NOW, 25));
+
+        // A candidate query that ignores the kind filter: every idle row
+        // is a candidate, the admin among them.
+        UserRepository leakingQuery = new InMemoryUserRepository() {
+            @Override
+            public List<User> findInactiveBefore(Instant cutoff) {
+                return users.findAll().stream()
+                        .filter(u -> u.getLastActivityAt() != null
+                                && u.getLastActivityAt().isBefore(cutoff))
+                        .toList();
+            }
+        };
+
+        RetentionService.RetentionReport report = new RetentionService(ON, leakingQuery,
+                        new AccountService(users, new InMemoryUserCredentialsRepository(clock),
+                                new StubPasswordHasher(), shelters, audit),
+                        audit, runLog).prune(NOW);
+
+        assertThat(users.findById(admin.getId())).isNotNull();
+        assertThat(users.findById(idle25.getId())).isNull();
+        assertThat(report).isEqualTo(new RetentionService.RetentionReport(1, 0));
     }
 
     @Test
