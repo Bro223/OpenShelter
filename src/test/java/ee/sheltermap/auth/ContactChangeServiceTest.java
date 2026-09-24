@@ -10,10 +10,8 @@ import ee.sheltermap.verification.VerificationThrottledException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,34 +35,6 @@ class ContactChangeServiceTest {
     private MutableClock clock;
     private ContactChangeService service;
     private final PiiCrypto pii = TestPiiCrypto.newTest();
-
-    /** Clock whose instant the test can advance (cooldown/expiry scenarios). */
-    private static final class MutableClock extends Clock {
-        private Instant instant;
-
-        MutableClock(Instant instant) {
-            this.instant = instant;
-        }
-
-        void advanceSeconds(long seconds) {
-            instant = instant.plusSeconds(seconds);
-        }
-
-        @Override
-        public ZoneOffset getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
-    }
 
     @BeforeEach
     void setUp() {
@@ -282,7 +252,7 @@ class ContactChangeServiceTest {
         assertThat(sms.sent()).hasSize(1);
 
         // after the cooldown the request is allowed and REPLACES the old pending
-        clock.advanceSeconds(61);
+        clock.advance(Duration.ofSeconds(61));
         service.requestEmailChange(user, "mari@other.ee");
         assertThat(sms.sent()).hasSize(2);
         PendingContactChange pending = changes.findByUserIdAndType(user.getId(),

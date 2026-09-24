@@ -290,9 +290,13 @@ class AuthApiIT extends AbstractPersistenceIT {
                         .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"newpass1\"}"))
                 .andExpect(status().isOk());
 
-        // the code is single-use -> second confirm is 400
+        // the code is single-use -> second confirm is 400. The new
+        // password is a VALID length on purpose: a short one would 400 at
+        // the @Size(min=8) boundary and the single-use rule would never
+        // be the reason (mutation-proven: removing markUsed left this
+        // step green while every other single-use pin went red).
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"again\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"again-123\"}"))
                 .andExpect(status().isBadRequest());
     }
 

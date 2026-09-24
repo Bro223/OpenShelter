@@ -4,11 +4,15 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Base64;
+
+import io.jsonwebtoken.security.SignatureException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,6 +115,37 @@ class JwtTokenServiceTest {
     @Test
     void validateAccessTokenRejectsGarbageAndTamperedTokens() {
         assertThatThrownBy(() -> tokens.validateAccessToken("garbage"))
+                .isInstanceOf(InvalidAccessTokenException.class);
+
+        // A forged payload with the original signature: structurally a JWT,
+        // but the HMAC covers the ORIGINAL claims — the refusal must be a
+        // signature mismatch, not a claim swap (a validator that skipped the
+        // signature check would answer with the forged user id).
+        RegisteredUser user = savedUser();
+        String[] segments = tokens.issue(user).accessToken().split("\\.");
+        String payload = new String(Base64.getUrlDecoder().decode(segments[1]), StandardCharsets.UTF_8);
+        String forged = payload.replace("\"sub\":\"" + user.getId() + "\"",
+                "\"sub\":\"" + (user.getId() + 1) + "\"");
+        assertThat(forged).isNotEqualTo(payload); // the swap actually happened
+        String tampered = segments[0] + "." + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(forged.getBytes(StandardCharsets.UTF_8)) + "." + segments[2];
+        assertThatThrownBy(() -> tokens.validateAccessToken(tampered))
+                .isInstanceOf(InvalidAccessTokenException.class)
+                .hasCauseInstanceOf(SignatureException.class);
+    }
+
+    @Test
+    void validateAccessTokenRejectsExpiredTokens() {
+        // The exp claim is enforced by the same clock the tokens were issued
+        // against — a token past its 15-min TTL validates for no one (the
+        // filter turns this into a 401 on the very next request).
+        RegisteredUser user = savedUser();
+        String token = tokens.issue(user).accessToken();
+
+        Clock later = Clock.fixed(NOW.plus(Duration.ofMinutes(16)), ZoneOffset.UTC);
+        JwtTokenService laterTokens = new JwtTokenService(PROPS, later, refreshTokens, users);
+
+        assertThatThrownBy(() -> laterTokens.validateAccessToken(token))
                 .isInstanceOf(InvalidAccessTokenException.class);
     }
 }
