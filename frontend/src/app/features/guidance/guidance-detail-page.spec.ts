@@ -62,7 +62,7 @@ function fakeAuthStore(
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation: the shell's nav item reads this — default false.
+    // The shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -367,7 +367,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Hero image (crisis-guidance): rendered when the post has one,
+  // Hero image: rendered when the post has one,
   // NOTHING (no element at all) when it does not.
   // ---------------------------------------------------------------------------
   describe('hero image', () => {
@@ -712,7 +712,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 360px viewport (mobile-responsive-polish): no page-level horizontal
+  // 360px viewport: no page-level horizontal
   // overflow. jsdom cannot measure a 360px viewport (no layout engine — every
   // offsetWidth/scrollWidth is 0), so — like the pins in
   // shelter-detail-page.spec.ts — the mechanisms that make overflow impossible

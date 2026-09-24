@@ -28,8 +28,8 @@ import type {
 import { parseTotal } from '../shared/paging';
 
 /**
- * The door to the /admin/* controller group (admin-moderation, plus the
- * crisis-guidance authoring + media-library endpoints). Every endpoint
+ * The door to the /admin/* controller group (the moderation tabs plus
+ * the guidance authoring + media-library endpoints). Every endpoint
  * requires the caller's JWT AND admin kind (backend re-checks the kind per
  * request — a fresh lookup, never a JWT claim: 401 anonymous, 403
  * non-admin, 409 registry-row writes). All methods return typed promises
@@ -102,7 +102,7 @@ export class AdminGateway {
 
   /**
    * POST /admin/shelters/{id}/review {action, reason?} -> 200 {ok:true}.
-   * The rare MANUAL trust override (community-review-queue) — the
+   * The rare MANUAL trust override — the
    * primary flow is the automatic community one. CONFIRM sets
    * review_status=CONFIRMED (status untouched); REJECT sets
    * review_status=REJECTED + status=INACTIVE and stores the reason as the
@@ -192,7 +192,7 @@ export class AdminGateway {
   }
 
   /**
-   * GET /admin/alerts -> the throttle-abuse alerts (abuse-limits),
+   * GET /admin/alerts -> the throttle-abuse alerts,
    * newest first: the daily submission cap (429), the per-contact OTP
    * cap (429) and the near-duplicate rejection (409). Optional `limit`
    * (1..200, default 50 — the backend answers 400 outside). The ring is
@@ -260,7 +260,7 @@ export class AdminGateway {
   }
 
   // ------------------------------------------------------------------
-  // Guidance (crisis-guidance): the authoring endpoints
+  // Guidance: the authoring endpoints
   // ------------------------------------------------------------------
 
   /**
@@ -299,8 +299,8 @@ export class AdminGateway {
    * an explicit status PUBLISHED publishes in one call. 400 validation
    * (title/body required, the alt/hero pairing, the slug shape); 409 an
    * admin-supplied slug another post already holds (naming the slug); 404
-   * a heroImageId with no such asset. The hero import (`heroImportUrl`,
-   * guidance-hero-import): the server fetches, validates and stores the
+   * a heroImageId with no such asset. The hero import (`heroImportUrl`):
+   * the server fetches, validates and stores the
    * image AT SAVE (this create call — draft and one-shot PUBLISHED
    * alike). A failed import never blocks the create: the post is stored
    * anyway and the 200 body's `heroImportError` names the failure (the
@@ -316,8 +316,8 @@ export class AdminGateway {
    * another post holds → 409 naming it); the body is re-sanitized
    * server-side (the stored value is the sanitizer output). The
    * publication state is NOT editable here — publish/unpublish own it.
-   * 404 unknown id (or a heroImageId with no such asset). `heroImportUrl`
-   * (guidance-hero-import): a blank/absent value CLEARS the import URL
+   * 404 unknown id (or a heroImageId with no such asset). `heroImportUrl`:
+   * a blank/absent value CLEARS the import URL
    * (full replace); a non-null URL is fetched, validated and stored AT
    * SAVE, draft or published alike (the trigger) — a changed URL
    * re-imports. A failed import never blocks the update: the 200 body's
@@ -375,8 +375,8 @@ export class AdminGateway {
   }
 
   /**
-   * PUT /admin/guidance/order -> 204 (no body) — the MANUAL ordering
-   * (guidance-manual-order): UNSCOPED (no `locale`): the FULL ordered id
+   * PUT /admin/guidance/order -> 204 (no body) — the MANUAL ordering:
+   * UNSCOPED (no `locale`): the FULL ordered id
    * list of every guidance post, exactly the order the admin table shows it
    * (pinned block first, then the rest) — the server validates the list as a
    * permutation of all post ids BEFORE writing — an unknown id, a duplicate,
@@ -457,7 +457,7 @@ export class AdminGateway {
   }
 
   // ------------------------------------------------------------------
-  // Media library (crisis-guidance): the asset inventory
+  // Media library: the asset inventory
   // ------------------------------------------------------------------
 
   /**

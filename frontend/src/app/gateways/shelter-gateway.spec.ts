@@ -81,7 +81,7 @@ describe('ShelterGateway', () => {
     expect(rows).toEqual([]);
   });
 
-  // ---- trust filters (shelter-trust-and-reports) ------------------------
+  // ---- trust filters ---------------------------------------------------------------------
 
   it.each([
     ['ALL', { hasCapacity: true }, '/api/shelters?source=ALL&hasCapacity=true'],
@@ -262,7 +262,7 @@ describe('ShelterGateway', () => {
     expect(api.delete).toHaveBeenCalledWith('/api/shelters/7');
   });
 
-  // ---- trust layer (shelter-trust-and-reports) ------------------------
+  // ---- trust layer -----------------------------------------------------------------------
 
   it('report POSTs the typed body and answers the damp flag ', async () => {
     api.post.mockReturnValue(of({ damped: false }));

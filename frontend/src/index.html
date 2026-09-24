@@ -12,7 +12,7 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <script>
-      // Pre-paint theme (accessibility-and-provenance, extended by
+      // Pre-paint theme (extended by
       // accessibility-dialog to the three contrast options): apply the
       // persisted theme preference BEFORE the app bundle paints — no
       // flash/FOUC. 'high-contrast' applies the SCSS token block (the
@@ -87,7 +87,7 @@
       }
     </script>
     <script>
-      // Pre-paint locale (i18n-et-en): apply the persisted UI language
+      // Pre-paint locale: apply the persisted UI language
       // BEFORE the app bundle paints — <html lang> is correct for screen
       // readers / spellcheck from first paint. Only 'en'/'et'/'ru' are ever
       // stored; absent or invalid key = the static lang="en" default.

@@ -172,7 +172,7 @@ describe('AccountPage', () => {
     expect(element.querySelector('#profile-name')).toBeNull(); // closed form
   });
 
-  // ---- admin badge (admin-moderation) ------------------------------------
+  // ---- admin badge ---------------------------------------------------------
 
   it('a regular user sees NO Admin badge next to the name', async () => {
     const { element } = await open();
@@ -770,7 +770,7 @@ describe('AccountPage', () => {
     expect(element.textContent).not.toContain('Sending…');
   });
 
-  // ---- My contributions (user-contributions) --------------------------------
+  // ---- My contributions -----------------------------------------------------
 
   it('renders the My contributions panel with the shelter list', async () => {
     shelter.mine.mockResolvedValue([SHELTER_ROW]);
@@ -905,7 +905,7 @@ describe('AccountPage', () => {
     });
   });
 
-  // ---- your data: export download (legal-recovery) -----------------------------
+  // ---- your data: export download ----------------------------------------------
 
   describe('your data (export)', () => {
     it('the export button fetches /account/export and downloads a JSON file', async () => {
@@ -1052,7 +1052,7 @@ describe('AccountPage', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (mobile-responsive-polish): no page-level horizontal
+// 360px viewport: no page-level horizontal
 // overflow on the proof notes (changed their boundary today — the
 // 3px left accent border is gone, the subtle background fill is the note's
 // boundary now; the boundary itself is pinned in design-tokens.spec.ts,

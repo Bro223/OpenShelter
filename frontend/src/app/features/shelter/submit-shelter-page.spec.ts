@@ -96,7 +96,7 @@ const CREATED: ShelterDto = {
   nonexistentReports: 0,
   openStatus: null,
   occupancy: null,
-  // Public DTO carries the trust state (community-review-queue): a fresh
+  // Public DTO carries the trust state: a fresh
   // submission comes back NEW (public immediately, no blocking queue).
   reviewStatus: 'NEW',
   locationKind: 'PUBLIC',
@@ -310,7 +310,7 @@ describe('SubmitShelterPage (/submit)', () => {
     (element.querySelector('form') as HTMLFormElement).requestSubmit();
     await settle(fixture);
 
-    // Regression guard (shelter-location-input): latitude/longitude are plain
+    // Regression guard: latitude/longitude are plain
     // numbers straight from the shared location state. locationKind is
     // explicit: unchecked = PUBLIC (the contract default).
     expect(gateway.create).toHaveBeenCalledTimes(1);
@@ -323,7 +323,7 @@ describe('SubmitShelterPage (/submit)', () => {
       locationKind: 'PUBLIC',
     });
     // The row is public NOW (NEW) — the page stays on /submit with the
-    // success panel (community-review-queue) instead of navigating.
+    // success panel instead of navigating.
     expect(router.url).toBe('/submit');
     expect(element.textContent).toContain(
       'Your location is now listed and marked as newly added. Community reports confirm it.',
@@ -383,7 +383,7 @@ describe('SubmitShelterPage (/submit)', () => {
       capacity: 40,
       locationKind: 'PUBLIC',
     });
-    // No navigation on success (community-review-queue) — the success panel
+    // No navigation on success — the success panel
     // stays on /submit.
     expect(router.url).toBe('/submit');
     expect(element.querySelector('.submit-success')).not.toBeNull();
@@ -483,7 +483,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(leaflet.pickCalls.at(-1)).toEqual([59, 26]);
     expect(leaflet.flyToCalls.at(-1)).toEqual([59, 26]);
     expect(element.textContent).toContain('59.00000, 26.00000');
-    // (map-crisis-actions): the coordinate readout uses the shared
+    // The coordinate readout uses the shared
     // tabular-figures class so digits do not shift while they update.
     expect(element.querySelector('.location-readout')?.classList.contains('num-tabular')).toBe(
       true,
@@ -868,7 +868,7 @@ describe('SubmitShelterPage (/submit)', () => {
   });
 
   // ---------------------------------------------------------------------
-  // Address search (shelter-address-search) — the fifth capture mode
+  // Address search — the fifth capture mode
   // ---------------------------------------------------------------------
 
   it('an address search (Enter) lists results and selecting one places the pin (source: address search)', async () => {

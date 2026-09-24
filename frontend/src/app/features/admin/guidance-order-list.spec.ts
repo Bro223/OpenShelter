@@ -5,8 +5,8 @@ import { ConfirmAction } from '../../shared/confirm-action';
 import { GuidanceOrderList } from './guidance-order-list';
 
 /**
- * GuidanceOrderList — the Guidance tab's post list + manual ordering
- * (guidance-manual-order). Presentation and the drag interaction
+ * GuidanceOrderList — the Guidance tab's post list + manual ordering.
+ * Presentation and the drag interaction
  * state live on the panel; the tab model and the gateway submission
  * live on the AdminPage (covered by admin-page.spec.ts, which drives
  * the same list through the page's DOM).

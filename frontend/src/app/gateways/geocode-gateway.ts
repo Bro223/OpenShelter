@@ -3,7 +3,7 @@ import { ApiError } from '../core/api-error';
 import type { GeocodeResult } from '../core/models';
 
 /**
- * The door to OSM Nominatim (shelter-address-search) — the ONLY module that
+ * The door to OSM Nominatim — the ONLY module that
  * knows the Nominatim URL/params. Kept SEPARATE from GeoGateway on purpose:
  * GeoGateway maps to the backend's /api/geo controller group; this is a
  * client-side call to an EXTERNAL service (no JWT, no backend hop), and

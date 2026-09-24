@@ -937,7 +937,7 @@ export interface Messages {
   /** The audit trail's out-of-range page notice (same shape). */
   'admin.audit.pageOutOfRange': string;
 
-  // alerts tab: the abuse-limits queue.
+  // alerts tab: the throttle-abuse alert queue.
   'admin.alerts.loading': string;
   'admin.alerts.empty': string;
   /** The table region aria-label. */

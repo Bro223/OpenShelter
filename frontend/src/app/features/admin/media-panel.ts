@@ -9,7 +9,7 @@ import { Pagination } from '../../shared/pagination';
 import { PAGE_SIZES } from '../../shared/paging';
 
 /**
- * The Media Library tab panel (crisis-guidance): the asset inventory
+ * The Media Library tab panel: the asset inventory
  * — thumbnail, filename, dimensions, size, upload date, reused-by count
  * — plus the multipart upload (field `file`).
  *

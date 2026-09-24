@@ -147,7 +147,7 @@ const HISTORY_EVENTS: AdminShelterHistoryEvent[] = [
   },
 ];
 
-// guidance + media fixtures (crisis-guidance) -------------------------------
+// guidance + media fixtures ----------------------------------------------------
 
 const GUIDANCE_DRAFT: AdminGuidancePostDto = {
   id: 12,
@@ -169,7 +169,7 @@ const GUIDANCE_DRAFT: AdminGuidancePostDto = {
 };
 
 /** A DRAFT carrying a hero import URL whose import FAILED at save
- *  (guidance-hero-import, the save-time trigger): the post was stored
+ *  (the save-time trigger): the post was stored
  *  anyway, the URL kept for a retry — this fixture is that draft. */
 const GUIDANCE_PENDING_IMPORT: AdminGuidancePostDto = {
   ...GUIDANCE_DRAFT,
@@ -409,7 +409,7 @@ describe('AdminPage', () => {
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
-        // The REAL guard on the route (admin-moderation): the spec tests
+        // The REAL guard on the route: the spec tests
         // the redirect through the actual canActivate, not a stand-in.
         provideRouter([
           { path: 'map', component: Stub },
@@ -516,7 +516,7 @@ describe('AdminPage', () => {
     fx.detectChanges();
   }
 
-  // ---- guard (admin-moderation) ---------------------------------------------
+  // ---- guard --------------------------------------------------------------------
 
   it('redirects an anonymous visitor to the home map (the page never loads)', async () => {
     await router.navigateByUrl('/admin');
@@ -1628,7 +1628,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('No moderation actions yet.');
   });
 
-  // ---- guidance tab (crisis-guidance) ---------------------------------------
+  // ---- guidance tab ----------------------------------------------------------------
 
   it('the guidance tab lazy-loads and renders rows (status, locale, pin, merged published date, hero)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
@@ -2228,7 +2228,7 @@ describe('AdminPage', () => {
     expect(rule, 'no undefined --color-text-inverse token').not.toMatch(/--color-text-inverse/);
   });
 
-  // ---- the hero import at SAVE (guidance-hero-import) -----------------------
+  // ---- the hero import at SAVE ------------------------------------------------------
   // Publish is a pure stamp: it fetches, validates and stores NOTHING —
   // the hero import runs at SAVE (create/update), so a post whose import
   // failed (or never ran) publishes exactly as stored. The 204 changes
@@ -2862,7 +2862,7 @@ describe('AdminPage', () => {
     });
   });
 
-  // ---- guidance manual ordering (guidance-manual-order) ---------------------
+  // ---- guidance manual ordering --------------------------------------------------------
 
   /** A third guidance row so the order has three distinct positions. */
   const GUIDANCE_THIRD: AdminGuidancePostDto = {
@@ -2996,7 +2996,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('postIds contains unknown post ids: [77]');
   });
 
-  // ---- media library tab (crisis-guidance) ----------------------------------
+  // ---- media library tab --------------------------------------------------------------
 
   it('the media tab lazy-loads and renders rows (filename, dimensions, size, usage, thumbnail)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
@@ -3137,7 +3137,7 @@ describe('AdminPage', () => {
     expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
   });
 
-  // ---- audit labels for the new actions (crisis-guidance) ---------------------
+  // ---- audit labels for the new actions -----------------------------------------------------
 
   it('the audit trail labels the guidance and media actions', async () => {
     admin.listShelters.mockResolvedValue(paged([]));

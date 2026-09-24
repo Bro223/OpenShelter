@@ -169,7 +169,7 @@ export function bodyHtmlBlankValidator(control: AbstractControl): ValidationErro
 export const ALLOWED_LINK_PROTOCOL = /^(https?|mailto):/i;
 
 /**
- * The pending hero-import URL's shape (guidance-hero-import), mirroring
+ * The pending hero-import URL's shape, mirroring
  * the backend's write-time checks (GuidanceService.normalizeImportUrl) so
  * a malformed URL never spends a round trip on the 400: a parseable
  * absolute http(s) URL that names a host and carries no embedded
@@ -491,7 +491,7 @@ function dropEmptyInlines(root: ParentNode): void {
 }
 
 /**
- * The guidance create/edit form (crisis-guidance — the admin
+ * The guidance create/edit form (the admin
  * authoring surface). The PARENT (AdminPage) owns the save calls and the
  * page-level banners — this component validates (incl. the hero/alt
  * cross-field rule, shown up front so the server's 400 never fires for
@@ -577,7 +577,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   readonly cancel = output<void>();
 
   /**
-   * The hero-import copy keys (guidance-hero-import's admin surface).
+   * The hero-import copy keys (the admin surface).
    * Every key is a real `Messages` member (en/et/ru catalogs, parity-
    * guarded in core/i18n/i18n.spec.ts): the property type keeps each
    * literal checked against the contract, so a renamed or removed key
@@ -662,7 +662,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       nonNullable: true,
       validators: [Validators.maxLength(300)],
     }),
-    /** The hero import (guidance-hero-import): blank = no import URL.
+    /** The hero import: blank = no import URL.
      *  Fetched/validated/stored by the server AT SAVE (create and
      *  update, draft or published alike); a changed URL re-imports, a
      *  failed import never blocks the save (the 200 body's

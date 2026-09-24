@@ -22,11 +22,11 @@ import type {
  * return typed promises and throw ApiError on failure (mapped centrally by
  * ApiClient). `get` serves the detail page too.
  *
- * Author-scoped mutations (user-contributions): `mine()` lists the caller's
+ * Author-scoped mutations: `mine()` lists the caller's
  * own shelters; `update()`/`remove()` act on the caller's own shelter only
  * (the backend answers 404 if absent, 403 if not the author).
  *
- * Trust layer (shelter-trust-and-reports): `report()` posts a typed shelter
+ * Trust layer: `report()` posts a typed shelter
  * report and `reportOccupancy()` upserts the caller's live band — both
  * verified-only (403), 404 on unknown shelter, 409 on a duplicate.
  * `putOpenStatus()` upserts the caller's live open/closed state — same
@@ -65,7 +65,7 @@ export class ShelterGateway {
 
   /**
    * GET /api/shelters/mine -> the caller's own shelters (Bearer JWT), with
-   * the review state (community-review-queue): `reviewStatus` (NEW until
+   * the review state: `reviewStatus` (NEW until
    * confirmed by the community or an admin) + `reviewNote` (the admin's
    * REJECT reason, when present) + `infoRequest` (the moderator→submitter
    * information request — null when none). The public list/detail DTOs
@@ -105,8 +105,8 @@ export class ShelterGateway {
 
   /**
    * POST /api/shelters/{id}/reports -> 200 {"damped": true|false}
-   * (shelter-trust-and-reports; community-self-moderation damp
-   * flag). Verified accounts only: 403 (the standard redirect
+   * (the damp flag: a self-interested rival vote). Verified accounts
+   * only: 403 (the standard redirect
    * vocabulary), 404 unknown shelter, 409 when the caller already
    * reported that type.
    */

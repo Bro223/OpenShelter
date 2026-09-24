@@ -179,7 +179,7 @@ describe('PageShell', () => {
     // No standalone Verify nav item: verification is a per-contact label on
     // /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
-    // admin-moderation: a regular user's nav is unchanged — no Admin item.
+    // A regular user's nav is unchanged — no Admin item.
     expect(element.querySelector('a[href="/admin"]')).toBeNull();
   });
 
@@ -846,7 +846,7 @@ describe('PageShell', () => {
     });
   });
 
-  /* Language switcher (i18n-et-en): offers only the languages the reader
+  /* Language switcher: offers only the languages the reader
      can switch TO — the active locale is never rendered (a no-op button
      is not a choice). With three locales, two "switch to" buttons render
      at a time. The choice persists (openshelter-locale) and flips

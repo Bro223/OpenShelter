@@ -75,13 +75,13 @@
      its border). */
   --color-chrome-border: #2e4d6a;
 
-  /* Crisis CTA (map-crisis-actions) — the "Nearest shelter" button on
+  /* Crisis CTA — the "Nearest shelter" button on
      /map is the ONLY consumer of this token; the orange is the crisis
      affordance and must not become a general accent. White text on
      #bf360c = 5.6:1 (WCAG AA ≥ 4.5; #e8590c and #d9480f fail at 3.6/4.3). */
   --color-cta: #bf360c;
 
-  /* Reported state (shelter-trust-and-reports) — the SINGLE "reported"
+  /* Reported state — the SINGLE "reported"
      affordance: the orange map marker fill AND the "Reported" badge
      (text = --color-bg-surface). Reuses the --color-cta hue family (safety
      orange, ~10–22°) as its own token: the crisis CTA keeps its colour, the
@@ -90,7 +90,7 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
-  /* Community trust family (community-review-queue; the verified-green
+  /* Community trust family (the verified-green
      re-tint, owner decision — GREEN MEANS VERIFIED): ONE value with
      --color-verified. The state rides on the marker shape + the row's
      badge text, never on a second hue. The reported red stays reserved and
@@ -270,7 +270,7 @@
   --content-max-width-wide: 1440px;
 }
 
-/* High-contrast theme (accessibility-and-provenance): a token
+/* High-contrast theme: a token
    OVERRIDE, not a parallel stylesheet — same token names as :root, values
    re-tuned for low-vision + direct-sunlight use. Component .scss files are
    untouched. Default: NO attribute on <html> = the light theme above.
@@ -643,7 +643,7 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* (map-crisis-actions) touch target: content + 8px vertical padding
+  /* Touch target: content + 8px vertical padding
      lands at ~41px, short of 48 — the explicit min-height makes every .btn
      (and the row buttons that reuse the class) at least a 48px target. */
   min-height: var(--space-48);
@@ -796,7 +796,7 @@ textarea::placeholder {
   color: var(--color-muted);
 }
 
-/* (map-crisis-actions): coordinate/count readouts use tabular figures so
+/* Coordinate/count readouts use tabular figures so
    digits do not shift while they update (submit-page coordinate readout,
    detail-page coordinate line). */
 .num-tabular {
@@ -884,7 +884,7 @@ textarea::placeholder {
   background: var(--color-shelter-user);
 }
 
-/* Reported state (shelter-trust-and-reports): the single
+/* Reported state: the single
  * "reported" marker affordance — any shelter with an OPEN report of
  * EITHER kind (nonexistentReports OR inaccurateReports > 0) renders
  * this orange regardless of source; trust colours apply only to
@@ -904,7 +904,7 @@ textarea::placeholder {
   border-color: var(--color-bg-surface);
 }
 
-/* Browse anchor pin on /map (location-navigation, leaflet-service
+/* Browse anchor pin on /map (leaflet-service
  * setAnchor): the ORIGIN the per-row distances are measured from — the
  * searched address. Distinct from shelter markers on SHAPE, not colour
  * alone (accessibility): shelters are circles, the origin is a 12px

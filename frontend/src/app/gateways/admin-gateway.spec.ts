@@ -231,7 +231,7 @@ describe('AdminGateway', () => {
     await expect(gateway.listShelterReports()).rejects.toBe(failure);
   });
 
-  // ---- POST /admin/shelters/{id}/review | GET /admin/audit (community-review-queue) ----
+  // ---- POST /admin/shelters/{id}/review | GET /admin/audit -------------------------
 
   it('reviewShelter POSTs the review action to /admin/shelters/{id}/review', async () => {
     api.post.mockReturnValue(of({ ok: true }));
@@ -294,7 +294,7 @@ describe('AdminGateway', () => {
     expect(paged).toEqual({ rows: [row], total: 137 });
   });
 
-  // ---- GET /admin/alerts (abuse-limits) ----
+  // ---- GET /admin/alerts -------------------------------------------------------------
 
   it('listAlerts GETs the default newest-50 alert ring', async () => {
     const row = {
@@ -435,7 +435,7 @@ describe('AdminGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/clear-inaccurate');
   });
 
-  // ---- GET /admin/guidance (crisis-guidance) ------------------------
+  // ---- GET /admin/guidance ----------------------------------------------------------------
 
   const GUIDANCE_ROW: AdminGuidancePostDto = {
     id: 11,
@@ -712,7 +712,7 @@ describe('AdminGateway', () => {
     expect(caught).toBe(failure);
   });
 
-  // ---- GET /admin/media (crisis-guidance) --------------------------------
+  // ---- GET /admin/media ---------------------------------------------------------------------
 
   const MEDIA_ROW: MediaAssetDto = {
     id: 5,

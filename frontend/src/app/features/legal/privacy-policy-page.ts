@@ -12,7 +12,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 
 /**
- * Static privacy policy (legal-recovery, i18n). No backend, no state —
+ * Static privacy policy (i18n). No backend, no state —
  * the page is catalog copy (`legal.privacy.*` keys, EN verbatim from the old
  * static template) + router links to the account and terms pages. The copy
  * states the app's ACTUAL behavior (encryption at rest, client-side

@@ -20,7 +20,7 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
 /**
- * /blog/:slug — one public crisis-guidance post.
+ * /blog/:slug — one public crisis guidance post.
  *
  * A thin shell: state in signals, the gateway owns the API (a permit-all
  * read — no auth). The body is admin-authored HTML the server already

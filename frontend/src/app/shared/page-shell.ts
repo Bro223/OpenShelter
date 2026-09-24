@@ -40,7 +40,7 @@ export class PageShell implements OnDestroy {
   /** The session-dependent controls (the template reads the signals through
       this, so init/logout re-render the header). */
   protected readonly auth = inject(AuthStore);
-  /** i18n-et-en: the chrome copy + the language switcher. `locale`
+  /** The chrome copy + the language switcher. `locale`
       is read in the template, so a switch triggers this component's
       change detection and the `pure: false` `t` pipe re-renders. */
   protected readonly i18n = inject(I18nService);
@@ -58,7 +58,7 @@ export class PageShell implements OnDestroy {
       other route keeps the public cap. */
   readonly adminWide = signal(this.router.url.startsWith('/admin'));
 
-  /** Data provenance for the footer line (official-dataset-csv):
+  /** Data provenance for the footer line:
       publisher + official link + last import. Stays null while loading or
       when the API fails — the line is non-critical and hides itself. */
   readonly dataSource = signal<DataSourceDto | null>(null);

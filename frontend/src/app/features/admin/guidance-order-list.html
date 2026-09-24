@@ -25,7 +25,7 @@
   <p class="admin-guidance-scope">
     {{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}
   </p>
-  <!-- guidance-manual-order: the list order IS the public order —
+  <!-- The list order IS the public order —
        the hint names the two mechanisms (PRIMARY: the keyboard-
        reachable move buttons; SECONDARY: drag & drop). Paged multi-page
        lists (admin-page-size): the whole reorder is off — the hint
@@ -120,7 +120,7 @@
             <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
             <td class="admin-cell--actions">
               <div class="admin-cell__actions-body">
-                <!-- guidance-manual-order: PRIMARY mechanism — the
+                <!-- PRIMARY mechanism — the
                      keyboard-reachable 48px move buttons. Disabled at
                      the boundaries (top/up at the first row, down at
                      the last); the accessible names name the post and

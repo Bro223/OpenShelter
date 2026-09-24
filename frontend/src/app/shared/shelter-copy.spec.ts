@@ -27,7 +27,7 @@ import { MONTH_ABBREVS } from '../core/i18n/locale';
 import { interpolate } from '../core/i18n/i18n.service';
 
 /**
- * The source/trust labels are PINNED copy (community-review-queue):
+ * The source/trust labels are PINNED copy:
  * registry rows say which registry, USER rows say their trust state.
  * A copy change is a spec change — these assertions are the gate.
  */
@@ -77,7 +77,7 @@ describe('community + private copy (community-review-queue)', () => {
 });
 
 /**
- * Trust-layer copy (shelter-trust-and-reports): the map rows and the
+ * Trust-layer copy: the map rows and the
  * detail header render the SAME strings — pinned here as single-sourced copy.
  */
 

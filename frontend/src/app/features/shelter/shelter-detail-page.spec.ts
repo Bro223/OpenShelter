@@ -48,7 +48,7 @@ class FakeShelterGateway {
   });
   list = vi.fn(async (): Promise<ShelterDto[]> => []);
   create = vi.fn();
-  /** Trust layer (shelter-trust-and-reports) — resolves the damp flag (plain by default). */
+  /** Trust layer — resolves the damp flag (plain by default). */
   report = vi.fn(async (): Promise<ShelterReportResult> => ({ damped: false }));
   reportOccupancy = vi.fn(async (): Promise<void> => undefined);
   /** The live open/closed upsert (204, void). */
@@ -108,7 +108,7 @@ class FakeLeafletService {
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation: the shell's nav item reads this — default false.
+    // The shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -287,7 +287,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.shelter-detail__address')).toBeNull(); // null address
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
-      // The trust-state label (community-review-queue): NEW ->
+      // The trust-state label: NEW ->
       // "Newly added" (replacing the old "User-submitted" wording).
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
       // An ACTIVE row with nothing fresh shows BOTH last-reported rows in
@@ -393,7 +393,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element: el8 } = await open('/shelters/8');
       // A verified submitter is NOT a verified shelter — the label follows
-      // the trust state, not submitterVerified (community-review-queue).
+      // the trust state, not submitterVerified.
       expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
       expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
@@ -643,7 +643,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Distance from you (location-navigation): the page's ONLY
+  // Distance from you: the page's ONLY
   // geolocation trigger — client-side Haversine to the shelter's own point,
   // the straight-line honesty format, the map CTA's mirrored error copy.
   // ---------------------------------------------------------------------------
@@ -919,7 +919,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Trust layer (shelter-trust-and-reports):
+  // Trust layer:
   // header badges · shelter report · "report how full"
   // picker.
   // All endpoints mocked; 409 → the plain sentence-case line.

@@ -21,8 +21,8 @@ import {
 } from '../../shared/paging';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-/** The reject reason's hard limit — mirrored by the backend contract
- *  (community-review-queue): required, at most 500 characters. Shared by
+/** The reject reason's hard limit — mirrored by the backend
+ *  contract: required, at most 500 characters. Shared by
  *  the unconfirmed queue's reject (admin-page.ts) and this view's
  *  mark-inaccurate reason. */
 export const REJECT_REASON_MAX = 500;

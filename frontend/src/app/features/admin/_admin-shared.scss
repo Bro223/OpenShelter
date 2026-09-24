@@ -342,7 +342,7 @@
     color: var(--color-warning);
   }
 
-  /* "Rejected" (community-review-queue): the danger pair — the SAME
+  /* "Rejected": the danger pair — the SAME
      treatment /mine's .contrib-badge carries (contributions-panel.scss);
      without this rule the admin table fell through to the registry-blue
      base fill and a REJECTED submission read as a registry row. The
@@ -353,7 +353,7 @@
     color: var(--color-danger);
   }
 
-  /* Guidance status (crisis-guidance): PUBLISHED = the green
+  /* Guidance status: PUBLISHED = the green
      source-badge pair (a live state, the badge--user language); DRAFT =
      the neutral visibility chip (badge--hidden language — a state, not an
      alarm). */

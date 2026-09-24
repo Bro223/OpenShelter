@@ -9,7 +9,7 @@
  * This file is NEVER bundled into the app — it only runs for `ng test`.
  */
 
-// i18n-et-en: MIRROR of main.ts — the specs that exercise the Estonian and
+// MIRROR of main.ts — the specs that exercise the Estonian and
 // Russian UI render the `date` pipe with locale 'et'/'ru', but the test
 // bootstrap never runs main.ts, so the locale data (which DatePipe requires)
 // is registered here instead.

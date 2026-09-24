@@ -22,7 +22,7 @@ export type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
 export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
 
 /**
- * Community trust state (community-review-queue): where a USER row
+ * Community trust state: where a USER row
  * stands in the trust lifecycle. NEW rows are public IMMEDIATELY (amber
  * "just added" treatment, unverified warning); CONFIRMED rows are the
  * checked community rows (green); REJECTED rows are hidden (status
@@ -35,7 +35,7 @@ export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
 export type ReviewStatus = 'NEW' | 'CONFIRMED' | 'REJECTED';
 
 /**
- * Submitter-declared location kind (community-review-queue): PRIVATE =
+ * Submitter-declared location kind: PRIVATE =
  * the submitter declared the location is a private home or private shelter offered
  * as a refuge. PRIVATE rows are NOT demoted or hidden — every surface
  * (list row, detail, admin list) shows a "Private location" badge and the
@@ -108,14 +108,14 @@ export interface ConfirmChangeRequest {
 
 /** Profile edit (PUT /account/profile): name only, password-confirmed.
  *  Email/phone are deliberately absent — they stay on the cross-channel flows.
- *  No national ID code is collected anywhere (remove-national-id). */
+ *  No national ID code is collected anywhere. */
 export interface ProfileUpdateRequest {
   name: string;
   currentPassword: string;
 }
 
 /**
- * POST /api/geo/resolve (shelter-location-input): the backend-resolved pair
+ * POST /api/geo/resolve: the backend-resolved pair
  * of a maps.app.goo.gl short link. Field names match the backend
  * LocationResolvedDto exactly (the parallel backend child owns the record).
  */
@@ -125,7 +125,7 @@ export interface LocationResolved {
 }
 
 /**
- * One row of an OSM Nominatim address search (shelter-address-search).
+ * One row of an OSM Nominatim address search.
  * NOT a backend DTO: Nominatim is a client-side external service called
  * directly by `GeocodeGateway` (Estonia-restricted). Nominatim jsonv2
  * returns lat/lon as STRINGS — the gateway parses them, so this type is
@@ -147,7 +147,7 @@ export interface CreateShelterRequest {
   description?: string;
   capacity?: number;
   /**
-   * The private-home declaration (community-review-queue): 'PRIVATE'
+   * The private-home declaration: 'PRIVATE'
    * when the submitter ticks the declaration checkbox, 'PUBLIC' otherwise
    * (the default). Always sent explicitly.
    */
@@ -155,7 +155,7 @@ export interface CreateShelterRequest {
 }
 
 /**
- * PUT /api/shelters/{id} (user-contributions): the author's edit of their
+ * PUT /api/shelters/{id}: the author's edit of their
  * OWN USER-source shelter. Constraints are field-for-field identical to
  * CreateShelterRequest — the backend keeps them in one shared validation
  * path so create/update cannot drift. Only these fields are writable;
@@ -168,7 +168,7 @@ export interface UpdateShelterRequest {
   description?: string;
   capacity?: number;
   /**
-   * The private-home declaration (community-review-queue): absent/null
+   * The private-home declaration: absent/null
    * keeps the row's current value (backend contract). The shared form
    * always sends it explicitly — checked = PRIVATE, unchecked =
    * PUBLIC — exactly like the create payload.
@@ -177,7 +177,7 @@ export interface UpdateShelterRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Trust layer: typed reports + occupancy (shelter-trust-and-reports)
+// Trust layer: typed reports + occupancy
 // ---------------------------------------------------------------------------
 
 /** Typed shelter report (POST /api/shelters/{id}/reports — verified only). */
@@ -191,8 +191,8 @@ export interface ReportShelterRequest {
 }
 
 /**
- * The write outcome of a shelter report (POST /api/shelters/{id}/reports)
- * (community-self-moderation): `damped` is true when the stored
+ * The write outcome of a shelter report (POST /api/shelters/{id}/reports) —
+ * `damped` is true when the stored
  * report is a self-interested rival vote (the reporter holds their own
  * other USER listing of the same place) — recorded and flagged in the
  * admin queue, counting zero toward the weighted auto-hide tally.
@@ -347,7 +347,7 @@ export interface MeResponse {
   phone: string;
   levels: VerificationLevel[];
   /**
-   * True for the ADMIN-kind account (admin-moderation). The kind is
+   * True for the ADMIN-kind account. The kind is
    * the truth (fresh lookup server-side, never a JWT claim); ALWAYS present
    * — false for every regular user.
    */
@@ -379,7 +379,7 @@ export interface ShelterDto {
   /**
    * True when the shelter's creator exists and has a completed verification;
    * false for registry shelters (no author) and for creators whose account
-   * no longer exists (accessibility-and-provenance, backend-computed —
+   * no longer exists (backend-computed —
    * the UI never re-derives it).
    */
   submitterVerified: boolean;
@@ -422,7 +422,7 @@ export interface ShelterDto {
   /** Fresh occupancy; null = nothing fresh in the last 2 h (show nothing). */
   occupancy: ShelterOccupancy | null;
   /**
-   * Community trust state (community-review-queue): NEW/CONFIRMED for USER
+   * Community trust state: NEW/CONFIRMED for USER
    * rows (amber/green marker + "Newly added" / "Community-checked" badge);
    * CONFIRMED for registry rows (informational — the label logic only reads
    * it on USER rows). REJECTED rows are never in the public list (INACTIVE).
@@ -448,8 +448,8 @@ export interface ShelterDto {
    */
   lastVerifiedAt: string | null;
   /**
-   * "Mark inaccurate" moderator flag (moderation-dashboard-completion
-   * backend-computed from the V20 stamp): a marked row stays
+   * "Mark inaccurate" moderator flag (the backend computes it from
+   * the V20 stamp): a marked row stays
    * visible with status and trust state untouched — the UI renders the
    * single-sourced warning on the unverified-treatment surfaces.
    */
@@ -478,7 +478,7 @@ export interface ShelterDetailDto extends ShelterDto {
  * The owner's view of one of their own shelters (GET /api/shelters/mine):
  * the public list projection (incl. reviewStatus + locationKind) plus the
  * admin's `reviewNote` — the REJECT reason, stored server-side and shown
- * under the row's status badge (community-review-queue) — and the row's
+ * under the row's status badge — and the row's
  * moderator→submitter information request (`infoRequest`;
  * null when none). The exchange is private: the public list/detail DTOs
  * carry it as null and this surface is the only place it renders for the
@@ -492,7 +492,7 @@ export interface MineShelterDto extends ShelterDto {
 }
 
 /**
- * POST /admin/shelters/{id}/review body (community-review-queue):
+ * POST /admin/shelters/{id}/review body:
  * the rare MANUAL override — the primary trust flow is the automatic
  * community one (AUTO_CONFIRM). CONFIRM sets review_status=CONFIRMED
  * (status untouched); REJECT sets review_status=REJECTED +
@@ -538,7 +538,7 @@ export interface AdminInfoRequestDto extends InfoRequestDto {
 }
 
 // ---------------------------------------------------------------------------
-// Admin moderation (admin-moderation): the /admin/* DTOs. Every field is
+// Admin moderation: the /admin/* DTOs. Every field is
 // admin-only data (hidden rows, reporter identity) — never rendered outside
 // the /admin feature.
 // ---------------------------------------------------------------------------
@@ -604,7 +604,7 @@ export interface AdminShelterDto {
   /** The submitting user's profile name (USER rows only). */
   submitter: string | null;
   /**
-   * Community trust state (community-review-queue): the Unconfirmed tab is
+   * Community trust state: the Unconfirmed tab is
    * the client-side `source === 'USER' && reviewStatus === 'NEW'` filter
    * over this list. Registry rows carry CONFIRMED (backfill) — never
    * unconfirmed.
@@ -712,13 +712,13 @@ export type AdminAuditAction =
   | 'USER_UNSUSPEND'
   | 'MARK_INACCURATE'
   | 'CLEAR_INACCURATE'
-  // Guidance/media rows (crisis-guidance): the subject is the row's
+  // Guidance/media rows: the subject is the row's
   // subjectLabel snapshot (both shelterId and subjectUserId are null) —
   // the tab's "Subject" column renders it as the shelterName text.
   | 'GUIDANCE_PUBLISH'
   | 'GUIDANCE_UNPUBLISH'
   | 'GUIDANCE_DELETE'
-  // Manual ordering (guidance-manual-order): one row per changing
+  // Manual ordering: one row per changing
   // reorder, the subject is the fixed label "Guidance post order".
   | 'GUIDANCE_REORDER'
   | 'MEDIA_DELETE';
@@ -792,7 +792,7 @@ export interface AdminShelterHistoryEvent {
 }
 
 /**
- * The throttle/abuse alert kinds (GET /admin/alerts, abuse-limits) — the
+ * The throttle/abuse alert kinds (GET /admin/alerts) — the
  * closed backend vocabulary.
  */
 export type AdminAlertKind = 'submission-daily-cap' | 'otp-contact-cap' | 'near-duplicate';
@@ -868,7 +868,7 @@ export interface DataSourceDto {
 }
 
 // ---------------------------------------------------------------------------
-// Crisis guidance (public /blog reads — crisis-guidance)
+// Crisis guidance (public /blog reads)
 // ---------------------------------------------------------------------------
 
 /**
@@ -930,7 +930,7 @@ export interface GuidancePostDto {
 }
 
 // ---------------------------------------------------------------------------
-// Crisis guidance (admin authoring — crisis-guidance): the
+// Crisis guidance (admin authoring): the
 // /admin/guidance* + /admin/media* DTOs. Every field is admin-only data
 // (drafts, hero references, asset inventory) — never rendered outside the
 // /admin feature.
@@ -976,7 +976,7 @@ export interface AdminGuidancePostDto {
   /** Pinned posts sort first in the public index. */
   pinned: boolean;
   /**
-   * The shared stored manual position (guidance-manual-order). UNSCOPED
+   * The shared stored manual position. UNSCOPED
    * renumber writes keep this a dense 1..N; a LOCALE-SCOPED reorder is
    * slot-preserving (the visible posts take the submitted order in their
    * slots of the global order, the other languages' posts keep their
@@ -997,7 +997,7 @@ export interface AdminGuidancePostDto {
    */
   heroImageSrcset?: string | null;
   /**
-   * The hero's source URL (guidance-hero-import): the admin-supplied
+   * The hero's source URL: the admin-supplied
    * remote URL, fetched, validated and stored by the server at SAVE time
    * (create and update, draft or published alike). Kept after a
    * successful import as the hero's provenance (the imported asset's
@@ -1021,8 +1021,8 @@ export interface AdminGuidancePostDto {
 }
 
 /**
- * PUT /admin/guidance/order body (guidance-manual-order; admin-locale-scope
- * extends it with the optional `?locale=`). UNSCOPED: the FULL ordered id
+ * PUT /admin/guidance/order body (the optional `?locale=` scopes it).
+ * UNSCOPED: the FULL ordered id
  * list of every guidance post, in exactly the order the admin table shows
  * it (pinned block first, then the rest) — the server validates it as a
  * permutation of all post ids before writing (an unknown, duplicate or
@@ -1038,7 +1038,7 @@ export interface ReorderGuidanceRequest {
 }
 
 /**
- * POST /admin/guidance body (crisis-guidance). `title` +
+ * POST /admin/guidance body. `title` +
  * `body` are required (400 otherwise); `slug` omitted = the server derives
  * one from the title (a given slug is used exactly as given — collision →
  * 409 naming it); `locale` omitted = the server default; the alt is
@@ -1061,7 +1061,7 @@ export interface CreateGuidancePostRequest {
   /** At most 300 characters; null when there is no hero. */
   heroImageAlt: string | null;
   /**
-   * The hero import (guidance-hero-import): omitted when blank. An
+   * The hero import: omitted when blank. An
    * http(s) URL the server fetches, validates and stores AT SAVE (this
    * create call) instead of picking a library asset — the alt is
    * mandatory iff a hero of EITHER kind is set (the 400 pairing rule).
@@ -1093,7 +1093,7 @@ export interface UpdateGuidancePostRequest {
   /** null when there is no hero (the 400 pairing rule, both directions). */
   heroImageAlt: string | null;
   /**
-   * The hero import (guidance-hero-import): omitted (or null) when blank
+   * The hero import: omitted (or null) when blank
    * — that CLEARS the import URL (the PUT is a full replace). A non-null
    * URL is fetched, validated and stored AT SAVE, draft or published
    * alike (the trigger); a changed URL re-imports (superseding the
@@ -1173,7 +1173,7 @@ export interface UpdateGuidanceTranslationRequest {
 }
 
 /**
- * One media-library asset (crisis-guidance): GET /admin/media (every
+ * One media-library asset: GET /admin/media (every
  * asset, newest first), POST /admin/media (201 — the stored asset), and
  * DELETE /admin/media/{id} (200 — the pre-delete snapshot). `url` is the
  * public serving URL (`/api/media/<stored filename>`) — the admin

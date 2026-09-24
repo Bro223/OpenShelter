@@ -51,7 +51,7 @@ function fakeAuthStore(
     authenticated,
     initialized: signal(true),
     levels,
-    // admin-moderation: the shell's nav item reads this — default false.
+    // The shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
@@ -688,7 +688,7 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 360px viewport (mobile-responsive-polish): no page-level horizontal
+  // 360px viewport: no page-level horizontal
   // overflow. jsdom cannot measure a 360px viewport (it has no layout engine —
   // every offsetWidth/scrollWidth is 0), so — exactly like the pins in
   // shelter-detail-page.spec.ts / submit-shelter-page.scss — the mechanisms

@@ -16,7 +16,7 @@ import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '..
 import { Pagination } from '../../shared/pagination';
 
 /**
- * /blog — the public crisis-guidance index.
+ * /blog — the public crisis guidance index.
  *
  * A thin shell: state in signals, the gateway owns the API (a permit-all
  * read — no auth). The VIEW is the URL: ?page=N and ?size=M, both

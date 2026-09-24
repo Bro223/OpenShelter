@@ -35,7 +35,7 @@
   >
     <nav class="shell-nav" [attr.aria-label]="'nav.primaryAria' | t">
       <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
-      <!-- Public crisis-guidance index (crisis-guidance): permit-all —
+      <!-- Public crisis guidance index: permit-all —
            anonymous visitors see it too, like the map. -->
       <a routerLink="/blog" routerLinkActive="active">{{ 'nav.guidance' | t }}</a>
       @if (auth.initialized() && auth.authenticated()) {
@@ -52,7 +52,7 @@
         @if (!auth.isAdmin()) {
           <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
         }
-        <!-- Admin-kind only (admin-moderation): regular users see the
+        <!-- Admin-kind only: regular users see the
              nav unchanged; a failed profile fetch leaves isAdmin false, so
              the item hides itself fail-closed. -->
         @if (auth.isAdmin()) {
@@ -61,7 +61,7 @@
       }
     </nav>
     <div class="shell-actions">
-      <!-- Language switcher (i18n-et-en): offers only the language the reader
+      <!-- Language switcher: offers only the language the reader
            can switch TO — the ACTIVE locale is never rendered (clicking it
            would be a no-op). The choice persists (openshelter-locale) and
            applies pre-paint via the inline index.html script. The buttons
@@ -118,15 +118,15 @@
      official emergency channel (the "verified user ≠ verified shelter"
      trust gap). 112 first, then the official sources. Lives in the shell
      so every page carries it, and out of the feature pages' layout.
-     i18n-et-en: segmented around the two official links — the link
+     The copy is segmented around the two official links — the link
      URLs stay constant, only the labels translate. -->
 <footer class="shell-footer">
-  <!-- legal-recovery + official-dataset-csv:
-       the meta row sits ABOVE the notice (owner's layout decision) — the
-       two groups (legal links, data provenance) centred as a pair on
-       desktop, stacked on narrow (<900px).
-       Provenance is non-critical: hidden while loading or on API error.
-       i18n-et-en: labels + the date stamp follow the active locale. -->
+  <!-- The legal links + data-provenance groups: the meta row sits ABOVE
+       the notice (owner's layout decision) — the two groups (legal links,
+       data provenance) centred as a pair on desktop, stacked on narrow
+       (<900px). Provenance is non-critical: hidden while loading or on
+       API error.
+       Labels + the date stamp follow the active locale. -->
   <div class="shell-footer__meta">
     <nav class="shell-footer__legal" [attr.aria-label]="'footer.legalAria' | t">
       <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>

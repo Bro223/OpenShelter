@@ -1,6 +1,6 @@
 /**
  * Case table for `parseLocationInput` — the single client-side authority for
- * "text -> coordinates" (openspec change `shelter-location-input`).
+ * "text -> coordinates".
  *
  * THIS TABLE IS THE SHARED FIXTURE SET: the backend's MapsUrlCoordinatesTest
  * must mirror these cases (design decision 4 — same fixtures, both sides).

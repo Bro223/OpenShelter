@@ -6,8 +6,8 @@ import type { GuidancePostDto, PagedRows } from '../core/models';
 import { parseTotal } from '../shared/paging';
 
 /**
- * The door to the public /api/guidance controller group (crisis-guidance
- *): the /blog pages. Public read API — permit-all, no auth. Both
+ * The door to the public /api/guidance controller group — the /blog pages.
+ * Public read API — permit-all, no auth. Both
  * methods return typed promises and throw ApiError on failure (mapped
  * centrally by ApiClient).
  *

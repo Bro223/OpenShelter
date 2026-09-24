@@ -529,7 +529,7 @@ describe('AuthStore', () => {
       expect(store.isVerified()).toBe(false);
     });
 
-    // ---- admin flag (admin-moderation) --------------------------------
+    // ---- admin flag ----------------------------------------------------------------------
 
     it('refreshProfile() adopts isAdmin from the profile (always present)', async () => {
       account.me.mockResolvedValue({ ...PROFILE, isAdmin: true });

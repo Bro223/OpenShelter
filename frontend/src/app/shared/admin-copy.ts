@@ -25,7 +25,7 @@ export const SHELTER_REPORT_TYPE_LABEL: Record<ShelterReportType, string> = {
   OTHER: 'Other',
 };
 
-/** Audit-log action labels (community-review-queue): human copy for the
+/** Audit-log action labels: human copy for the
  *  machine action values. */
 export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   STATUS_CHANGE: 'Status change',
@@ -40,7 +40,7 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   USER_UNSUSPEND: 'User unsuspended',
   MARK_INACCURATE: 'Marked inaccurate',
   CLEAR_INACCURATE: 'Inaccurate cleared',
-  // Guidance/media rows (crisis-guidance): the subject is the row's
+  // Guidance/media rows: the subject is the row's
   // subjectLabel snapshot ("Guidance post \"…\" (slug)" / "Media asset
   // \"…\" (stored)") — the tab's Subject column renders it verbatim.
   GUIDANCE_PUBLISH: 'Guidance published',
@@ -57,7 +57,7 @@ export const SHELTER_HISTORY_ACTION_LABEL: Record<AdminShelterHistoryEvent['acti
   DELETED: 'Deleted',
 };
 
-/** Alert kind labels (abuse-limits): human copy for the
+/** Alert kind labels: human copy for the
  *  machine kind values. */
 export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
   'submission-daily-cap': 'Daily submission cap',

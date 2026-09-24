@@ -140,7 +140,7 @@ export class SheltersPanel {
     { value: 'USER', label: 'admin.shelters.source.community' },
   ];
 
-  /** Source/trust badge copy (community-review-queue): the source
+  /** Source/trust badge copy: the source
    *  column shows the source label (registry rows) or the trust-state
    *  label — the admin list keeps hidden rows, so REJECTED renders its
    *  own tone here. Resolved through the active locale. */

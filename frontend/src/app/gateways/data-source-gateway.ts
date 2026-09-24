@@ -4,7 +4,7 @@ import { ApiClient } from '../core/api-client';
 import type { DataSourceDto } from '../core/models';
 
 /**
- * The door to GET /api/data-source (official-dataset-csv) — the
+ * The door to GET /api/data-source — the
  * app-wide provenance line in the footer. Non-critical: any failure
  * resolves to null and the footer line simply stays hidden.
  */

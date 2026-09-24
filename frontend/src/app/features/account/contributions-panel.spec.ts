@@ -345,7 +345,7 @@ describe('ContributionsPanel', () => {
     expect(buttonByText(element, 'Delete')).not.toBeNull();
   });
 
-  // ---- hidden own shelters (shelter-trust-and-reports / user-contributions) ----
+  // ---- hidden own shelters ------------------------------------------------------
 
   it('an auto-hidden own shelter is marked with the community report count and has no restore action', async () => {
     const hiddenRow: MineShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 5 };
@@ -382,7 +382,7 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).not.toContain('Hidden');
   });
 
-  // ---- trust-state badges + admin note (community-review-queue) --------------
+  // ---- trust-state badges + admin note -------------------------------------------
 
   it('each /mine shelter row carries its trust-state badge (NEW / CONFIRMED / REJECTED)', async () => {
     shelters.mine.mockResolvedValue([

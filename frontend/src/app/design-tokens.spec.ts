@@ -13,7 +13,7 @@ import * as sass from 'sass';
  * Rules:
  *  1. Hex colours and rgb()/rgba() may only appear inside the styles.scss
  *     :root token block OR the [data-theme='high-contrast'] override block
- *     (accessibility-and-provenance: the theme overrides the SAME token
+ *     (the theme overrides the SAME token
  *     names — values differ by theme, names are stable — so it is a token
  *     block too; its literals are the documented, contrast-verified values).
  *  2. Stylesheets outside styles.scss may not use literal font-size /
@@ -651,7 +651,7 @@ describe('design tokens', () => {
     // Button text: btn--primary and the crisis CTA both set their text to
     // --color-bg-surface (light: white on blue/orange; high-contrast flips
     // to dark on the brightened fills — both directions checked). The
-    // reported-state badge/marker (shelter-trust-and-reports) uses the
+    // reported-state badge/marker uses the
     // same pair: white on #c2410c (5.18:1) / dark on #ffa94d (9.68:1).
     ['--color-bg-surface', '--color-primary'],
     ['--color-bg-surface', '--color-cta'],
@@ -1747,7 +1747,7 @@ describe('design tokens', () => {
   });
 
   /*
-   * Touch targets + numeric legibility (map-crisis-actions). jsdom
+   * Touch targets + numeric legibility. jsdom
    * cannot measure computed style, so — same mechanism-assertion pattern as
    * the responsive tests above — the CSS content is the acceptance.
    */

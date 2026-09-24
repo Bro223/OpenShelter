@@ -84,7 +84,7 @@ const NO_HERO_DRAFT: AdminGuidancePostDto = {
 };
 
 /** A DRAFT carrying a hero import URL whose import FAILED at save
- *  (guidance-hero-import, the save-time trigger): the post was stored
+ *  (the save-time trigger): the post was stored
  *  anyway (no asset yet), the URL kept for a retry. */
 const PENDING_IMPORT_DRAFT: AdminGuidancePostDto = {
   ...DRAFT_POST,
@@ -535,7 +535,7 @@ describe('GuidanceEditor', () => {
     expect(h.host.lastSave).toBeNull();
   });
 
-  // ---- hero import URL + the "no image" tick (guidance-hero-import) ----------
+  // ---- hero import URL + the "no image" tick --------------------------------------
   // The URL is a PENDING import: stored with the draft, fetched/validated/
   // stored by the server at the next publish (or in the one-shot PUBLISHED
   // create). The copy for the new labels/notes is owned by the i18n lane
@@ -656,7 +656,7 @@ describe('GuidanceEditor', () => {
     expect(h.element.querySelector('.guidance-editor__hero-import .field-error')).not.toBeNull();
   });
 
-  // ---- the save-time import's failure (guidance-hero-import) ----
+  // ---- the save-time import's failure ----------------------------------------
   // The write response can carry heroImportError: the save stored the
   // post anyway, the image import failed AT SAVE. The failure is shown
   // against the hero URL field (lead-in + the server's message), and
@@ -1936,7 +1936,7 @@ describe('translation editing (bilingual-guidance)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (mobile-responsive-polish): the admin guidance
+// 360px viewport: the admin guidance
 // surfaces (the editor form, the post list, the panel chrome) carry no
 // page-level horizontal overflow. jsdom cannot measure a 360px viewport
 // (no layout engine), so — like the pins in shelter-detail-page.spec.ts —
@@ -2005,7 +2005,7 @@ describe('guidance admin at 360px (no page-level horizontal overflow)', () => {
       'overflow-x: auto',
     );
     // The move buttons inside the actions cell wrap too — they are the
-    // PRIMARY reorder mechanism (guidance-manual-order) and must stay
+    // PRIMARY reorder mechanism and must stay
     // reachable on a phone.
     const list = readAdminScss('guidance-order-list.scss');
     const move = list.match(/\.admin-guidance-move \{[\s\S]*?\n\}/)?.[0] ?? '';

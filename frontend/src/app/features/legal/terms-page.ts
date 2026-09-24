@@ -12,7 +12,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 
 /**
- * Static terms of use (legal-recovery, i18n). No backend, no state —
+ * Static terms of use (i18n). No backend, no state —
  * catalog copy (`legal.terms.*` keys, EN verbatim from the old static
  * template). Mirrors the app's own safety notice (not an official emergency
  * service, 112 first) and the locked trust model (verified user ≠ verified

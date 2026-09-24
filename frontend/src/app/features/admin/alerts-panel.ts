@@ -6,7 +6,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 import { ALERT_KIND_LABEL } from '../../shared/admin-copy';
 
 /**
- * The Alerts tab panel (abuse-limits): the throttle-abuse ring — the
+ * The Alerts tab panel: the throttle-abuse ring — the
  * daily submission cap (429), the per-contact OTP cap (429) and the
  * near-duplicate rejection (409), newest first.
  *

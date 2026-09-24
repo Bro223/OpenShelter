@@ -123,7 +123,7 @@ export class LeafletService {
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
   private pickMarker: L.Marker | null = null;
-  /** The browse anchor pin (location-navigation, /map address search):
+  /** The browse anchor pin (/map address search):
    *  its OWN field — it must coexist with the shelter markers, so it is
    *  never added to (or cleared by) the markers layer group. */
   private anchorMarker: L.Marker | null = null;
@@ -173,7 +173,7 @@ export class LeafletService {
    * Replaces ALL markers with one divIcon per shelter row — the layer group
    * is cleared first, so a filter refetch never duplicates markers.
    *
-   * Trust palette (community-review-queue): the tone follows
+   * Trust palette: the tone follows
    * source/reviewStatus; a shelter with an open report of EITHER kind
    * (the OR of `nonexistentReports` and `inaccurateReports`) renders
    * the ORANGE reported marker — the single "reported" affordance —
@@ -320,8 +320,8 @@ export class LeafletService {
   }
 
   /**
-   * Drops (or moves) the single BROWSE ANCHOR pin (location-navigation,
-   * /map address search): the ORIGIN the per-row distances are measured
+   * Drops (or moves) the single BROWSE ANCHOR pin (/map address search):
+   * the ORIGIN the per-row distances are measured
    * from. NON-draggable and non-interactive — unlike the /submit pick
    * marker, the anchor is derived from a geocoded address, not freehand:
    * dragging it would move the reference point to a place with no data

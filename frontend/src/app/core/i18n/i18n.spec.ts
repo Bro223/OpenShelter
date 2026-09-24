@@ -8,7 +8,7 @@ import type { Messages } from './messages';
 import { TranslatePipe } from './translate-pipe';
 
 /**
- * i18n-et-en: the locale service, the translation lookup and
+ * The locale service, the translation lookup and
  * the catalog-parity guard.
  *
  *  - Mechanism: default locale (no stored pref = en), stored preference,

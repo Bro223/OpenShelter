@@ -1,6 +1,5 @@
 /**
- * Pure text -> coordinates parsing for the /submit smart location input
- * (openspec change `shelter-location-input`).
+ * Pure text -> coordinates parsing for the /submit smart location input.
  *
  * The single client-side authority for "text -> coordinates": coordinate
  * strings, DMS strings, and long-form map URLs (Google/Apple/Bing) all go

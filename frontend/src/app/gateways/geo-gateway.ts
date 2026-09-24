@@ -4,7 +4,7 @@ import { ApiClient } from '../core/api-client';
 import type { LocationResolved } from '../core/models';
 
 /**
- * The door to the /api/geo controller group (shelter-location-input) — kept
+ * The door to the /api/geo controller group — kept
  * SEPARATE from ShelterGateway on purpose: it maps to its own controller
  * (LocationController) with its own auth/rate-limit policy, and gateways
  * stay one-per-controller-group (01-TASK.md §4).

@@ -101,7 +101,7 @@ export function verificationTone(shelter: {
 }
 
 /**
- * The community trust-state label (community-review-queue): a USER row
+ * The community trust-state label: a USER row
  * says what it IS in the trust lifecycle:
  *   NEW       -> "Newly added"       (the unverified yellow badge — the
  *   CONFIRMED -> "Community-checked" badge follows the same unverified
@@ -152,7 +152,7 @@ export function sourceTrustLabel(
 }
 
 /**
- * The row's badge tone (community-review-queue): the badge follows the
+ * The row's badge tone: the badge follows the
  * marker's trust palette — NEW ("Newly added") rides the unverified yellow
  * pair, CONFIRMED ("Community-checked") the verified green pair (the badge
  * TEXT carries the state; the verified GREEN shapes carry the submitter's
@@ -188,7 +188,7 @@ export function communityBadgeClass(shelter: {
  *    what it IS (a declared private home), never what it is NOT: the app
  *    carries no access data and must not claim any (owner decision,
  *    Option A).
- *  - the "reported inaccurate" warning (moderation-dashboard-completion) —
+ *  - the "reported inaccurate" warning —
  *    the single-sourced sentence for a moderator-marked row, the
  *    catalog's account.contrib.inaccurate. A marked row stays visible with
  *    status and trust state untouched — the warning is the treatment. Muted
@@ -262,7 +262,7 @@ export function isOpenRow(shelter: {
 }
 
 // ---------------------------------------------------------------------------
-// Trust layer copy (shelter-trust-and-reports): the map rows and the
+// Trust layer copy: the map rows and the
 // detail header render the SAME badge text — single-sourced here, like the
 // source/trust labels.
 // ---------------------------------------------------------------------------
@@ -513,8 +513,8 @@ export function hasCommunityReports(shelter: { reportCount: number }): boolean {
 }
 
 /**
- * The straight-line distance line (community-review-queue — distance
- * honesty): "≈ 2.4 km straight line" (1 decimal), whole metres below 1 km
+ * The straight-line distance line (distance honesty): "≈ 2.4 km
+ * straight line" (1 decimal), whole metres below 1 km
  * ("≈ 450 m straight line"). The copy NEVER claims a walking route or
  * official status — it states what it measures. A pure formatter with two
  * consumers — the map's nearest line / address-anchor rows and the detail

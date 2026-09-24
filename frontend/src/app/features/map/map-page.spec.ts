@@ -225,7 +225,7 @@ function fakeAuthStore(
     authenticated: signal(overrides.authenticated ?? false),
     initialized: signal(overrides.initialized ?? true),
     levels: signal<VerificationLevel[]>([]),
-    // admin-moderation: the shell's nav item reads this — default false.
+    // The shell's nav item reads this — default false.
     isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async (): Promise<void> => undefined),
     isVerified: () => false,
@@ -418,7 +418,7 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Trust-state badges (community-review-queue): the NEW USER row
+      // Trust-state badges: the NEW USER row
       // reads "Newly added", the registry rows keep their registry labels.
       expect(basementRow.textContent).toContain('Newly added');
       expect(rows[1].textContent).toContain('Municipal registry');
@@ -436,7 +436,7 @@ describe('MapPage', () => {
 
       // One badge per row, in the name-sorted order. The old
       // "Verified user" / "User-submitted" split is gone — the label follows
-      // the trust state (community-review-queue): NEW → "Newly added",
+      // the trust state: NEW → "Newly added",
       // CONFIRMED → "Community-checked".
       const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
         b.textContent?.trim(),
@@ -678,7 +678,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Nearest shelter (map-crisis-actions): the safety-orange CTA,
+  // Nearest shelter: the safety-orange CTA,
   // geolocation -> Haversine nearest over the loaded list -> fly (no row emphasis).
   // ---------------------------------------------------------------------------
   describe('nearest shelter (crisis CTA)', () => {
@@ -701,7 +701,7 @@ describe('MapPage', () => {
           (a.textContent ?? '').includes('Add shelter'),
         ),
       ).toBe(false);
-      // Geolocation consent line (legal-recovery): the CTA is
+      // Geolocation consent line: the CTA is
       // always paired with the "browser asks first / never sent" promise.
       const geoNote = element.querySelector('.map-page__geo-note') as Element | null;
       expect(geoNote).not.toBeNull();
@@ -1102,7 +1102,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Address-search anchor (location-navigation): the browse fallback for
+  // Address-search anchor: the browse fallback for
   // the geolocation CTA — the SAME gateway + contract as /submit (client-side
   // Nominatim), rendered in the map sidebar; selecting a result anchors the
   // per-row straight-line distances + the distance sort.
@@ -1676,7 +1676,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Reported / occupancy presentation (shelter-trust-and-reports):
+  // Reported / occupancy presentation:
   // the orange legend entry, the row badges, and the marker hand-off to
   // LeafletService (whose class logic lives in leaflet-service.spec.ts).
   // ---------------------------------------------------------------------------
@@ -2115,7 +2115,7 @@ describe('MapPage', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (mobile-responsive-polish): no page-level horizontal
+// 360px viewport: no page-level horizontal
 // overflow on the recently-moved filter surfaces. jsdom cannot measure a
 // 360px viewport (no layout engine — every offsetWidth/scrollWidth is 0), so
 // — like the pins in shelter-detail-page.spec.ts — the mechanisms that

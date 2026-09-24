@@ -68,7 +68,7 @@ export const routes: Routes = [
     data: { title: 'title.account' },
     canActivate: [titleGuard, authGuard],
   },
-  // legal-recovery: static legal pages, no backend — lazy for
+  // Static legal pages, no backend — lazy for
   // the same bundle-budget reason as the other rare routes.
   {
     path: 'privacy',
@@ -95,7 +95,7 @@ export const routes: Routes = [
     data: { title: 'title.shelterDetail' },
     canActivate: [titleGuard],
   },
-  // Public: the crisis-guidance index (crisis-guidance) — permit-all,
+  // Public: the crisis guidance index — permit-all,
   // the top-nav item lands here.
   {
     path: 'blog',
@@ -128,7 +128,7 @@ export const routes: Routes = [
     data: { title: 'title.submit' },
     canActivate: [titleGuard, authGuard, verifiedGuard],
   },
-  // Admin-kind only (admin-moderation): adminGuard sends BOTH anonymous
+  // Admin-kind only: adminGuard sends BOTH anonymous
   // and authenticated non-admins home; the backend re-checks kind per
   // request, so this is UX, not enforcement.
   {

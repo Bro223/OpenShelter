@@ -5,7 +5,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 
-// i18n-et-en: register the non-English locale data so the `date` pipe
+// Register the non-English locale data so the `date` pipe
 // formats dates natively when the app locale is `et` or `ru` (the shell
 // footer's last-import stamp and the /account contribution dates follow
 // the active locale).

@@ -28,7 +28,7 @@ import { ResendCountdown } from '../../shared/resend-countdown';
 type VerifyChannel = 'EMAIL' | 'PHONE';
 
 /**
- * A channel's UI copy as catalog KEYS (i18n-et-en): the template renders
+ * A channel's UI copy as catalog KEYS: the template renders
  * them through `| t`, so a language switch re-renders the cards in the
  * new language. The values must be valid Messages keys.
  */
