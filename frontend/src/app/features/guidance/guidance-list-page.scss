@@ -2,10 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-20);
-  /* The old 44rem cap was a readable TEXT column for the row list. The
-     four-up card grid needs the shell's full content width instead, so
-     the cap is deliberately REMOVED — the shell's --content-max-width
-     (1080px, .shell-body in page-shell.scss) stays the outer bound. */
+  /* The card grid takes the shell's full content width — the shell's
+     --content-max-width (1080px, .shell-body in page-shell.scss) is the
+     outer bound. */
 }
 
 .guidance-list__posts {
@@ -13,21 +12,23 @@
   margin: 0;
   padding: 0;
   display: grid;
-  /* Card grid: self-adjusting, no new breakpoints (the repo documents a
-     single 900px literal, --bp-narrow). At the shell's desktop content
-     width (1080px cap - 2 x 20px .shell-body padding = 1040px) with the
-     16px gap, minmax(200px, 1fr) yields exactly 4 columns of 248px
-     (5 would need 1064px). Narrowing degrades 3 / 2 / 1 at 888px /
-     672px / 456px viewports — the step-downs land just outside the
-     documented 900px breakpoint, so no @media is needed at all. */
+  /* Self-adjusting column count, no breakpoints: auto-fill derives the
+     count from the container width (a fixed count would force its
+     tracks and overflow every viewport narrower than count x floor +
+     gaps). At the shell's desktop content width (1080px cap - 2 x 20px
+     .shell-body padding = 1040px) with the 16px gap, minmax(200px, 1fr)
+     yields exactly 4 columns of 248px; narrowing degrades 3 / 2 / 1 at
+     888px / 672px / 456px viewports. */
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  /* 200px: the card minimum — page-specific layout dimension (documented
-     exception, not spacing) */
+  /* 200px: the card minimum — page-specific layout dimension
+     (documented exception, not spacing) */
   gap: var(--space-16);
 }
 
 /* One card: thumbnail on top, then the title (the card's only link),
-   then the date. */
+   then the date. min-width: 0 lets the card shrink below its
+   min-content size — a long unbreakable title must never stretch the
+   grid track it sits in. */
 .guidance-post {
   display: flex;
   flex-direction: column;
@@ -39,13 +40,10 @@
   border-radius: var(--radius-lg);
 }
 
-/* The hero thumbnail: the admin hero-thumb media idiom at card scale —
-   full card width in a fixed 4/3 aspect-ratio box, object-fit: cover,
-   with matching width/height attributes on the <img>, so the card never
-   shifts while the image loads. 4/3 (over 16/9): at the ~248px desktop
-   card width it gives a ~166px-tall image — clearly bigger than the old
-   64px row thumbnail — without a banner-wide image that would push the
-   title + date far down the card. */
+/* The hero thumbnail: full card width in a fixed 4/3 aspect-ratio box,
+   object-fit: cover (cropped, never squashed), with matching
+   width/height attributes on the <img>, so the card never shifts while
+   the image loads. */
 .guidance-post__hero,
 .guidance-post__thumb {
   width: 100%;
@@ -87,12 +85,10 @@
   margin: 0;
 }
 
-/* The empty state is the shared list-state component's empty mode
-   (its notice keeps the muted state language); the out-of-range state is
-   its out-of-range mode — the page no longer carries either's CSS.
+/* The empty and out-of-range states are the shared list-state
+   component's modes — the page carries neither's CSS. */
 
-/* The shared loading indicator's page-scoped slot (the detail-state
-   pattern of the shelter detail page). */
+/* The shared loading indicator's page-scoped slot. */
 .guidance-state {
   color: var(--color-muted);
   margin: 0;

@@ -6,7 +6,7 @@ import type { Params } from '@angular/router';
 import { skip } from 'rxjs';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
-import type { GuidancePostDto } from '../../core/models';
+import type { GuidancePostDto, PagedRows } from '../../core/models';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -16,31 +16,24 @@ import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '..
 import { Pagination } from '../../shared/pagination';
 
 /**
- * /blog — the public crisis-guidance index (crisis-guidance),
- * paged (guidance-index-paging).
+ * /blog — the public crisis-guidance index.
  *
- * <p>Thin shell (01-TASK.md §7): state in signals, the gateway owns the
- * API (a permit-all read — no auth). The VIEW is the URL: ?page=N and
- * ?size=M (both optional — 1 and the default size are the defaults and
- * are omitted from the URL, so a link or a refresh keeps the view). The
- * SERVER does the paging (limit/offset over its stable order, pinned first
- * then publishedAt descending, id descending tie-break); the page never
- * fetches-and-slices client-side. The un-paged total arrives as
+ * A thin shell: state in signals, the gateway owns the API (a permit-all
+ * read — no auth). The VIEW is the URL: ?page=N and ?size=M, both
+ * optional (the defaults are omitted, so a plain link or a refresh keeps
+ * the view). The SERVER does the paging over its stable order (pinned
+ * first, then publishedAt descending, id descending tie-break) — the page
+ * never fetches-and-slices client-side. The un-paged total arrives as
  * X-Total-Count (the gateway surfaces it), which is what makes an
  * out-of-range page distinguishable from a truly empty index: past-the-end
- * renders the shared out-of-range notice with a "show the first page"
- * action, never a bare empty list; the empty state is total === 0 only.
+ * renders the shared out-of-range notice with a first-page action, never a
+ * bare empty list; the empty state is total === 0 only.
  *
- * <p>The page number belongs in the URL, and so does the size
- * (list-page-paging: the shared paging contract, shared/paging). The size
- * is per-list — the URL is the state, deliberately NOT a remembered
- * cross-list preference, so /blog and a later admin list cannot surprise
- * each other.
- *
- * <p>Locale scope: the server answers ONE language per call (the gateway
- * sends the active locale), so a language switcher change is a re-fetch
- * of the CURRENT page (the fetchSeq guard keeps a slow response from the
- * previous language from landing over the new fetch).
+ * The size is per-list: the URL is the state, deliberately not a
+ * remembered cross-list preference, so /blog and a later admin list
+ * cannot surprise each other. The server answers ONE language per call
+ * (the gateway sends the active locale), so a language switch re-fetches
+ * the CURRENT page.
  */
 @Component({
   selector: 'app-guidance-list-page',
@@ -79,22 +72,18 @@ export class GuidanceListPage implements OnDestroy {
   readonly total = signal(0);
   readonly pages = signal(1);
 
-  /**
-   * The honest out-of-range state: the URL asks for a page past the end
-   * (a hand-typed number, a stale shared link, or a locale switch that
-   * shrank the index). total > 0 AND page > pages — shown as an explicit
-   * notice, NOT the empty state (which is reserved for total === 0).
-   */
+  /** The honest out-of-range state: total > 0 AND the URL's page past the
+      end (a hand-typed number, a stale shared link, or a locale switch
+      that shrank the index). Shown as an explicit notice, NOT the empty
+      state (which is reserved for total === 0). */
   readonly outOfRange = signal(false);
 
-  /**
-   * Slugs whose hero <img> failed to load (404/network): the broken image
-   * element is dropped and a fixed-size neutral placeholder takes its
-   * place, so the row keeps its height and the title link stays the row's
-   * single accessible link. Reset per successful page load — a hero that
-   * 404'd on page 1 may exist on a re-visited page (or the post's hero
-   * was re-set by an admin).
-   */
+  /** Slugs whose hero <img> failed to load (404/network): the broken
+      image element is dropped and a fixed-size placeholder takes its
+      place, so the card keeps its height and the title link stays the
+      card's single accessible link. Reset per successful page load — a
+      hero that failed on one page may exist on another (or its asset was
+      re-set by an admin). */
   private readonly failedHeroSlugs = signal<ReadonlySet<string>>(new Set());
 
   /** Template seam: did this post's hero image fail to load? */
@@ -115,17 +104,16 @@ export class GuidanceListPage implements OnDestroy {
     this.failedHeroSlugs.set(failed);
   }
 
-  /** The fetchSeq guard drops a superseded in-flight response (the
-      guidance-detail's pattern: a language switch or a page flip must not
-      land the old view's rows over the new fetch). */
+  /** Superseded-fetch guard: a language switch or a page flip must not
+      land the old view's rows over the newer fetch. */
   private fetchSeq = 0;
 
-  /** The language switcher sets I18nService.locale: the index is
+  /** The language switcher sets I18nService.locale and the index is
       locale-scoped on the server, so a switch re-fetches the CURRENT
-      page (no URL change — the locale is not part of the view URL). A
-      field initializer (an injection context — toObservable's
+      page (no URL change — the locale is not part of the view URL).
+      A field initializer (an injection context — toObservable's
       requirement) builds the subscription; toObservable emits the
-      CURRENT value on subscribe, so skip(1) — only a real switch
+      current value on subscribe, so skip(1) — only a real switch
       triggers a load. */
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
@@ -133,9 +121,9 @@ export class GuidanceListPage implements OnDestroy {
 
   /** The view IS the URL: every emission (initial navigation and every
       query change — a page/size flip, a back-button step) parses the
-      page/size, normalizes a hand-typed value, and loads. queryParamMap
-      / queryParams emit the current value on subscribe, so the initial
-      load comes from here (there is no separate ngOnInit load). */
+      page/size, normalizes a hand-typed value, and loads. queryParams
+      emits the current value on subscribe, so the initial load comes
+      from here (there is no separate ngOnInit load). */
   private readonly querySub = this.route.queryParams.subscribe((params) =>
     this.onQueryChange(params),
   );
@@ -149,7 +137,7 @@ export class GuidanceListPage implements OnDestroy {
       A raw value that is not a legal member of the domain (non-numeric,
       a size outside 10..100 or off the step of 10, a page below 1) is
       clamped to the NEAREST legal value (the shared paging policy,
-      shared/paging) and the URL is normalized in place (replaceUrl — no
+      shared/paging) and the URL is rewritten in place (replaceUrl — no
       history entry for the cosmetic fix), so the selector always shows
       the value that is actually in effect and the URL and the view can
       never quietly disagree. */
@@ -158,28 +146,12 @@ export class GuidanceListPage implements OnDestroy {
     const rawSize = params['size'] ?? null;
     const page = parsePage(rawPage);
     const size = parseSize(rawSize);
-    const canonical: Record<string, string> = { ...params };
-    if (page > 1) {
-      canonical['page'] = String(page);
-    } else {
-      delete canonical['page'];
-    }
-    if (size !== PAGE_SIZE_DEFAULT) {
-      canonical['size'] = String(size);
-    } else {
-      delete canonical['size'];
-    }
-    const dirty =
-      (rawPage !== null && String(page) !== rawPage) ||
-      (rawSize !== null && String(size) !== rawSize) ||
-      (rawPage === null && page !== 1) ||
-      (rawSize === null && size !== PAGE_SIZE_DEFAULT);
-    if (dirty) {
+    if (this.wasClamped(rawPage, page) || this.wasClamped(rawSize, size)) {
       // The normalized URL re-emits through this same subscription and
       // loads there — no double fetch.
       void this.router.navigate([], {
         relativeTo: this.route,
-        queryParams: canonical,
+        queryParams: this.canonicalUrlParams(params, page, size),
         replaceUrl: true,
       });
       return;
@@ -187,6 +159,34 @@ export class GuidanceListPage implements OnDestroy {
     this.page.set(page);
     this.size.set(size);
     void this.load();
+  }
+
+  /** A PRESENT raw value that does not round-trip through the shared
+      clamp: the policy turned it into a different legal value. */
+  private wasClamped(raw: string | null, effective: number): boolean {
+    return raw !== null && String(effective) !== raw;
+  }
+
+  /** The rewrite's URL parameters: every param the URL already carried,
+      with page/size replaced by their normalized form. */
+  private canonicalUrlParams(params: Params, page: number, size: number): Record<string, string> {
+    const canonical: Record<string, string> = { ...params };
+    delete canonical['page'];
+    delete canonical['size'];
+    return { ...canonical, ...this.viewParams(page, size) };
+  }
+
+  /** The view as URL parameters — the default page and size are omitted,
+      so the plain /blog link IS the default view. */
+  private viewParams(page: number, size: number): Record<string, string> {
+    const params: Record<string, string> = {};
+    if (page > 1) {
+      params['page'] = String(page);
+    }
+    if (size !== PAGE_SIZE_DEFAULT) {
+      params['size'] = String(size);
+    }
+    return params;
   }
 
   /** The pagination control's intent (prev/next/size). A SIZE change
@@ -198,24 +198,19 @@ export class GuidanceListPage implements OnDestroy {
       query emission loads. */
   onNavigate({ page, size }: { page: number; size: number }): void {
     const effectivePage = clampPage(page, this.total(), size);
-    const queryParams: Record<string, string> = {};
-    if (effectivePage > 1) {
-      queryParams['page'] = String(effectivePage);
-    }
-    if (size !== PAGE_SIZE_DEFAULT) {
-      queryParams['size'] = String(size);
-    }
-    void this.router.navigate([], { relativeTo: this.route, queryParams });
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: this.viewParams(effectivePage, size),
+    });
   }
 
   /** The out-of-range notice's action: back to the first page (the
       current size is kept if it is non-default). */
   gotoFirstPage(): void {
-    const queryParams: Record<string, string> = {};
-    if (this.size() !== PAGE_SIZE_DEFAULT) {
-      queryParams['size'] = String(this.size());
-    }
-    void this.router.navigate([], { relativeTo: this.route, queryParams });
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: this.viewParams(1, this.size()),
+    });
   }
 
   /** Fetch the CURRENT page of the published index; a failure lands in
@@ -232,14 +227,7 @@ export class GuidanceListPage implements OnDestroy {
         if (seq !== this.fetchSeq) {
           return; // a newer fetch superseded this one (switch/page flip)
         }
-        const { rows, total } = value;
-        this.total.set(total);
-        this.pages.set(lastPage(total, size));
-        const outOfRange = total > 0 && page > lastPage(total, size);
-        this.outOfRange.set(outOfRange);
-        this.posts.set(outOfRange ? [] : rows);
-        this.failedHeroSlugs.set(new Set());
-        this.loading.set(false);
+        this.applyPage(value, page, size);
       },
       (failure: unknown) => {
         if (seq !== this.fetchSeq) {
@@ -249,5 +237,20 @@ export class GuidanceListPage implements OnDestroy {
         this.loading.set(false);
       },
     );
+  }
+
+  /** The response for the requested page: derive the page count and the
+      out-of-range flag (total > 0 AND the requested page past the end),
+      then swap the rows in — an out-of-range page renders the explicit
+      notice, not the empty state (which is total === 0 only). */
+  private applyPage(value: PagedRows<GuidancePostDto>, page: number, size: number): void {
+    const last = lastPage(value.total, size);
+    this.total.set(value.total);
+    this.pages.set(last);
+    const outOfRange = value.total > 0 && page > last;
+    this.outOfRange.set(outOfRange);
+    this.posts.set(outOfRange ? [] : value.rows);
+    this.failedHeroSlugs.set(new Set());
+    this.loading.set(false);
   }
 }

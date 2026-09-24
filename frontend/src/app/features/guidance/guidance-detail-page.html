@@ -13,21 +13,17 @@
     @if (loading()) {
       <app-loading-indicator class="guidance-state" [message]="'guidance.loadingDetail' | t" />
     } @else if (post(); as p) {
-      <!-- The hero image (crisis-guidance): the article's first
-           content, at its NATURAL size — the image's own aspect ratio
-           decides the height (guidance-detail-page.scss: max-width
-           100% + height auto), so a photo is never stretched into a
-           frame. The old fixed 4/3 box is gone: with no object-fit it
-           stretched every image (owner report). No width/height
-           attributes either — the natural dimensions are not stored,
-           so a pinned pair would mis-reserve a 4/3 box and jump on
-           load. NO-HERO RULE: no hero URL renders NO element at all —
-           no broken image, no empty frame, no layout shift. A 404'd / 
+      <!-- The hero image: the article's first content, at its NATURAL
+           size — the image's own aspect ratio decides the height (scss:
+           max-width 100% + height auto), so a photo is never stretched
+           into a frame. No width/height attributes: the natural
+           dimensions are not stored, so a pinned pair would mis-reserve
+           a box and jump on load. No hero URL renders NO element — no
+           broken image, no empty frame, no layout shift. A 404'd /
            unreachable stored URL takes the index's neutral placeholder
-           box (a broken-image icon is never the feedback). The hero is
-           the article's first content (above the fold), so it loads
-           eager with a high fetch priority — the index cards, below the
-           fold, use lazy instead. -->
+           box (a broken-image icon is never the feedback). Above the
+           fold: eager load with a high fetch priority (the index cards,
+           below the fold, are lazy). -->
       @if (p.heroImageUrl; as heroUrl) {
         @if (heroFailed()) {
           <span
@@ -38,11 +34,11 @@
           <!-- Alt: the stored hero alt (the admin sets it; mandatory
                whenever a hero exists). A null alt with a present URL =
                decorative empty alt — never the post title. -->
-          <!-- the derivative srcset when the server has one for
-               this hero (built from disk truth — null for a WebP
-               original / pre-feature upload, then plain src only);
-               sizes is the article column's max width — 44rem = 704 px,
-               the widest the natural-size hero can render. -->
+          <!-- The derivative srcset when the server has one for this
+               hero (null for a WebP original / pre-feature upload, then
+               plain src only); sizes is the article column's max width —
+               44rem = 704 px, the widest the natural-size hero can
+               render. -->
           <img
             class="guidance-detail__hero"
             [src]="heroUrl"
@@ -62,11 +58,10 @@
           {{ p.publishedAt | date: 'medium' : undefined : i18n.locale() }}
         </p>
       </header>
-      <!-- Locale-fallback notice (bilingual-guidance): the post has NO
-           translation in the reader's language — the server served the
-           default-locale copy with the flag (a 200, never a 404). The
-           note says plainly which language is shown and that the
-           reader's language is not available; it offers the
+      <!-- Locale-fallback notice: the post has NO translation in the
+           reader's language — the server served the default-locale copy
+           with the flag (a 200, never a 404). It says which language is
+           shown and that the reader's is not available; it offers the
            reader's-language version as a LINK when `alternates` carries
            that locale (the reader's choice — the URL is never switched
            silently). When a translation exists in the reader's language

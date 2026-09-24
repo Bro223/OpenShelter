@@ -13,12 +13,11 @@
   @if (loading()) {
     <app-loading-indicator class="guidance-state" [message]="'guidance.loading' | t" />
   } @else if (outOfRange()) {
-    <!-- The honest out-of-range state (guidance-index-paging), in the
-         shared component: the URL asks for a page past the end of a
-         NON-EMPTY index — a hand-typed number, a stale shared link, or a
-         locale switch that shrank the index. Explicit translated notice
-         + first-page action; the empty state below is total === 0 only,
-         never this. -->
+    <!-- The honest out-of-range state: the URL asks for a page past the
+         end of a NON-EMPTY index — a hand-typed number, a stale shared
+         link, or a locale switch that shrank the index. An explicit
+         translated notice + first-page action; the empty state below is
+         total === 0 only, never this. -->
     <app-list-state
       [kind]="'out-of-range'"
       [messageKey]="'guidance.pageOutOfRange'"
@@ -29,48 +28,41 @@
     />
   } @else if (posts(); as list) {
     @if (list.length === 0) {
-      <!-- The empty state (the shared component's empty mode): nothing is
-           published in the active locale. -->
+      <!-- The empty state: nothing is published in the active locale. -->
       <app-list-state [kind]="'empty'" [messageKey]="'guidance.empty'" />
     } @else {
       <ul class="guidance-list__posts">
         @for (post of list; track post.slug) {
           <li class="guidance-post">
-            <!-- Hero thumbnail on top (the index hero projection).
-                 NO-HERO RULE REVISITED — supersedes the earlier rule
-                 "a post WITHOUT a hero renders NO image element at all":
-                 that rule evened out a TEXT ROW list, but a card GRID
-                 aligns rows of CARDS, not text — a hero-less card with no
-                 box is shorter than its neighbours and every grid row
-                 goes ragged. In a grid the evenness comes from the BOX,
-                 so a hero-less card now renders a NEUTRAL PLACEHOLDER
-                 BOX of the SAME aspect ratio — one visual language for
-                 "no image", shared with the load-failure case below.
-                 A present URL renders a full-card-width box (object-fit:
-                 cover, aspect-ratio + matching width/height attributes,
-                 lazy + async — the admin hero-thumb media idiom at card
-                 scale), so loading never shifts the card. -->
+            <!-- Hero thumbnail on top. A hero-less card renders a
+                 NEUTRAL PLACEHOLDER BOX of the same aspect ratio as a
+                 hero: a card grid aligns rows of cards, and the evenness
+                 comes from the box, so every card keeps its height. A
+                 broken thumbnail takes the SAME box. A present URL
+                 renders a full-card-width box (object-fit: cover,
+                 aspect-ratio + matching width/height attributes, lazy +
+                 async), so loading never shifts the card. -->
             @if (post.heroImageUrl; as heroUrl) {
               @if (heroFailed(post.slug)) {
-                <!-- The thumbnail 404'd / the network failed: the SAME
-                     placeholder box takes its place (the card keeps its
-                     height, the title link stays the card's single
-                     accessible link) — a broken-image icon is never the
-                     feedback. -->
+                <!-- The thumbnail failed to load: the same placeholder
+                     box takes its place (the card keeps its height, the
+                     title link stays the card's single accessible link)
+                     — a broken-image icon is never the feedback. -->
                 <span
                   class="guidance-post__thumb guidance-post__thumb--failed"
                   aria-hidden="true"
                 ></span>
               } @else {
-                <!-- Alt: the stored hero alt (the admin sets it; mandatory
-                     whenever a hero exists). A null alt with a present URL
-                     = decorative empty alt — never the post title, which
-                     would duplicate the link text. -->
-                <!-- the derivative srcset when the server has one for
+                <!-- Alt: the stored hero alt (the admin sets it;
+                     mandatory whenever a hero exists). A null alt with a
+                     present URL = decorative empty alt — never the post
+                     title, which would duplicate the link text. -->
+                <!-- The derivative srcset when the server has one for
                      this hero (built from disk truth — null for a WebP
                      original / pre-feature upload, then plain src only);
-                     sizes is the slot's fixed CSS width (400 px, the card
-                     box). -->
+                     sizes is the slot's declared width for srcset
+                     selection (400 px — always ≥ the rendered card
+                     width, so the chosen derivative is never too small). -->
                 <img
                   class="guidance-post__hero"
                   [src]="heroUrl"
@@ -85,8 +77,8 @@
                 />
               }
             } @else {
-              <!-- No hero: the neutral placeholder box (see the comment
-                   above — the grid's alignment comes from the box). -->
+              <!-- No hero: the neutral placeholder box (the grid's
+                   alignment comes from the box). -->
               <span class="guidance-post__thumb" aria-hidden="true"></span>
             }
             <h2 class="guidance-post__title">
@@ -99,11 +91,11 @@
         }
       </ul>
 
-      <!-- The shared page + size control (list-page-paging). It renders
-           NOTHING at one page or an empty list (pages() < 2), so the
-           chrome never appears when it would be pointless. Its default
-           size list IS the endpoint's range (shared/paging PAGE_SIZES),
-           so no [sizes] binding is needed. -->
+      <!-- The shared page + size control. It renders NOTHING at one
+           page or an empty list (pages() < 2), so the chrome never
+           appears when it would be pointless. Its default size list IS
+           the endpoint's range (shared/paging PAGE_SIZES), so no [sizes]
+           binding is needed. -->
       <app-pagination
         [page]="page()"
         [pages]="pages()"

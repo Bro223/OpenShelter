@@ -27,18 +27,16 @@
   gap: var(--space-8);
 }
 
-/* The hero image at article scale: natural size, capped by the column
-   (max-width: 100% + height: auto — the image's OWN aspect ratio
-   decides the height, so nothing is stretched and a small image is
-   never upscaled past its natural width) AND capped in height
-   (max-height: 24rem, owner report: a full-column hero takes too
-   much vertical space) — when the cap binds, the width shrinks with
-   the ratio and the image centers. No fixed aspect-ratio box:
-   the old 4/3 box + default object-fit: fill stretched every photo.
-   The index cards keep the 4/3 cover idiom — that one crops, it does
-   not stretch. The failed variant is the index's neutral "no image"
-   box — it is a <span> with no intrinsic size, so it KEEPS the 4/3
-   frame to stay visible. */
+/* The hero image at article scale: NATURAL SIZE — the image's OWN
+   aspect ratio decides the height (max-width: 100% + height: auto are
+   ratio-preserving), so nothing is stretched and a small image is never
+   upscaled past its natural width; the column width and the 24rem
+   vertical cap bound it (when the cap binds, the width shrinks with the
+   ratio and the image centers). No fixed aspect-ratio box: a fixed box
+   without object-fit: cover would stretch every photo (the index cards
+   keep the 4/3 cover idiom — that one crops, it does not stretch). The
+   failed variant is the index's neutral "no image" box — it is a <span>
+   with no intrinsic size, so it KEEPS the 4/3 frame to stay visible. */
 .guidance-detail__hero {
   display: block;
   width: auto;
@@ -48,17 +46,15 @@
   margin-inline: auto; /* mobile default: centered */
   border-radius: var(--radius-md);
 
-  /* Desktop (owner ruling): float to the left of the article column;
-     the mobile default (centered) stays below the 900px breakpoint —
-     the repo-wide page-layout break. */
+  /* Desktop: left-aligned in the article column at the repo-wide
+     page-layout break; the mobile default (centered) stays below it. */
   @media (min-width: 900px) {
     margin-inline: 0 auto;
   }
 
   &--failed {
-    /* The neutral "no image" box: a border + background in a 4/3 frame
-       (the element is a <span>, so it needs a display upgrade and its
-       own aspect-ratio to take the width). */
+    /* The neutral "no image" box: the element is a <span>, so it needs
+       a display upgrade and its own aspect-ratio to take the width. */
     display: block;
     aspect-ratio: 4 / 3;
     border: 1px solid var(--color-border-subtle);
@@ -72,10 +68,10 @@
   margin: 0;
 }
 
-/* The locale-fallback notice (bilingual-guidance): a plain info note —
-   the same tokens as the date line and the hero's neutral box (muted
-   text on the subtle background, the subtle border), so it reads as a
-   note, not an error. The inline link takes the global link colour. */
+/* The locale-fallback notice: a plain info note — the same tokens as
+   the date line and the hero's neutral box (muted text on the subtle
+   background, the subtle border), so it reads as a note, not an error.
+   The inline link takes the global link colour. */
 .guidance-detail__fallback {
   margin: 0;
   padding: var(--space-12) var(--space-16);
@@ -124,8 +120,7 @@
   }
 }
 
-/* The shared loading indicator's page-scoped slot (the detail-state
-   pattern of the shelter detail page). */
+/* The shared loading indicator's page-scoped slot. */
 .guidance-state {
   color: var(--color-muted);
   margin: 0;

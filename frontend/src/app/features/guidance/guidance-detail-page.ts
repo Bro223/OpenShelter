@@ -20,28 +20,26 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
 /**
- * /blog/:slug — one public crisis-guidance post (crisis-guidance).
+ * /blog/:slug — one public crisis-guidance post.
  *
- * Thin shell (01-TASK.md §7): state in signals, the gateway owns the API
- * (a permit-all read — no auth). The body is admin-authored HTML the
- * server already sanitized (jsoup allowlist) — it is rendered through
- * [innerHTML], which runs Angular's sanitizer before the value reaches the
- * DOM, so the stored HTML is sanitized a second time client-side (never
- * bypassSecurityTrustHtml, never a DomSanitizer bypass).
+ * A thin shell: state in signals, the gateway owns the API (a permit-all
+ * read — no auth). The body is admin-authored HTML the server already
+ * sanitized (a jsoup allowlist); it renders through [innerHTML], which
+ * runs Angular's sanitizer before the value reaches the DOM, so the
+ * stored HTML is sanitized a second time client-side (never a
+ * DomSanitizer bypass).
  *
- * A 404 — an unknown slug OR a draft slug (the SAME answer, by design: a
- * draft's existence is never revealed) — lands in the readable not-found
- * state, not the error banner. Any other failure -> the shared error
- * banner with the page chrome intact.
+ * A 404 — an unknown slug OR a draft slug, the SAME answer by design so
+ * a draft's existence is never revealed — lands in the readable
+ * not-found state, not the error banner. Any other failure lands in the
+ * shared error banner with the page chrome intact.
  *
- * Locale scope: the server answers ONE language per call (the gateway
- * sends the active locale), and a language switch re-fetches. The detail
- * never dead-ends (bilingual-guidance): a post WITHOUT a translation in
- * the active language is served in the default locale with
- * `localeFallback: true` — the readable notice names the language being
- * shown (and links the reader's-language version when `alternates` has
- * it). Only a draft slug or an unknown slug still lands in the readable
- * not-found state.
+ * The server answers ONE language per call (the gateway sends the active
+ * locale) and a language switch re-fetches. The detail never dead-ends:
+ * a post WITHOUT a translation in the active language is served in the
+ * default locale with `localeFallback: true` — the notice names the
+ * language being shown and links the reader's-language version when
+ * `alternates` has it.
  */
 @Component({
   selector: 'app-guidance-detail-page',
@@ -63,17 +61,15 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
   readonly error = signal<string | null>(null);
   readonly notFound = signal(false);
 
-  /** The fetchSeq guard drops a superseded in-flight response (the
-      shelter-detail's pattern: an id switch must not land the old
-      post's data over the new load — the same guard covers a language
-      switch, whose 404/200 outcome can flip between fetches). */
+  /** Superseded-fetch guard: an id switch or a language switch must not
+      land the old post's data over the new load (a switch can flip the
+      404/200 outcome between fetches). */
   private fetchSeq = 0;
 
   /** Did the CURRENT post's hero <img> fail to load (404/network)? The
-      index card's idiom (guidance-list-page): the neutral placeholder box
-      takes its place — a broken-image icon is never the feedback. A plain
-      boolean (one post at a time, unlike the index's per-slug set); reset
-      on every load so a failed hero never carries over to the next slug. */
+      placeholder box takes its place — a broken-image icon is never the
+      feedback. One post at a time, so a plain boolean; reset on every
+      load so a failed hero never carries over to the next slug. */
   protected readonly heroFailed = signal(false);
 
   /** Template seam for the hero <img>'s (error): the placeholder takes
@@ -82,29 +78,27 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
     this.heroFailed.set(true);
   }
 
-  /** The language switcher sets I18nService.locale: the detail is
-      locale-scoped on the server, so a switch re-fetches (the guard
-      keeps a stale response from the other language from landing).
-      A field initializer (an injection context — toObservable's
-      requirement) builds the subscription; toObservable emits the
-      CURRENT value on subscribe, so skip(1) — only a real switch
-      triggers a load. Unsubscribed in ngOnDestroy (the page shell's
-      router-subscription idiom). */
+  /** The language switcher sets I18nService.locale and the detail is
+      locale-scoped on the server, so a switch re-fetches (the fetchSeq
+      guard keeps a stale response from the other language from
+      landing). toObservable emits the current value on subscribe, so
+      skip(1) — only a real switch triggers a load. Unsubscribed in
+      ngOnDestroy (the page shell's router-subscription idiom). */
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
     .subscribe(() => this.load());
 
   /**
-   * The locale-fallback notice (bilingual-guidance): non-null ONLY when
-   * the server served this post in a language OTHER than the reader's
-   * (the `localeFallback` flag — the post has no translation in the
-   * reader's language). The block then says plainly which language is
-   * being shown and that the reader's is not available; when `alternates`
-   * actually carries the reader's locale it offers a LINK to that
-   * version (the reader's choice — the URL is never switched silently).
-   * Nothing extra appears when a translation exists in the reader's
-   * language (the flag is false then). A plain method (re-evaluated on
-   * each CD pass — `post()` and the locale signal are the inputs).
+   * The locale-fallback notice: non-null ONLY when the server served
+   * this post in a language OTHER than the reader's (the
+   * `localeFallback` flag — the post has no translation in the reader's
+   * language). It says which language is shown and that the reader's is
+   * not available; when `alternates` carries the reader's locale it
+   * offers a LINK to that version (the reader's choice — the URL is
+   * never switched silently). Nothing appears when a translation exists
+   * in the reader's language (the flag is false then). A plain method,
+   * re-evaluated on each CD pass — `post()` and the locale signal are
+   * its inputs.
    */
   protected fallbackNotice(): {
     served: string;
@@ -152,24 +146,17 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
     this.load();
   }
 
-  /** Fetch the post by slug. 404 (unknown slug, a draft slug, or a post
-      in ANOTHER locale) -> not-found state; any other failure -> error
-      banner with the page chrome intact (shared convention). */
+  /** Fetch the post by slug. A 404 (unknown slug, a draft slug, or a
+      post in ANOTHER locale) lands in the not-found state; any other
+      failure lands in the shared error banner with the page chrome
+      intact (shared convention). */
   load(): Promise<void> {
     const slug = this.slug();
     if (slug === null) {
       return Promise.resolve();
     }
     const seq = ++this.fetchSeq;
-    this.error.set(null);
-    // A fresh fetch may RESOLVE a previously-404'd slug (a language
-    // switch into the post's own language), so the not-found state is
-    // dropped with the other stale state; the 404 handler re-sets it
-    // when the post is still not in this language.
-    this.notFound.set(false);
-    // The previous post's failed-hero state never carries over to a new
-    // slug (the load may land a different post, with or without a hero).
-    this.heroFailed.set(false);
+    this.clearStaleState();
     this.loading.set(true);
     return this.gateway.getBySlug(slug).then(
       (value) => {
@@ -183,15 +170,30 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
         if (seq !== this.fetchSeq) {
           return;
         }
-        this.loading.set(false);
-        if (failure instanceof ApiError && failure.status === 404) {
-          // Unknown slug OR draft slug — the SAME not-found by design.
-          this.post.set(null);
-          this.notFound.set(true);
-          return;
-        }
-        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
+        this.settleFailure(failure);
       },
     );
+  }
+
+  /** Drop every stale bit of state before a fetch: a fresh fetch may
+      RESOLVE a previously-404'd slug (a language switch into the post's
+      own language), and it may land a different post, with or without a
+      hero. */
+  private clearStaleState(): void {
+    this.error.set(null);
+    this.notFound.set(false);
+    this.heroFailed.set(false);
+  }
+
+  /** 404 (unknown slug OR draft slug — the same not-found by design) ->
+      the not-found state; any other failure -> the shared error banner. */
+  private settleFailure(failure: unknown): void {
+    this.loading.set(false);
+    if (failure instanceof ApiError && failure.status === 404) {
+      this.post.set(null);
+      this.notFound.set(true);
+      return;
+    }
+    this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
   }
 }
