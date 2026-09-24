@@ -18,11 +18,10 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * The account surface behind {@code GET /account/me} +
- * {@code PUT /account/profile} (04-CONTEXT-AUTH.md): the authenticated
- * user's real profile (name, email, phone + the real verified
- * claim set) and the password-confirmed name edit. Also the data export
- * + account
+ * The account surface behind {@code GET /account/me} and
+ * {@code PUT /account/profile}: the authenticated user's real profile
+ * (name, email, phone + the real verified claim set) and the
+ * password-confirmed name edit. Also the data export and the account
  * erasure (legal-recovery).
  *
  * <p>Email/phone are NOT editable here — they stay on the cross-channel
@@ -76,7 +75,7 @@ public class AccountService {
      *
      * <p>Validation is deliberately identical to registration (blank-only,
      * values stored as given — see {@link ProfileUpdateRequest}). No
-     * national ID code is collected or editable (remove-national-id).
+     * national ID code is collected or editable.
      */
     @Transactional
     public MeResponse updateProfile(RegisteredUser user, ProfileUpdateRequest request) {
@@ -91,12 +90,11 @@ public class AccountService {
     }
 
     /**
-     * GET /account/export (legal-recovery): the caller's own
-     * data in one document — profile (name/e-mail/phone decrypted at the
+     * GET /account/export (legal-recovery): the caller's own data in one
+     * document — the profile (name/e-mail/phone decrypted at the
      * persistence boundary + verified levels) and EVERY author-scoped
-     * shelter
-     * row (all statuses — the export mirrors what the account submitted,
-     * including auto-hidden ones). A pure read: nothing is
+     * shelter row, all statuses: the export mirrors what the account
+     * submitted, including auto-hidden ones. A pure read — nothing is
      * updated, nothing is logged.
      */
     @Transactional(readOnly = true)
@@ -108,43 +106,43 @@ public class AccountService {
 
         List<DataExportResponse.ExportedShelter> shelters =
                 shelterRepository.findByCreatedBy(user.getId()).stream()
-                        .map(s -> new DataExportResponse.ExportedShelter(
-                                s.getId(), s.getName(), s.getAddress(),
-                                s.getLocation() == null ? null : s.getLocation().lat(),
-                                s.getLocation() == null ? null : s.getLocation().lng(),
-                                s.getSource().name(), s.getStatus().name(),
-                                s.getReviewStatus().name(), s.getLocationKind().name(),
-                                s.getDescription(), s.getCapacity(), s.getCreatedAt()))
+                        .map(AccountService::exportedShelter)
                         .toList();
 
         return new DataExportResponse(profile, shelters);
     }
 
+    /** One author-scoped shelter row of the export document. */
+    private static DataExportResponse.ExportedShelter exportedShelter(Shelter shelter) {
+        return new DataExportResponse.ExportedShelter(
+                shelter.getId(), shelter.getName(), shelter.getAddress(),
+                shelter.getLocation() == null ? null : shelter.getLocation().lat(),
+                shelter.getLocation() == null ? null : shelter.getLocation().lng(),
+                shelter.getSource().name(), shelter.getStatus().name(),
+                shelter.getReviewStatus().name(), shelter.getLocationKind().name(),
+                shelter.getDescription(), shelter.getCapacity(), shelter.getCreatedAt());
+    }
+
     /**
-     * DELETE /account (legal-recovery) — the account erasure,
-     * one transaction:
-     * <ol>
-     *   <li>PURGE the declared private homes — the submitter's personal
-     *       data, which must not outlive the erasure request (entity-level
-     *       delete: the same-transaction follow-up reads must see the
-     *       rows gone, and a bulk JPQL delete would leave them cached).
-     *       The child rows cascade via the DB.</li>
-     *   <li>ORPHAN the public community rows ({@code created_by -> NULL},
-     *       V7's ON DELETE SET NULL intent executed explicitly) and redact
-     *       the submitter-facing REJECT note. Trust state is untouched — a
-     *       CONFIRMED row stays CONFIRMED with no author, and a newly-NULL
-     *       creator is not a signal to re-review.</li>
-     *   <li>Redact the free-text moderation-audit reasons on the user's
-     *       shelters (the notes are written to the erased submitter and
-     *       may echo their contacts). The action rows survive — the
-     *       admin-delete convention.</li>
-     *   <li>Erase the user row. The DB does the rest: every child
-     *       {@code user_id} FK is ON DELETE CASCADE (credentials, claims,
-     *       pending verifications + contact changes, refresh +
-     *       password-reset tokens, reports, report actions) and
-     *       the relaxed moderation_actions FK (V14) nulls the moderator
-     *       reference (audit rows survive, ids dangle).</li>
-     * </ol>
+     * DELETE /account (legal-recovery) — the account erasure, one
+     * transaction.
+     *
+     * <p>Declared private homes are PURGED — the submitter's personal data
+     * must not outlive the erasure request — as entity-level deletes, so a
+     * same-transaction follow-up read sees the rows gone (a bulk JPQL
+     * delete would leave them cached); their child rows cascade via the
+     * DB. Public community rows are ORPHANED instead ({@code created_by
+     * -> NULL}, V7's ON DELETE SET NULL intent executed explicitly): map
+     * data outlives accounts, and trust state is untouched — a CONFIRMED
+     * row stays CONFIRMED with no author, and a newly-NULL creator is not
+     * a signal to re-review. The moderation-audit action rows survive,
+     * their free-text reasons redacted (the notes were written to the
+     * erased submitter and may echo their contacts). The user row is
+     * erased and the DB does the rest: every child {@code user_id} FK is
+     * ON DELETE CASCADE (credentials, claims, pending verifications +
+     * contact changes, refresh + password-reset tokens, reports, report
+     * actions) and the relaxed moderation_actions FK (V14) nulls the
+     * moderator reference (audit rows survive, ids dangle).
      */
     @Transactional
     public void deleteAccount(RegisteredUser user) {
@@ -157,13 +155,30 @@ public class AccountService {
         }
         long userId = user.getId();
 
-        // The user's rows, read ONCE — the loop below mutates them in
-        // place (managed entities), and the ids are the audit scope.
+        // The user's rows, read ONCE: the step below mutates them in place
+        // (managed entities), and the full id set — purged private homes
+        // included — is the audit-redaction scope.
         List<Shelter> mine = shelterRepository.findByCreatedBy(userId);
+        purgePrivateHomesAndOrphanPublicRows(mine);
 
-        // 1 + 2. The declared private homes go with the account; the
-        // public community rows stay on the map, without an author.
-        for (Shelter shelter : mine) {
+        // The audit rows stay; their free text goes.
+        if (!mine.isEmpty()) {
+            moderationAudit.clearReasonByShelterIds(mine.stream().map(Shelter::getId).toList());
+        }
+
+        // The account itself — the DB cascades the child rows.
+        user.deleteAccount();
+        userRepository.delete(userId);
+    }
+
+    /**
+     * The shelter side of the erasure, row by row: a declared private home
+     * is purged; a public community row is orphaned — {@code created_by}
+     * and the submitter-facing review note go NULL, the review and open
+     * status stay exactly as they were.
+     */
+    private void purgePrivateHomesAndOrphanPublicRows(List<Shelter> shelters) {
+        for (Shelter shelter : shelters) {
             if (shelter.getLocationKind() == LocationKind.PRIVATE) {
                 shelterRepository.deleteById(shelter.getId());
             } else {
@@ -172,14 +187,5 @@ public class AccountService {
                 shelterRepository.save(shelter);
             }
         }
-
-        // 3. The audit rows stay; their free text goes.
-        if (!mine.isEmpty()) {
-            moderationAudit.clearReasonByShelterIds(mine.stream().map(Shelter::getId).toList());
-        }
-
-        // 4. The account itself — the DB cascades the rest.
-        user.deleteAccount();
-        userRepository.delete(userId);
     }
 }

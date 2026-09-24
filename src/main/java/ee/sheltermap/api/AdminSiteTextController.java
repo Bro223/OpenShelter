@@ -59,8 +59,7 @@ public class AdminSiteTextController {
     @ApiResponse(responseCode = "400", description = "A disallowed key/locale/value/URL")
     @ApiResponse(responseCode = "401", description = "No valid token")
     @ApiResponse(responseCode = "403", description = "Authenticated but not an admin")
-    public ResponseEntity<Void> update(@RequestBody UpdateSiteTextRequest request,
-                                       HttpServletRequest servletRequest) {
+    public ResponseEntity<Void> update(@RequestBody UpdateSiteTextRequest request) {
         adminAccess.requireAdmin();
         siteTexts.update(request.texts());
         return ResponseEntity.noContent().build();

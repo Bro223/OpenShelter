@@ -67,7 +67,7 @@ import java.util.Map;
 public class AdminController {
 
     /** {@code GET /admin/alerts} defaults: newest 50, max {@link Pagination#MAX_PAGE_SIZE}. */
-    static final int ALERTS_DEFAULT_LIMIT = 50;
+    private static final int ALERTS_DEFAULT_LIMIT = 50;
 
     private final AdminModerationService moderation;
     private final AdminAccess adminAccess;
@@ -78,6 +78,13 @@ public class AdminController {
         this.moderation = moderation;
         this.adminAccess = adminAccess;
         this.alerts = alerts;
+    }
+
+    /** The paged-list response: the page's rows, the un-paged total as {@code X-Total-Count}. */
+    private static <T> ResponseEntity<List<T>> pagedResponse(Pagination.Paged<T> paged) {
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(paged.total()))
+                .body(paged.rows());
     }
 
     /**
@@ -138,17 +145,13 @@ public class AdminController {
                     + ">= 0; past the end answers an empty array.")
             @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        // The bounds are checked BEFORE the read: a rejected page never
-        // pays for the (filtered) list load. The filters and the
-        // slice run in SQL, the batches run over the page's ids only, and
-        // the total is the count twin — the filtered length WITHOUT
-        // paging (always present, the paging ITs pin it).
+        // The bounds are checked BEFORE the read: a rejected page never pays
+        // for the (filtered) list load. The filters and the slice run in SQL,
+        // the batches over the page's ids only, and the total is the count
+        // twin — the filtered length WITHOUT paging (the paging ITs pin it).
         Pagination.requireLimit(limit);
         Pagination.requireOffset(offset);
-        Pagination.Paged<AdminShelterDto> paged = moderation.listShelters(status, source, q, limit, offset);
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(paged.total()))
-                .body(paged.rows());
+        return pagedResponse(moderation.listShelters(status, source, q, limit, offset));
     }
 
     /** Manual hide/restore; a restore disarms auto-hide. 204; 404 unknown; 409 registry rows. */
@@ -310,10 +313,7 @@ public class AdminController {
         adminAccess.requireAdmin();
         // The bounds are checked BEFORE the read (the shared paging rule).
         Pagination.requireOffset(offset);
-        Pagination.Paged<AdminAuditDto> paged = moderation.listAudit(limit, offset);
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(paged.total()))
-                .body(paged.rows());
+        return pagedResponse(moderation.listAudit(limit, offset));
     }
 
     /**
@@ -404,11 +404,8 @@ public class AdminController {
         adminAccess.requireAdmin();
         // The bounds are checked BEFORE the read (the shared paging rule).
         Pagination.requireOffset(offset);
-        Pagination.Paged<AdminShelterReportDto> paged = moderation.listShelterReports(
-                shelterId, Boolean.TRUE.equals(excludeDismissed), limit, offset);
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(paged.total()))
-                .body(paged.rows());
+        return pagedResponse(moderation.listShelterReports(
+                shelterId, Boolean.TRUE.equals(excludeDismissed), limit, offset));
     }
 
     /** Mark a shelter report resolved — idempotent. 204; 404 unknown report. */
@@ -457,10 +454,7 @@ public class AdminController {
         // The bounds are checked BEFORE the read (the shared paging rule).
         Pagination.requireLimit(limit);
         Pagination.requireOffset(offset);
-        Pagination.Paged<AdminUserDto> paged = moderation.listUsers(limit, offset);
-        return ResponseEntity.ok()
-                .header("X-Total-Count", String.valueOf(paged.total()))
-                .body(paged.rows());
+        return pagedResponse(moderation.listUsers(limit, offset));
     }
 
     /**

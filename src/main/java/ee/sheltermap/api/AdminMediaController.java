@@ -135,16 +135,8 @@ public class AdminMediaController {
     public ResponseEntity<MediaAssetDto> upload(
             @Parameter(description = "The image part (field name: file).")
             @RequestParam("file") MultipartFile file) {
-        byte[] bytes;
-        try {
-            // The ACTUAL bytes received — the service caps on bytes.length
-            // (never Content-Length).
-            bytes = file.getBytes();
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not read the uploaded file", e);
-        }
-        MediaAsset uploaded = media.upload(adminAccess.requireAdmin(), bytes,
-                file.getContentType(), file.getOriginalFilename());
+        MediaAsset uploaded = media.upload(adminAccess.requireAdmin(),
+                uploadBytes(file), file.getContentType(), file.getOriginalFilename());
         // A freshly uploaded asset cannot be referenced by a post yet.
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(toDto(new MediaService.MediaAssetWithUsage(uploaded, 0L)));
@@ -181,6 +173,15 @@ public class AdminMediaController {
                                         + "still referenced by posts.")
                                 @RequestParam(required = false, defaultValue = "false") boolean confirm) {
         return toDto(media.delete(adminAccess.requireAdmin(), id, confirm));
+    }
+
+    /** The ACTUAL bytes received — the service caps on bytes.length (never Content-Length). */
+    private static byte[] uploadBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read the uploaded file", e);
+        }
     }
 
     private MediaAssetDto toDto(MediaService.MediaAssetWithUsage row) {

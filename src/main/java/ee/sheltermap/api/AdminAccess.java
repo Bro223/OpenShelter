@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 
 /**
- * The fresh per-request ADMIN check shared by every /admin/* controller
+ * The fresh per-request ADMIN check shared by every /admin/* controller:
  * the kind column is the truth, never a JWT claim — the JWT's userId
  * is re-read from the database and its kind checked on every request, so a
  * token minted before a demotion or deletion fails the instant the kind
@@ -23,7 +23,7 @@ import java.util.Objects;
  * {@code requireAdmin()} in a new /admin handler is an authorization gap
  * the chain-level rule cannot see, which is why the in-handler re-check
  * stays (see the defence-in-depth note in
- * {@code config/SecurityConfig#configure}).
+ * {@code config/SecurityConfig#securityFilterChain}).
  */
 @Component
 public class AdminAccess {

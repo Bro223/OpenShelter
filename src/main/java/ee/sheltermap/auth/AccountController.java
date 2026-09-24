@@ -28,36 +28,13 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Thin HTTP shell for the authenticated account surface (01-TASK.md §7 —
- * parse, validate, rate-limit, delegate):
- * <ul>
- *   <li>{@code GET /account/me} — the user's real profile + verified claims
- *       (the frontend's single source of truth for name/email/phone and
- *       verification labels)</li>
- *   <li>{@code PUT /account/profile} — password-confirmed edit of the name
- *       (no national ID code is collected anywhere — remove-national-id)</li>
- *   <li>{@code POST /account/email-change/request} — SMS code to the current
- *       phone (an email thief alone cannot change the email)</li>
- *   <li>{@code POST /account/phone-change/request} — email code to the current
- *       email (a lost/stolen phone alone cannot change the phone)</li>
- *   <li>confirm endpoints complete the change once the code is verified</li>
- *   <li>{@code GET /account/export} — the caller's own data (profile +
- *       shelters) as one JSON document (legal-recovery)</li>
- *   <li>{@code DELETE /account} — the account erasure (legal-recovery):
- *       purge the declared private homes, orphan the public community rows,
- *       cascade the rest via the DB FK policy (V14). The provisioned admin
- *       (kind ADMIN) is refused with 403 — de-provisioning is an operator
- *       action on the environment, not an in-app one</li>
- * </ul>
+ * Thin HTTP shell for the authenticated account surface: parse, validate,
+ * rate-limit, delegate — each endpoint's own annotations carry its rule.
  *
- * <p>All endpoints require a Bearer JWT (default security rule). The user is
- * resolved from the token, never from the body. The change-request endpoints
- * are additionally throttled per client IP ({@link ClientIps},
- * X-Forwarded-For aware) — the confirm endpoints are code-verified and
- * attempt-limited instead, so they need no bucket; the profile read/edit are
- * cheap (no code issuance) and use the standard auth rule. The request
- * endpoints ack with {@link CodeSentDto} — the cooldown a client should
- * count down before resending.
+ * <p>The user is resolved from the Bearer JWT, never from the body. The
+ * change-request endpoints are throttled per client IP ({@link ClientIps},
+ * X-Forwarded-For aware); the confirm endpoints are code-verified and
+ * attempt-limited instead, so they need no bucket.
  */
 @Tag(name = "Account & verification",
         description = "The authenticated account surface — every operation "
@@ -147,13 +124,7 @@ public class AccountController {
                     + "failure is a 400.")
     @ApiResponse(responseCode = "200", description = "E-mail changed")
     public void confirmEmailChange(@Valid @RequestBody ConfirmChangeRequest body) {
-        ContactChangeResult result = contactChangeService.confirmEmailChange(currentUser(), body.code());
-        // The service RETURNS a code failure (its transaction has already
-        // committed the failed-attempt increment); the 400 is thrown HERE,
-        // after that commit.
-        if (!result.ok()) {
-            throw new InvalidContactChangeException(result.failureMessage());
-        }
+        requireSucceeded(contactChangeService.confirmEmailChange(currentUser(), body.code()));
     }
 
     @PostMapping("/phone-change/request")
@@ -178,10 +149,7 @@ public class AccountController {
                     + "failure is a 400.")
     @ApiResponse(responseCode = "200", description = "Phone changed")
     public void confirmPhoneChange(@Valid @RequestBody ConfirmChangeRequest body) {
-        ContactChangeResult result = contactChangeService.confirmPhoneChange(currentUser(), body.code());
-        if (!result.ok()) {
-            throw new InvalidContactChangeException(result.failureMessage());
-        }
+        requireSucceeded(contactChangeService.confirmPhoneChange(currentUser(), body.code()));
     }
 
     /**
@@ -206,20 +174,14 @@ public class AccountController {
     }
 
     /**
-     * DELETE /account (legal-recovery) — the account erasure:
-     * the declared private homes are purged, the public community rows are
-     * orphaned (map data outlives accounts — V7), and the DB cascades
-     * credentials, claims, pending changes, tokens and reports.
-     * Erasure is a right of any AUTHENTICATED user — it deliberately does NOT
-     * depend on identity verification (removing your own account must not
-     * require passing an identity check; a user who cannot verify would
-     * otherwise be trapped in the system). The verified-user gate still
-     * protects the actions it guards (submission, reports, contact changes)
-     * — only the erasure was un-gated. A repeat call is an idempotent no-op
-     * — the JWT is valid until its expiry, but the account is already gone.
-     * The provisioned admin (kind ADMIN) is refused with 403: the account is
-     * the deployment's access path and de-provisioning removes the env
-     * vars, not the row.
+     * DELETE /account (legal-recovery) — the account erasure. Any
+     * authenticated user may delete their own account: it deliberately does
+     * NOT depend on identity verification (removing your own account is a
+     * right, not a privilege gated on verification) — the verified-user
+     * gate still protects the actions it guards (submission, reports,
+     * contact changes). A repeat call is an idempotent no-op: the JWT stays
+     * valid until its expiry, but the account is already gone. The
+     * provisioned-admin refusal is enforced in the service.
      */
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -249,10 +211,9 @@ public class AccountController {
         if (!(currentCaller.userOrNull(userId) instanceof RegisteredUser registered)) {
             return; // already erased — idempotent no-op
         }
-        // Erasure is a right of any authenticated user — NO verified-status
-        // gate (narrowed in the DELETE-UNVERIFIED fix): removing your own
-        // account must not require passing an identity check. The
-        // provisioned-admin refusal is enforced in AccountService.deleteAccount.
+        // No verified-status gate: removing your own account must not
+        // require passing an identity check. The provisioned-admin refusal
+        // is enforced in AccountService.deleteAccount.
         accountService.deleteAccount(registered);
     }
 
@@ -260,6 +221,17 @@ public class AccountController {
         RateLimiter.Result result = changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
         if (!result.acquired()) {
             throw new RateLimitExceededException(result.retryAfterSeconds());
+        }
+    }
+
+    /**
+     * The service RETURNS a code failure instead of throwing it — its
+     * transaction has already committed the failed-attempt increment — so
+     * the 400 is thrown here, after that commit.
+     */
+    private void requireSucceeded(ContactChangeResult result) {
+        if (!result.ok()) {
+            throw new InvalidContactChangeException(result.failureMessage());
         }
     }
 
