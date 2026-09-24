@@ -54,10 +54,9 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             return true;
         } catch (MailException ex) {
             // Never surfaced to callers: the API contract is
-            // "reset/verify always succeeds" (anti-enumeration, no 500s).
-            // The FALSE return value is the honest signal — the
-            // verification flow consumes no daily slot for a refused
-            // send (the other flows ignore it by design).
+            // "reset/verify always succeeds" (anti-enumeration, no 500s) —
+            // the false return is the honest signal (no daily slot is
+            // consumed for a refused send).
             log.error("SMTP delivery to {} failed", maskEmail(email), ex);
             return false;
         }

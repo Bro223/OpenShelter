@@ -61,12 +61,6 @@ public class MediaService {
     /** The serving-URL prefix (under /api/ so the frontend proxy covers it). */
     public static final String MEDIA_URL_PREFIX = "/api/media/";
 
-    /** The extension implied by the SNIFFED type — the stored name's suffix. */
-    private static final Map<String, String> EXTENSION_BY_TYPE = Map.of(
-            "image/jpeg", "jpg",
-            "image/png", "png",
-            "image/webp", "webp");
-
     private final MediaAssetRepository mediaAssets;
     private final GuidancePostRepository posts;
     private final MediaStorage storage;
@@ -125,7 +119,7 @@ public class MediaService {
     public List<MediaAssetWithUsage> list() {
         Map<Long, Long> counts = mediaAssets.referencedCountsByAssetId();
         return mediaAssets.findAll().stream()
-                .map(asset -> new MediaAssetWithUsage(asset, counts.getOrDefault(asset.getId(), 0L)))
+                .map(asset -> withUsage(asset, counts))
                 .toList();
     }
 
@@ -144,24 +138,26 @@ public class MediaService {
             List<MediaAssetWithUsage> all = list();
             return new Pagination.Paged<>(all, all.size());
         }
+        // ONE count per call: it is the X-Total-Count (without paging) and,
+        // when limit is absent, the page size (the whole remainder).
+        long total = mediaAssets.countAll();
         long from = offset == null ? 0 : offset;
-        List<MediaAsset> page = mediaAssets.findPage(from, limit == null ? (int) mediaAssets.countAll() : limit);
+        List<MediaAsset> page = mediaAssets.findPage(from, limit == null ? (int) total : limit);
         if (page.isEmpty()) {
-            return new Pagination.Paged<>(List.of(), mediaAssets.countAll());
+            return new Pagination.Paged<>(List.of(), total);
         }
         Map<Long, Long> counts = mediaAssets.referencedCountsByAssetId();
         List<MediaAssetWithUsage> rows = page.stream()
-                .map(asset -> new MediaAssetWithUsage(asset, counts.getOrDefault(asset.getId(), 0L)))
+                .map(asset -> withUsage(asset, counts))
                 .toList();
-        return new Pagination.Paged<>(rows, mediaAssets.countAll());
+        return new Pagination.Paged<>(rows, total);
     }
 
     /** The admin detail read (unknown id → 404). */
     @Transactional(readOnly = true)
     public MediaAssetWithUsage getById(long id) {
         MediaAsset asset = requireAsset(id);
-        long count = mediaAssets.referencedCountsByAssetId().getOrDefault(asset.getId(), 0L);
-        return new MediaAssetWithUsage(asset, count);
+        return withUsage(asset, mediaAssets.referencedCountsByAssetId());
     }
 
     /**
@@ -212,26 +208,26 @@ public class MediaService {
     @Transactional
     public MediaAsset upload(long adminId, byte[] bytes, String declaredContentType,
                              String originalFilename) {
-        // Step 1: the ACTUAL byte count (never Content-Length) — the
-        // cap failure is the one 413, and it fires before anything else
-        // (no file written, no row stored, the inspector never runs).
+        // The ACTUAL byte count (never Content-Length) is the one 413, and
+        // it fires before anything else — no file written, no row stored,
+        // the inspector never runs.
         if (bytes.length > maxBytes) {
             throw new MediaTooLargeException(maxBytes);
         }
-        // Step 2+4: magic bytes AND readable header dimensions — the
-        // inspector answers empty for any other content (text named .jpg,
-        // an SVG, a truncated header).
+        // The magic-byte gate: the inspector answers empty for any other
+        // content (text named .jpg, an SVG, a truncated header).
         MediaImageInspector.ImageInfo info = MediaImageInspector.inspect(bytes)
                 .orElseThrow(() -> new UnsupportedImageException(
                         "Unsupported image: only readable JPEG, PNG and WebP uploads are accepted"));
-        // Step 3: the sniffed type must equal the declared part type —
-        // a PNG declared as image/jpeg is a lying client, plain 400.
+        // The sniffed type must equal the declared part type — a PNG
+        // declared as image/jpeg is a lying client, plain 400.
         String declared = baseContentType(declaredContentType);
         if (!info.contentType().equalsIgnoreCase(declared)) {
             throw new UnsupportedImageException("Declared content type '" + declared
                     + "' does not match the image content (" + info.contentType() + ")");
         }
-        String extension = EXTENSION_BY_TYPE.get(info.contentType().toLowerCase(Locale.ROOT));
+        String extension = MediaImageInspector.EXTENSION_BY_TYPE.get(
+                info.contentType().toLowerCase(Locale.ROOT));
         if (extension == null) {
             // Defensive: the inspector only answers with the three types,
             // but a drifted implementation must not mint an extensionless
@@ -352,6 +348,11 @@ public class MediaService {
     }
 
     // ------------------------------------------------------------- guards
+
+    /** One listing row: the asset plus how many posts reference it. */
+    private static MediaAssetWithUsage withUsage(MediaAsset asset, Map<Long, Long> counts) {
+        return new MediaAssetWithUsage(asset, counts.getOrDefault(asset.getId(), 0L));
+    }
 
     private MediaAsset requireAsset(long id) {
         return mediaAssets.findById(id)

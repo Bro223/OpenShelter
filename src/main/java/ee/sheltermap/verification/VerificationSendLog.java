@@ -45,8 +45,8 @@ public interface VerificationSendLog {
      * recorded.
      *
      * <p>{@code cooldownSeconds} &le; 0 disables the cooldown check and
-     * {@code maxPerDay} &le; 0 disables the cap (the same silent-skip rules
-     * as before). A {@link SendDecision#COOLDOWN}/{@link SendDecision#DAILY_CAP}
+     * {@code maxPerDay} &le; 0 disables the cap (silent skip). A
+     * {@link SendDecision#COOLDOWN}/{@link SendDecision#DAILY_CAP}
      * decision records nothing.
      */
     SendDecision tryRecord(long userId, VerificationLevel level, String contact,

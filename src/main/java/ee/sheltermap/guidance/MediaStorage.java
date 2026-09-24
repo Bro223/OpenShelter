@@ -94,19 +94,9 @@ public class MediaStorage {
                     "Unsupported media extension: " + extension
                             + " (expected the sniffed type — one of " + ALLOWED_EXTENSIONS + ")");
         }
-        if (!initialized) {
-            init(); // defensive: the bean wiring calls init() at boot
-        }
-        String name = UUID.randomUUID().toString().replace("-", "") + "." + extension;
-        Path path = root.resolve(name);
-        try {
-            // CREATE_NEW: generated names are never reused, so any
-            // pre-existing file is a collision, not a re-upload.
-            Files.write(path, bytes, StandardOpenOption.CREATE_NEW);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot write the media file " + name, e);
-        }
-        return new StoredFile(name, path);
+        // CREATE_NEW: generated names are never reused, so any
+        // pre-existing file is a collision, not a re-upload.
+        return writeNewFile("media file", UUID.randomUUID().toString().replace("-", "") + "." + extension, bytes);
     }
 
     /**
@@ -127,18 +117,30 @@ public class MediaStorage {
      */
     public StoredFile storeDerivative(String originalFilename, int width, byte[] bytes) {
         Objects.requireNonNull(bytes, "bytes");
+        // The base-name and width gates live in the name computation —
+        // a foreign base or width is refused before any I/O.
         String name = MediaDerivatives.derivativeName(originalFilename, width);
+        // CREATE_NEW: the base name is never reused, so the derived
+        // name is never reused either — a pre-existing file is a
+        // collision, not a re-render.
+        return writeNewFile("media derivative", name, bytes);
+    }
+
+    /**
+     * The shared write discipline: the initialized check, a resolve
+     * strictly under the root (the parent-equality gate), and
+     * CREATE_NEW — a pre-existing file is a collision, never a
+     * silent overwrite.
+     */
+    private StoredFile writeNewFile(String kind, String name, byte[] bytes) {
         if (!initialized) {
             init(); // defensive: the bean wiring calls init() at boot
         }
         Path path = root.resolve(name);
         try {
-            // CREATE_NEW: the base name is never reused, so the derived
-            // name is never reused either — a pre-existing file is a
-            // collision, not a re-render.
             Files.write(path, bytes, StandardOpenOption.CREATE_NEW);
         } catch (IOException e) {
-            throw new UncheckedIOException("Cannot write the media derivative " + name, e);
+            throw new UncheckedIOException("Cannot write the " + kind + " " + name, e);
         }
         return new StoredFile(name, path);
     }

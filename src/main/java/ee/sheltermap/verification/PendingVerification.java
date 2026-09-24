@@ -8,9 +8,9 @@ import java.util.Objects;
 /**
  * A one-time, short-lived verification code awaiting confirmation.
  *
- * <p>Code discipline: stored <strong>hashed</strong> (SHA-256), never
- * plaintext; attempts-limited (brute-force guard) and expiring
- * ({@code expiresAt}).
+ * <p>Code discipline: stored <strong>hashed</strong> (one-way — the keyed
+ * {@code v2:} form, or the legacy unkeyed SHA-256), never plaintext;
+ * attempts-limited (brute-force guard) and expiring ({@code expiresAt}).
  */
 public class PendingVerification {
 
@@ -53,7 +53,7 @@ public class PendingVerification {
         return contact;
     }
 
-    /** SHA-256 of the code — never the plaintext code. */
+    /** The one-way hash of the code — never the plaintext code. */
     public String getCodeHash() {
         return codeHash;
     }

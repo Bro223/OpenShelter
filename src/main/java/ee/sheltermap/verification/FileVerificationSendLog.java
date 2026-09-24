@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -20,7 +21,7 @@ import java.util.Objects;
 /**
  * File-backed {@link VerificationSendLog} — the durable store behind the
  * per-user daily cap. Unlike an in-memory counter it survives application
- * restarts (product decision), with no database involved.
+ * restarts (a deploy must not reset the cap), with no database involved.
  *
  * <p>Format: one line per send, tab-separated:
  * {@code <userId>\t<level>\t<epochMillis>}. The cooldown/cap math needs
@@ -38,7 +39,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
     private static final Logger log = LoggerFactory.getLogger(FileVerificationSendLog.class);
 
     /** Entries older than this are dropped on load / prune. */
-    private static final java.time.Duration RETENTION = java.time.Duration.ofDays(2);
+    private static final Duration RETENTION = Duration.ofDays(2);
 
     /** Rewrite the file (dropping old entries) once the in-memory list grows past this. */
     private static final int PRUNE_AFTER_LINES = 10_000;
@@ -58,7 +59,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
         long startOfToday = LocalDate.now(clock).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         long count = 0;
         for (SendRecord record : records) {
-            if (record.userId() == userId && record.level() == level && record.epochMillis() >= startOfToday) {
+            if (matches(record, userId, level) && record.epochMillis() >= startOfToday) {
                 count++;
             }
         }
@@ -69,11 +70,16 @@ public class FileVerificationSendLog implements VerificationSendLog {
     public synchronized Instant lastSentAt(long userId, VerificationLevel level) {
         long newest = -1;
         for (SendRecord record : records) {
-            if (record.userId() == userId && record.level() == level && record.epochMillis() > newest) {
+            if (matches(record, userId, level) && record.epochMillis() > newest) {
                 newest = record.epochMillis();
             }
         }
         return newest < 0 ? null : Instant.ofEpochMilli(newest);
+    }
+
+    /** The log's key: one bucket per (userId, level). */
+    private static boolean matches(SendRecord record, long userId, VerificationLevel level) {
+        return record.userId() == userId && record.level() == level;
     }
 
     @Override

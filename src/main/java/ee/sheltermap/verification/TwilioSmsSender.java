@@ -95,10 +95,9 @@ public class TwilioSmsSender implements SmsSender {
             return true;
         } catch (RuntimeException ex) {
             // Logged, never thrown: callers must not be able to distinguish
-            // "delivery failed" from "request accepted" (anti-enumeration).
-            // The FALSE return value is the honest signal — the
-            // verification flow consumes no daily slot for a refused
-            // send (the contact-change flow ignores it by design).
+            // "delivery failed" from "request accepted" (anti-enumeration) —
+            // the false return is the honest signal (no daily slot is
+            // consumed for a refused send).
             log.error("Twilio SMS delivery failed to {}", maskPhone(toE164), ex);
             return false;
         }
@@ -133,14 +132,11 @@ public class TwilioSmsSender implements SmsSender {
             if (accountSid != null && !accountSid.isBlank()
                     && authToken != null && !authToken.isBlank()) {
                 // The SDK's default client is finite but NOT app-configurable
-                // (10 s connect / 30.5 s socket, plus 3 retries on 5xx), and
-                // the send happens on the request thread. The exchange already
-                // runs outside the DB transaction (send-first-then-commit),
-                // so a slow provider no longer pins a pooled connection — but
-                // the bound stays explicit and short, on this app's terms:
-                // an API that cannot answer within the socket timeout fails
-                // the send (logged, returned as false), it never hangs the
-                // request thread for the SDK's own defaults.
+                // (10 s connect / 30.5 s socket, 3 retries on 5xx), and the
+                // send happens on the request thread. The bound stays
+                // explicit and short: an API that cannot answer within the
+                // socket timeout fails the send (logged, returned as false)
+                // — it never hangs the request thread for the SDK defaults.
                 org.apache.http.client.config.RequestConfig requestConfig =
                         org.apache.http.client.config.RequestConfig.custom()
                                 .setConnectTimeout((int) connectTimeoutMs)

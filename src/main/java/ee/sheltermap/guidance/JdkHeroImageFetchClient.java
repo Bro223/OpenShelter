@@ -1,5 +1,6 @@
 package ee.sheltermap.guidance;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -64,9 +65,9 @@ public class JdkHeroImageFetchClient implements HeroImageFetchClient {
     private final Duration readTimeout;
     private final LongSupplier nanos;
     /** Total bytes pulled off the wire (test seam — proves the cap is enforced while reading). */
-    final java.util.concurrent.atomic.AtomicLong bytesRead = new java.util.concurrent.atomic.AtomicLong();
+    final AtomicLong bytesRead = new AtomicLong();
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public JdkHeroImageFetchClient(
             @Value("${app.media.import-connect-timeout:3s}") Duration connectTimeout,
             @Value("${app.media.import-read-timeout:5s}") Duration readTimeout) {
@@ -86,28 +87,44 @@ public class JdkHeroImageFetchClient implements HeroImageFetchClient {
 
     @Override
     public FetchedImage fetch(String url, long maxBytes) {
-        URI uri;
+        URI uri = parseUrl(url);
+        HttpRequest request = singleGetRequest(uri);
+        HttpResponse<InputStream> response = awaitHead(request, uri);
+        return toFetchedImage(response, uri, maxBytes);
+    }
+
+    private static URI parseUrl(String url) {
         try {
-            uri = URI.create(url);
+            return URI.create(url);
         } catch (IllegalArgumentException e) {
             throw new HeroImportUnreachableException("The hero image URL is not fetchable: " + url);
         }
-        HttpRequest request = HttpRequest.newBuilder(uri)
+    }
+
+    /**
+     * One GET request: deliberately NO request {@code timeout()} — the
+     * JDK's exchange timeout would bound the WHOLE download, not the
+     * no-progress interval the read timeout is meant to bound (a steady
+     * near-cap download would be killed mid-stream, and the stream is
+     * torn down silently instead of failed). The head is deadline-polled
+     * in {@link #awaitHead}; the body has its stall watchdog in
+     * {@link #readCapped}.
+     */
+    private static HttpRequest singleGetRequest(URI uri) {
+        return HttpRequest.newBuilder(uri)
                 .GET()
-                // Deliberately NO request timeout(): the JDK's exchange
-                // timeout would bound the whole download, not the no-
-                // progress interval the read timeout is meant to bound —
-                // a steady near-cap download would be killed mid-stream.
-                // The head is deadline-polled below; the body has its
-                // stall watchdog in readCapped.
                 .header("User-Agent", USER_AGENT)
                 .build();
-        HttpResponse<InputStream> response;
-        // The response HEAD must arrive within the read timeout — a host
-        // that accepts the connection and never answers cannot pin the
-        // thread past this deadline. sendAsync + a polled deadline (the
-        // same discipline as the body watchdog) instead of the exchange
-        // timeout, so a legitimate long download is not capped by it.
+    }
+
+    /**
+     * The response HEAD must arrive within the read timeout — a host
+     * that accepts the connection and never answers cannot pin the
+     * thread past this deadline. sendAsync + a polled deadline (the
+     * same discipline as the body watchdog) instead of the exchange
+     * timeout, so a legitimate long download is not capped by it.
+     */
+    private HttpResponse<InputStream> awaitHead(HttpRequest request, URI uri) {
         CompletableFuture<HttpResponse<InputStream>> head =
                 http.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
         long headDeadline = nanos.getAsLong() + readTimeout.toNanos();
@@ -121,7 +138,7 @@ public class JdkHeroImageFetchClient implements HeroImageFetchClient {
             nap(100);
         }
         try {
-            response = head.get();
+            return head.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new HeroImportUnreachableException("Interrupted while fetching the hero image", e);
@@ -135,14 +152,22 @@ public class JdkHeroImageFetchClient implements HeroImageFetchClient {
                     "The hero image host could not be reached: " + uri.getHost(),
                     new RuntimeException(cause));
         }
+    }
+
+    /**
+     * The observed response as the service's seam type: a redirect
+     * carries its {@code Location} and its body — often a tiny HTML
+     * stub — is discarded (the service re-validates the target and
+     * fetches it itself); anything else is read under the size cap and
+     * the stall watchdog.
+     */
+    private FetchedImage toFetchedImage(HttpResponse<InputStream> response,
+                                        URI uri, long maxBytes) {
         try {
             int status = response.statusCode();
             String location = response.headers().firstValue("Location").orElse(null);
             InputStream body = response.body();
             if (status >= 300 && status <= 399) {
-                // A redirect: the service re-validates the Location
-                // (scheme + address policy) and fetches it itself — the
-                // redirect body (often a tiny HTML stub) is discarded.
                 body.close();
                 return new FetchedImage(status, location, null);
             }

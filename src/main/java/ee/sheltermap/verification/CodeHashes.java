@@ -9,14 +9,13 @@ import java.util.HexFormat;
 
 /**
  * SHA-256 + constant-time comparison — the ONE spelling of the
- * code/token-at-rest primitive (01-TASK.md §4 dependency rule:
- * {@code verification} sits below {@code auth}, so the authority lives
- * here and {@code auth.Hashes} delegates to it rather than a third copy
- * existing in {@code auth}). Used by the e-mail/phone verification
- * providers (code hashing + the confirm compare), {@link
- * PendingVerification}'s at-rest code hash and the auth-side token
- * hashes — a hardening of the compare (e.g. a length-safe variant) is
- * made in exactly this one place.
+ * code/token-at-rest primitive. {@code verification} sits below
+ * {@code auth} in the dependency rule, so the authority lives here and
+ * {@code auth.Hashes} delegates to it (no third copy in {@code auth}).
+ * Used by the e-mail/phone verification providers (code hashing + the
+ * confirm compare), {@link PendingVerification}'s at-rest code hash and
+ * the auth-side token hashes — a hardening of the compare (e.g. a
+ * length-safe variant) is made in exactly this one place.
  */
 public final class CodeHashes {
 

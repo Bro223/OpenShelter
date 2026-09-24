@@ -3,7 +3,7 @@ package ee.sheltermap.verification;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Anti-spam throttle for verification-code sends (Twilio plan + hardening).
+ * Anti-spam throttle for verification-code sends.
  * Bound from {@code app.verification.*}.
  *
  * @param cooldownSeconds minimum seconds between two sends for the same

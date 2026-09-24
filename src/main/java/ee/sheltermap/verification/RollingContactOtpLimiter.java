@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Rolling-window cap per normalized contact (e-mail or E.164 phone) — the
- * abuse-limits volume valve on OTP sends and registration
- * attempts, on top of the per-(user, level) throttle.
+ * volume valve on OTP sends and registration attempts, on top of the
+ * per-(user, level) throttle.
  *
  * <p>Each {@link #tryAcquire(String)} counts one event for the contact's
  * rolling {@code window}; once {@code maxPerWindow} events are inside the

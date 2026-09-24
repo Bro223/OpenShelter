@@ -23,15 +23,22 @@ import java.util.Objects;
  *
  * <p>Providers stay pure channel adapters; they never touch the database.
  * (Claim revocation is pure domain state — {@code RegisteredUser.revoke} —
- * with no HTTP surface in v1, so there is no service method for it.)
+ * with no HTTP surface, so there is no service method for it.)
  *
- * <p>Anti-spam (Twilio plan): every request is throttled per (user, level)
- * via the durable {@link VerificationSendLog} — a resend cooldown plus a
- * per-user daily cap — and per contact (e-mail / E.164 phone) via the
- * rolling {@link RollingContactOtpLimiter} (abuse-limits), which
- * bounds the volume of REAL sends per address across the whole window.
- * Violations raise {@link VerificationThrottledException}
- * (→ 429); the check deliberately says nothing about the contact's existence.
+ * <p>Anti-spam, checked in this order on every request:
+ * <ol>
+ *   <li>level already verified → 409, before any code is sent or throttle
+ *       budget is consumed;</li>
+ *   <li>per (user, level): the resend cooldown, then the per-UTC-day cap,
+ *       on the durable {@link VerificationSendLog} → 429;</li>
+ *   <li>per contact (e-mail / E.164 phone): the rolling
+ *       {@link RollingContactOtpLimiter} — the volume valve on REAL sends
+ *       (Twilio/SMTP cost) → 429, with the admin alert ring entry.</li>
+ * </ol>
+ * The daily slot is consumed only when the channel ACCEPTS the send (see
+ * {@link #requestVerification}). Violations raise
+ * {@link VerificationThrottledException} (→ 429); the checks deliberately
+ * say nothing about the contact's existence.
  */
 public class VerificationService {
 
@@ -76,87 +83,51 @@ public class VerificationService {
     /**
      * Starts verification for {@code level}: the provider generates + sends
      * the code, the service persists the pending verification. Any previous
-     * active code for the same user+level is invalidated (one code at a time).
+     * active code for the same user+level is invalidated (one code at a
+     * time).
+     *
+     * <p>Why the contact cap runs AFTER the user-level gate: a
+     * cooldown/daily-cap reject then records nothing in the contact's
+     * window; and if the contact cap fires, the user-level send-log entry
+     * stays (bounded over-count — e-mail and phone are unique per user, so
+     * the contact's budget was spent by this same user's real sends).
      *
      * <p>The durable daily slot is consumed ONLY when the channel ACCEPTS
-     * the send (throwaway-then-record): the cooldown/cap decision below is
-     * a read-only check, the {@link VerificationSendLog#record record}
-     * happens after the provider's send succeeds. A channel outage must
-     * not burn a slot the user never gets a code for — and the pattern
-     * stays safe because the check is bounded by the ATOMIC per-contact
-     * rolling cap (the hard burst valve on real sends): a concurrent
-     * burst that slips past the unrecorded reads can overcount the daily
-     * cap by at most the in-flight window, and every ACCEPTED send is
-     * recorded, so a failing channel can never be used to bypass the cap
-     * (refused sends are never recorded, accepted ones always are — the
-     * daily cap still bounds real, costing deliveries).
+     * the send (throwaway-then-record): the cooldown/cap decision is a
+     * read-only check, the {@link VerificationSendLog#record record} happens
+     * after the provider's send succeeds. A channel outage must not burn a
+     * slot the user never gets a code for — and the pattern stays safe
+     * because the check is bounded by the ATOMIC per-contact rolling cap
+     * (the hard burst valve on real sends): a concurrent burst that slips
+     * past the unrecorded reads can overcount the daily cap by at most the
+     * in-flight window, and every ACCEPTED send is recorded, so a failing
+     * channel can never be used to bypass the cap (refused sends are never
+     * recorded, accepted ones always are — the daily cap still bounds real,
+     * costing deliveries).
+     *
+     * <p>Transaction boundary: the channel send and the file-based send log
+     * happen BEFORE any database work in this method, so the lazy
+     * connection is only held for the final read-delete-save — not for the
+     * network call. That read-delete-save is ONE transaction: a failure
+     * between the delete and the save must not leave the old code alive
+     * under the new one.
      *
      * @throws VerificationThrottledException when the cooldown has not elapsed
      *                                        or the daily cap is reached (→ 429,
      *                                        with {@code Retry-After} when computable)
-     *
-     * <p>Transaction boundary (reviews F1): the invalidation pair at the end
-     * ({@code findActive…delete} + {@code save}) is ONE transaction — before
-     * it was three, and a failure between them left the old code alive under
-     * the new one. The channel send and the file-based send log happen
-     * BEFORE any database work in this method, so the lazy connection is
-     * only held for the final read-delete-save — not for the network call.
      */
     @Transactional
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         if (user.levels().contains(level)) {
-            // Requesting a level that is already verified is a conflict
-            // (409). No code is sent and no throttle budget is consumed.
             throw new AlreadyVerifiedException(level);
         }
         VerificationProvider provider = providerFor(level);
-        long userId = Objects.requireNonNull(user, "user").getId();
+        long userId = user.getId();
         Instant now = clock.instant();
         String contact = contactFor(user, level);
 
-        // Read-only check (the same decision and silent-skip rules as the
-        // send log's atomic tryRecord — cooldown first, then the per-UTC-day
-        // cap): a throttled decision records nothing, and an allowed one
-        // records only AFTER the channel accepts the send (below).
-        Instant lastSentAt = sendLog.lastSentAt(userId, level);
-        VerificationSendLog.SendDecision decision;
-        if (properties.cooldownSeconds() > 0
-                && lastSentAt != null
-                && now.isBefore(lastSentAt.plusSeconds(properties.cooldownSeconds()))) {
-            decision = VerificationSendLog.SendDecision.COOLDOWN;
-        } else if (properties.maxPerDay() > 0
-                && sendLog.countToday(userId, level) >= properties.maxPerDay()) {
-            decision = VerificationSendLog.SendDecision.DAILY_CAP;
-        } else {
-            decision = VerificationSendLog.SendDecision.OK;
-        }
-        if (decision != VerificationSendLog.SendDecision.OK) {
-            // Same generic message as before (which throttle fired is never
-            // revealed); the numeric retry-after is the new part — the client
-            // counts down instead of spam-clicking into repeated 429s.
-            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
-                    retryAfterSeconds(decision, userId, level, now));
-        }
-
-        // Per-contact rolling cap — the volume valve on REAL
-        // sends (Twilio/SMTP cost). "verify:" namespace keeps it independent
-        // of the "register:" attempt cap (registering an account must not
-        // eat its verification-send budget). It runs AFTER the per-(user,
-        // level) gate so a cooldown/daily-cap reject records nothing here;
-        // if THIS cap fires, the user-level send-log entry stays (bounded
-        // over-count — e-mail and phone are unique per user, so the
-        // contact's budget was spent by this same user's real sends).
-        // ATOMIC check-and-acquire — the burst valve that keeps the
-        // throwaway-then-record pattern above from amplifying concurrent
-        // sends past the per-contact window.
-        RollingContactOtpLimiter.Result contactResult = contactLimiter.tryAcquire("verify:" + contact);
-        if (contactResult.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
-            // The throttled contact lands in the admin alert ring
-            // (in-memory) before the 429 goes out.
-            alerts.otpContactCap(contact, contactResult.retryAfterSeconds());
-            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
-                    contactResult.retryAfterSeconds());
-        }
+        requireUserThrottleAllows(userId, level, now);
+        requireContactCapAllows(contact);
 
         PendingVerification pending;
         try {
@@ -165,9 +136,9 @@ public class VerificationService {
             // The channel did not accept the message (the sender logged it).
             // Anti-enumeration: the endpoint still answers its plain ack —
             // nothing about the outcome may reach the client. Honesty: no
-            // pending code is persisted for a code nobody received, no daily
-            // slot is consumed (the outage is not the user's fault), and the
-            // operator sees it in the alert ring.
+            // pending code is persisted for a code nobody received, no
+            // daily slot is consumed (the outage is not the user's fault),
+            // and the operator sees it in the alert ring.
             alerts.codeSendFailure(contact, provider.providerCode());
             return;
         }
@@ -176,6 +147,69 @@ public class VerificationService {
         // Twilio/SMTP money), so the durable record is made for it: the
         // daily cap counts sends that happened.
         sendLog.record(userId, level, contact, now);
+        replacePending(userId, level, now, pending);
+    }
+
+    /**
+     * The per-(user, level) gate, read-only: the resend cooldown first,
+     * then the per-UTC-day cap — the same decision and silent-skip rules as
+     * the send log's atomic {@code tryRecord} ({@code cooldownSeconds <= 0}
+     * skips the cooldown, {@code maxPerDay <= 0} skips the cap). A
+     * throttled decision records nothing and throws the generic 429 (which
+     * throttle fired is never revealed) with the exact seconds a retry may
+     * wait.
+     */
+    private void requireUserThrottleAllows(long userId, VerificationLevel level, Instant now) {
+        VerificationSendLog.SendDecision decision = userThrottleDecision(userId, level, now);
+        if (decision == VerificationSendLog.SendDecision.OK) {
+            return;
+        }
+        throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                retryAfterSeconds(decision, userId, level, now));
+    }
+
+    private VerificationSendLog.SendDecision userThrottleDecision(long userId,
+                                                                  VerificationLevel level,
+                                                                  Instant now) {
+        Instant lastSentAt = sendLog.lastSentAt(userId, level);
+        if (properties.cooldownSeconds() > 0
+                && lastSentAt != null
+                && now.isBefore(lastSentAt.plusSeconds(properties.cooldownSeconds()))) {
+            return VerificationSendLog.SendDecision.COOLDOWN;
+        }
+        if (properties.maxPerDay() > 0
+                && sendLog.countToday(userId, level) >= properties.maxPerDay()) {
+            return VerificationSendLog.SendDecision.DAILY_CAP;
+        }
+        return VerificationSendLog.SendDecision.OK;
+    }
+
+    /**
+     * The rolling per-contact cap — the volume valve on REAL sends
+     * (Twilio/SMTP cost). The "verify:" namespace keeps it independent of
+     * the "register:" attempt cap (registering an account must not eat its
+     * verification-send budget). ATOMIC check-and-acquire — the burst valve
+     * that keeps the throwaway-then-record pattern from amplifying
+     * concurrent sends past the per-contact window. A throttled contact
+     * lands in the admin alert ring before the 429 goes out.
+     */
+    private void requireContactCapAllows(String contact) {
+        RollingContactOtpLimiter.Result contactResult = contactLimiter.tryAcquire("verify:" + contact);
+        if (contactResult.decision() != RollingContactOtpLimiter.Decision.THROTTLED) {
+            return;
+        }
+        alerts.otpContactCap(contact, contactResult.retryAfterSeconds());
+        throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                contactResult.retryAfterSeconds());
+    }
+
+    /**
+     * One code at a time: the still-active code for user+level is deleted
+     * and the new one saved in the same transaction (see
+     * {@link #requestVerification}).
+     */
+    private void replacePending(long userId, VerificationLevel level, Instant now,
+                                PendingVerification pending) {
         pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
@@ -214,8 +248,8 @@ public class VerificationService {
     /**
      * The channel contact the send log records for a level — the same value
      * the provider sends the code to (E.164 phone for PHONE, the e-mail for
-     * EMAIL). SMART_ID has no stored-code channel in v1 (stub); the e-mail
-     * stands in, and the controller rejects SMART_ID before any send.
+     * EMAIL). SMART_ID has no stored-code channel (stub); the e-mail stands
+     * in, and the controller rejects SMART_ID before any send.
      */
     private static String contactFor(RegisteredUser user, VerificationLevel level) {
         if (level == VerificationLevel.PHONE) {
@@ -230,20 +264,20 @@ public class VerificationService {
      * one-time pending code. Returns {@code false} on wrong/expired/exhausted
      * code or when no active code exists — never reveals which.
      *
-     * <p>Transaction boundary (reviews F1): the attempt-count save (wrong
-     * code) and the consuming delete (right code) run in ONE transaction
-     * with the pending read. The read degrades on a legacy duplicate pair
-     * (a pre-fix double send; the table's (user_id, level) index is
-     * non-unique) — {@code findFirst}, the {@code PasswordResetService}
-     * idiom — instead of 500-ing with
-     * {@code IncorrectResultSizeDataAccessException}.
+     * <p>Re-confirming an already-verified level is an idempotent no-op
+     * ({@code true}): without the guard, the second confirm re-inserts an
+     * active claim row and violates the V3 partial unique index.
+     *
+     * <p>Transaction boundary: the pending read, the attempt-count save
+     * (wrong code) and the consuming delete (right code) run in ONE
+     * transaction. The read degrades on a legacy duplicate pair (a racy
+     * double send; the table's (user_id, level) index is non-unique) —
+     * {@code findFirst}, the {@code PasswordResetService} idiom — instead of
+     * 500-ing with {@code IncorrectResultSizeDataAccessException}.
      */
     @Transactional
     public boolean confirmVerification(RegisteredUser user, VerificationLevel level, String code) {
         if (user.levels().contains(level)) {
-            // Re-confirming an already-verified level is an idempotent
-            // no-op. Without this guard, the second confirm re-inserts an
-            // active claim row and violates the V3 partial unique index.
             return true;
         }
         VerificationProvider provider = providerFor(level);

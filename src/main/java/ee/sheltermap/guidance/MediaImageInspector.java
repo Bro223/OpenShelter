@@ -1,6 +1,7 @@
 package ee.sheltermap.guidance;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -32,6 +33,17 @@ public final class MediaImageInspector {
 
     private MediaImageInspector() {
     }
+
+    /**
+     * The extension implied by the SNIFFED type — the suffix the server
+     * generates into the stored name. The inspector is the authority on
+     * exactly which types it can answer, so the table lives here and the
+     * upload path and the import path read one shared map.
+     */
+    public static final Map<String, String> EXTENSION_BY_TYPE = Map.of(
+            "image/jpeg", "jpg",
+            "image/png", "png",
+            "image/webp", "webp");
 
     /**
      * The sniffed content type plus the pixel dimensions read from the
@@ -210,11 +222,11 @@ public final class MediaImageInspector {
             return 1; // an APP1 that is not EXIF (XMP et al.)
         }
         int tiff = payload + 6;
-        int littleEndian;
+        boolean littleEndian;
         if (b[tiff] == 'I' && b[tiff + 1] == 'I') {
-            littleEndian = 1;
+            littleEndian = true;
         } else if (b[tiff] == 'M' && b[tiff + 1] == 'M') {
-            littleEndian = 0;
+            littleEndian = false;
         } else {
             return 1; // not a TIFF header
         }
@@ -358,15 +370,15 @@ public final class MediaImageInspector {
     }
 
     /** An unsigned 16-bit read in the TIFF header's byte order. */
-    private static int u16(byte[] b, int offset, int littleEndian) {
+    private static int u16(byte[] b, int offset, boolean littleEndian) {
         int a = b[offset] & 0xFF;
         int c = b[offset + 1] & 0xFF;
-        return littleEndian == 1 ? a | (c << 8) : (a << 8) | c;
+        return littleEndian ? a | (c << 8) : (a << 8) | c;
     }
 
     /** An unsigned 32-bit read in the TIFF header's byte order. */
-    private static int u32(byte[] b, int offset, int littleEndian) {
-        if (littleEndian == 1) {
+    private static int u32(byte[] b, int offset, boolean littleEndian) {
+        if (littleEndian) {
             return (b[offset] & 0xFF) | ((b[offset + 1] & 0xFF) << 8)
                     | ((b[offset + 2] & 0xFF) << 16) | ((b[offset + 3] & 0xFF) << 24);
         }
