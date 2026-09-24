@@ -87,7 +87,7 @@ Anchors, row by row:
   marker-meaning pin keeps it a distinct family in every theme
   (`frontend/src/app/design-tokens.spec.ts:949`). The pin palette has no grey — the
   unverified tone's comment says "there is no grey in it",
-  `frontend/src/app/core/i18n/en.ts:179-182`.
+  `frontend/src/app/core/i18n/en.ts:181-184`.
 - **The shape distinction carries depth separately from colour** (WCAG 1.4.1 — never
   colour alone): unverified = triangle, partial = circle, full = circle with the verified
   green (the shape-carrying notes, `frontend/src/styles.scss:820-822,873-874`). Separately,
@@ -98,7 +98,7 @@ Anchors, row by row:
   `frontend/src/app/shared/leaflet-service.ts:274,285`).
 - The legend swatches reuse these exact marker classes — the section's own note
   (`frontend/src/styles.scss:806-809`) — so map and legend can never drift. Legend copy:
-  the `map.legend.` entries at `frontend/src/app/core/i18n/en.ts:175,177-178,183-184,188`.
+  the `map.legend.` entries at `frontend/src/app/core/i18n/en.ts:177,179-180,185-186,190`.
 - Server-side states: the community trust lifecycle is `ReviewStatus` NEW / CONFIRMED /
   REJECTED (`src/main/java/ee/sheltermap/domain/ReviewStatus.java:20-23`); new rows publish
   as NEW, and registry rows are backfilled CONFIRMED (the field default,
@@ -316,7 +316,7 @@ both tallies read their inputs from the same dismissed-excluded store query
 - The RU and ET legend/map copy are **MACHINE DRAFTs in the source, awaiting native
   speaker review** — do not treat them as final (the `MACHINE DRAFT` legend blocks,
   `frontend/src/app/core/i18n/ru.ts:195-203`; the Estonian `MACHINE DRAFT` legend blocks
-  at `frontend/src/app/core/i18n/et.ts:182-190`).
+  at `frontend/src/app/core/i18n/et.ts:189-197`).
 - The backend suite's status on **JDK 27** was flagged that one must not "treat the suite
   as green for CI until this is decided" in the 2026-09-21 review
   (`reviews/run1-2026-09-21/12-summary.md:183`); that decision's

@@ -1,25 +1,25 @@
 import type { Messages } from './messages';
 
 /**
- * The Russian catalog (i18n-et-en — the whitepaper's RUS).
+ * The Russian catalog — same keys, same order as the en.ts reference copy
+ * (the key-parity guard in i18n.spec.ts pins the key sets; the
+ * catalog-identity guard in catalog-identity.spec.ts pins that no value
+ * stays byte-identical to EN without an allow-list entry).
  *
- * MACHINE-ASSISTED TRANSLATION — NOT REVIEWED BY A NATIVE SPEAKER. This
- * catalog was produced with machine assistance and has NOT been reviewed
- * by a native Russian speaker. It is deliberately plain, calm civic copy
- * for a crisis-mapping app, with the safety-critical strings (the 112
- * notice, "Report this shelter", "Not receiving updates", the occupancy
- * bands) kept unambiguous. Before the site is genuinely public-facing,
- * every string here REQUIRES A NATIVE SPEAKER'S REVIEW — the six Russian
- * guidance drafts in the database are likewise unreviewed and are kept
- * as DRAFTS on purpose.
+ * MACHINE-ASSISTED TRANSLATION — NOT REVIEWED BY A NATIVE SPEAKER. Every
+ * string here requires a native Russian speaker's review before the site
+ * is genuinely public-facing; docs/i18n-review.md lists the values with
+ * real grammar or word-choice doubt. The copy is deliberately plain
+ * and calm — civic language for a crisis-mapping app — with the
+ * safety-critical strings (the 112 notice, "Report this shelter", the
+ * occupancy bands) kept unambiguous.
  *
- * Vocabulary: shelter = укрытие, blast shelter = убежище, Rescue Board =
- * Спасательный департамент (Päästeamet), Emergency Response Centre =
- * Центр тревоги (112). "OpenShelter", "112" and "EE-ALARM" stay as-is.
- * The legal pages were machine-translated with убежище for "shelter";
- * the dictionary audit unified them on укрытие (the UI majority), with
- * case and plural agreement re-checked per occurrence.
- * The {time} and {m} placeholders are carried over from en.ts verbatim.
+ * Vocabulary: shelter = укрытие throughout (blast shelter = убежище),
+ * Rescue Board = Спасательный департамент (Päästeamet), Emergency
+ * Response Centre = Центр тревоги (112). "OpenShelter", "112" and
+ * "EE-ALARM" stay as-is; the {time} and {m} placeholders mirror en.ts.
+ *
+ * Every value here awaits native review — do not treat any of it as final.
  */
 export const RU: Messages = {
   'menu.aria': 'Меню',
@@ -94,7 +94,7 @@ export const RU: Messages = {
   'how.title': 'Как работает OpenShelter',
   'how.what':
     'OpenShelter — независимая карта укрытий в Эстонии, которую ведёт сообщество. Это не экстренная служба и не официальный государственный сервис. В случае чрезвычайной ситуации звоните 112 и следуйте официальным указаниям.',
-  // MACHINE DRAFT (the verified-green re-tint copy) — awaiting native Russian review.
+  // MACHINE DRAFT — awaiting native Russian review; do not treat as final.
   'how.sources':
     'Места берутся из двух источников. Официальные места — из открытых данных Спасательного департамента Эстонии (Päästeamet) — помечаются синим маркером «Реестр». Места, добавленные сообществом: у неподтверждённого пользователя — жёлтый треугольник, у частично подтверждённого — жёлтый круг, у полностью подтверждённого — зелёный круг. Место с открытым сообщением помечается красным маркером. Добавление сообществом никогда не становится официальным автоматически.',
   'how.report':
@@ -241,8 +241,8 @@ export const RU: Messages = {
   'map.geocode.network':
     'Поиск адресов сейчас недоступен. Вместо этого используйте «Показать укрытия рядом с вами».',
 
-  // --- страница укрытия. Кнопка расстояния и метки Статус/Вместимость
-  // остаются английскими, как и в исходном интерфейсе.
+  // --- страница укрытия. Единственный английский остаток — литерал
+  // "Capacity:" в разделе Details, рядом с цифрой реестра.
   'detail.backToMap': 'Назад к карте',
   'detail.notFoundTitle': 'Укрытие не найдено',
   'detail.notFoundBody': 'Укрытия с таким идентификатором нет — возможно, оно было удалено.',
@@ -338,7 +338,7 @@ export const RU: Messages = {
   'shelter.newlyAddedUnverified': 'Новое от сообщества {ago} — ещё не проверено',
   'shelter.noVerificationRecord': 'Записи о проверке пока нет',
   'shelter.communityReports': 'Сообщения сообщества: {count} (всего, всех типов)',
-  // Глубина подтверждения автора (submitter-verification-badge): один
+  // Глубина подтверждения автора: один
   // подтверждённый канал или FULL при двух и более.
   'shelter.submitterVerification.email': 'Добавлено пользователем с подтверждённой почтой',
   'shelter.submitterVerification.phone': 'Добавлено пользователем с подтверждённым телефоном',
@@ -605,7 +605,7 @@ export const RU: Messages = {
   'verify.verifiedNotice': 'Ваш {noun} подтверждён.',
 
   // --- рекомендации при ЧС (/blog). Заголовок и текст материала —
-  // текст администратора (котируется как есть), не ключи словаря.
+  // текст администратора (цитируется как есть), не ключи словаря.
   'guidance.title': 'Рекомендации при ЧС',
   'guidance.subtitle': 'Практические рекомендации на случай кризиса.',
   'guidance.loading': 'Загружаем рекомендации…',
@@ -619,7 +619,7 @@ export const RU: Messages = {
     'Показана версия на языке {locale} — этот материал недоступен на языке {reader}.',
   'guidance.localeFallback.alternate': 'Читать версию на языке {locale}',
 
-  // --- пагинация списков (list-page-paging: общий контрол «назад/вперёд» + размер).
+  // --- пагинация списков (общий контрол «назад/вперёд» + размер).
   'pagination.aria': 'Страницы',
   'pagination.previous': 'Предыдущая',
   'pagination.next': 'Следующая',
@@ -922,7 +922,7 @@ export const RU: Messages = {
   /** Любая другая ошибка загрузки (5xx, сеть): общий текст повтора. */
   'admin.guidance.editor.hero.uploadError.generic':
     'Не удалось загрузить изображение. Попробуйте ещё раз.',
-  /** Подпись поля импорта по URL (guidance-hero-import): НЕОБЯЗАТЕЛЬНЫЙ
+  /** Подпись поля импорта по URL: НЕОБЯЗАТЕЛЬНЫЙ
    *  импорт — сервер скачает, проверит и сохранит изображение при
    *  СОХРАНЕНИИ (вместо выбора из библиотеки). */
   'admin.guidance.editor.hero.importLabel': 'Импорт по URL (необязательно)',
@@ -1037,7 +1037,7 @@ export const RU: Messages = {
   /** Первый клик — запрос в пути (решил API: 200 удалено / 409 в
    *  использовании). */
   'admin.media.delete.working': 'Проверяем…',
-  /** Текст подтверждения «в использовании» (сообщение 400/409 называет
+  /** Текст подтверждения «в использовании» (сообщение 409 называет
    *  материалы; оно присоединяется после этого предложения). */
   'admin.media.delete.inUse':
     'Это изображение ещё используется материалами. При удалении главное изображение будет убрано с затронутых материалов.',

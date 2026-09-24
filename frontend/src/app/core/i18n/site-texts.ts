@@ -15,7 +15,9 @@ import type { MessageKey } from './messages';
  * Plain text only: the override values are auto-escaped (Angular text
  * interpolation, never innerHTML). The two official-source links are
  * LABEL + https-VALIDATED URL pairs: only the link keys below carry a
- * URL, and the URL must start with `https://` (checked server-side).
+ * URL, and the URL must start with `https://` (checked server-side). A
+ * blank value is refused server-side and treated as absent client-side
+ * (the catalog default wins).
  *
  * Keep in lockstep with `ee.sheltermap.sitetexts.SiteTextKeys` on the
  * backend (a unit test pins that set).
@@ -100,8 +102,8 @@ export const SITE_TEXT_LINK_KEYS: readonly SiteTextKey[] = [
   'footer.ministry',
 ] as const;
 
-/** The shipped default URLs the overlay falls back to (page-shell.html
- *  used to hardcode them in the template). */
+/** The shipped default URLs the overlay falls back to when no override
+ *  row exists. */
 export const DEFAULT_SITE_TEXT_URLS: Readonly<Record<string, string>> = {
   'footer.rescueBoard': 'https://www.päästeamet.ee',
   'footer.ministry': 'https://www.siseministeerium.ee',

@@ -94,17 +94,17 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
 };
 
 /**
- * /verify (AuthGuard) — prove ownership of the email and phone on the account
- * (04-CONTEXT-ACCOUNT-VERIFY.md, 03 puml). Per channel: "send code" -> "enter
- * code" -> verified. Reads which levels are still open from the REAL claim
- * set in AuthStore.levels() (fetched from GET /account/me) and re-fetches the
- * profile after a confirm (04-CONTEXT decision 3, reversed), so the newly
- * verified channel disappears without any optimistic write.
+ * /verify (AuthGuard) — prove ownership of the email and phone on the
+ * account (04-CONTEXT-ACCOUNT-VERIFY.md). Per channel: "send code" ->
+ * "enter code" -> verified. Reads which levels are still open from the REAL
+ * claim set in AuthStore.levels() (fetched from GET /account/me) and
+ * re-fetches the profile after a confirm, so the newly verified channel
+ * disappears without any optimistic write.
  *
- * Error mapping: 409 on request means the level is ALREADY verified — no code
- * was sent (backend AlreadyVerifiedException) — the profile is re-fetched
- * (defensive net: the store can be stale after a failed fetch) and an
- * informational notice is shown. 429 (cooldown/daily cap) and 400
+ * Error mapping: 409 on request means the level is ALREADY verified — no
+ * code was sent (backend AlreadyVerifiedException) — the profile is
+ * re-fetched (defensive net: the store can be stale after a failed fetch)
+ * and an informational notice is shown. 429 (cooldown/daily cap) and 400
  * (wrong/expired code) use generic copy; no auto-retry anywhere. A cooldown
  * 429 additionally carries Retry-After — the per-channel button countdown
  * runs from it (and from the ack body after a successful send), so the user
@@ -121,16 +121,15 @@ export class VerifyPage implements OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly verify = inject(VerifyGateway);
   private readonly route = inject(ActivatedRoute);
-  /** i18n-et-en: the page copy is fully catalog-driven; a switcher change
-   *  re-renders the cards (labels + the re-derived banners). The
-   *  verification state itself is NOT locale-scoped — no re-fetch. */
+  /** The page copy is fully catalog-driven; a language switch re-renders
+   *  the cards (labels + the re-derived banners). The verification state
+   *  itself is NOT locale-scoped — no re-fetch. */
   readonly i18n = inject(I18nService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  /** The language switcher sets I18nService.locale: re-derive the stored
-   *  banners and re-render every | t label. toObservable emits the CURRENT
-   *  value on subscribe, so skip(1) — only a real switch triggers it (the
-   *  guidance-page idiom). Unsubscribed in ngOnDestroy. */
+  /** Re-derive the stored banners and re-render every | t label on a
+   *  language switch. toObservable emits the CURRENT value on subscribe,
+   *  so skip(1) — only a real switch triggers it. */
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
     .subscribe(() => this.cdr.markForCheck());
@@ -139,19 +138,19 @@ export class VerifyPage implements OnDestroy {
 
   /**
    * Where to send the user once they are verified — set by
-   * {@link verifiedGuard} (and the submit/report prompts) as
-   * {@code /verify?returnUrl=…}. The verify page preserves it just as the
-   * login page does, so a user who verifies from a shelter detail or /submit
-   * lands back there instead of having to navigate manually. Null (no param /
-   * unsafe value) keeps the default post-verify actions.
+   * `verifiedGuard` (and the submit/report prompts) as
+   * `/verify?returnUrl=…`. The verify page preserves it just as the login
+   * page does, so a user who verifies from a shelter detail or /submit
+   * lands back there instead of having to navigate manually. Null (no
+   * param / unsafe value) keeps the default post-verify actions.
    */
   protected readonly returnUrl = (() => {
     const raw = this.route.snapshot.queryParamMap.get('returnUrl');
-    // Reuse the canonical guard sanitizer (core/guards) —
-    // it accepts string | null and returns the value only for a safe
-    // internal absolute path, so the identity check IS the safety test.
-    // An absent (or unsafe) param stays null: the page keeps its default
-    // post-verify actions instead of linking somewhere.
+    // Reuse the canonical guard sanitizer (core/guards): it returns the
+    // value only for a safe internal absolute path, so the identity check
+    // IS the safety test. An absent (or unsafe) param stays null — the
+    // page keeps its default post-verify actions instead of linking
+    // somewhere.
     return raw !== null && safeReturnUrl(raw) === raw ? raw : null;
   })();
 
@@ -249,20 +248,22 @@ export class VerifyPage implements OnDestroy {
     } catch (error) {
       const api = error instanceof ApiError ? error : toApiError(error);
       if (api.status === 409) {
+        // Already verified: no code was sent — re-fetch the profile so the
+        // store reflects the real claim, and inform; never an error banner.
         await this.store.refreshProfile();
         this.notice.set({
           severity: 'info',
           key: 'verify.alreadyVerified',
           params: { noun: this.nounText(this.channel(level)) },
         });
-      } else {
-        // A cooldown 429 carries Retry-After — run the per-channel
-        // countdown from it (the banner keeps its generic copy).
-        if (api.status === 429) {
-          this.countdowns[level].start(api.retryAfterSeconds ?? 60);
-        }
-        this.error.set(error);
+        return;
       }
+      // A cooldown 429 carries Retry-After — run the per-channel countdown
+      // from it (the banner keeps its generic copy).
+      if (api.status === 429) {
+        this.countdowns[level].start(api.retryAfterSeconds ?? 60);
+      }
+      this.error.set(error);
     } finally {
       this.sending.set(null);
     }

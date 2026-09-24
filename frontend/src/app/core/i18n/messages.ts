@@ -1,14 +1,38 @@
 /**
- * The message catalog contract. Both locale
- * catalogs (`en.ts` / `et.ts` / `ru.ts`) are typed against this interface, so a key
- * missing from EITHER side is a compile error; the runtime key-parity
- * guard in `i18n.spec.ts` is the backstop (and rejects empty values).
+ * The message catalog contract: the closed set of user-visible UI copy
+ * keys. `en.ts`, `et.ts` and `ru.ts` are typed against this interface, so
+ * a key missing from ANY catalog is a compile error; the runtime
+ * key-parity guard in `i18n.spec.ts` is the backstop (it also rejects
+ * empty values), and the template guard
+ * (i18n-template-guard.spec.ts) pins both directions — every `| t` key in
+ * a template resolves here, and no user-visible text is hardcoded outside
+ * the seam.
  *
- * Key namespaces: `nav.*` header nav, `auth.*` session controls,
- * `footer.*` the app-wide footer, `title.*` route titles (consumed by
- * titleGuard via route data), the rest single chrome strings. The
- * interface also carries the feature-page copy (shelter trust copy, forms,
- * errors).
+ * Key organisation: dotted `surface.area.qualifier` paths
+ * (`admin.shelters.col.name`), namespaced by the surface that renders them
+ * — chrome (nav.*, auth.*, a11y.*, lang.*, footer.*, title.*, consent.*),
+ * public pages (how.*, map.*, detail.*, shelter.*, submit.*, verify.*,
+ * guidance.*, legal.*), shared copy (shelter.*, error.*, pagination.*)
+ * and the admin area (admin.*). The interface and the three catalogs
+ * carry the SAME keys in the SAME order — one canonical order; the
+ * sections follow the page order of their surface.
+ *
+ * Value conventions:
+ *  - `{name}` placeholders are interpolated by I18nService.t(key, params);
+ *    unknown placeholders stay literal, so a typo is visible, not silent.
+ *  - Splice segments (`.before`/`.strong`/`.em`/`.middle`/`.after`,
+ *    `.link`/`.label`/`.url` …) are rendered around inline markup (links,
+ *    emphasis, code) so the sentence keeps the same rendered result;
+ *    punctuation-only tails are byte-identical in every locale — such
+ *    values need a catalog-identity allow-list entry, or that guard fails
+ *    the build.
+ *  - A CLOSED subset of these keys is admin-editable at runtime — the
+ *    site-texts allow-list (site-texts.ts); the catalog value is the
+ *    shipped default the overlay falls back to.
+ *
+ * For translators: EN (en.ts) is the verbatim reference copy; the ET/RU
+ * catalogs are documented in their own headers, and the uncertain values
+ * are tracked in docs/i18n-review.md.
  */
 export interface Messages {
   // --- header: burger + nav
@@ -66,7 +90,7 @@ export interface Messages {
   // --- footer: legal links
   'footer.privacy': string;
   'footer.terms': string;
-  // --- footer: data provenance line (official-dataset-csv)
+  // --- footer: data provenance line
   'footer.dataSource': string;
   'footer.lastImport': string;
   'footer.officialOpenData': string;
@@ -163,10 +187,8 @@ export interface Messages {
   'authPage.reset.codeNote': string;
   'authPage.reset.newPasswordLabel': string;
   'authPage.reset.newPasswordRequired': string;
-  /** The length-rule field error (mirrors the server's @Size(min = 8)).
-   *  The register page has no length rule, so there was no existing copy
-   *  to reuse — plain equivalent of "Password must be at least 8
-   *  characters." (the reset-page spec pins this EN wording). */
+  /** The length-rule field error (mirrors the server's @Size(min = 8));
+   *  the reset-page spec pins this EN wording. */
   'authPage.reset.newPasswordTooShort': string;
   'authPage.reset.repeatLabel': string;
   'authPage.reset.repeatRequired': string;
@@ -188,6 +210,10 @@ export interface Messages {
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
+  /** The submitter-verification shapes: a
+   *  triangle at one confirmed channel, a circle at two or more. */
+  'map.legend.partialVerified': string;
+  'map.legend.fullVerified': string;
   /** The unverified community tone (the verified-green re-tint, owner decision: green
    *  means verified, unverified is the YELLOW tone — the pin palette is
    *  green/yellow/blue/red only, there is no grey in it): the community
@@ -195,10 +221,6 @@ export interface Messages {
    *  the trust-scale rung below the two verified shapes. */
   'map.legend.unverified': string;
   'map.legend.reported': string;
-  /** The submitter-verification shapes: a
-   *  triangle at one confirmed channel, a circle at two or more. */
-  'map.legend.partialVerified': string;
-  'map.legend.fullVerified': string;
   /** The legend filter's affordance line (the legend IS the
    *  filter): the one-line mechanic the pin-tone toggle entries implement.
    *  It doubles as the accessible description of every toggle entry
@@ -245,10 +267,11 @@ export interface Messages {
   'map.geocode.rateLimited': string;
   'map.geocode.network': string;
 
-  // --- shelter detail page. The Distance-from-you action (its
-  // button + DISTANCE_COPY) stays English. The Details section's registered
-  // "Capacity:" data label stays English too; the Info section's own
-  // Status/Capacity row labels are catalog-keyed below (INFO-LAST-REPORTED).
+  // --- shelter detail page. The Distance-from-you action is fully keyed
+  // (detail.distance.*) and translated in every locale; the one English
+  // survivor in the section is the Details "Capacity:" data label — a
+  // template literal beside the registry figure, never a key. The Info
+  // section's Status/Capacity row labels are keyed below.
   'detail.backToMap': string;
   'detail.notFoundTitle': string;
   'detail.notFoundBody': string;
@@ -259,7 +282,7 @@ export interface Messages {
    *  (or the DTO omits it) — the template's `??` fallback, keyed so the
    *  heading is translated in every locale. */
   'detail.titleFallback': string;
-  /** The "Distance from you" action button's label (location-navigation). */
+  /** The "Distance from you" action button's label. */
   'detail.distance.cta': string;
   /** The action button's in-flight state while geolocation is resolving. */
   'detail.distance.pending': string;
@@ -377,11 +400,10 @@ export interface Messages {
 
   // --- shared shelter copy (shared/shelter-copy.ts: the map rows, the
   // detail header, the /mine badges and the admin list all render through
-  // these keys). The NINE values that already had catalog twins (the
-  // trust-state labels, the registry labels, the inaccurate warning and
-  // the FIRM band heads) reuse their existing keys — account.contrib.*
-  // and detail.band.* — so one fact can never read in two languages in
-  // one view. Everything else in this block is new.
+  // these keys). The NINE values that have catalog twins (the trust-state
+  // labels, the registry labels, the inaccurate warning and the FIRM band
+  // heads) reuse their existing keys — account.contrib.* and detail.band.*
+  // — so one fact can never read in two languages in one view.
   // Derived display status (shelterStatusText / openStatusBadgeText):
   // the FRESH open/closed reports outrank the lifecycle status.
   'shelter.status.reportedClosed': string;
@@ -405,15 +427,15 @@ export interface Messages {
   'shelter.recency.date': string;
   /** {count} is the NON_EXISTENT report subset that drives the badge. */
   'shelter.reportedBadge': string;
-  /** The private-home declaration badge (community-review-queue). */
+  /** The private-home declaration badge. */
   'shelter.privateBadge': string;
   /** The detail-page note for PRIVATE rows: resident-offered, not an
    *  official facility. */
   'shelter.privateNote': string;
-  /** The unverified warning for NEW community rows (community-review-queue).
+  /** The unverified warning for NEW community rows.
    *  A caveat, not the crisis orange. */
   'shelter.unverifiedWarning': string;
-  // Last-verified meta (last-verified-meta): `{ago}` is a verifiedAgoText()
+  // Last-verified meta: `{ago}` is a verifiedAgoText()
   // relative phrase (shelter.recency.*).
   'shelter.lastVerified': string;
   /** The registry-row variant: names WHAT the check was against.
@@ -437,8 +459,8 @@ export interface Messages {
   'shelter.submitterVerification.full': string;
   'shelter.distance.meters': string;
   'shelter.distance.kilometers': string;
-  // Report-flow notices (shelter-trust-and-reports; the dampened
-  // variant is community-self-moderation).
+  // Report-flow notices. reportSubmittedDamped: the report was recorded
+  // but counts 0 — the reporter holds a same-named shelter at that place.
   'shelter.notice.reportSubmitted': string;
   'shelter.notice.reportSubmittedDamped': string;
   'shelter.notice.occupancySaved': string;
@@ -698,7 +720,7 @@ export interface Messages {
   'verify.alreadyVerified': string;
   'verify.verifiedNotice': string;
 
-  // --- crisis guidance (/blog — crisis-guidance). The post title and
+  // --- crisis guidance (/blog). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.
   'guidance.title': string;
   'guidance.subtitle': string;
@@ -710,7 +732,7 @@ export interface Messages {
   'guidance.notFoundBody': string;
   /** The date-line label in front of the locale-aware publication date. */
   'guidance.published': string;
-  /** The locale-fallback notice on the public detail (bilingual-guidance):
+  /** The locale-fallback notice on the public detail:
    *  the post has NO translation in the reader's language and the server
    *  served the default-locale one instead (a 200 with the flag). Which
    *  language is shown — plainly — and that the reader's is not available.
@@ -722,7 +744,7 @@ export interface Messages {
    *  `{locale}` is the reader's locale code. */
   'guidance.localeFallback.alternate': string;
 
-  // --- list paging (list-page-paging: the shared prev/next + size control).
+  // --- list paging (the shared prev/next + size control).
   'pagination.aria': string;
   'pagination.previous': string;
   'pagination.next': string;
@@ -742,10 +764,10 @@ export interface Messages {
   'guidance.pageOutOfRange': string;
   'guidance.pageFirst': string;
 
-  // --- admin: guidance tab + editor + media library (crisis-guidance).
-  // The admin surface is i18n'd from the guidance tabs on: every string
-  // below runs through the `t` pipe; post TITLES/BODIES are admin copy
-  // (rendered verbatim), never catalog keys.
+  // --- admin: guidance tab + editor + media library.
+  // The admin surface runs through the `t` pipe like the public pages;
+  // post TITLES/BODIES are admin copy (rendered verbatim), never catalog
+  // keys.
   /** The shared Retry button on a failed tab load. */
   'admin.retry': string;
 
@@ -756,11 +778,9 @@ export interface Messages {
    *  blocks, each field in the three locales). */
   'admin.settings.tab': string;
 
-  // moderation-queue tabs (pre-guidance): the page shell + the five queue
-  // surfaces. The tabs group its aria-label, the shared working/cancel
-  // action copy, and the per-tab loading/empty states, table columns and
-  // row actions.
-  /** The subtitle under the page H1. */
+  // The five moderation-queue tabs: the page shell + the tab surfaces —
+  // the tabs group's aria-label, the shared working/cancel action copy,
+  // and the per-tab loading/empty states, table columns and row actions.
   /** The tab switcher group aria-label. */
   'admin.tabs.aria': string;
   'admin.tabs.unconfirmed': string;
@@ -993,7 +1013,7 @@ export interface Messages {
   /** The scoped list's language line: the posts shown
    *  are the active UI language's. `{locale}` is the language code. */
   'admin.guidance.shownIn': string;
-  /** The admin guidance search's input label (admin-guidance-search):
+  /** The admin guidance search's input label:
    *  submit-based, matching the active content locale's scope. */
   'admin.guidance.search.label': string;
   /** The admin guidance search's input placeholder. */
@@ -1030,7 +1050,7 @@ export interface Messages {
   'admin.guidance.col.actions': string;
   /** Accessible name of the keyboard-focusable posts table region. */
   'admin.guidance.posts.aria': string;
-  // Manual ordering (guidance-manual-order): the hint above the list
+  // Manual ordering: the hint above the list
   // and the per-row move buttons (visible labels + the accessible names
   // that name the post and the direction — a screen reader announces
   // "Move {post} to the top").
@@ -1069,15 +1089,15 @@ export interface Messages {
   'admin.guidance.success.unpublished': string;
   'admin.guidance.success.deleted': string;
   'admin.guidance.success.reordered': string;
-  /** Translation authoring success lines (bilingual-guidance). */
+  /** Translation authoring success lines. */
   'admin.guidance.success.translationCreated': string;
   /** The translation-edit success (the update endpoint's 200). */
   'admin.guidance.success.translationUpdated': string;
   'admin.guidance.success.translationDeleted': string;
 
   // guidance editor (the create/edit form). The body is a plain textarea
-  // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance is
-  // defence-in-depth on the server sanitizer).
+  // over the stored (sanitized) HTML — no WYSIWYG: the server sanitizer
+  // is the defence-in-depth, not the editor.
   'admin.guidance.editor.createTitle': string;
   'admin.guidance.editor.editTitle': string;
   'admin.guidance.editor.loading': string;
@@ -1120,7 +1140,7 @@ export interface Messages {
   'admin.guidance.editor.hero.uploadError.unsupported': string;
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': string;
-  /** The hero-import URL input's label (guidance-hero-import): an
+  /** The hero-import URL input's label: an
    *  OPTIONAL import — the server fetches, validates and stores the
    *  image at SAVE time instead of picking a library asset. */
   'admin.guidance.editor.hero.importLabel': string;
@@ -1168,9 +1188,9 @@ export interface Messages {
    *  the post's home language and the single-language effect of a
    *  save. `{home}` the home locale, `{locale}` the content locale. */
   'admin.guidance.editor.homeLocaleNote': string;
-  /** The editor's language line, translation-authoring mode
-   *  (bilingual-guidance): the locale being ADDED to the post (the form is
-   *  prefilled from the language on screen — translate from what you see).
+  /** The editor's language line, translation-authoring mode: the locale
+   *  being ADDED to the post (the form is prefilled from the language on
+   *  screen — translate from what you see).
    *  `{locale}` is the target locale code. */
   'admin.guidance.editor.translatingIn': string;
   /** The language line in translation-EDIT mode (the existing row for
@@ -1180,7 +1200,7 @@ export interface Messages {
   'admin.guidance.editor.translationTitle': string;
   /** The editor heading in translation-edit mode. */
   'admin.guidance.editor.translationEditTitle': string;
-  /** The translations section (bilingual-guidance): the post's per-locale
+  /** The translations section: the post's per-locale
    *  rows — add a missing one, delete a foreign one (the home-locale row
    *  is the post itself and cannot be deleted). */
   'admin.guidance.editor.translations.title': string;
@@ -1251,15 +1271,11 @@ export interface Messages {
   'admin.media.success.uploaded': string;
   'admin.media.success.deleted': string;
 
-  // --- legal pages: /privacy + /terms were English-only
-  // static text; every paragraph/heading is now a catalog key, one key
-  // per block, with splice segments around the inline <strong>/<em>/
-  // <code> and cross-page links (the account-area pattern).
-  //
-  // The 187 legal.* keys below are appended in batches (B2..B11, legal
-  // text in backup order); each batch lands in ALL FOUR files together
-  // (messages.ts + en.ts + et.ts + ru.ts) and the build is re-run after
-  // every batch, so the key sets never drift.
+  // --- legal pages (/privacy + /terms). Every paragraph/heading is a
+  // catalog key, one key per block, with splice segments around the
+  // inline <strong>/<em>/<code> and cross-page links (the account-area
+  // pattern). EN values are verbatim from the previous static templates —
+  // the pre-existing page specs assert on them and stay green.
   //
   // Convention: the section heading keys (legal.privacy.<section> /
   // legal.terms.<section>) are used BOTH for the table-of-contents link
@@ -1270,14 +1286,14 @@ export interface Messages {
   //
   // These are legal texts: translated faithfully and conservatively, NOT
   // reviewed by a lawyer or a native speaker — the owner's review list
-  // is docs/i18n-review.md ("Legal pages "). The bracket
+  // is docs/i18n-review.md ("Legal pages"). The bracket
   // placeholders ([OPERATOR LEGAL NAME], …) are fill-in tokens, kept
   // verbatim in all locales.
   /** Shared table-of-contents aria-label (both legal pages). */
   'legal.toc.aria': string;
   // privacy policy (/privacy)
   'legal.privacy.title': string;
-  /** "Last updated: 16 September 2026" — the date is locale-formatted. */
+  /** "Last updated: 16 September 2026" — the date is baked into the value. */
   'legal.privacy.updated': string;
   // Section headings (TOC link + <h2> share the key).
   'legal.privacy.who': string;
@@ -1439,7 +1455,7 @@ export interface Messages {
   'legal.privacy.link.terms': string;
   // terms of use (/terms)
   'legal.terms.title': string;
-  /** "Last updated: 13 September 2026" — the date is locale-formatted. */
+  /** "Last updated: 13 September 2026" — the date is baked into the value. */
   'legal.terms.updated': string;
   /** The emergency number — a literal in every locale (identity
    *  allow-list); used by the service + emergency sections. */

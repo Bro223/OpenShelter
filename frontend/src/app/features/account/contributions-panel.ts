@@ -28,15 +28,13 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 import { communityBadgeClass as communityBadgeClassShared } from '../../shared/shelter-copy';
 
 /**
- * "My contributions" panel on the /account page (user-contributions): the
- * caller's own shelters (list/edit/delete). The reviews list is
- * gone with the review model (owner decision).
+ * "My contributions" panel on the /account page: the caller's own
+ * shelters (list / edit / delete).
  *
  * Edit = the shared /submit form in edit mode: the Edit entry is a
  * link to /submit?edit=<id> — the SAME full creation form prefilled with
  * the row's current values (same fields, same location capture modes).
- * The account area no longer hosts its own reduced inline edit form;
- * save is PUT /api/shelters/{id} on that page, and the edit publishes
+ * Save is PUT /api/shelters/{id} on that page, and the edit publishes
  * immediately with the pending-verification (NEW) trust state.
  * Delete = two-step confirm (the button arm + "Confirm delete?";
  * no window.confirm, consistent with the app's inline style).
@@ -56,25 +54,25 @@ import { communityBadgeClass as communityBadgeClassShared } from '../../shared/s
 export class ContributionsPanel implements OnInit {
   private readonly shelters = inject(ShelterGateway);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  /** i18n-et-en: the panel copy is fully catalog-driven; a switcher change
-   *  re-renders the panel (labels + the re-derived error banners). The /mine
-   *  data is NOT locale-scoped — no re-fetch. */
+  /** The panel copy is fully catalog-driven; a language switch re-renders
+   *  the panel (labels + the re-derived error banners). The /mine data is
+   *  NOT locale-scoped — no re-fetch. */
   readonly i18n = inject(I18nService);
   /** The active route: the edit entry builds its /submit?edit=<id> UrlTree
    * against this route's snapshot. */
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  /** The language switcher sets I18nService.locale: re-derive the stored
-   *  error banners (raw errors) and re-render every | t label. skip(1) —
-   *  only a real switch triggers it (the guidance-page idiom). */
+  /** Re-derive the stored error banners (raw errors) and re-render every
+   *  | t label on a language switch. skip(1) — only a real switch
+   *  triggers it. */
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
     .subscribe(() => this.cdr.markForCheck());
 
   // ---- shelters list -------------------------------------------------------
   /** null = loading; [] = loaded and empty. The /mine projection carries the
-   *  review state (community-review-queue) — badges + the admin note. */
+   *  review state — the trust badges + the admin note. */
   protected readonly shelterRows = signal<MineShelterDto[] | null>(null);
   /** Load failure: the RAW error (non-null -> error state with Retry) —
    *  the banner text is re-derived through the active locale. */
@@ -104,10 +102,10 @@ export class ContributionsPanel implements OnInit {
 
   protected readonly busy = signal(false);
 
-  /** Panel-local badge label (i18n-et-en): registry rows carry their
-   *  registry label, USER rows the trust-state label. The shared
-   *  shelter-copy labels are not catalog keys (map/detail/admin still use
-   *  them), so this panel renders its own translated set. */
+  /** Panel-local badge label: registry rows carry their registry label,
+   *  USER rows the trust-state label. The shared shelter-copy labels are
+   *  not catalog keys (map/detail/admin still use them), so this panel
+   *  renders its own translated set. */
   protected trustBadgeLabel(row: MineShelterDto): string {
     if (row.source === 'PAASETEAMET') {
       return this.i18n.t('account.contrib.source.paasteamet');
@@ -154,13 +152,12 @@ export class ContributionsPanel implements OnInit {
   }
 
   /**
-   * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
-   * the owner's list includes INACTIVE (auto-hidden) rows, marked with the
-   * community non-existence report count. Restore is admin-only — the user
-   * UI offers no restore action, so the mark is the row's only new element.
-   * Suppressed for REJECTED rows (community-review-queue): a rejection
-   * also flips the status to INACTIVE, but the "Rejected" badge + the
-   * admin's reason explain the state — the auto-hide mark would be noise.
+   * Auto-hidden row copy: the owner's list includes INACTIVE (auto-hidden)
+   * rows, marked with the community non-existence report count. Restore is
+   * admin-only — the user UI offers no restore action, so the mark is the
+   * row's only new element. Suppressed for REJECTED rows: a rejection also
+   * flips the status to INACTIVE, but the "Rejected" badge + the admin's
+   * reason explain the state — the auto-hide mark would be noise.
    */
   protected hiddenText(row: MineShelterDto): string | null {
     if (row.status !== 'INACTIVE' || row.reviewStatus === 'REJECTED') {
@@ -170,12 +167,6 @@ export class ContributionsPanel implements OnInit {
       count: this.reportCountPhrase(row.nonexistentReports),
     });
   }
-
-  // ---- shelter edit: the shared /submit form ---------------------------
-  // The inline edit form is gone: Edit is a routerLink to
-  // /submit?edit=<id> — the full creation form in edit mode (same fields,
-  // same location capture modes), prefilled with the row's values. The
-  // account area is no longer where shelter edits happen.
 
   /**
    * The Edit entry: the shared /submit form in edit mode, one UrlTree
@@ -285,9 +276,9 @@ export class ContributionsPanel implements OnInit {
   /**
    * POST /api/shelters/{id}/info-request/reply (204, the one-time answer).
    * Success patches the row in place — the 204 body is empty, so the reply
-   * text is the form value and the timestamp local "now" (the review edit's
-   * local updatedAt bump precedent); a 409 (answered meanwhile) or 400/403
-   * shows the row error and the row stays as it was.
+   * text is the form value and the timestamp local "now"; a 409
+   * (answered meanwhile) or 400/403 shows the row error and the row stays
+   * as it was.
    */
   async sendInfoReply(row: MineShelterDto): Promise<void> {
     const request = row.infoRequest;

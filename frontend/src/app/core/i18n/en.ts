@@ -1,11 +1,13 @@
 import type { Messages } from './messages';
 
 /**
- * The English catalog (i18n-et-en) — the reference copy, verbatim: the EN
- * strings ARE the committed copy, so a user on the default locale sees
- * exactly what the app renders. Where a template spliced copy around markup
- * (footer links), the sentence is segmented into keys with the same rendered
- * result.
+ * The English catalog — the reference copy. `en` is the default locale: it
+ * ships in the initial bundle and its strings ARE the committed copy (the
+ * page specs assert on them), so a default-locale user sees exactly what
+ * the app renders. `et.ts` and `ru.ts` mirror these keys in the same
+ * order; key organisation, placeholders, splice segments and the guards
+ * are documented on the `Messages` contract (messages.ts). The sections
+ * below follow the page order of the app's surfaces.
  */
 export const EN: Messages = {
   'menu.aria': 'Menu',
@@ -165,15 +167,15 @@ export const EN: Messages = {
   'authPage.privacyPolicy': 'Privacy Policy',
   'authPage.termsOfUse': 'Terms of Use',
 
-  // --- map page (the browse surface). Same verbatim rule as
-  // the chrome: the EN strings ARE the current committed template + const
-  // copy. The around-you CTA copy is NOT keyed here (see messages.ts).
+  // --- map page (the browse surface). Same verbatim rule as the chrome:
+  // the EN strings ARE the current committed template + const copy. The
+  // around-you CTA is keyed (map.aroundYou); the how/geocode copy quotes it.
   'map.title': 'Shelter map',
   'map.subtitle': 'Find registered and community-submitted bomb shelters in Estonia.',
   // Legend entry for the blue registry marker: it names the primary registry
   // source (owner wording: "Registry (Päästeamet)").
   'map.legend.registry': 'Registry (Päästeamet)',
-  // The submitter-verification shapes (submitter-verification-badge).
+  // The submitter-verification shapes: a triangle at one confirmed channel, a circle at two or more.
   'map.legend.partialVerified': 'Added by a partially verified user',
   'map.legend.fullVerified': 'Added by a fully verified user',
   // The unverified community tone (the verified-green re-tint — green means verified,
@@ -293,9 +295,9 @@ export const EN: Messages = {
   'detail.pulse.estimateNote': 'The arrows show a calculated estimate, not confirmed data.',
 
   // --- shared shelter copy (shared/shelter-copy.ts). The nine values with
-  // pre-existing twins (trust-state labels, registry labels, inaccurate
-  // warning, firm band heads) REUSE account.contrib.* / detail.band.* —
-  // they are NOT duplicated here; only the rest of the module's copy is new.
+  // catalog twins (trust-state labels, registry labels, inaccurate warning,
+  // firm band heads) REUSE account.contrib.* / detail.band.* — they are NOT
+  // duplicated here, so one fact can never read in two languages in one view.
   'shelter.status.reportedClosed': 'Reported closed',
   'shelter.status.closed': 'Closed',
   'shelter.status.open': 'Open',
@@ -318,9 +320,9 @@ export const EN: Messages = {
   'shelter.newlyAddedUnverified': 'Newly added {ago} — not yet verified',
   'shelter.noVerificationRecord': 'No verification record yet',
   'shelter.communityReports': 'Community reports: {count} (total, all types)',
-  // The submitter's verification depth (submitter-verification-badge): the
-  // single confirmed channel, or FULL at two or more. Only user-submitted
-  // rows carry it; the row/detail surfaces render it beside the trust badge.
+  // The submitter's verification depth: the single confirmed channel, or
+  // FULL at two or more. Only user-submitted rows carry it; the row/detail
+  // surfaces render it beside the trust badge.
   'shelter.submitterVerification.email': 'Added by an e-mail verified user',
   'shelter.submitterVerification.phone': 'Added by a phone verified user',
   'shelter.submitterVerification.smartId': 'Added by a Smart-ID verified user',
@@ -416,8 +418,8 @@ export const EN: Messages = {
   'submit.geocode.network':
     'Address search is unreachable right now. Use the map or a link instead.',
 
-  // --- error banners (shared error mapping, i18n-aware seam). EN is the
-  // verbatim copy the shared error-copy module already ships.
+  // --- error banners (shared error mapping, i18n-aware seam). EN values
+  // are the verbatim twins of shared/error-copy.ts's legacy constants.
   'error.rateLimited': 'Too many attempts — please wait a moment and then try again.',
   'error.unauthorized': 'Not authorized. Please log in again.',
   // The login 401 and the password-reset-confirm 400 are deliberately
@@ -584,7 +586,7 @@ export const EN: Messages = {
   'verify.alreadyVerified': 'Your {noun} is already verified.',
   'verify.verifiedNotice': 'Your {noun} is verified.',
 
-  // --- crisis guidance (/blog — crisis-guidance). The post title and
+  // --- crisis guidance (/blog). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.
   'guidance.title': 'Crisis guidance',
   'guidance.subtitle': 'Practical guidance for crisis situations.',
@@ -598,7 +600,7 @@ export const EN: Messages = {
   'guidance.localeFallback': 'This post is shown in {locale} — it is not available in {reader}.',
   'guidance.localeFallback.alternate': 'Read the {locale} version',
 
-  // --- list paging (list-page-paging: the shared prev/next + size control).
+  // --- list paging (the shared prev/next + size control).
   'pagination.aria': 'Pages',
   'pagination.previous': 'Previous',
   'pagination.next': 'Next',
@@ -612,7 +614,7 @@ export const EN: Messages = {
   'guidance.pageOutOfRange': 'Page {page} does not exist — the index ends at page {pages}.',
   'guidance.pageFirst': 'Show the first page',
 
-  // --- admin: guidance tab + editor + media library (crisis-guidance).
+  // --- admin: guidance tab + editor + media library.
   'admin.retry': 'Retry',
 
   'admin.settings.tab': 'Settings',
@@ -872,7 +874,7 @@ export const EN: Messages = {
     'That file is not a supported image (JPEG, PNG or WebP), or its type does not match.',
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': 'The image upload failed. Please try again.',
-  /** The hero-import URL input's label (guidance-hero-import): an
+  /** The hero-import URL input's label: an
    *  OPTIONAL import — the server fetches, validates and stores the
    *  image at SAVE time instead of picking a library asset. */
   'admin.guidance.editor.hero.importLabel': 'Import from URL (optional)',
@@ -978,10 +980,10 @@ export const EN: Messages = {
   'admin.media.success.uploaded': 'Image uploaded.',
   'admin.media.success.deleted': 'Image deleted.',
 
-  // --- legal pages (legal-i18n): one key per paragraph/heading, splice
-  // segments around the inline emphasis/links. The section heading keys
-  // double as the TOC link labels. EN values are verbatim from the old
-  // static templates (the page specs assert on them).
+  // --- legal pages (/privacy + /terms): one key per paragraph/heading,
+  // splice segments around the inline emphasis/links. The section heading
+  // keys double as the TOC link labels. EN values are verbatim — the
+  // page specs assert on them.
   'legal.toc.aria': 'Table of contents',
   // privacy policy (/privacy)
   'legal.privacy.title': 'Privacy policy',

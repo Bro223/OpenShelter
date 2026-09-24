@@ -21,11 +21,9 @@
 }
 
 /* Empty state as a self-contained symmetric block: equal whitespace above
-   the "You haven't…" line and below the button (28px each — the panel's 12px
-   flex gap plus this padding on both sides; the top padding is 4px smaller
-   to balance the section subtitle's margin-bottom). The inner gap keeps the
-   paragraph→button spacing exactly what the old sibling layout produced
-   (the p's 8px bottom margin + the 12px gap + the actions' 8px top margin). */
+   the "You haven't…" line and below the button — the panel's 12px flex gap
+   plus this padding on both sides, the top padding 4px smaller to balance
+   the section subtitle's margin-bottom. */
 .contributions-empty {
   display: flex;
   flex-direction: column;
@@ -73,11 +71,10 @@
   }
 }
 
-/* Trust-state badge (community-review-queue): the /mine pill — the base
-   rule is the CONFIRMED ("Community-checked") verified-green pair; the
-   NEW ("Newly added") chip is the &.badge--new override below (the
-   unverified yellow pair, following the row's yellow pin), REJECTED the
-   danger one. Same vocabulary as the map/detail badges; the contrast
+/* Trust-state badge: the /mine pill — the base rule is the CONFIRMED
+   ("Community-checked") verified-green pair; the NEW ("Newly added") chip
+   is the &.badge--new override below (the unverified yellow pair), REJECTED
+   the danger one. Same vocabulary as the map/detail badges; the contrast
    pairs are pinned in design-tokens.spec.ts. */
 .contrib-badge {
   display: inline-block;
@@ -113,8 +110,8 @@
   }
 }
 
-/* The admin's review note (community-review-queue): muted inline copy
-   under the row title — context, not an alarm. */
+/* The admin's review note: muted inline copy under the row title —
+   context, not an alarm. */
 .contrib-row__note {
   color: var(--color-muted);
   font-size: var(--text-sm);
@@ -130,10 +127,9 @@
   flex-wrap: wrap;
 }
 
-/* Auto-hidden row mark (user-contributions, shelter-trust-and-reports):
-   muted neutral copy — the shelter is still the author's (View/Edit/Delete
-   stay available); only an admin can restore it, so there is no restore
-   action here. */
+/* Auto-hidden row mark: muted neutral copy — the shelter is still the
+   author's (View/Edit/Delete stay available); only an admin can restore
+   it, so there is no restore action here. */
 .contrib-row__hidden {
   color: var(--color-muted);
   font-size: var(--text-sm);
@@ -178,10 +174,8 @@
   }
 }
 
-/* Info-request panel: the moderator's question + the reply
-   form / stored reply — a subtle card. (The inline edit form's card is
-   gone with the form — moved shelter editing to the shared /submit
-   form in edit mode.) */
+/* Info-request panel: the moderator's question + the reply form / stored
+   reply — a subtle card. */
 .contrib-info {
   margin-top: var(--space-12);
   padding: var(--space-12);

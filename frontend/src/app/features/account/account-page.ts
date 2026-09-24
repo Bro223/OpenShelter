@@ -45,18 +45,14 @@ interface PendingError {
 }
 
 /**
- * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
- * 03 puml):
- *  - IDENTITY: name with a password-confirmed inline edit form (no national
- *    ID code is collected anywhere — remove-national-id)
- *  - CONTACTS: email + phone rows showing the REAL value from the fetched
- *    profile, a verified label when the level is in the real claim set, or a
- *    "Complete verification" CTA deep-linking /verify
- *  - CHANGE PANELS: the cross-channel email/phone change flows.
- *  - MY CONTRIBUTIONS (user-contributions): the caller's own shelters in one
- *    panel — inline edit + two-step delete (ContributionsPanel, its own
- *    loading/empty/error state). There is no reviews list — the app has no
- *    review model.
+ * /account (AuthGuard) — the full profile page
+ * (04-CONTEXT-ACCOUNT-VERIFY.md): identity (name, password-confirmed inline
+ * edit — no national ID code is collected anywhere), contacts (the real
+ * values from the fetched profile, a verified label per level, or a
+ * "Complete verification" CTA to /verify), the cross-channel email/phone
+ * change flows, the caller's own shelters (ContributionsPanel: list, edit
+ * via the shared /submit form, two-step delete), the data export and the
+ * type-to-confirm account erasure.
  *
  * All values come from the REAL profile in AuthStore (GET /account/me,
  * fetched at boot/login). After any claims-changing event (contact change) or
@@ -93,16 +89,15 @@ export class AccountPage implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
-  /** i18n-et-en: the account surface is fully catalog-driven (| t pipes +
-   *  key-based banners), so a switcher change must re-render the whole page.
-   *  The profile data itself is NOT locale-scoped (no re-fetch needed). */
+  /** The page is fully catalog-driven (| t pipes + key-based banners), so a
+   *  language switch must re-render the whole page. The profile data itself
+   *  is NOT locale-scoped (no re-fetch needed). */
   readonly i18n = inject(I18nService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  /** The language switcher sets I18nService.locale: re-derive the stored
-   *  banners (key + raw error) and re-render every | t label. toObservable
-   *  emits the CURRENT value on subscribe, so skip(1) — only a real switch
-   *  triggers it (the guidance-page idiom). Unsubscribed in ngOnDestroy. */
+  /** Re-derive the stored banners (key + raw error) and re-render every | t
+   *  label on a language switch. toObservable emits the CURRENT value on
+   *  subscribe, so skip(1) — only a real switch triggers it. */
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
     .subscribe(() => this.cdr.markForCheck());
@@ -269,9 +264,9 @@ export class AccountPage implements OnDestroy {
       const ack = await this.account.requestEmailChange(target);
       this.emailCountdown.start(ack.resendAvailableAfterSeconds ?? 60);
       this.emailPhase.set('code');
-      // The backend pins the target at request time — lock the target input
-      // for the rest of the flow via the control's disabled state
-      // (FormControlDirective swallows a [disabled] property binding).
+      // The backend pins the target at request time — lock the input for the
+      // rest of the flow via the control's disabled state (FormControlDirective
+      // swallows a [disabled] property binding).
       this.newEmail.disable();
     } catch (error) {
       this.startCountdownFromThrottle(error, this.emailCountdown);
@@ -424,7 +419,7 @@ export class AccountPage implements OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Delete account (legal-recovery): type-to-confirm erasure.
+  // Delete account: type-to-confirm erasure.
   // -------------------------------------------------------------------------
 
   /** The confirm word the user must type to arm the delete (no window.confirm). */
@@ -480,14 +475,13 @@ export class AccountPage implements OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Your data (legal-recovery): export download.
+  // Your data: export download.
   // -------------------------------------------------------------------------
 
   /**
    * "Download my data" — fetch GET /account/export and hand the browser a
-   * JSON file. The client-side Blob is the download mechanism; the server
-   * is a plain read and never streams a file. Reuses the shared busy flag
-   * (the fetch is the only account-page action in flight).
+   * JSON file. Reuses the shared busy flag (the fetch is the only
+   * account-page action in flight).
    */
   async downloadData(): Promise<void> {
     if (this.busy()) {
@@ -498,20 +492,26 @@ export class AccountPage implements OnDestroy {
     this.busy.set(true);
     try {
       const data = await this.account.exportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `openshelter-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      this.saveDataExport(data);
       this.success.set({ key: 'account.success.exportDownloaded' });
     } catch (error) {
       this.error.set({ error, kind: 'account' });
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** The browser half of the export: the server never streams a file, so a
+   *  JSON Blob is handed to a transient <a download> click. */
+  private saveDataExport(data: unknown): void {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `openshelter-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 }

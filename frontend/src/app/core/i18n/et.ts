@@ -1,11 +1,18 @@
 import type { Messages } from './messages';
 
 /**
- * The Estonian catalog (i18n-et-en). The app's official data is
- * Estonian (Päästeamet registry, Maa-amet) and the whitepaper's
- * internationalization item reads "Estonian first" — this catalog is the
- * other half of the chrome. Brand name (OpenShelter) and the official
- * agency names (Päästeamet, Maa-amet) are proper nouns and stay as-is.
+ * The Estonian catalog. The app's official shelter data is Estonian
+ * (Päästeamet registry, Maa-amet), so Estonian is a first-class locale of
+ * the chrome; en.ts is the reference copy this catalog mirrors — same
+ * keys, same order (the key-parity guard in i18n.spec.ts pins the key
+ * sets; the catalog-identity guard in catalog-identity.spec.ts pins that
+ * no value stays byte-identical to EN without an allow-list entry).
+ *
+ * Brand name (OpenShelter) and the official agency names (Päästeamet,
+ * Maa-amet) are proper nouns and stay as-is.
+ *
+ * Every value here was authored by a non-native speaker and awaits native
+ * review in docs/i18n-review.md — do not treat any of it as final.
  */
 export const ET: Messages = {
   'menu.aria': 'Menüü',
@@ -82,7 +89,7 @@ export const ET: Messages = {
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
-  // MACHINE DRAFT (the verified-green re-tint copy) — awaiting native Estonian review.
+  // MACHINE DRAFT — awaiting native Estonian review; do not treat as final.
   'how.sources':
     'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis „Register”. Kogukonna asukohad lisavad kasutajad: kinnitamata kasutajal on kollane kolmnurk, osaliselt kinnitatud kasutajal kollane ring ja täielikult kinnitatud kasutajal roheline ring. Avatud teatega asukoht on märgitud punase märgisega. Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
   'how.report':
@@ -320,7 +327,7 @@ export const ET: Messages = {
   'shelter.newlyAddedUnverified': 'Uus kogukonnalt {ago} — pole veel kinnitatud',
   'shelter.noVerificationRecord': 'Kinnituse kirjet pole veel',
   'shelter.communityReports': 'Kogukonna teated: {count} (kokku, kõik tüübid)',
-  // Lisanud kasutaja kinnituse sügavus (submitter-verification-badge):
+  // Lisanud kasutaja kinnituse sügavus:
   // üks kinnitatud kanal või FULL kahe ja enama puhul.
   'shelter.submitterVerification.email': 'Lisanud e-postiga kinnitatud kasutaja',
   'shelter.submitterVerification.phone': 'Lisanud telefoniga kinnitatud kasutaja',
@@ -586,7 +593,7 @@ export const ET: Messages = {
   'verify.alreadyVerified': 'Sinu {noun} on juba kinnitatud.',
   'verify.verifiedNotice': 'Sinu {noun} on kinnitatud.',
 
-  // --- kriisijuhised (/blog — crisis-guidance). Artikli pealkiri ja
+  // --- kriisijuhised (/blog). Artikli pealkiri ja
   // keha on administraatori tekst (kuvatakse muutmatuna), mitte sõnastiku võtmed.
   'guidance.title': 'Kriisijuhised',
   'guidance.subtitle': 'Praktilised juhised kriisiseisundiks.',
@@ -602,7 +609,7 @@ export const ET: Messages = {
     'Näidatud on {locale} keele versioon — see juhistepost ei ole saadaval {reader} keeles.',
   'guidance.localeFallback.alternate': 'Loe {locale} keele versioon',
 
-  // --- nimekirjakuju (list-page-paging: jagatud eelnev/järgnev + suuruse valik).
+  // --- nimekirjakuju (jagatud eelnev/järgnev + suuruse valik).
   'pagination.aria': 'Leheküljed',
   'pagination.previous': 'Eelmine',
   'pagination.next': 'Järgmine',
@@ -616,7 +623,7 @@ export const ET: Messages = {
   'guidance.pageOutOfRange': 'Lehe {page} ei ole — nimestik lõppeb lehel {pages}.',
   'guidance.pageFirst': 'Näita esimest lehte',
 
-  // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance).
+  // --- administraator: juhistepostid + toimetaja + meediakogumik.
   'admin.retry': 'Proovi uuesti',
 
   'admin.settings.tab': 'Sätted',
@@ -877,7 +884,7 @@ export const ET: Messages = {
    *  uuesti proovida sõnum. */
   'admin.guidance.editor.hero.uploadError.generic':
     'Pildi üleslaadimine ebaõnnestus. Palun proovi uuesti.',
-  /** Pealtpildi impordi URL-i silt (guidance-hero-import): valikuline
+  /** Pealtpildi impordi URL-i silt: valikuline
    *  import — server laadib pildi alla, kontrollib ja salvestab
    *  SALVESTAMISE ajal (ei kogumiku varrast). */
   'admin.guidance.editor.hero.importLabel': 'Impordi URL-ist (valikuline)',

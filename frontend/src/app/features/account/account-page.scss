@@ -41,8 +41,7 @@
   justify-content: space-between;
   gap: var(--space-16);
   /* The key/value row role: the contact rows below and the admin
-     site-texts rows carry the same space-12 vertical padding — the
-     identity rows sat at space-8 inside the very same panel. */
+     site-texts rows carry the same space-12 vertical padding. */
   padding: var(--space-12) 0;
   border-bottom: 1px solid var(--color-border-subtle);
 }
@@ -98,8 +97,7 @@
   color: var(--color-success);
   border-radius: var(--radius-full);
   /* The status-pill role: the sibling --cta chip and the verify page's
-     level chips carry space-6 space-12 — the verified chip sat at
-     space-4 space-10 in the same row. */
+     level chips carry space-6 space-12. */
   padding: var(--space-6) var(--space-12);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
@@ -113,10 +111,9 @@
 .proof-note {
   font-size: var(--text-md);
   color: var(--color-text);
-  /* (owner): the 3px primary left bar read as machine-generated —
-     the subtle fill alone carries the note's boundary (the token's
-     documented role: "the muted surface (inset notes, …)"), contrast-
-     pinned in design-tokens.spec.ts as --color-text on --color-bg-subtle. */
+  /* The subtle fill is the note's boundary (in place of a border): the
+     --color-text on --color-bg-subtle contrast pair is pinned in
+     design-tokens.spec.ts. */
   background: var(--color-bg-subtle);
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
@@ -130,18 +127,18 @@
 }
 
 /* The button-row role: space-8 everywhere a row of buttons wraps
-   (the report/picker actions, the admin action rows, the picker rows) —
-   this was the one space-10 holdout. The dialog footers keep space-12
-   (their space-between + footnote layout, the documented exception). */
+   (the report/picker actions, the admin action rows, the picker rows).
+   The dialog footers keep space-12 (their space-between + footnote
+   layout, the documented exception). */
 .panel-actions {
   display: flex;
   gap: var(--space-8);
   flex-wrap: wrap;
 }
 
-/* Kind badge (admin-moderation): the shared .badge pill (styles.scss)
-   carries the typography, shape and the registry fill; account-local only:
-   the layout extras for the row it rides in and the "Admin" green tint —
+/* Kind badge: the shared .badge pill (styles.scss) carries the
+   typography, shape and the registry fill; account-local only: the
+   layout extras for the row it rides in and the "Admin" green tint —
    the verified/trusted colour. */
 .badge {
   display: inline-block;

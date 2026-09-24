@@ -32,9 +32,9 @@
             <dt>{{ 'account.name' | t }}</dt>
             <dd>
               {{ auth.name() }}
-              <!-- Kind badge (admin-moderation): the admin kind
-                   is the truth server-side; the store's isAdmin comes from
-                   the fetched profile (always present, false for regulars). -->
+              <!-- The admin kind is the truth server-side; the store's
+                   isAdmin comes from the fetched profile (always present,
+                   false for regulars). -->
               @if (auth.isAdmin()) {
                 <span class="badge badge--admin">{{ 'account.adminBadge' | t }}</span>
               }
@@ -47,11 +47,10 @@
           </button>
         </div>
       } @else {
-        <!-- a11y (WCAG 2.1 4.1.3, the /submit convention): every field error
-             on this page is a live region (role=alert) wired to its control
-             via aria-invalid + aria-describedby. @let holds the single
-             condition the @if renders on, so the bindings can never
-             disagree. -->
+        <!-- a11y (WCAG 2.1 4.1.3): every field error on this page is a live
+             region (role=alert) wired to its control via aria-invalid +
+             aria-describedby. @let holds the single condition the @if renders
+             on, so the bindings can never disagree. -->
         <div class="field">
           <label for="profile-name">{{ 'account.name' | t }}</label>
           @let nameInvalid = editName.touched && editName.invalid;
@@ -387,12 +386,11 @@
     <section class="change-panel">
       <h2 class="panel-title">{{ 'account.delete' | t }}</h2>
       @if (auth.isAdmin()) {
-        <!-- The env-provisioned administrator (kind ADMIN — the store's
-             isAdmin comes from the fetched profile): this account is the
+        <!-- The env-provisioned administrator: this account is the
              deployment's access path, so the delete controls are ABSENT on
-             purpose. The server enforces it (DELETE /account answers 403
-             with the same reason) — this explanation tells the operator
-             why the controls are missing and what to do instead. -->
+             purpose (the server enforces it — DELETE /account answers 403
+             with the same reason). This explanation tells the operator why
+             the controls are missing and what to do instead. -->
         <p class="panel-copy">{{ 'account.delete.adminCopy' | t }}</p>
       } @else {
         <p class="panel-copy">{{ 'account.delete.copy' | t }}</p>
@@ -406,9 +404,9 @@
             placeholder="DELETE"
           />
         </div>
-        <!-- The armed state is a live region: a button that
-             merely enables is not reliably announced, and the shared
-             ConfirmAction keeps focus in the input (the typed word IS the step). -->
+        <!-- The armed state is a live region: a button that merely enables
+             is not reliably announced, and the shared ConfirmAction keeps
+             focus in the input (the typed word IS the step). -->
         @if (accountDeleteConfirm.isArmed(accountDeleteKey)) {
           <p class="field-note" role="status">{{ 'account.delete.armed' | t }}</p>
         }
@@ -426,7 +424,7 @@
       }
     </section>
 
-    <!-- ============================== Legal (Workstream A) ============================== -->
+    <!-- ============================== Legal ============================== -->
     <section class="change-panel">
       <h2 class="panel-title">{{ 'account.legal' | t }}</h2>
       <p class="panel-copy">

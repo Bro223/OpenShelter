@@ -22,10 +22,9 @@
       </div>
     </div>
   } @else {
-    <!-- map-crisis-actions: the submission entry renders for EVERY
-         authenticated user, not only the empty state (the panel is already
-         auth-gated by the /account route — the guards stay the single
-         enforcement point). -->
+    <!-- The submission entry renders for EVERY authenticated user, not
+         only the empty state (the panel is already auth-gated by the
+         /account route — the guards stay the single enforcement point). -->
     <div class="contrib-actions">
       <a routerLink="/submit" class="btn btn--ghost">{{ 'account.contrib.submit' | t }}</a>
     </div>
@@ -35,8 +34,8 @@
           <div class="contrib-row__info">
             <span class="contrib-row__title">
               {{ row.name }}
-              <!-- Trust state (community-review-queue): the /mine badge
-                   (panel-local translated set — trustBadgeLabel). -->
+              <!-- The /mine trust badge (panel-local translated set —
+                   trustBadgeLabel). -->
               <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
                 {{ trustBadgeLabel(row) }}
               </span>
@@ -49,17 +48,16 @@
                 </span>
               }
             </span>
-            <!-- Auto-hidden by five non-existence reports (user-
-                 contributions): the owner's list keeps hidden rows, marked
-                 with the community report count. Suppressed for REJECTED
-                 rows (the badge + the admin note carry that state). There
-                 is deliberately NO restore action — only an admin can
-                 restore. -->
+            <!-- Auto-hidden by five non-existence reports: the owner's
+                 list keeps hidden rows, marked with the community report
+                 count. Suppressed for REJECTED rows (the badge + the admin
+                 note carry that state). There is deliberately NO restore
+                 action — only an admin can restore. -->
             @if (hiddenText(row); as hidden) {
               <span class="contrib-row__hidden">{{ hidden }}</span>
             }
-            <!-- The admin's review note (community-review-queue): set by a
-                 moderator when rejecting (or on a status change). -->
+            <!-- The admin's review note: set by a moderator when rejecting
+                 (or on a status change). -->
             @if (row.reviewNote) {
               <span class="contrib-row__note">
                 {{ 'account.contrib.adminNote' | t: { note: row.reviewNote } }}
@@ -92,12 +90,9 @@
                 }}
               </button>
             }
-            <!-- Edit opens the SHARED /submit form in edit mode — the
-                 full creation form (same fields, same location capture
-                 modes) prefilled with this row's values. The account area
-                 no longer hosts a reduced inline edit form. String form
-                 (not the array form): row.id is a numeric primary key, so
-                 no encoding concerns. -->
+            <!-- Edit opens the SHARED /submit form in edit mode — the full
+                 creation form (same fields, same location capture modes)
+                 prefilled with this row's values. -->
             <a [routerLink]="editLink(row.id)" class="btn btn--ghost">
               {{ 'account.edit' | t }}
             </a>

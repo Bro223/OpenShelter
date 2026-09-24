@@ -48,7 +48,7 @@
 }
 
 /* Same class, same role as the account page's .panel-title: a panel title
-   above its content is space-8 (the verify panel sat at space-6). */
+   above its content is space-8. */
 .panel-title {
   font-size: var(--text-xl);
   margin: 0 0 var(--space-8);
@@ -61,9 +61,9 @@
 }
 
 /* The button-row role: space-8 everywhere a row of buttons wraps
-   (the report/picker actions, the admin action rows, the picker rows) —
-   this was the one space-10 holdout. The dialog footers keep space-12
-   (their space-between + footnote layout, the documented exception). */
+   (the report/picker actions, the admin action rows, the picker rows).
+   The dialog footers keep space-12 (their space-between + footnote
+   layout, the documented exception). */
 .panel-actions {
   display: flex;
   gap: var(--space-8);
