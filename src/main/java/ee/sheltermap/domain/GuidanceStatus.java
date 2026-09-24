@@ -1,7 +1,7 @@
 package ee.sheltermap.domain;
 
 /**
- * The publication state of a guidance post (crisis-guidance). A post
+ * The publication state of a guidance post. A post
  * is PUBLISHED if and only if its {@code publishedAt} is stamped — the
  * V23 CHECK enforces the pairing in the database.
  */

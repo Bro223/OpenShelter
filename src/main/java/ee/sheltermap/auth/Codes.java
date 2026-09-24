@@ -7,10 +7,10 @@ import java.security.SecureRandom;
  * (6-digit) and contact change (6-digit) both draw from this one
  * generator.
  *
- * <p>Kept in {@code auth} on purpose: the {@code verification} package must
- * not depend on {@code auth} (01-TASK.md §4 dependency rule — auth already
- * imports verification), so the verification providers generate their own
- * channel-specific codes (6-digit OTP / 8-char e-mail token).
+ * <p>Kept in {@code auth} on purpose: its consumers are the auth flows, and
+ * the {@code verification} package must not depend on {@code auth}, so the
+ * verification providers generate their own channel-specific codes
+ * (6-digit OTP / 8-char e-mail token).
  *
  * <p>All draws go through one {@link SecureRandom}; leading zeros of
  * numeric codes are preserved ("000042" stays 6 characters).

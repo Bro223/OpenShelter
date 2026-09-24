@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One community shelter report (shelter-trust-and-reports).
+ * One community shelter report.
  *
  * <p>At most one report of a given type per user per shelter (unique
  * {@code shelterId + userId + type}, enforced by the database).
@@ -29,14 +29,14 @@ public class ShelterReport {
      */
     public static final int AUTO_CONFIRM_THRESHOLD = 3;
     /**
-     * The trust-weighted {@code NON_EXISTENT} hide tally at which an ACTIVE
-     * shelter is auto-hidden (shelter-trust-and-reports — the 4→5
-     * transition; community-self-moderation made the tally trust-
-     * weighted: each distinct reporter contributes their derived weight,
+     * The trust-weighted {@code NON_EXISTENT} hide tally at which an
+     * ACTIVE shelter is auto-hidden. Each distinct reporter
+     * contributes their derived weight ({@link ReporterTrust}),
      * dampened reports 0 — five baseline reporters still hide on the
-     * fifth report). A domain fact: the trust service enforces it, and
-     * the provenance taxonomy (shelter-provenance-taxonomy) derives
-     * REPORTED_INACTIVE from it.
+     * fifth report. Open reports only: a dismissed report stops
+     * influencing it, exactly as the DTO's published counts. A domain
+     * fact: the trust service enforces it, and the provenance
+     * taxonomy derives {@code REPORTED_INACTIVE} from it.
      */
     public static final int AUTO_HIDE_THRESHOLD = 5;
 
@@ -46,14 +46,14 @@ public class ShelterReport {
     private final ShelterReportType type;
     private final String detail;
     private final Instant createdAt;
-    /** When an admin dismissed this report (V10, admin-moderation); {@code null} while unresolved. */
+    /** When an admin dismissed this report (V10); {@code null} while unresolved. */
     private Instant dismissedAt;
     /**
-     * Dampened flag (community-self-moderation): set once at write
-     * time when the reporter holds their own other USER listing of the
-     * same place — a self-interested {@code NON_EXISTENT} vote that
-     * contributes 0 to the weighted auto-hide tally. The report stays
-     * stored and visible in the admin queue (flagged), never deleted.
+     * Dampened flag: set once at write time when the reporter holds
+     * their own other USER listing of the same place — a self-interested
+     * {@code NON_EXISTENT} vote that contributes 0 to the weighted
+     * auto-hide tally. The report stays stored and visible in the admin
+     * queue (flagged), never deleted.
      */
     private boolean damped;
 
@@ -122,9 +122,9 @@ public class ShelterReport {
     }
 
     /**
-     * Dismisses the report (admin-moderation). Set ONCE — a second call
-     * is a no-op, so a re-dismiss can never double-stamp the row. Dismissing
-     * never deletes: the report stays recorded as resolved.
+     * Dismisses the report. Set ONCE — a second call is a no-op, so a
+     * re-dismiss can never double-stamp the row. Dismissing never
+     * deletes: the report stays recorded as resolved.
      */
     public void markDismissed(Instant dismissedAt) {
         if (this.dismissedAt == null) {

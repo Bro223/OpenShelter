@@ -27,12 +27,11 @@ public class RegisteredUser extends User {
     }
 
     /**
-     * Admin-only (admin-moderation): {@code phone} may be null — the
-     * provisioned admin has NO phone route. Null is outside the unique
-     * {@code uq_users_phone} index (partial, WHERE phone IS NOT NULL), so
-     * it can never collide with any other user, and it can never be a
-     * login contact. Every other path keeps the public constructor's
-     * non-null guarantee.
+     * Admin-only: {@code phone} may be null — the provisioned admin has
+     * NO phone route. Null is outside the unique {@code uq_users_phone}
+     * index (partial, WHERE phone IS NOT NULL), so it can never collide
+     * with any other user, and it can never be a login contact. Every
+     * other path keeps the public constructor's non-null guarantee.
      */
     protected RegisteredUser(String name, String email, String phone, boolean admin) {
         this.name = Objects.requireNonNull(name, "name");
@@ -118,7 +117,8 @@ public class RegisteredUser extends User {
     @Override
     public void deleteAccount() {
         // Domain-level cascade: drop all verification claims.
-        // Service-level cascade (credentials, tokens) is later steps.
+        // The service-level cascade (the account's rows, credentials,
+        // tokens) is AccountService.deleteAccount's job.
         verifications.clear();
     }
 }

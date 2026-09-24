@@ -4,18 +4,18 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One media-library asset (crisis-guidance): an uploaded image stored
- * under a server-generated, non-guessable {@code storedFilename} (32 hex
- * + the extension implied by the sniffed type) in the configured upload
+ * One media-library asset: an uploaded image stored under a
+ * server-generated, non-guessable {@code storedFilename} (32 hex + the
+ * extension implied by the sniffed type) in the configured upload
  * directory.
  *
  * <p>Immutable once stored — no mutator, no update path: the library
  * grows until an admin deletes an asset, and a post's hero reference
  * ({@code guidance_posts.hero_image_id}) is a pointer to this row, never
  * a copy. {@code originalFilename} is display metadata only and never
- * part of a path. {@code sourceUrl} (guidance-hero-import) is the remote
- * origin of an imported asset ({@code null} for a plain upload) —
- * attribution and takedown metadata, never re-fetched by the app.
+ * part of a path. {@code sourceUrl} is the remote origin of an imported
+ * asset ({@code null} for a plain upload) — attribution and takedown
+ * metadata, never re-fetched by the app.
  * {@code uploadedBy} may dangle after an account
  * erasure (the FK's {@code ON DELETE SET NULL} — the library row
  * outlives the account).
@@ -57,8 +57,8 @@ public class MediaAsset {
      * instant, so the domain never reaches for the wall clock (the
      * {@code PasswordResetToken.markUsed(Instant)} idiom).
      *
-     * @param sourceUrl the remote URL the asset was imported from
-     *                  (guidance-hero-import); {@code null} for a plain upload
+     * @param sourceUrl the remote URL the asset was imported from;
+     *                  {@code null} for a plain upload
      */
     public static MediaAsset create(String storedFilename, String originalFilename,
                                     String contentType, int width, int height, long sizeBytes,

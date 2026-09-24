@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * The caller's live occupancy report for a shelter (shelter-trust-and-reports
- *). One row per (shelter, user): re-reporting UPDATES the row
- * ({@code updated_at} refreshed, latest band wins) — never a new row.
+ * The caller's live occupancy report for a shelter. One row per
+ * (shelter, user): re-reporting UPDATES the row ({@code updated_at}
+ * refreshed, latest band wins) — never a new row.
  *
  * <p>{@code updatedAt} (not a creation time) is what the 2 h freshness
  * window is checked against at read time.

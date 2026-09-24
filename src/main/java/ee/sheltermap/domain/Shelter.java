@@ -14,17 +14,17 @@ import java.util.Objects;
  * registry rows and pre-V7 legacy USER rows have a {@code null} author and
  * are unmanageable by anyone.
  *
- * <p>{@code status} is the lifecycle field (ACTIVE/INACTIVE): the trust
- * layer's auto-hide, the community-report auto-hide and the admin
- * hide/restore move it.
- * {@code reviewStatus} is the community trust state
- * (community-review-queue v2) — a separate dimension: there is no
- * blocking queue, community rows publish immediately as NEW and move to
- * CONFIRMED automatically (a positive community report from a
- * non-submitter) or via the rare admin CONFIRM; REJECT hides via
- * {@code status = INACTIVE}. Defaults {@code CONFIRMED}, matching the
- * V11 backfill for registry rows; the submission service sets NEW on new
- * USER rows. {@code locationKind} is the submitter's private-home
+ * <p>{@code status} is the lifecycle field (ACTIVE/INACTIVE) — the
+ * auto-hide, the admin hide/restore and the admin REJECT move it; a
+ * hide/restore never touches the review state, except a restore of a
+ * REJECTED row, which starts over as NEW. {@code reviewStatus} is the
+ * community trust state — a separate dimension: there is no blocking
+ * queue, community rows publish immediately as NEW and move to CONFIRMED
+ * automatically (a positive community report from a non-submitter) or via
+ * the rare admin CONFIRM; REJECT hides via {@code status = INACTIVE}.
+ * Defaults {@code CONFIRMED}, matching the V11 backfill for registry
+ * rows; the submission service sets NEW on new USER rows.
+ * {@code locationKind} is the submitter's private-home
  * declaration.
  */
 public class Shelter {
@@ -46,41 +46,41 @@ public class Shelter {
     /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
     private Long createdBy;
     /**
-     * Write-time trust snapshot (V31, part 2 of the erasure fix): the
-     * submitter's verified standing AS AT THE MOMENT OF SUBMISSION —
-     * {@code true} when the submitting account had at least one active
-     * verification claim when it wrote the row, {@code false} when it did
-     * not, {@code null} when there is no snapshot (pre-V31 rows, registry
-     * rows, other write paths). Account erasure SET NULLs {@code createdBy}
-     * (V7) and must not change the standing — reads prefer this column
-     * when present and fall back to the live author derivation when it is
-     * null (an orphaned pre-V31 row then resolves unverified; the
-     * backfill policy for those rows is an owner decision).
+     * Write-time trust snapshot (V31): the submitter's verified standing
+     * AS AT THE MOMENT OF SUBMISSION — {@code true} when the submitting
+     * account had at least one active verification claim when it wrote
+     * the row, {@code false} when it did not, {@code null} when there is
+     * no snapshot (pre-V31 rows, registry rows, other write paths).
+     * Account erasure SET NULLs {@code createdBy} (V7) and must not change
+     * the standing — reads prefer this column when present and fall back
+     * to the live author derivation when it is null (an orphaned
+     * pre-V31 row then resolves unverified; the backfill policy for those
+     * rows is an owner decision).
      */
     private Boolean submitterVerifiedAtCreation;
     /**
      * Auto-hide disarm flag (V9): while {@code false} the 5th
      * {@code NON_EXISTENT} report may auto-hide the shelter; a manual
-     * admin restore sets it {@code true} (the admin-moderation change owns
-     * the write path — the auto-hide condition honours it from day one).
+     * admin restore sets it {@code true}. The auto-hide condition honours
+     * the flag from day one, so the auto-hide never re-hides a restored row.
      */
     private boolean autoHideDisarmed;
     /**
-     * Community trust state (community-review-queue v2). Defaults
-     * {@code CONFIRMED} — matching the V11 backfill for registry rows
-     * (official data), so registry imports keep their exact state;
-     * only the submission service creates a NEW row.
+     * Community trust state. Defaults {@code CONFIRMED}, matching the
+     * V11 backfill for registry rows (official data), so registry imports
+     * keep their exact state; only the submission service creates a
+     * NEW row.
      */
     private ReviewStatus reviewStatus = ReviewStatus.CONFIRMED;
     /** The admin's note (the REJECT reason); {@code null} while nothing is said. */
     private String reviewNote;
-    /** The submitter's private-home declaration (community-review-queue v2). */
+    /** The submitter's private-home declaration. */
     private LocationKind locationKind = LocationKind.PUBLIC;
     /**
-     * "Mark inaccurate" stamp (moderation-dashboard-completion):
-     * set by the admin mark, cleared by the admin clear; {@code null} = not
-     * marked. The row stays visible — this is a public warning flag, not a
-     * lifecycle state (status and reviewStatus are untouched).
+     * "Mark inaccurate" stamp: set by the admin mark, cleared by the
+     * admin clear; {@code null} = not marked. The row stays visible —
+     * this is a public warning flag, not a lifecycle state (status and
+     * reviewStatus are untouched).
      */
     private Instant inaccurateMarkedAt;
     /** The moderating admin's user id; {@code null} while unmarked (NO-FK semantics, V20). */
@@ -134,9 +134,9 @@ public class Shelter {
     }
 
     /**
-     * Status transition — the only caller is the trust layer's auto-hide.
-     * Kept deliberately plain: the admin restore
-     * (admin-moderation) reuses it.
+     * Status transition — used by the auto-hide, the admin hide/restore
+     * and the admin REJECT. Kept deliberately plain: no transition
+     * validation here, the callers own the rules.
      */
     public void setStatus(ShelterStatus status) {
         this.status = Objects.requireNonNull(status, "status");

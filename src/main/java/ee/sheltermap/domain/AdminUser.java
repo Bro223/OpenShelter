@@ -7,15 +7,15 @@ import java.time.Instant;
  * {@code users} table, approach B) — a fully verified registered account
  * whose row kind, not its class in the domain, is the authorization truth.
  *
- * <p>Provisioning is env-driven, never the registration flow
- * (admin-moderation): the admin mailbox does not exist by design, so
- * the account is born with EVERY verification claim pre-set and
- * {@link #canWrite()} is true from the first request, without any
- * email/SMS verification. Admin authorization is a fresh kind lookup per
- * request (no JWT role claim), so this class never grants anything by
- * itself; it only exists so the persistence layer can round-trip the
- * ADMIN kind (kinds are fixed at creation, verification is claims,
- * never subclasses — the TIJ "Bird" rule holds for the admin too).
+ * <p>Provisioning is env-driven, never the registration flow: the admin
+ * mailbox does not exist by design, so the account is born with EVERY
+ * verification claim pre-set and {@link #canWrite()} is true from the
+ * first request, without any email/SMS verification. Admin
+ * authorization is a fresh kind lookup per request (no JWT role claim),
+ * so this class never grants anything by itself; it only exists so the
+ * persistence layer can round-trip the ADMIN kind (kinds are fixed at
+ * creation, verification is claims, never subclasses — the TIJ "Bird"
+ * rule holds for the admin too).
  */
 public class AdminUser extends RegisteredUser {
 
@@ -31,17 +31,17 @@ public class AdminUser extends RegisteredUser {
     }
 
     /**
-     * A freshly provisioned admin (AdminSeeder, admin-moderation): every
-     * verification claim pre-set (EMAIL, PHONE, SMART_ID) — the account is
-     * fully writable without the verification channels its non-existent
-     * mailbox could never pass. No phone: the account is not a phone-login
-     * route (the PHONE claim's ref carries the e-mail, which is the
-     * account's real contact).
+     * A freshly provisioned admin (AdminSeeder): every verification
+     * claim pre-set (EMAIL, PHONE, SMART_ID) — the account is fully
+     * writable without the verification channels its non-existent
+     * mailbox could never pass. No phone: the account is not a
+     * phone-login route (the PHONE claim's ref carries the e-mail, which
+     * is the account's real contact).
      *
      * <p>The SMART_ID claim's {@code external_ref} also carries the e-mail:
-     * no ID code is stored anywhere (remove-national-id), and the column
-     * is NOT NULL — the e-mail is a stable, non-sensitive placeholder until
-     * the real PKI flow lands and supplies its own external reference.
+     * no ID code is stored anywhere, and the column is NOT NULL — the
+     * e-mail is a stable, non-sensitive placeholder until the real PKI
+     * flow lands and supplies its own external reference.
      *
      * <p>The stamps come from the caller's injected Clock (the seeder
      * passes {@code clock.instant()}) — the domain never reaches for the

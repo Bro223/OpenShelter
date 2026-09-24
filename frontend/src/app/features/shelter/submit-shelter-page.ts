@@ -26,7 +26,11 @@ import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { capacityValidator, focusFirstInvalidField, nameBlankValidator } from '../../shared/form-helpers';
+import {
+  capacityValidator,
+  focusFirstInvalidField,
+  nameBlankValidator,
+} from '../../shared/form-helpers';
 import {
   isGooShortLink,
   normalizeShortLinkUrl,

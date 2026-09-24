@@ -4,8 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One locale-specific translation of a {@link GuidancePost}
- * (bilingual-guidance, V26).
+ * One locale-specific translation of a {@link GuidancePost} (V26).
  *
  * <p>A post is a logical article; it carries one translation row per locale.
  * Each row owns its {@code locale}, {@code slug}, {@code title},

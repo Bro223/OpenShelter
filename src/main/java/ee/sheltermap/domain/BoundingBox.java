@@ -2,8 +2,8 @@ package ee.sheltermap.domain;
 
 /**
  * An inclusive WGS84 bounding box — the optional viewport filter of the
- * public shelter list (shelter-bbox-paging). A row exactly ON an edge is
- * inside (the SQL BETWEEN semantics the query uses).
+ * public shelter list. A row exactly ON an edge is inside (the SQL
+ * BETWEEN semantics the query uses).
  *
  * <p>Self-validating (the compact constructor): no call site — the API or
  * a future internal one — can build an inverted or out-of-range box. The

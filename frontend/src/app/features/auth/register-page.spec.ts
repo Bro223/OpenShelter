@@ -169,7 +169,11 @@ describe('RegisterPage', () => {
     const error = root.querySelector('#register-password-error');
     expect(error?.textContent?.trim()).toBe('Password must be at least 8 characters long.');
     // …and the field is flagged invalid for assistive tech.
-    expect((root.querySelector('input#register-password') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
+    expect(
+      (root.querySelector('input#register-password') as HTMLInputElement).getAttribute(
+        'aria-invalid',
+      ),
+    ).toBe('true');
   });
 
   it('exposes invalid + 409 fields to assistive tech (aria-invalid + describedby + alert)', async () => {
@@ -274,7 +278,7 @@ describe('RegisterPage', () => {
     const cta = [...root.querySelectorAll('a.btn--primary')].find(
       (a) => a.textContent?.trim() === i18n.t('authPage.login.submit'),
     );
-    expect(cta, 'a CTA labeled with the login route\'s submit key').toBeDefined();
+    expect(cta, "a CTA labeled with the login route's submit key").toBeDefined();
     // …and its destination is the login route.
     expect(cta!.getAttribute('href')).toBe('/login');
   });

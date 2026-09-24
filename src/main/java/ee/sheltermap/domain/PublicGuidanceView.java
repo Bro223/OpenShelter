@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The PUBLIC read of one guidance post in one locale (bilingual-guidance).
+ * The PUBLIC read of one guidance post in one locale.
  *
  * <p>A post's content in a locale lives on a translation row; this view is
  * the post (lifecycle: hero image, pinned, published stamp) fused with the

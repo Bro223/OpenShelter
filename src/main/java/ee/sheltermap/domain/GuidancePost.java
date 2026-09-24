@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One crisis-guidance post (crisis-guidance).
+ * One crisis-guidance post.
  *
  * <p>The hero image is a <b>reference</b> ({@code heroImageId}), never an
  * image URL or a copy: the reference is always either a live media asset
@@ -13,28 +13,27 @@ import java.util.Objects;
  * post with a {@code null} hero renders no image element at all. Alt text
  * is mandatory iff a hero is set (the V23 CHECK mirrors the same rule).
  *
- * <p>The {@code heroImportUrl} (guidance-hero-import) is the hero's SOURCE
- * URL: an admin-supplied http(s) URL the server fetches, validates and
- * stores at SAVE time (create and update, draft or published alike). A
- * successful import links the stored asset as the hero and keeps the URL
- * on the post as provenance (the asset's {@code source_url} records the
- * same origin); a failed import leaves the post's previous hero (or no
- * hero) in place and keeps the URL for a retry on the next save. The hero
- * itself is always a stored-asset reference or {@code null} — a page never
- * renders from the URL.
+ * <p>The {@code heroImportUrl} is the hero's SOURCE URL: an admin-
+ * supplied http(s) URL the server fetches, validates and stores at SAVE
+ * time (create and update, draft or published alike). A successful
+ * import links the stored asset as the hero and keeps the URL on the
+ * post as provenance (the asset's {@code source_url} records the same
+ * origin); a failed import leaves the post's previous hero (or no hero)
+ * in place and keeps the URL for a retry on the next save. The hero
+ * itself is always a stored-asset reference or {@code null} — a page
+ * never renders from the URL.
  *
  * <p>Publication state: publishing stamps {@code publishedAt} from
  * the instant the caller passes (the service's injected Clock);
  * unpublishing clears it. {@code updatedAt} moves on every write
  * ({@code createdAt} on create).
  *
- * <p>Manual order (guidance-manual-order): {@code sortOrder} is the post's
- * STORED position — the public index reads pinned first, then
- * {@code sortOrder} ascending (with the {@code publishedAt}/{@code id}
- * tie-breakers), so a post's slot is its {@code sortOrder}: publishing or
- * unpublishing NEVER moves a post. Create appends {@code max + 1} (last
- * position); the reorder endpoint renumbers 1..N. The value is
- * NOT uniqueness-constrained (the decision) — the writers guarantee
+ * <p>Manual order: {@code sortOrder} is the post's STORED position — the
+ * public index reads pinned first, then {@code sortOrder} ascending (with
+ * the {@code publishedAt}/{@code id} tie-breakers), so a post's slot is its
+ * {@code sortOrder}: publishing or unpublishing NEVER moves a post. Create
+ * appends {@code max + 1} (last position); the reorder endpoint renumbers
+ * 1..N. The value is NOT uniqueness-constrained: the writers guarantee
  * uniqueness, the order contract's tie-breakers make a duplicate harmless.
  *
  * <p>Pure Java — no Spring imports in {@code domain/} (a repo invariant).
@@ -50,9 +49,9 @@ public class GuidancePost {
     private boolean pinned;
     private Long heroImageId;
     private String heroImageAlt;
-    /** The hero's source URL (guidance-hero-import): {@code null} when the hero is a plain library reference (or absent). */
+    /** The hero's source URL: {@code null} when the hero is a plain library reference (or absent). */
     private String heroImportUrl;
-    /** The stored manual position (guidance-manual-order); 1 = first. */
+    /** The stored manual position; 1 = first. */
     private int sortOrder;
     private Instant publishedAt;
     private Long createdBy;
@@ -258,10 +257,10 @@ public class GuidancePost {
     }
 
     /**
-     * The stored manual position (guidance-manual-order): the public
-     * index decides the non-pinned order by this value ascending, and the
-     * admin list renders in the same order. Publish/unpublish/delete never
-     * move it — the service's reorder is the only writer after create.
+     * The stored manual position: the public index decides the non-pinned
+     * order by this value ascending, and the admin list renders in the
+     * same order. Publish/unpublish/delete never move it — the service's
+     * reorder is the only writer after create.
      */
     public int getSortOrder() {
         return sortOrder;
@@ -288,12 +287,12 @@ public class GuidancePost {
     }
 
     /**
-     * The hero's source URL (guidance-hero-import): the admin-supplied
-     * import URL, fetched at save time; kept after a successful import as
-     * the hero's provenance (the imported asset's {@code source_url}
-     * records the same origin) and retryable after a failed one.
-     * {@code null} when the hero is a plain library reference (or absent).
-     * Never exposed on the public surface — admin read only.
+     * The hero's source URL: the admin-supplied import URL, fetched at
+     * save time; kept after a successful import as the hero's provenance
+     * (the imported asset's {@code source_url} records the same origin)
+     * and retryable after a failed one. {@code null} when the hero is a
+     * plain library reference (or absent). Never exposed on the public
+     * surface — admin read only.
      */
     public String getHeroImportUrl() {
         return heroImportUrl;

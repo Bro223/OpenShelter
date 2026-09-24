@@ -1,8 +1,8 @@
 package ee.sheltermap.domain;
 
 /**
- * Community trust state of a shelter row (community-review-queue v2
- *).
+ * Community trust state of a shelter row.
+ *
  *
  * <p>There is NO blocking queue (the owner does not actively moderate):
  * new community rows publish immediately as {@code NEW}; a positive

@@ -16,8 +16,7 @@ public abstract class User {
     private Long id;
 
     /**
-     * Suspension stamp (moderation-dashboard-completion) —
-     * non-null while the account is suspended. An INDEFINITE suspension
+     * Suspension stamp — non-null while the account is suspended. An INDEFINITE suspension
      * an admin lifts manually (no expiry policy exists); the state is a
      * plain account attribute, enforced by fresh lookups at the three
      * credential doors (login, refresh, JWT filter), never a JWT claim.
@@ -25,7 +24,7 @@ public abstract class User {
     private Instant suspendedAt;
 
     /**
-     * Last sign-in activity (retention-pruning): registration, a
+     * Last sign-in activity (account retention): registration, a
      * successful login, or a refresh-token rotation stamps it. The
      * retention job prunes accounts idle beyond the owner's horizon by
      * this column, so a persisted row always carries a value (V24 is

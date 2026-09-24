@@ -8,9 +8,7 @@
         @if (auth.levels().includes(c.level)) {
           <span class="level-chip__mark" aria-hidden="true">✓</span>
         }
-        {{
-          auth.levels().includes(c.level) ? ('verify.verified' | t) : ('verify.notVerified' | t)
-        }}
+        {{ auth.levels().includes(c.level) ? ('verify.verified' | t) : ('verify.notVerified' | t) }}
         · {{ nounText(c) }}
       </li>
     }

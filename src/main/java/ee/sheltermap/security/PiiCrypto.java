@@ -159,11 +159,13 @@ public class PiiCrypto {
         }
     }
 
-    /** Canonical e-mail identity for blind indexing (registration
-     *  normalizes identically — the shared {@link Contacts#normalize} rule,
-     * before the extraction this two-liner was inlined HERE and
-     *  separately in the limiter/recorder/auth consumers, so a drift in
-     *  any copy would have split the blind index from the live lookups). */
+    /**
+     * Canonical e-mail identity for blind indexing: the shared
+     * {@link Contacts#normalize} rule, the same normalization the
+     * registration/login paths apply. If this drifts from them, one human
+     * splits into two identities — the uniqueness check and the blind-index
+     * lookup stop agreeing.
+     */
     public static String canonicalEmail(String email) {
         return Contacts.normalize(email);
     }
