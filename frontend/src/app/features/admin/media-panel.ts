@@ -9,7 +9,7 @@ import { Pagination } from '../../shared/pagination';
 import { PAGE_SIZES } from '../../shared/paging';
 
 /**
- * The Media Library tab panel (crisis-guidance D8): the asset inventory
+ * The Media Library tab panel (crisis-guidance): the asset inventory
  * — thumbnail, filename, dimensions, size, upload date, reused-by count
  * — plus the multipart upload (field `file`).
  *
@@ -17,7 +17,7 @@ import { PAGE_SIZES } from '../../shared/paging';
  * rows, the URL-backed view (mediaPage/mediaSize), the upload, the
  * delete and the banner copy; the panel renders the upload zone and the
  * paged table and emits the intents. The list pages on the shared
- * control (the owner's "every admin list pages" rule — W2-D's
+ * control (the owner's "every admin list pages" rule — its
  * `app-pagination` + the honest `app-list-state` states, the same
  * control as the shelters list); the newest-first order means a fresh
  * upload lands on page 1 (the page navigates there after a successful

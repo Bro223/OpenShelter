@@ -6,7 +6,7 @@ import { GuidanceOrderList } from './guidance-order-list';
 
 /**
  * GuidanceOrderList — the Guidance tab's post list + manual ordering
- * (guidance-manual-order D6). Presentation and the drag interaction
+ * (guidance-manual-order). Presentation and the drag interaction
  * state live on the panel; the tab model and the gateway submission
  * live on the AdminPage (covered by admin-page.spec.ts, which drives
  * the same list through the page's DOM).
@@ -118,7 +118,7 @@ describe('GuidanceOrderList presentation', () => {
     expect(rows[2]!.textContent).toContain('—');
   });
 
-  // ---- P2-9: the derivative srcset on the 40 px thumb ----------------------
+  // ---- the derivative srcset on the 40 px thumb ----------------------
 
   it('the 40 px thumb carries the derivative srcset when the server has one (sizes = 40px)', async () => {
     const srcset =

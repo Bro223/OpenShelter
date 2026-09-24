@@ -103,7 +103,7 @@
       }
     </div>
 
-    <!-- Hero image: choose from the media library (the D8 inventory),
+    <!-- Hero image: choose from the media library (the inventory),
          upload one here, or import one from a URL (guidance-hero-import
          — the URL is stored as a PENDING import with the draft; the
          server fetches, validates and stores it at the next publish).
@@ -132,7 +132,7 @@
 
       @if (selectedHero(); as hero) {
         <div class="guidance-editor__hero-current">
-          <!-- P2-9: the derivative srcset when the asset has one (null →
+          <!-- the derivative srcset when the asset has one (null →
                plain src; sizes = the slot's fixed 56 px CSS width). -->
           <img
             class="guidance-editor__hero-thumb"
@@ -190,7 +190,7 @@
                   (click)="selectHero(asset)"
                   [disabled]="busy() || uploading() || noHero().value"
                 >
-                  <!-- P2-9: the derivative srcset when the asset has one
+                  <!-- the derivative srcset when the asset has one
                        (null → plain src; sizes = the slot's fixed 72 px
                        CSS width). -->
                   <img

@@ -4,8 +4,8 @@
   <app-banner severity="success" [message]="success()" />
   <app-banner severity="error" [message]="error()" />
 
-  <!-- Tabs: the review queue FIRST, the audit trail LAST (community-review-queue).
-       The guidance + media-library authoring tabs (crisis-guidance D8) sit
+  <!-- Tabs: the review queue FIRST, the audit trail LAST.
+       The guidance + media-library authoring tabs sit
        between the Users and the audit tabs. The queues load lazily on first
        switch.
        A plain group of pressed-state toggles, NOT a
@@ -119,7 +119,7 @@
 
   <!-- ============================== Shelters ============================== -->
   <!-- The panel renders through the SheltersView state object
-       (shelters-view.ts — the URL→state→load seam, W3-B's continuation):
+       (shelters-view.ts — the URL→state→load seam):
        inputs in, outputs out, like every tab panel. -->
   @if (tab() === 'shelters') {
     <app-shelters-panel
@@ -167,17 +167,17 @@
        server-side request; the paged list pages on the shared control. -->
   @if (tab() === 'reports') {
     <app-reports-panel
-      [rows]="reportRows()"
-      [loadError]="reportLoadError()"
+      [rows]="reports.rows()"
+      [loadError]="reports.loadError()"
       [busy]="busy()"
-      [page]="reportPage()"
-      [pages]="reportPages()"
-      [size]="reportSize()"
-      [outOfRange]="reportOutOfRange()"
+      [page]="reports.page()"
+      [pages]="reports.pages()"
+      [size]="reports.size()"
+      [outOfRange]="reports.outOfRange()"
       [excludeDismissed]="reportExcludeDismissed()"
-      (retry)="loadReports()"
-      (navigate)="onReportsNavigate($event)"
-      (goFirstPage)="gotoReportsFirstPage()"
+      (retry)="reports.load()"
+      (navigate)="reports.onNavigate($event)"
+      (goFirstPage)="reports.gotoFirstPage()"
       (filterChange)="onReportFilterChange($event)"
       (dismissReport)="dismissReport($event)"
       (restoreShelter)="restoreShelter($event)"
@@ -198,17 +198,17 @@
   <!-- ============================== Audit log ============================== -->
   @if (tab() === 'users') {
     <app-users-panel
-      [rows]="userRows()"
-      [loadError]="userLoadError()"
+      [rows]="users.rows()"
+      [loadError]="users.loadError()"
       [busy]="busy()"
-      [page]="userPage()"
-      [pages]="userPages()"
-      [size]="userSize()"
-      [outOfRange]="userOutOfRange()"
+      [page]="users.page()"
+      [pages]="users.pages()"
+      [size]="users.size()"
+      [outOfRange]="users.outOfRange()"
       [actionConfirm]="userActionConfirm"
       (retry)="loadUsers()"
-      (navigate)="onUsersNavigate($event)"
-      (goFirstPage)="gotoUsersFirstPage()"
+      (navigate)="users.onNavigate($event)"
+      (goFirstPage)="users.gotoFirstPage()"
       (requestUserAction)="requestUserAction($event.id, $event.action)"
       (confirmUserAction)="confirmUserAction($event.id, $event.action)"
       (cancelUserAction)="cancelUserAction()"
@@ -216,77 +216,77 @@
   }
 
   <!-- ============================ Guidance ============================ -->
-  <!-- crisis-guidance D8: the authoring surface — content-language select,
+  <!-- The authoring surface — content-language select,
        search, the inline editor (+ translation rows), the paged post list.
        The editor's hero picker reuses the media library's current page. -->
   @if (tab() === 'guidance') {
     <app-guidance-panel
-      [contentLocale]="contentLocale()"
-      [locales]="locales"
-      [search]="guidanceSearch"
-      [appliedQuery]="guidanceQuery()"
-      [editor]="guidanceEditor()"
-      [editorLoading]="guidanceEditorLoading()"
-      [editorError]="guidanceEditorError()"
-      [editorPost]="guidanceEditorPost()"
+      [contentLocale]="guidance.contentLocale()"
+      [locales]="guidance.locales"
+      [search]="guidance.search"
+      [appliedQuery]="guidance.query()"
+      [editor]="guidance.editor()"
+      [editorLoading]="guidance.editorLoading()"
+      [editorError]="guidance.editorError()"
+      [editorPost]="guidance.editorPost()"
       [busy]="busy()"
-      [mediaAssets]="mediaRows()"
-      [translationTarget]="translationTarget()"
-      [translationEditTarget]="translationEditTarget()"
-      [translations]="guidanceTranslations()"
-      [translationDeleteConfirm]="translationDeleteConfirm"
-      [rows]="guidanceRows()"
-      [loadError]="guidanceLoadError()"
-      [reorderable]="guidanceReorderable()"
-      [publishedAt]="publishedAtBySlug()"
-      [deleteConfirm]="guidanceDeleteConfirm"
-      [page]="guidancePage()"
-      [pages]="guidancePages()"
-      [size]="guidanceSize()"
-      [outOfRange]="guidanceOutOfRange()"
+      [mediaAssets]="media.rows()"
+      [translationTarget]="guidance.translationTarget()"
+      [translationEditTarget]="guidance.translationEditTarget()"
+      [translations]="guidance.translations()"
+      [translationDeleteConfirm]="guidance.translationDeleteConfirm"
+      [rows]="guidance.rows()"
+      [loadError]="guidance.loadError()"
+      [reorderable]="guidance.reorderable()"
+      [publishedAt]="guidance.publishedAt()"
+      [deleteConfirm]="guidance.deleteConfirm"
+      [page]="guidance.page()"
+      [pages]="guidance.pages()"
+      [size]="guidance.size()"
+      [outOfRange]="guidance.outOfRange()"
       (contentLanguageChange)="onContentLanguageChange($event)"
-      (searchSubmit)="onGuidanceSearchSubmit()"
-      (searchClear)="onGuidanceSearchClear()"
-      (openEditor)="openGuidanceEditor($event)"
-      (closeEditor)="closeGuidanceEditor()"
-      (savePost)="saveGuidancePost($event)"
-      (startTranslation)="startTranslation($event)"
-      (editTranslation)="startTranslationEdit($event)"
-      (requestDeleteTranslation)="requestDeleteTranslation($event)"
-      (cancelDeleteTranslation)="cancelDeleteTranslation()"
-      (confirmDeleteTranslation)="confirmDeleteTranslation($event)"
-      (retry)="loadGuidance()"
-      (edit)="openGuidanceEditor($event)"
-      (publish)="publishGuidancePost($event)"
-      (unpublish)="unpublishGuidancePost($event)"
-      (requestDelete)="requestDeleteGuidance($event)"
-      (confirmDelete)="confirmDeleteGuidance($event)"
-      (cancelDelete)="cancelDeleteGuidance()"
-      (reorder)="submitGuidanceOrder($event)"
-      (navigate)="onGuidanceNavigate($event)"
-      (goFirstPage)="gotoGuidanceFirstPage()"
+      (searchSubmit)="guidance.onSearchSubmit()"
+      (searchClear)="guidance.onSearchClear()"
+      (openEditor)="guidance.openEditor($event)"
+      (closeEditor)="guidance.closeEditor()"
+      (savePost)="guidance.savePost($event)"
+      (startTranslation)="guidance.startTranslation($event)"
+      (editTranslation)="guidance.startTranslationEdit($event)"
+      (requestDeleteTranslation)="guidance.requestDeleteTranslation($event)"
+      (cancelDeleteTranslation)="guidance.cancelDeleteTranslation()"
+      (confirmDeleteTranslation)="guidance.confirmDeleteTranslation($event)"
+      (retry)="guidance.load()"
+      (edit)="guidance.openEditor($event)"
+      (publish)="guidance.publish($event)"
+      (unpublish)="guidance.unpublish($event)"
+      (requestDelete)="guidance.requestDelete($event)"
+      (confirmDelete)="guidance.confirmDelete($event)"
+      (cancelDelete)="guidance.cancelDelete()"
+      (reorder)="guidance.submitOrder($event)"
+      (navigate)="guidance.onNavigate($event)"
+      (goFirstPage)="guidance.gotoFirstPage()"
     />
   }
 
   <!-- ========================= Media library ========================= -->
-  <!-- crisis-guidance D8: the asset inventory (the editor's hero picker and
+  <!-- The asset inventory (the editor's hero picker and
        this table both read the library). Upload is multipart (field `file`);
        delete is API-first — the 409 (still referenced) arms the confirm
        strip that re-issues with confirm=true. The list pages on the shared
        control (newest first — a fresh upload lands on page 1). -->
   @if (tab() === 'media') {
     <app-media-panel
-      [rows]="mediaRows()"
-      [loadError]="mediaLoadError()"
+      [rows]="media.rows()"
+      [loadError]="media.loadError()"
       [busy]="busy()"
-      [page]="mediaPage()"
-      [pages]="mediaPages()"
-      [size]="mediaSize()"
-      [outOfRange]="mediaOutOfRange()"
+      [page]="media.page()"
+      [pages]="media.pages()"
+      [size]="media.size()"
+      [outOfRange]="media.outOfRange()"
       [deleteInUse]="mediaDeleteInUse"
-      (retry)="loadMedia()"
-      (navigate)="onMediaNavigate($event)"
-      (goFirstPage)="gotoMediaFirstPage()"
+      (retry)="media.load()"
+      (navigate)="media.onNavigate($event)"
+      (goFirstPage)="media.gotoFirstPage()"
       (fileChosen)="onMediaFileChosen($event)"
       (requestDelete)="requestMediaDelete($event)"
       (confirmDelete)="confirmMediaDelete($event)"
@@ -305,15 +305,15 @@
 
   @if (tab() === 'audit') {
     <app-audit-panel
-      [rows]="auditRows()"
-      [loadError]="auditLoadError()"
-      [page]="auditPage()"
-      [pages]="auditPages()"
-      [size]="auditSize()"
-      [outOfRange]="auditOutOfRange()"
-      (retry)="loadAudit()"
-      (navigate)="onAuditNavigate($event)"
-      (goFirstPage)="gotoAuditFirstPage()"
+      [rows]="audit.rows()"
+      [loadError]="audit.loadError()"
+      [page]="audit.page()"
+      [pages]="audit.pages()"
+      [size]="audit.size()"
+      [outOfRange]="audit.outOfRange()"
+      (retry)="audit.load()"
+      (navigate)="audit.onNavigate($event)"
+      (goFirstPage)="audit.gotoFirstPage()"
     />
   }
 </section>

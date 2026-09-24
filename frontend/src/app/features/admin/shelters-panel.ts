@@ -33,7 +33,7 @@ import {
  * the submit's URL), the source chips (All / Registry / Community), the
  * paged table, the inline
  * history / info-request / mark-inaccurate panels and the two-tap
- * delete confirm for USER rows (registry rows are read-only — D4:
+ * delete confirm for USER rows (registry rows are read-only —
  * import-owned, the UI never offers actions for them).
  *
  * Presentation only (the extracted-panel contract): the page owns the
@@ -41,7 +41,7 @@ import {
  * controls, the confirm instance and every mutation; the panel renders
  * the toolbar, the table and the inline panels and emits the intents.
  *
- * The list pages on the shared control (W2-D's `app-pagination` + the
+ * The list pages on the shared control (its `app-pagination` + the
  * honest `app-list-state` states) — the owner's "every admin list pages"
  * rule, this surface's first adopter.
  */
@@ -140,7 +140,7 @@ export class SheltersPanel {
     { value: 'USER', label: 'admin.shelters.source.community' },
   ];
 
-  /** Source/trust badge copy (community-review-queue D5): the source
+  /** Source/trust badge copy (community-review-queue): the source
    *  column shows the source label (registry rows) or the trust-state
    *  label — the admin list keeps hidden rows, so REJECTED renders its
    *  own tone here. Resolved through the active locale. */
@@ -153,7 +153,7 @@ export class SheltersPanel {
 
   /** The Reports column: the open trust-report total that drives the
    *  reported state — `nonexistentReports` + the open
-   *  inaccurate-information reports (W2-B: the OR of the two, the backend
+   * inaccurate-information reports (the OR of the two, the backend
    *  contract note — the same sum the public "Reported" badge shows).
    *  An older backend omits `inaccurateReports` — absent reads as 0. */
   protected reportedCount(row: AdminShelterDto): number {

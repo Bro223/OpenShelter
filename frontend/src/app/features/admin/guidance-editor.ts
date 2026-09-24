@@ -492,7 +492,7 @@ function dropEmptyInlines(root: ParentNode): void {
 }
 
 /**
- * The guidance create/edit form (crisis-guidance D8/D9 — the admin
+ * The guidance create/edit form (crisis-guidance — the admin
  * authoring surface). The PARENT (AdminPage) owns the save calls and the
  * page-level banners — this component validates (incl. the hero/alt
  * cross-field rule, shown up front so the server's 400 never fires for
@@ -1183,7 +1183,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     }
     const match = this.pickerAssets().find((a) => a.id === id);
     if (match) {
-      // P2-9: the asset's derivative srcset (null → the slot renders the
+      // the asset's derivative srcset (null → the slot renders the
       // original via plain src).
       return { url: match.url, name: match.originalFilename, srcset: match.srcset ?? null };
     }

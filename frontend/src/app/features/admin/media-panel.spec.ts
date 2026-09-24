@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import type { MediaAssetDto } from '../../core/models';
 import { MediaPanel } from './media-panel';
 
-// P2-9: the media-library thumbnail slot serves the derivative srcset
+// the media-library thumbnail slot serves the derivative srcset
 // (built by the server from disk truth) with the slot's fixed CSS width
 // as `sizes`; an asset without derivatives (a WebP original, a
 // pre-feature upload) degrades to plain `src` — no srcset attribute.
@@ -37,7 +37,7 @@ const SRCSET =
   '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, ' +
   '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w';
 
-describe('MediaPanel (P2-9 derivative srcset)', () => {
+describe('MediaPanel (derivative srcset)', () => {
   function render(rows: MediaAssetDto[] | null): HTMLElement {
     TestBed.configureTestingModule({ imports: [Host] });
     const fixture = TestBed.createComponent(Host);

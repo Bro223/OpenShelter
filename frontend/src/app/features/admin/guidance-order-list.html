@@ -23,7 +23,7 @@
        language's — the line names the language being managed (the
        other languages' posts are edited from their own lists). -->
   <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}</p>
-  <!-- guidance-manual-order D6: the list order IS the public order —
+  <!-- guidance-manual-order: the list order IS the public order —
        the hint names the two mechanisms (PRIMARY: the keyboard-
        reachable move buttons; SECONDARY: drag & drop). Paged multi-page
        lists (admin-page-size): the whole reorder is off — the hint
@@ -65,7 +65,7 @@
               <div class="admin-guidance-title">
                 <!-- The hero thumbnail, only when the post has one. -->
                 @if (row.heroImageUrl; as heroUrl) {
-                  <!-- P2-9: the derivative srcset when the server has one for
+                  <!-- the derivative srcset when the server has one for
                        this hero (built from disk truth — null for a WebP
                        original / pre-feature upload, then plain src only);
                        sizes is the slot's fixed CSS width (40 px). -->
@@ -115,7 +115,7 @@
             <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
             <td class="admin-cell--actions">
               <div class="admin-cell__actions-body">
-                <!-- guidance-manual-order D6: PRIMARY mechanism — the
+                <!-- guidance-manual-order: PRIMARY mechanism — the
                      keyboard-reachable 48px move buttons. Disabled at
                      the boundaries (top/up at the first row, down at
                      the last); the accessible names name the post and

@@ -18,7 +18,7 @@ import { GuidanceOrderList } from './guidance-order-list';
 import { GuidanceTranslations } from './guidance-translations';
 
 /**
- * The Guidance tab panel (crisis-guidance D8): the authoring surface —
+ * The Guidance tab panel (crisis-guidance): the authoring surface —
  * the content-language select (the ONE admin-controlled language: it
  * scopes the list, the editor prefill, saves and reorders), the search
  * (submit-based, the term is URL-backed), the inline editor + the

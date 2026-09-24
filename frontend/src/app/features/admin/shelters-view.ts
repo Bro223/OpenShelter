@@ -55,7 +55,7 @@ interface SheltersViewDeps {
 }
 
 /**
- * The Shelters tab's URL→state→load seam (W3-B's continuation — review
+ * The Shelters tab's URL→state→load seam (its continuation — review
  * 18 F3's fix note): the view the URL expresses (`shelterQ`, `source`,
  * `shelterPage`, `shelterSize` — tab-scoped namespaced params on the
  * shared /admin route), the signals that render it, the in-flight

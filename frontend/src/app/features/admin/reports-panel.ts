@@ -25,12 +25,12 @@ import { recencyText } from '../../shared/shelter-copy';
  * nothing is hidden silently. 'Open only' asks the endpoint for the OPEN
  * scope (`excludeDismissed=true`): the dismissed (resolved) rows are out
  * of the list AND of the page count, agreeing with the per-shelter open
- * counts the Shelters tab's pins express (W2-A). With the default the
+ * counts the Shelters tab's pins express. With the default the
  * dismissed rows stay in the queue, DIMMED (audit trail — the admin sees
  * what was resolved).
  *
  * The list pages on the shared control (the owner's "every admin list
- * pages" rule — W2-D's `app-pagination` + the honest `app-list-state`
+ * pages" rule — its `app-pagination` + the honest `app-list-state`
  * states, the same control as the shelters list): the server slices the
  * (filtered) newest-first queue with limit/offset and the un-paged
  * (filtered) total arrives as X-Total-Count.

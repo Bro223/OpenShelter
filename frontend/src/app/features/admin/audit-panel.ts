@@ -16,11 +16,11 @@ import { AUDIT_ACTION_LABEL } from '../../shared/admin-copy';
  * rows, the URL-backed view (reportPage… no — auditPage/auditSize), the
  * load and the banner copy; the panel renders the paged list and emits
  * the intents. The list pages on the shared control (the owner's
- * "every admin list pages" rule — W2-D's `app-pagination` + the honest
+ * "every admin list pages" rule — its `app-pagination` + the honest
  * `app-list-state` states, the same control as the shelters list).
  *
  * Shelter names are resolved server-side (a deleted shelter reads
- * "Deleted shelter"); the guidance/media rows (D12) read their
+ * "Deleted shelter"); the guidance/media rows read their
  * subjectLabel snapshot in the same column.
  */
 @Component({

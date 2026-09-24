@@ -656,7 +656,7 @@ describe('GuidanceEditor', () => {
     expect(h.element.querySelector('.guidance-editor__hero-import .field-error')).not.toBeNull();
   });
 
-  // ---- the save-time import's failure (guidance-hero-import, Wave 9) ----
+  // ---- the save-time import's failure (guidance-hero-import) ----
   // The write response can carry heroImportError: the save stored the
   // post anyway, the image import failed AT SAVE. The failure is shown
   // against the hero URL field (lead-in + the server's message), and
@@ -884,7 +884,7 @@ describe('GuidanceEditor', () => {
     expect(h.element.textContent).toContain('No images in the media library yet');
   });
 
-  // ---- P2-9: the derivative srcset on the image slots ----------------------
+  // ---- the derivative srcset on the image slots ----------------------
 
   it('the picker items carry the derivative srcset when the asset has one (sizes = the 72 px slot)', () => {
     const withSrcset: MediaAssetDto[] = [
@@ -1936,15 +1936,15 @@ describe('translation editing (bilingual-guidance)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 360px viewport (M13, mobile-responsive-polish): the admin guidance
+// 360px viewport (mobile-responsive-polish): the admin guidance
 // surfaces (the editor form, the post list, the panel chrome) carry no
 // page-level horizontal overflow. jsdom cannot measure a 360px viewport
-// (no layout engine), so — like the M13 pins in shelter-detail-page.spec.ts —
+// (no layout engine), so — like the pins in shelter-detail-page.spec.ts —
 // the mechanisms that make overflow impossible are pinned against the
 // stylesheets. 360px viewport − 2 × 20px .shell-body padding (page-shell.scss)
 // − 2 × 16px .admin padding (admin-page.scss) = 288px of content on /admin.
 // ---------------------------------------------------------------------------
-describe('guidance admin at 360px (M13: no page-level horizontal overflow)', () => {
+describe('guidance admin at 360px (no page-level horizontal overflow)', () => {
   const readAdminScss = (name: string): string =>
     readFileSync(`${process.cwd()}/src/app/features/admin/${name}`, 'utf8');
 
@@ -2005,7 +2005,7 @@ describe('guidance admin at 360px (M13: no page-level horizontal overflow)', () 
       'overflow-x: auto',
     );
     // The move buttons inside the actions cell wrap too — they are the
-    // PRIMARY reorder mechanism (guidance-manual-order D6) and must stay
+    // PRIMARY reorder mechanism (guidance-manual-order) and must stay
     // reachable on a phone.
     const list = readAdminScss('guidance-order-list.scss');
     const move = list.match(/\.admin-guidance-move \{[\s\S]*?\n\}/)?.[0] ?? '';

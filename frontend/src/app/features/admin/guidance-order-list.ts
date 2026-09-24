@@ -7,7 +7,7 @@ import { ConfirmAction } from '../../shared/confirm-action';
 
 /**
  * The Guidance tab's post list — and its manual ordering
- * (guidance-manual-order D6).
+ * (guidance-manual-order).
  *
  * Presentation and the drag interaction state live here; the tab model
  * (the rows, the load state, the publishedAt merge, the in-flight
@@ -112,7 +112,7 @@ export class GuidanceOrderList {
     this.cancelDelete.emit();
   }
 
-  // ---- manual ordering (guidance-manual-order D6) --------------------------
+  // ---- manual ordering (guidance-manual-order) --------------------------
 
   /** The row index for a move-button disable-state (boundary). */
   protected index(row: AdminGuidancePostDto): number {

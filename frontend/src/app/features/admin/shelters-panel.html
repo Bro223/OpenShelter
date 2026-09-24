@@ -45,7 +45,7 @@
   <!-- The honest out-of-range state (the shared component): the URL asks
        for a page past the end of a NON-EMPTY list — an explicit
        translated notice + first-page action, never a bare empty list.
-       (W2-D's transitional `.admin-oob` block, swapped to the shared
+       (its transitional `.admin-oob` block, swapped to the shared
        component with the panel extraction.) -->
   <app-list-state
     [kind]="'out-of-range'"
@@ -102,7 +102,7 @@
               </div>
             </td>
             <td>
-              <!-- Source/trust state (community-review-queue D5):
+              <!-- Source/trust state (community-review-queue):
                    registry rows say which registry; USER rows say
                    "Newly added" / "Community-checked" / "Rejected". -->
               <span class="badge" [ngClass]="communityBadgeClass(row)">
@@ -125,7 +125,7 @@
               }
             </td>
             <!-- The open trust-report total that drives the reported state
-                 (W2-B: the OR of the two kinds — same sum as the public
+                 (the OR of the two kinds — same sum as the public
                  "Reported" badge). -->
             <td>{{ reportedCount(row) }}</td>
             <td>

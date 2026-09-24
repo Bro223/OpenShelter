@@ -26,7 +26,7 @@ import { PAGE_SIZES } from '../../shared/paging';
  * offered for them (backend 403 — a lockout vector).
  *
  * The list pages on the shared control (the owner's "every admin list
- * pages" rule — W2-D's `app-pagination` + the honest `app-list-state`
+ * pages" rule — its `app-pagination` + the honest `app-list-state`
  * states, the same control as the shelters list).
  */
 @Component({
