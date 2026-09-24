@@ -82,7 +82,7 @@ const REGISTRY_ROW: AdminShelterDto = {
   occupancy: { band: 'FULL', lastReportedAt: ago(12 * 60_000), reportCount: 2 },
   capacity: 50,
   submitter: null,
-  reviewStatus: 'CONFIRMED', // registry backfill (D3)
+  reviewStatus: 'CONFIRMED', // registry backfill
   reviewNote: null,
   locationKind: 'PUBLIC',
   infoRequest: null, // no moderator question
@@ -147,7 +147,7 @@ const HISTORY_EVENTS: AdminShelterHistoryEvent[] = [
   },
 ];
 
-// guidance + media fixtures (crisis-guidance D8) ----------------------------
+// guidance + media fixtures (crisis-guidance) -------------------------------
 
 const GUIDANCE_DRAFT: AdminGuidancePostDto = {
   id: 12,
@@ -409,7 +409,7 @@ describe('AdminPage', () => {
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
-        // The REAL guard on the route (admin-moderation D2): the spec tests
+        // The REAL guard on the route (admin-moderation): the spec tests
         // the redirect through the actual canActivate, not a stand-in.
         provideRouter([
           { path: 'map', component: Stub },
@@ -516,7 +516,7 @@ describe('AdminPage', () => {
     fx.detectChanges();
   }
 
-  // ---- guard (admin-moderation D2) ------------------------------------------
+  // ---- guard (admin-moderation) ---------------------------------------------
 
   it('redirects an anonymous visitor to the home map (the page never loads)', async () => {
     await router.navigateByUrl('/admin');
@@ -1072,7 +1072,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('1 h ago');
   });
 
-  it('a dampened report row (M9) renders the "Not counted" badge plus a non-empty reason line', async () => {
+  it('a dampened report row renders the "Not counted" badge plus a non-empty reason line', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listShelterReports.mockResolvedValue(paged([{ ...REPORT_ROW, id: 103, damped: true }]));
     const { element, fixture } = await openAdmin();
@@ -1383,7 +1383,7 @@ describe('AdminPage', () => {
     expect(rows[2].textContent).toContain('Could not verify');
   });
 
-  it('the audit trail labels the mark-inaccurate actions (M10 slice 4)', async () => {
+  it('the audit trail labels the mark-inaccurate actions', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listAudit.mockResolvedValue(
       paged([
@@ -1628,7 +1628,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('No moderation actions yet.');
   });
 
-  // ---- guidance tab (crisis-guidance D3/D8) ---------------------------------
+  // ---- guidance tab (crisis-guidance) ---------------------------------------
 
   it('the guidance tab lazy-loads and renders rows (status, locale, pin, merged published date, hero)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
@@ -2181,7 +2181,7 @@ describe('AdminPage', () => {
   // pins so a future move cannot drop the styling again without a red
   // spec (nothing in the DOM suite can see a missing stylesheet rule).
 
-  // The panel extraction (W3-B) moved the rules to the guidance panel's
+  // The panel extraction moved the rules to the guidance panel's
   // own stylesheet — the pins follow the rule, not the page.
 
   it('the content-language select keeps the app input idiom (guidance-panel.scss)', () => {
@@ -2228,7 +2228,7 @@ describe('AdminPage', () => {
     expect(rule, 'no undefined --color-text-inverse token').not.toMatch(/--color-text-inverse/);
   });
 
-  // ---- the hero import at SAVE (guidance-hero-import, the Wave 9 trigger) ----
+  // ---- the hero import at SAVE (guidance-hero-import) -----------------------
   // Publish is a pure stamp: it fetches, validates and stores NOTHING —
   // the hero import runs at SAVE (create/update), so a post whose import
   // failed (or never ran) publishes exactly as stored. The 204 changes
@@ -2862,7 +2862,7 @@ describe('AdminPage', () => {
     });
   });
 
-  // ---- guidance manual ordering (guidance-manual-order D6) ------------------
+  // ---- guidance manual ordering (guidance-manual-order) ---------------------
 
   /** A third guidance row so the order has three distinct positions. */
   const GUIDANCE_THIRD: AdminGuidancePostDto = {
@@ -2996,7 +2996,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('postIds contains unknown post ids: [77]');
   });
 
-  // ---- media library tab (crisis-guidance D8) --------------------------------
+  // ---- media library tab (crisis-guidance) ----------------------------------
 
   it('the media tab lazy-loads and renders rows (filename, dimensions, size, usage, thumbnail)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
@@ -3137,7 +3137,7 @@ describe('AdminPage', () => {
     expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
   });
 
-  // ---- audit labels for the new actions (crisis-guidance D12) ---------------
+  // ---- audit labels for the new actions (crisis-guidance) ---------------------
 
   it('the audit trail labels the guidance and media actions', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
@@ -3711,9 +3711,9 @@ describe('AdminPage', () => {
       expect(element.textContent).not.toContain('Linna Varjend');
     });
 
-    // ---- the owner's "every admin list pages" rule (W3-B) ------------------
+    // ---- the owner's "every admin list pages" rule --------------------------
     // The reports / users / media / audit lists adopt the SAME shared
-    // control the shelters list uses (W2-D's app-pagination + the honest
+    // control the shelters list uses (app-pagination + the honest
     // app-list-state out-of-range block): namespaced URL params, server-
     // side limit/offset, X-Total-Count, clamp-on-size-flip, and the same
     // URL normalizer. (Alerts and Unconfirmed stay un-paged by design —
@@ -3829,11 +3829,11 @@ describe('AdminPage', () => {
       expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 30, offset: 0 });
     });
 
-    // ---- the owner's hide-dismissed control (W3-B) ---------------------------
+    // ---- the owner's hide-dismissed control ----------------------------------
     // A first-class filter on the report queue: the DEFAULT is 'All' —
     // everything renders, nothing is hidden silently. 'Open only' scopes
     // the list AND its count to the open reports (the server's filtered
-    // total — the same scope the per-shelter open counts express, W2-A).
+    // total — the same scope the per-shelter open counts express).
 
     it('the reports filter: the default is All (nothing hidden silently); Open only scopes request and URL', async () => {
       admin.listShelters.mockResolvedValue(paged([]));
@@ -3891,7 +3891,7 @@ describe('AdminPage', () => {
       expect(element.querySelectorAll('.admin-queue-row')).toHaveLength(1);
       expect(element.querySelector('.admin-row--dismissed')).not.toBeNull();
       // Open scope: the same action removes the row AND the (open) count —
-      // the list and the pin counts stay in agreement (W2-A). The now-
+      // the list and the pin counts stay in agreement (the server's filtered totals). The now-
       // empty open scope renders its own empty copy (distinct from the
       // unfiltered "no reports yet").
       admin.listShelterReports.mockResolvedValue({ rows: [REPORT_ROW], total: 1 });

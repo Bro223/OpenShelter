@@ -75,7 +75,7 @@ public class OpenApiConfig {
                 // committed snapshot.
                 .servers(List.of(new Server().url("/")))
                 .components(new Components()
-                        // The uniform error body, published ONCE (D2) — the
+                        // The uniform error body, published ONCE — the
                         // customizer below points every operation's error
                         // responses at this single schema. Keep in sync with
                         // the ErrorResponse record (the one uniform error
@@ -121,7 +121,7 @@ public class OpenApiConfig {
     }
 
     /**
-     * The uniform error contract, published once (D2): the app guarantees
+     * The uniform error contract, published once: the app guarantees
      * ONE error shape ({@code ErrorResponse} — every error response is that
      * record), so the document attaches a reusable response per status to
      * every operation that does not already declare that code with its own
@@ -171,7 +171,7 @@ public class OpenApiConfig {
      * and both write that record. Without this pass springdoc falls back to
      * the operation's return type for a declared-but-contentless code, so
      * a paged read's 400 documented itself as "an array of the rows" while
-     * the live body was the uniform error (backend review 06 F9 / 11 M2).
+     * the live body was the uniform error (a backend-review finding, since fixed).
      * Explicit per-operation content is never touched.
      */
     @Bean
@@ -212,7 +212,7 @@ public class OpenApiConfig {
     }
 
     /**
-     * The group split (D3): public / account / admin. NO group matches
+     * The group split: public / account / admin. NO group matches
      * {@code /dev/**} (the guarded relays are meant to be invisible — and
      * both controllers are {@code @Hidden} too, so even the root document
      * cannot absorb them) and none matches {@code /actuator/**}
@@ -256,7 +256,7 @@ public class OpenApiConfig {
 
     /** The uniform {@code application/json} ErrorResponse body — the ONE
      *  Content shape both the {@code attachIfAbsent} pass and the
-     *  content-filler customizer build (W4-A: before the extraction the
+     *  content-filler customizer build (before the extraction the
      *  $ref expression had a copy in each). A $ref body: sibling keywords
      *  such as format are ignored by the OpenAPI 3.0 spec, so only the
      *  reference is set here. */

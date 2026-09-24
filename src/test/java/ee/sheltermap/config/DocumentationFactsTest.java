@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Test;
  *       ages into a lie — see {@link #theDocsNeverStateBareTestCounts()}).</li>
  * </ul>
  *
- * <p>Wave 11 extension — the claim classes a complete documentation review found
+ * <p>Extension — the claim classes a complete documentation review found
  * false while this guard was green (see {@code reviews/16-*.md} F1–F12 and
  * {@code reviews/17-*.md}): package-layout class names ({@link #everyClassInTheLayoutTableExistsInItsPackage()})
  * and the class-level mapping denominator, documented DTO field lists
@@ -118,7 +118,7 @@ class DocumentationFactsTest {
     private static final Set<String> RUNTIME_PREFIXES = Set.of("data/", "dist/", "target/");
 
     // ------------------------------------------------------------------
-    // Wave 11 pin locations (repo-relative — surefire runs from the basedir).
+    // Pin locations (repo-relative — surefire runs from the basedir).
     // ------------------------------------------------------------------
 
     private static final Path OPENAPI = Path.of("docs", "api", "openapi.json");
@@ -152,7 +152,7 @@ class DocumentationFactsTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static JsonNode OPENAPI_NODE;
 
-    // Wave 11 matched-count floors. Each one is the exact count the guard
+    // Matched-count floors. Each one is the exact count the guard
     // measures on the current tree: if a pattern stops matching (a doc
     // reformat, a rename, a removed table), the floor goes red instead of
     // the pin silently checking nothing.
@@ -439,7 +439,7 @@ class DocumentationFactsTest {
     }
 
     // ==================================================================
-    // Wave 11 — pins for the claim classes the documentation reviews
+    // Pins for the claim classes the documentation reviews
     // (reviews/16-*.md, reviews/17-*.md) found false while this guard was
     // green. Every pin carries a matched-count floor: a doc reformat that
     // silently breaks a pattern must go red, not shrink the check to zero.

@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted fail-closed template (W3-A) and the guards that now
+ * The extracted fail-closed template and the guards that now
  * route through it: the log/refusal pairing stays byte-identical to the
  * pre-extraction messages (the boot-failure output a deploy reads), and
  * the two-flag name composition is one implementation.

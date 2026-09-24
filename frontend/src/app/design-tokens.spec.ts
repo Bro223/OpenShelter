@@ -13,7 +13,7 @@ import * as sass from 'sass';
  * Rules:
  *  1. Hex colours and rgb()/rgba() may only appear inside the styles.scss
  *     :root token block OR the [data-theme='high-contrast'] override block
- *     (accessibility-and-provenance D1: the theme overrides the SAME token
+ *     (accessibility-and-provenance: the theme overrides the SAME token
  *     names — values differ by theme, names are stable — so it is a token
  *     block too; its literals are the documented, contrast-verified values).
  *  2. Stylesheets outside styles.scss may not use literal font-size /
@@ -160,14 +160,14 @@ function compiledSelectorHeads(css: string): string[] {
   return heads;
 }
 
-/* --- Wave 15 — single-side accent borders (owner: the `border-left:
+/* --- Single-side accent borders (owner: the `border-left:
  *     3px solid var(--color-primary)` bar reads machine-generated). The
  *     guards below run over COMPILED declarations, not raw text: every
  *     SCSS spelling of the same declaration — top-level, nested-compound,
  *     @media-wrapped, re-spaced — compiles to the same flat `prop: value`
  *     pair, so no nesting or re-spacing can defeat the scan (the text-
  *     pattern class this repo already proved hollow, 15-delivery-audit
- *     M7b/M7c). Logical-property (RTL) spellings are in the same family. --- */
+ *     re-adds). Logical-property (RTL) spellings are in the same family. --- */
 
 /**
  * EVERY declaration of a compiled stylesheet — { head, prop, value } —
@@ -340,7 +340,7 @@ function isSingleSideBorderProperty(prop: string): boolean {
   );
 }
 
-/** The Wave 15 accent test on ONE declaration: null = no border painted,
+/** The accent test on ONE declaration: null = no border painted,
  *  or a structural 1px neutral hairline / full-perimeter line weight;
  *  a string = why this is the removed accent bar. Widths are compared
  *  per side after decomposition, so `border: 0 0 0 3px solid var(--x)`
@@ -431,7 +431,7 @@ function allBalancedBlocks(css: string, selector: RegExp): string[] {
   return blocks;
 }
 
-describe('design tokens (M6)', () => {
+describe('design tokens', () => {
   const stylesCss = readFileSync(STYLES_FILE ?? '', 'utf8');
   // The COMPILED stylesheet — the absence pins below run against this, not
   // the raw SCSS bytes (see compiledSelectorHeads for why). node_modules is
@@ -442,7 +442,7 @@ describe('design tokens (M6)', () => {
     style: 'expanded',
   });
   const rootLines = blockLines(stylesCss, /^\s*:root\s*\{/);
-  // D1: the high-contrast theme overrides the SAME token names with theme
+  // High-contrast theme: it overrides the SAME token names with theme
   // values — its hex/rgba literals are the token block's second home.
   const themeLines = blockLines(stylesCss, /^\s*\[data-theme='high-contrast'\]\s*\{/);
   const tokenLines = new Set([...rootLines, ...themeLines]);
@@ -467,7 +467,7 @@ describe('design tokens (M6)', () => {
     });
   });
 
-  it('styles.scss — the high-contrast theme block overrides a sampled set of token names (D1)', () => {
+  it('styles.scss — the high-contrast theme block overrides a sampled set of token names', () => {
     // Names are stable across themes (same names, values differ) — sample
     // the load-bearing tokens so a rename/typo in the override block fails.
     const themeCss = [...themeLines].map((i) => stylesCss.split('\n')[i]).join('\n');
@@ -623,7 +623,7 @@ describe('design tokens (M6)', () => {
     // Body text on every surface it actually renders on.
     ['--color-text', '--color-bg'],
     ['--color-text', '--color-bg-surface'],
-    // Wave 15: this is the proof-note's substitution pair — the border-left
+    // The accent-bar removal: this is the proof-note's substitution pair — the border-left
     // accent went, the subtle fill stayed, and the text on that fill is the
     // pair this check enforces (all three themes, 4.5:1).
     ['--color-text', '--color-bg-subtle'],
@@ -651,7 +651,7 @@ describe('design tokens (M6)', () => {
     // Button text: btn--primary and the crisis CTA both set their text to
     // --color-bg-surface (light: white on blue/orange; high-contrast flips
     // to dark on the brightened fills — both directions checked). The
-    // reported-state badge/marker (shelter-trust-and-reports D6) uses the
+    // reported-state badge/marker (shelter-trust-and-reports) uses the
     // same pair: white on #c2410c (5.18:1) / dark on #ffa94d (9.68:1).
     ['--color-bg-surface', '--color-primary'],
     ['--color-bg-surface', '--color-cta'],
@@ -659,8 +659,8 @@ describe('design tokens (M6)', () => {
     // Source/trust badge text on its fill (shelter-detail-page .badge).
     // The map rows use the same pair over a color-mix TINT — that computed
     // fill is a different surface and is enforced separately (MIXED_PAIRS
-    // below re-derives the mix and checks the pair per theme). Wave-8
-    // re-tint: the Community-checked badge text is the VERIFIED green
+    // below re-derives the mix and checks the pair per theme). The
+    // verified-green re-tint: the Community-checked badge text is the VERIFIED green
     // (the badge is the "confirmed by a verified submitter" cue; the
     // unverified/half-verified pins are the yellow marker tones and the
     // NEW badge is the solid warning chip below) — 4.67:1 light /
@@ -1127,7 +1127,7 @@ describe('design tokens (M6)', () => {
     // The removed recency tone stays removed — pinned against the COMPILED
     // stylesheet. The raw-text pattern this check used to be (a top-level
     // balancedBlock on the source bytes) had a proven escape hatch (the
-    // 15-delivery-audit M7b/M7c mutations): a nested re-addition
+    // 15-delivery-audit re-add mutations): a nested re-addition
     // (`.shelter-marker { &.shelter-marker--new { … } }`) or a re-spaced one
     // compiled to exactly the forbidden rule yet matched no text pattern.
     // Compiled, every SCSS spelling of the rule spells the class into a
@@ -1266,14 +1266,14 @@ describe('design tokens (M6)', () => {
     expect(unguarded).toEqual([]);
   });
 
-  /* --- Wave 15 — the single-side accent border is absent, and the
+  /* --- The single-side accent border is absent, and the
      substitution that replaced it is pinned. The scan is structural over
      COMPILED declarations (compiledDeclarations): nesting, re-spacing,
      and the logical (RTL) spellings all compile to the same flat pairs,
      and a vacuous scan (no declarations found at all) fails the floor.
      --- */
 
-  it('no single-side ACCENT border in any stylesheet (Wave 15: structural 1px neutral hairlines stay, the bar cannot return)', () => {
+  it('no single-side ACCENT border in any stylesheet (structural 1px neutral hairlines stay, the bar cannot return)', () => {
     const offenders: string[] = [];
     let sideDeclarations = 0;
     const check = (name: string, css: string, skipLeaflet: boolean) => {
@@ -1313,11 +1313,11 @@ describe('design tokens (M6)', () => {
     ).toBeGreaterThanOrEqual(10);
     expect(
       offenders,
-      'a single-side accent border returned (the Wave 15 treatment is back)',
+      'a single-side accent border returned (the accent bar is back)',
     ).toEqual([]);
   });
 
-  it('account-page .proof-note — the confirmed case: the bar is gone and the subtle fill is its substitute (Wave 15, owner-confirmed)', () => {
+  it('account-page .proof-note — the confirmed case: the bar is gone and the subtle fill is its substitute (owner-confirmed)', () => {
     const css = sass.compile(`${SRC_DIR}/app/features/account/account-page.scss`, {
       loadPaths: [`${process.cwd()}/node_modules`],
       style: 'expanded',
@@ -1341,7 +1341,7 @@ describe('design tokens (M6)', () => {
     ).toBe('var(--color-bg-subtle)');
   });
 
-  it('warning / success / info / subtle notes stay mutually distinguishable WITHOUT the border, every theme (Wave 15)', () => {
+  it('warning / success / info / subtle notes stay mutually distinguishable WITHOUT the border, every theme', () => {
     // The bar used to carry the semantics; now only the fill + the text do.
     // The four note families must not share a fill or a text colour in ANY
     // theme — a re-tint that collapses two of them fails here in that
@@ -1387,7 +1387,7 @@ describe('design tokens (M6)', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the Wave 15 substitution pairs sit in the ENFORCED contrast list (not in a comment)', () => {
+  it('the accent-substitution pairs sit in the ENFORCED contrast list (not in a comment)', () => {
     // The proof-note's substitution is --color-text on --color-bg-subtle;
     // the semantic note blocks are the severity text on its severity fill
     // (banner + done-state chips). Every one must be a member of
@@ -1411,7 +1411,7 @@ describe('design tokens (M6)', () => {
     const missing = required.filter(([t, f, b]) => !enforced.has(`${t}|${f}|${b}`));
     expect(
       missing,
-      'a Wave 15 substitution pair is missing from the enforced contrast list',
+      'a substitution pair is missing from the enforced contrast list',
     ).toEqual([]);
   });
 
@@ -1534,7 +1534,7 @@ describe('design tokens (M6)', () => {
   });
 
   it('the legend leaves the map at the narrow breakpoint (over it at ≥900px, in flow below it at every width <900px)', () => {
-    // Wave 8 (the owner's overlay-obscures-the-map report): the legend moved
+    // The owner's overlay-obscures-the-map report: the legend moved
     // OUT of the map element — it is a .map-page__layout child (DOM order
     // map → legend → sidebar, so the tab order is unchanged) and the
     // placement is pure CSS at the documented breakpoint (900px, the
@@ -1556,7 +1556,7 @@ describe('design tokens (M6)', () => {
     // child of .map-page__map.
     expect(
       html,
-      'map-page.html must render the legend as a sibling of the map element (wave 8)',
+      'map-page.html must render the legend as a sibling of the map element',
     ).toMatch(
       /<div #mapEl class="map-page__leaflet"><\/div>\s*<\/div>[\s\S]*?<div class="map-legend"/,
     );
@@ -1611,7 +1611,7 @@ describe('design tokens (M6)', () => {
     const adminHtml = [
       readFileSync(`${SRC_DIR}/app/features/admin/admin-page.html`, 'utf8'),
       readFileSync(`${SRC_DIR}/app/features/admin/guidance-order-list.html`, 'utf8'),
-      // The tab panels own their table markup (W3-B extraction): the td
+      // The tab panels own their table markup (the panel extraction): the td
       // scan must cover every template that renders table rows.
       readFileSync(`${SRC_DIR}/app/features/admin/alerts-panel.html`, 'utf8'),
       readFileSync(`${SRC_DIR}/app/features/admin/audit-panel.html`, 'utf8'),
@@ -1715,9 +1715,9 @@ describe('design tokens (M6)', () => {
     expect(outlet![0]).not.toMatch(/flex\s*:\s*1/);
   });
 
-  it('the /submit private-home checkbox keeps its native glyph size (M13 mobile-responsive-polish)', () => {
+  it('the /submit private-home checkbox keeps its native glyph size (mobile-responsive-polish)', () => {
     // Regression guard: the global `.field input { width: 100% }` form rule
-    // stretched the D7 checkbox into a ~112px flex item at 360px (the label
+    // stretched the checkbox into a ~112px flex item at 360px (the label
     // text was displaced to the middle of the row). The checkbox must carry
     // an explicit native size — the same escape as the detail page's report
     // radios (.report-option input) — or the row breaks again on any width.
@@ -1756,15 +1756,15 @@ describe('design tokens (M6)', () => {
   });
 
   /*
-   * Touch targets + numeric legibility (map-crisis-actions D5/D6). jsdom
+   * Touch targets + numeric legibility (map-crisis-actions). jsdom
    * cannot measure computed style, so — same mechanism-assertion pattern as
    * the responsive tests above — the CSS content is the acceptance.
    */
-  it('48px touch targets: .btn carries the min-height (D5)', () => {
+  it('48px touch targets: .btn carries the min-height', () => {
     expect(stylesCss).toMatch(/\.btn \{[^}]*min-height: var\(--space-48\)/);
   });
 
-  it('the .num-tabular utility exists for coordinate readouts (D6)', () => {
+  it('the .num-tabular utility exists for coordinate readouts', () => {
     expect(stylesCss).toMatch(/\.num-tabular \{\s*font-variant-numeric: tabular-nums;\s*\}/);
   });
 
@@ -1935,7 +1935,7 @@ describe('design tokens (M6)', () => {
    raw text: every SCSS spelling of the same declaration — top-level,
    nested-compound, @media-wrapped, re-spaced — compiles to the same
    flat prop/value pair, so no spelling can defeat it (the text-pattern
-   class this repo already proved hollow, 15-delivery-audit M7b/M7c).
+   class this repo already proved hollow, 15-delivery-audit re-adds).
    The matched-count floor keeps a reformat from silently reducing the
    scan to checking nothing (the repo idiom, applied to every guard in
    this file). The role-by-role audit behind the fixes this guard
@@ -2052,7 +2052,7 @@ describe('design tokens — spacing literals', () => {
       for (const d of compiledDeclarations(css)) {
         // styles.scss pulls Leaflet's vendored stylesheet in via @use —
         // third-party bytes, outside the sweep (the same head filter the
-        // Wave 15 border guard uses).
+        // accent-border guard uses).
         if (skipLeaflet && d.head.includes('.leaflet-')) continue;
         const p = d.prop.toLowerCase();
         if (!SPACING_PROPS.has(p)) continue;

@@ -59,7 +59,7 @@ public class ApiDocsGuard {
         String flags = FailClosedGuard.enabledFlagNames(apiDocsEnabled, uiEnabled,
                 "springdoc.api-docs.enabled", "springdoc.swagger-ui.enabled");
         // Loud log + loud rejection — never boot with the API map published
-        // on a non-dev/test profile (the fail-closed template, W3-A).
+        // on a non-dev/test profile (the shared fail-closed startup template).
         FailClosedGuard.refuseToBoot(log,
                 "REFUSING TO START — OpenAPI documentation " + flags
                         + " enabled on a non-dev/test profile: active profiles="

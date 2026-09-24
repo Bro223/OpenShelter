@@ -99,7 +99,7 @@ class JwtAuthenticationFilterTest {
         MockFilterChain chain = runWith(filter, "Bearer " + token);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication())
-                .as("a valid token of a suspended account authenticates nothing (M10 slice 1)")
+                .as("a valid token of a suspended account authenticates nothing")
                 .isNull();
         assertThat(chain.getRequest()).as("the request still reaches the entry point (401)").isNotNull();
     }

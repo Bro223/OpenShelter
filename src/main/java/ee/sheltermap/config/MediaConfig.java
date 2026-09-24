@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import java.nio.file.Path;
 
 /**
- * The media-storage wiring (crisis-guidance D7/D13): the single
+ * The media-storage wiring (crisis-guidance): the single
  * {@link MediaStorage} bean over the configured upload directory
  * ({@code app.media.upload-dir}, default {@code data/media}, env override
  * {@code MEDIA_UPLOAD_DIR}).

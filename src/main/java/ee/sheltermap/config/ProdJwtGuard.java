@@ -60,7 +60,7 @@ public class ProdJwtGuard {
                     : "app.jwt.secret is shorter than " + MIN_SECRET_BYTES + " bytes (HS256 minimum)";
             // Loud log + loud rejection — a misconfigured deploy must fail the
             // boot, never run with a forgeable signing key (the fail-closed
-            // template, W3-A).
+            // startup template of the guard family).
             FailClosedGuard.refuseToBoot(log,
                     "REFUSING TO START — " + reason + ": active profiles="
                             + Arrays.toString(env.getActiveProfiles())

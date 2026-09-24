@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.fail;
@@ -52,9 +53,10 @@ class SourceVocabularyTest {
      * name standards rather than planning rows (WGS84, EST97, E164, SHA256,
      * the JPEG marker names). A shape lands in this list only after a census
      * over the whole scanned tree shows it occurs as nothing but planning
-     * references; the one shape that collided with a hex byte (the
-     * start-of-image pair, written 0xFFD8) is refused as a standalone token
-     * by its word boundaries, which is why the byte must stay a hex literal.
+     * references. A hex byte written in prose (the start-of-image pair FF D8)
+     * is refused by the hex-adjacency exemption in {@link #isHexSequenceMember}
+     * — a byte value standing next to a hex byte is data, not an id — and a
+     * hex literal (0xFFD8) is refused by the id patterns' word boundaries.
      */
     private static final List<Pattern> FORBIDDEN_PATTERNS = List.of(
             // work-ledger row ids
@@ -85,6 +87,9 @@ class SourceVocabularyTest {
             // pairs that word with a bare number.
             Pattern.compile("\\bWave \\d+"),
             Pattern.compile("\\bwave \\d+"),
+            // the dash-spelled form of the same wave citation: the census
+            // over the tree shows no identifier carries that shape
+            Pattern.compile("\\bWave-\\d+"),
             // a wave-task id: a capital W, a number, a dash, a task letter
             Pattern.compile("\\bW\\d+-[A-Z]\\b"),
             // a decision id: a capital D followed by digits, standing alone
@@ -122,6 +127,12 @@ class SourceVocabularyTest {
 
     /** Total scanned lines across all roots (measured 136 518 on a clean tree). */
     private static final int MIN_SCANNED_LINES = 110_000;
+
+    /** A hex byte: one or two hex digits (FF, D8, 0A). */
+    private static final Pattern HEX_BYTE = Pattern.compile("[0-9A-Fa-f]{1,2}");
+
+    /** A hex value token: an optional 0x prefix and one to four hex digits. */
+    private static final Pattern HEX_VALUE = Pattern.compile("(?:0[xX])?[0-9A-Fa-f]{1,4}");
 
     @Test
     void sourceContainsNoUnresolvableIdReferences() {
@@ -222,11 +233,88 @@ class SourceVocabularyTest {
 
     private static boolean containsForbiddenId(String line) {
         for (Pattern pattern : FORBIDDEN_PATTERNS) {
-            if (pattern.matcher(line).find()) {
-                return true;
+            Matcher matcher = pattern.matcher(line);
+            while (matcher.find()) {
+                if (!isHexSequenceMember(line, matcher.start(), matcher.end())) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    /**
+     * The hex-adjacency exemption: a match that is itself a hex byte, that
+     * stands alone as its whole token, and that has a hex value with an
+     * uppercase hex letter directly beside it is a byte value written in
+     * prose (the JPEG marker pair FF D8) or a code-ish literal, not a
+     * planning id. The neighbour must carry an uppercase hex letter, so a
+     * plain count (digits only) or a word whose letters happen to be hex
+     * is not a byte pair, and a real id next to them stays red. In
+     * practice only the bare D-digit id shape can qualify: the other
+     * id shapes carry a letter or a dash that no hex value does, and the
+     * multi-token patterns never match an all-hex substring. This file's
+     * own javadoc spells the pair out, so a regression of the exemption
+     * turns the guard's own file red.
+     */
+    private static boolean isHexSequenceMember(String line, int start, int end) {
+        if (!HEX_BYTE.matcher(line.substring(start, end)).matches()) {
+            return false;
+        }
+        String token = enclosingToken(line, start, end)
+                .replaceAll("^[^A-Za-z0-9]+", "")
+                .replaceAll("[^A-Za-z0-9]+$", "");
+        if (!token.equals(line.substring(start, end))) {
+            return false; // embedded in a longer token (a slash pair of ids) — not a byte
+        }
+        return isHexNeighbor(adjacentToken(line, start, true))
+                || isHexNeighbor(adjacentToken(line, end, false));
+    }
+
+    /** The whitespace-separated token enclosing [start, end). */
+    private static String enclosingToken(String line, int start, int end) {
+        int from = start;
+        while (from > 0 && !Character.isWhitespace(line.charAt(from - 1))) {
+            from--;
+        }
+        int to = end;
+        while (to < line.length() && !Character.isWhitespace(line.charAt(to))) {
+            to++;
+        }
+        return line.substring(from, to);
+    }
+
+    /** The neighbouring whitespace-separated token before (or after) the offset. */
+    private static String adjacentToken(String line, int offset, boolean backward) {
+        if (backward) {
+            int i = offset;
+            while (i > 0 && Character.isWhitespace(line.charAt(i - 1))) {
+                i--;
+            }
+            int from = i;
+            while (from > 0 && !Character.isWhitespace(line.charAt(from - 1))) {
+                from--;
+            }
+            return line.substring(from, i);
+        }
+        int i = offset;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i))) {
+            i++;
+        }
+        int to = i;
+        while (to < line.length() && !Character.isWhitespace(line.charAt(to))) {
+            to++;
+        }
+        return line.substring(i, to);
+    }
+
+    /** A bare hex byte or hex value carrying an uppercase hex letter (FF, D8, 0xFF). */
+    private static boolean isHexNeighbor(String rawToken) {
+        String token = rawToken.replaceAll("^[^A-Za-z0-9]+", "")
+                .replaceAll("[^A-Za-z0-9]+$", "");
+        return !token.isEmpty()
+                && HEX_VALUE.matcher(token).matches()
+                && token.chars().anyMatch(c -> c >= 'A' && c <= 'F');
     }
 
     private static boolean hasScannedExtension(Path file) {

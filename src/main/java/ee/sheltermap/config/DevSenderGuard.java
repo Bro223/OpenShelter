@@ -62,7 +62,7 @@ public class DevSenderGuard {
                 "app.mail.provider", "app.sms.provider");
         // Loud log + loud rejection — never boot a non-dev/test profile with
         // a console sender that will log every code in plaintext (the
-        // fail-closed template, W3-A).
+        // fail-closed startup template of the guard family).
         FailClosedGuard.refuseToBoot(log,
                 "REFUSING TO START — dev code sender(s) " + channels
                         + " active on a non-dev/test profile: active profiles="

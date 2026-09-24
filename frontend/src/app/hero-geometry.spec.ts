@@ -1,5 +1,5 @@
 /**
- * Hero geometry audit (Wave 13 — the owner's "stretched hero" report).
+ * Hero geometry audit (the owner's "stretched hero" report).
  *
  * Every slot that draws a guidance/hero image is pinned to exactly one of
  * two distortion-free contracts:
@@ -113,7 +113,7 @@ describe('detail hero (guidance-detail-page) — natural size', () => {
     // The above-the-fold hero: high fetch priority, async decode.
     expect(attr(tag, 'fetchpriority')).toBe('high');
     expect(attr(tag, 'decoding')).toBe('async');
-    // P2-9: the derivative srcset wiring (the null-fallback idiom leaves a
+    // The derivative srcset wiring (the null-fallback idiom leaves a
     // derivative-less asset on plain src); sizes = the article column's
     // 44rem cap — the widest this natural-size hero can render.
     expect(tag).toContain('[attr.srcset]');

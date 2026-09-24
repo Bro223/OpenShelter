@@ -36,7 +36,7 @@ import java.util.List;
  * <p>Suspension (moderation-dashboard-completion): a VALID token
  * of a SUSPENDED account authenticates nothing — a fresh {@code
  * UserRepository.isSuspended} column-only read per token-bearing request
- * (the admin-moderation D2 idiom: the DB is the truth, never a token claim)
+ * (the admin-moderation idiom: the DB is the truth, never a token claim)
  * leaves the context empty, so the entry point answers 401 and the
  * suspension takes effect on the very next request. Column-only on purpose:
  * the filter runs on every token-bearing request and must not pay the

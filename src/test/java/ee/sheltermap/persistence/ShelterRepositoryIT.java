@@ -46,7 +46,7 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
         shelters.save(shelter("C", ShelterStatus.ACTIVE, ShelterSource.USER, null));
 
         assertThat(shelters.findAll()).hasSize(3);
-        // the public list query (D5): ACTIVE rows of the requested sources only
+        // the public list query: ACTIVE rows of the requested sources only
         assertThat(shelters.findAllActiveBySourceIn(List.of(ShelterSource.PAASETEAMET, ShelterSource.MUNICIPALITY)))
                 .hasSize(2)
                 .extracting(Shelter::getSource)
@@ -58,7 +58,7 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
         shelters.save(shelter("P1", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "p1"));
         shelters.save(shelter("P2", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "p2"));
         shelters.save(shelter("P3", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "p3"));
-        shelters.save(shelter("M1", ShelterStatus.ACTIVE, ShelterSource.MUNICIPALITY, "m1"));
+        shelters.save(shelter("MUNI1", ShelterStatus.ACTIVE, ShelterSource.MUNICIPALITY, "m1"));
         shelters.save(shelter("U1", ShelterStatus.ACTIVE, ShelterSource.USER, null));
 
         int deleted = shelters.deleteBySourceAndExternalIdNotIn(

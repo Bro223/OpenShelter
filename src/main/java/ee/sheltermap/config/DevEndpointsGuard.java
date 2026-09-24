@@ -54,7 +54,7 @@ public class DevEndpointsGuard {
                 "app.dev-email-test.enabled", "app.dev-sms-test.enabled");
         // Loud log + loud rejection — never boot with an authenticated
         // e-mail/SMS relay on a non-dev/test profile (the fail-closed
-        // template, W3-A).
+        // startup template of the guard family).
         FailClosedGuard.refuseToBoot(log,
                 "REFUSING TO START — dev diagnostic endpoint(s) " + flags
                         + " enabled on a non-dev/test profile: active profiles="

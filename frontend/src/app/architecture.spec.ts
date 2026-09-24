@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 /**
- * Frontend architecture guard (W2-C, P2-16) — the frontend twin of the
+ * Frontend architecture guard — the frontend twin of the
  * backend's DocumentationFactsTest / ApiDocsGuard.
  *
  * The routing and guard tables are the app's map of itself. A feature
@@ -21,7 +21,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
  *       - a rendered panel:  tab() === '<value>'
  *     The panel check scans all .ts/.html under features/admin/, not just
  *     admin-page.html, so extracting a tab panel into its own component
- *     (the W3-B shrink) keeps its counterpart where the comparison lives.
+ *     (the tab-panel extraction) keeps its counterpart where the comparison lives.
  *
  * The count floors exist for the same reason the backend guard's
  * CLASS_MAPPING floor does: a broken parse pattern must fail loudly

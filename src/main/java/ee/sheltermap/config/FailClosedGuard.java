@@ -3,7 +3,7 @@ package ee.sheltermap.config;
 import org.slf4j.Logger;
 
 /**
- * The fail-closed startup-guard template (W3-A) — the four guards
+ * The fail-closed startup-guard template — the four guards
  * ({@link ApiDocsGuard}, {@link DevEndpointsGuard}, {@link DevSenderGuard},
  * {@link ProdJwtGuard}) each spelled the same "loud log + loud rejection"
  * idiom and the same two-flag name composition; this is the one place that
