@@ -12,7 +12,6 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -65,11 +64,6 @@ class ShelterApiIT extends AbstractPersistenceIT {
     TokenService tokens;
 
     private long nextUser = 1;
-
-    @BeforeEach
-    void cleanShelterTable() {
-        // no-op: @Transactional rolls each test back; kept for clarity
-    }
 
     // ---------- helpers ----------
 
@@ -350,6 +344,27 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Uus nimi"))
                 .andExpect(jsonPath("$.capacity").value(40));
+    }
+
+    @Test
+    void postOutsideEstoniaIs400AndCreatesNothing() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+
+        // Paris — the create side of the shared bbox gate (the PUT side is
+        // pinned by putOutsideEstoniaIs400AndChangesNothing; without this the
+        // create call site is the untested half of the shared check)
+        expectErrorShape(mvc.perform(post("/api/shelters")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Parisi varjend\",\"latitude\":48.85,\"longitude\":2.35}")),
+                400, "Bad Request");
+
+        // nothing was created
+        mvc.perform(get("/api/shelters"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].name")
+                        .value(org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.hasItem("Parisi varjend"))));
     }
 
     @Test

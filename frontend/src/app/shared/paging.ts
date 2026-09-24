@@ -11,9 +11,8 @@
  * lists — parses the URL through {@link parsePage}/{@link parseSize},
  * derives its page count through {@link lastPage}, and clamps a
  * size-flip through {@link clampPage}, so the policy cannot drift between
- * surfaces (the previous lane re-implemented it in four shapes). The
- * Pagination control's default size list is this same {@link PAGE_SIZES}
- * constant.
+ * surfaces. The Pagination control's default size list is this same
+ * {@link PAGE_SIZES} constant.
  */
 
 /** The smallest page size the selector offers (the endpoint's floor). */

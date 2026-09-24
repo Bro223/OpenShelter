@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -102,28 +103,84 @@ class ShelterServiceOwnershipTest {
     @Test
     void theAuthorCanUpdateThroughTheBoundary() {
         Shelter place = saveUserPlace(1L);
-        Shelter next = place("Renamed shelter", ShelterSource.USER);
-        next.setId(place.getId());
-        next.setCreatedAt(place.getCreatedAt());
-        next.setCreatedBy(place.getCreatedBy());
 
-        service.updateOwned(1L, next);
+        service.updateOwned(1L, new ShelterService.OwnerEdit(
+                place.getId(), "Renamed shelter", POINT.lat(), POINT.lng(), "uuendatud", 12, null));
 
         Shelter stored = repo.findById(place.getId()).orElseThrow();
         assertThat(stored.getName()).isEqualTo("Renamed shelter");
+        assertThat(stored.getDescription()).isEqualTo("uuendatud");
+        assertThat(stored.getCapacity()).isEqualTo(12);
     }
 
     @Test
     void aNonAuthorUpdateIsA403ThatChangesNothing() {
         Shelter place = saveUserPlace(1L);
-        Shelter next = place("Sneaky rename", ShelterSource.USER);
-        next.setId(place.getId());
 
-        assertThatThrownBy(() -> service.updateOwned(2L, next))
+        assertThatThrownBy(() -> service.updateOwned(2L, new ShelterService.OwnerEdit(
+                place.getId(), "Sneaky rename", POINT.lat(), POINT.lng(), null, null, null)))
                 .isInstanceOf(NotAuthorException.class)
                 .hasMessage("Only the author may modify this shelter");
         assertThat(repo.findById(place.getId()).orElseThrow().getName())
                 .isEqualTo("Kadriorg shelter");
+    }
+
+    @Test
+    void anEditOfAnUnknownShelterIsA404() {
+        assertThatThrownBy(() -> service.updateOwned(1L, new ShelterService.OwnerEdit(
+                999L, "Sneaky", POINT.lat(), POINT.lng(), null, null, null)))
+                .isInstanceOf(ShelterNotFoundException.class);
+    }
+
+    /**
+     * The carry-over that used to be hand-copied in the controller: an
+     * owner edit may touch ONLY the writable fields — identity,
+     * status/source and every admin/trust-owned field ride through the
+     * edit on the loaded row (a forgotten field would show up here as a
+     * zeroed value).
+     */
+    @Test
+    void anOwnerEditAppliesTheWritablesAndPreservesTheAdminOwnedState() {
+        Shelter place = saveUserPlace(1L);
+        // admin/trust-owned state the edit must never touch (the row in
+        // the fake IS the stored row — stamping it mirrors the admin
+        // surface's earlier writes)
+        place.setAutoHideDisarmed(true);
+        place.setReviewNote("Pole varjend");
+        place.setInaccurateMarkedAt(CLOCK.instant());
+        place.setInaccurateMarkedBy(9L);
+        place.setSubmitterVerifiedAtCreation(true);
+
+        service.updateOwned(1L, new ShelterService.OwnerEdit(
+                place.getId(), "Uus nimi", POINT.lat(), POINT.lng(), "uuendatud", 40, null));
+
+        Shelter stored = repo.findById(place.getId()).orElseThrow();
+        assertThat(stored.getName()).isEqualTo("Uus nimi");
+        assertThat(stored.getDescription()).isEqualTo("uuendatud");
+        assertThat(stored.getCapacity()).isEqualTo(40);
+        assertThat(stored.getId()).isEqualTo(place.getId());
+        assertThat(stored.getCreatedBy()).isEqualTo(1L);
+        assertThat(stored.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(stored.getSource()).isEqualTo(ShelterSource.USER);
+        // absent locationKind keeps the row's current value (the default PUBLIC)
+        assertThat(stored.getLocationKind()).isEqualTo(LocationKind.PUBLIC);
+        // the admin-owned state carried over
+        assertThat(stored.isAutoHideDisarmed()).isTrue();
+        assertThat(stored.getReviewNote()).isEqualTo("Pole varjend");
+        assertThat(stored.getInaccurateMarkedAt()).isEqualTo(CLOCK.instant());
+        assertThat(stored.getInaccurateMarkedBy()).isEqualTo(9L);
+        assertThat(stored.getSubmitterVerifiedAtCreation()).isTrue();
+    }
+
+    @Test
+    void anOwnerEditCarriesTheRequestedLocationKind() {
+        Shelter place = saveUserPlace(1L);
+
+        service.updateOwned(1L, new ShelterService.OwnerEdit(
+                place.getId(), "Kodus", POINT.lat(), POINT.lng(), null, null, LocationKind.PRIVATE));
+
+        assertThat(repo.findById(place.getId()).orElseThrow().getLocationKind())
+                .isEqualTo(LocationKind.PRIVATE);
     }
 
     // ------------------------------------------------------ deletePlaceByAdmin

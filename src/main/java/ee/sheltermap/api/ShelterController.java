@@ -2,7 +2,6 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.ShelterNotFoundException;
-import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportService;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
@@ -97,15 +96,13 @@ public class ShelterController {
     private final ShelterReportService reportService;
     private final UserRepository userRepository;
     private final ShelterInfoRequestLog infoRequests;
-    /** The per-request authenticated-caller lookup; the field the constructor no longer needs (the ownership read moved to the service) is dropped with it. */
+    /** The per-request authenticated-caller lookup. */
     private final CurrentCaller currentCaller;
 
     public ShelterController(ShelterQueryService queryService,
                              ShelterService shelterService,
                              ShelterReportService reportService,
                              UserRepository userRepository,
-                             /** Retained for the frozen constructor signature (the detail-read test seam); the ownership read it backed moved to {@link ShelterService#requireOwnedBy} — the parameter is no longer assigned. */
-                             ShelterRepository shelterRepository,
                              ShelterInfoRequestLog infoRequests) {
         this.queryService = queryService;
         this.shelterService = shelterService;
@@ -420,46 +417,14 @@ public class ShelterController {
         // The ownership check runs BEFORE the 400 validations (the API's
         // documented order: 404/403 before a bbox 400); the service
         // boundary re-checks it.
-        Shelter shelter = shelterService.requireOwnedBy(id, user.getId());
+        shelterService.requireOwnedBy(id, user.getId());
         requireInsideEstonia(request.latitude(), request.longitude());
-        Shelter updated = new Shelter(
-                request.name(),
-                new GeoPoint(request.latitude(), request.longitude()),
-                shelter.getStatus(),
-                shelter.getExternalId(),
-                shelter.getSource(),
-                shelter.getAddress(),
-                shelter.getCounty(),
-                shelter.getMunicipality(),
-                shelter.getDataAsOf(),
-                shelter.getSourceAttribution(),
-                request.description(),
-                request.capacity());
-        updated.setId(shelter.getId());
-        updated.setCreatedAt(shelter.getCreatedAt());
-        updated.setCreatedBy(shelter.getCreatedBy());
-        // Admin-owned state is preserved through the owner's edit (the
-        // save copies every domain field): the trust-layer disarm flag
-        // and the admin "inaccurate" mark. The community trust state is
-        // NOT copied here — ShelterService.updatePlace owns it (the
-        // owner-edit trust reset): a real edit of a published row returns
-        // the shelter to the same pending-verification (NEW) state a
-        // newly added shelter carries, and the owner can never
-        // self-confirm by editing (the request carries no trust field —
-        // the service overwrites the incoming value in every case).
-        updated.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
-        updated.setReviewNote(shelter.getReviewNote());
-        updated.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
-        updated.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
-        // The write-time trust snapshot (V31) is WROTE-TIME data — an edit
-        // never re-snapshots it (the standing is as at the SUBMISSION);
-        // preserve it through the owner's edit like the other
-        // admin-owned state.
-        updated.setSubmitterVerifiedAtCreation(shelter.getSubmitterVerifiedAtCreation());
-        // The private-home declaration is updatable; absent = keep current.
-        updated.setLocationKind(request.locationKind() == null
-                ? shelter.getLocationKind() : request.locationKind());
-        shelterService.updateOwned(user.getId(), updated);
+        // The row build and the field carry-over are the service's
+        // business (the layer that owns the shelter rows) — the
+        // controller names the writable fields and nothing more.
+        shelterService.updateOwned(user.getId(), new ShelterService.OwnerEdit(
+                id, request.name(), request.latitude(), request.longitude(),
+                request.description(), request.capacity(), request.locationKind()));
         // The caller IS the author (requireOwnedBy) — pass the id so
         // the owner-scoped reviewNote stays on the owner's own response
         // (a rejected row keeps its reason through the owner's edit).

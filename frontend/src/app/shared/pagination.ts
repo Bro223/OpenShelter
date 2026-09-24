@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { NgIf } from '@angular/common';
 import { TranslatePipe } from '../core/i18n/translate-pipe';
 import type { MessageKey } from '../core/i18n/messages';
 import { PAGE_SIZES } from './paging';
@@ -25,7 +24,7 @@ import { PAGE_SIZES } from './paging';
  */
 @Component({
   selector: 'app-pagination',
-  imports: [NgIf, TranslatePipe],
+  imports: [TranslatePipe],
   templateUrl: './pagination.html',
   styleUrl: './pagination.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,6 +50,12 @@ export class Pagination {
   readonly sizeLabelKey = input<MessageKey>('pagination.size');
   /** The navigation intent: the host writes {page, size} to the URL. */
   readonly onNavigate = output<{ page: number; size: number }>();
+
+  /** The pointless-control rule: no chrome while the list fits one page
+      (an empty list and a single-page list render nothing). */
+  showChrome(): boolean {
+    return this.pages() > 1;
+  }
 
   onPrev(): void {
     this.onNavigate.emit({ page: this.page() - 1, size: this.size() });

@@ -1,7 +1,7 @@
 import { signal, type Signal } from '@angular/core';
 
 /** The armed confirm: the key that owns the strip, plus the value armed with it. */
-export interface ArmedConfirm<K, V> {
+interface ArmedConfirm<K, V> {
   readonly key: K;
   readonly value: V;
 }

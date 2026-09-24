@@ -9,7 +9,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet, RouterLink } from '@angular/router';
-import { ThemeStore } from '../core/theme-store';
 import { I18nService } from '../core/i18n/i18n.service';
 import { LOCALES, type Locale } from '../core/i18n/locale';
 import { TranslatePipe } from '../core/i18n/translate-pipe';
@@ -38,9 +37,13 @@ import { AccessibilityDialog } from './accessibility-dialog.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageShell implements OnDestroy {
-  private readonly store = inject(AuthStore);
-  private readonly themeStore = inject(ThemeStore);
-  private readonly i18nService = inject(I18nService);
+  /** The session-dependent controls (the template reads the signals through
+      this, so init/logout re-render the header). */
+  protected readonly auth = inject(AuthStore);
+  /** i18n-et-en: the chrome copy + the language switcher. `locale`
+      is read in the template, so a switch triggers this component's
+      change detection and the `pure: false` `t` pipe re-renders. */
+  protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -82,7 +85,7 @@ export class PageShell implements OnDestroy {
     // default), so a down API never blanks the chrome.
     inject(SiteTextsGateway)
       .fetch()
-      .then((texts) => this.i18nService.setSiteTexts(texts))
+      .then((texts) => this.i18n.setSiteTexts(texts))
       .catch(() => {
         /* defaults stand — the overlay is progressive enhancement */
       });
@@ -112,19 +115,13 @@ export class PageShell implements OnDestroy {
     }
   });
 
-  protected readonly auth = this.store;
-  protected readonly theme = this.themeStore;
-  /** i18n-et-en: the chrome copy + the language switcher. `locale`
-      is read in the template, so a switch triggers this component's
-      change detection and the `pure: false` `t` pipe re-renders. */
-  protected readonly i18n = this.i18nService;
   /** The switcher buttons render from LOCALES (a new language is one
       catalog entry, not a template edit). */
   protected readonly locales: readonly Locale[] = LOCALES;
 
   /** Language switcher action — persists (I18nService). */
   setLocale(locale: Locale): void {
-    this.i18nService.setLocale(locale);
+    this.i18n.setLocale(locale);
   }
 
   ngOnDestroy(): void {

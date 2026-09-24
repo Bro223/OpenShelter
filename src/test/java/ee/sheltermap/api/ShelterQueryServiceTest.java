@@ -616,8 +616,23 @@ class ShelterQueryServiceTest {
     @Test
     void dtoNeverLeaksTheEntity() {
         List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null);
-        // the returned objects are records (DTOs), not the domain Shelter
-        assertThat(dtos).allMatch(dto -> dto instanceof ShelterDto);
+
+        // the DTO is a VALUE projection of the entity at read time — the
+        // fields are the entity's values, not a live handle to it
+        ShelterDto userDto = dtos.stream()
+                .filter(dto -> "User House".equals(dto.name()))
+                .findFirst().orElseThrow();
+        assertThat(userDto.status()).isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(userDto.source()).isEqualTo(ShelterSource.USER);
+        assertThat(userDto.latitude()).isEqualTo(59.4);
+        assertThat(userDto.longitude()).isEqualTo(24.7);
+
+        // mutating the entity AFTER the read must not change what the read
+        // returned (a projection that wrapped the entity would leak it)
+        userShelter.setStatus(ShelterStatus.INACTIVE);
+        shelters.save(userShelter);
+        assertThat(userDto.status()).isEqualTo(ShelterStatus.ACTIVE);
+
         // and the repo still holds exactly the domain entities
         assertThat(shelters.findAll()).hasSize(3);
     }

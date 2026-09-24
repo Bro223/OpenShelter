@@ -104,7 +104,7 @@ class ShelterBboxPagingIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[1].name").value("Põhi varjend"));
     }
 
-    // ---------- the viewport () ----------
+    // ---------- the viewport ----------
 
     @Test
     void viewportKeepsInsideRowsAndIncludesTheEdges() throws Exception {

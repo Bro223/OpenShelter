@@ -97,7 +97,7 @@ function isFieldValidation400(kind: ErrorKind, message: string): boolean {
  * callback get the legacy English constants (behavior unchanged — the auth
  * pages, map, etc. keep their current banner copy).
  */
-export type ErrorCopyKey =
+type ErrorCopyKey =
   | 'error.rateLimited'
   | 'error.unauthorized'
   | 'error.invalidCredentials'

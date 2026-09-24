@@ -48,8 +48,8 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
- * The marker tone class suffix. Reported state (shelter-trust-and-reports
- *, extended by EITHER report kind — an open does-not-exist report
+ * The marker tone class suffix. The reported state (shelter-trust-and-
+ * reports, extended to EITHER report kind — an open does-not-exist report
  * or an open inaccurate-information report; the OR of the two per the
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
@@ -318,8 +318,9 @@ export class LeafletService {
    * (`--color-shelter-pick`) — the map legend carries a matching entry, and
    * the title attribute is its accessible name. The title is a REQUIRED
    * caller argument: the service is locale-agnostic and the label is the
-   * caller's localized `map.searched` copy (N7 i18n-completeness — the
-   * hardcoded English is gone from the shared service). Null args remove
+   * caller's localized `map.searched` copy (the service is
+   * locale-agnostic — no hardcoded copy may live in a shared service).
+   * Null args remove
    * the pin. No-ops before create / after destroy; NEVER touches the
    * shelter markers layer group.
    */

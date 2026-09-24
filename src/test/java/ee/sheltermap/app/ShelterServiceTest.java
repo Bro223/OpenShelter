@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
@@ -583,5 +584,65 @@ class ShelterServiceTest {
         double oneMillidegreeLat =
                 ShelterService.haversineMeters(POINT, new GeoPoint(POINT.lat() + 0.001, POINT.lng()));
         assertThat(oneMillidegreeLat).isBetween(110.0, 113.0);
+    }
+
+    // ---------- the admin-kind read (one round-trip per submission) ----------
+
+    /**
+     * Counts the admin-kind reads — the guard against the three abuse
+     * checks each paying their own identical {@code isAdmin} round-trip on
+     * the submit path.
+     */
+    private static final class CountingAdminUserRepository extends InMemoryUserRepository {
+        int isAdminCalls;
+
+        @Override
+        public boolean isAdmin(long userId) {
+            isAdminCalls++;
+            return super.isAdmin(userId);
+        }
+    }
+
+    @Test
+    void addPlaceAsksTheAdminKindOncePerSubmission() {
+        CountingAdminUserRepository counting = new CountingAdminUserRepository();
+        ShelterService once = new ShelterService(repo, counting, 1_000, 100.0, alerts, history, CLOCK);
+
+        once.addPlace(verifiedUser(), userPlace());
+
+        assertThat(counting.isAdminCalls)
+                .as("the three abuse guards share one admin-kind read per submission")
+                .isEqualTo(1);
+    }
+
+    @Test
+    void anAdminSubmissionAsksTheAdminKindOnceAndStaysExempt() {
+        CountingAdminUserRepository counting = new CountingAdminUserRepository();
+        ShelterService once = new ShelterService(repo, counting, 1_000, 100.0, alerts, history, CLOCK);
+        AdminUser admin = AdminUser.provisioned("Admin", "admin@example.ee", CLOCK.instant());
+        counting.save(admin);
+
+        // 11 in a row — every abuse guard skipped, and the exemption
+        // decided by exactly one read
+        for (int i = 1; i <= 11; i++) {
+            once.addPlace(admin, userPlace("Admin varjend " + i));
+        }
+
+        assertThat(counting.isAdminCalls).isEqualTo(11);
+        assertThat(repo.findAll()).hasSize(11);
+    }
+
+    @Test
+    void aRejectedSubmissionPaysNoAdminKindRead() {
+        // The canWrite() gate runs BEFORE any cap — a rejected submission
+        // must not pay the admin-kind read at all (the exemption read is
+        // a cap concern, not a pre-flight).
+        CountingAdminUserRepository counting = new CountingAdminUserRepository();
+        ShelterService service = new ShelterService(repo, counting, 1_000, 100.0, alerts, history, CLOCK);
+
+        assertThatThrownBy(() -> service.addPlace(new GuestUser(), userPlace()))
+                .isInstanceOf(NotVerifiedException.class);
+
+        assertThat(counting.isAdminCalls).isZero();
     }
 }

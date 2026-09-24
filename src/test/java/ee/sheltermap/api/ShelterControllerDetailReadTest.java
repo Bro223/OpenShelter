@@ -83,7 +83,7 @@ class ShelterControllerDetailReadTest {
                 occupancy, openStatus, new InMemoryDataImportLog(),
                 audit, new ReporterTrustEvaluator(shelters, audit),
                 new InMemoryShelterInfoRequestLog(FIXED), FIXED);
-        controller = new ShelterController(queryService, null, null, users, null, null);
+        controller = new ShelterController(queryService, null, null, users, null);
 
         shelter = new Shelter("Detail House", new GeoPoint(59.4, 24.7),
                 ShelterStatus.ACTIVE, null, ShelterSource.USER);

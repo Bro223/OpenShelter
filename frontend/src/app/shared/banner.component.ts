@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type BannerSeverity = 'info' | 'success' | 'warning' | 'error';
+type BannerSeverity = 'info' | 'success' | 'warning' | 'error';
 
 /**
  * One banner to surface ApiError messages / notices (01 puml, shared).

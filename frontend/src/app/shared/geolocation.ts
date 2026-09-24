@@ -26,9 +26,11 @@ export class GeolocationError extends Error {
   }
 }
 
-/** The exact request options both consumers use (the submit page's shape,
- *  pinned by the page specs' toHaveBeenCalledWith assertions). */
-export const HIGH_ACCURACY_POSITION_OPTIONS: PositionOptions = {
+/** The request options every shared position call sends. The /submit page
+ *  sends the same shape inline, and its spec pins the literal
+ *  (submit-shelter-page.spec.ts's toHaveBeenCalledWith), so a change here
+ *  must move that pin. */
+const HIGH_ACCURACY_POSITION_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout: 10000,
   maximumAge: 0,
@@ -40,7 +42,7 @@ export const HIGH_ACCURACY_POSITION_OPTIONS: PositionOptions = {
  * jsdom does not define GeolocationPositionError, and a non-numeric (or
  * missing) code is "unavailable".
  */
-export function geolocationErrorKind(error: unknown): 'denied' | 'timeout' | 'unavailable' {
+function geolocationErrorKind(error: unknown): 'denied' | 'timeout' | 'unavailable' {
   const candidate =
     typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
   const code = typeof candidate === 'number' ? candidate : 2;

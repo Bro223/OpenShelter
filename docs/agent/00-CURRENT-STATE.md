@@ -84,7 +84,7 @@ Anchors, row by row:
   alone): unverified = triangle, partial = circle, full = circle with the verified green
   (`frontend/src/styles.scss:796-798,842-854`). Separately, the browse anchor is a diamond
   against shelter circles on shape — the code's own words are "not a circle — the shape IS the distinction"
-  (`frontend/src/styles.scss:915-920`; `frontend/src/app/shared/leaflet-service.ts:317,337`; the
+  (`frontend/src/styles.scss:915-920`; `frontend/src/app/shared/leaflet-service.ts:317,338`; the
   pick pin is `frontend/src/app/shared/leaflet-service.ts:285`).
 - The legend swatches reuse these exact marker classes, so map and legend can never drift
   (`frontend/src/styles.scss:782-785`). Legend copy: `frontend/src/app/core/i18n/en.ts:177,
@@ -188,9 +188,9 @@ their inputs from the same dismissed-excluded store query
   (`frontend/src/app/features/admin/admin-page.ts:453-468`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
-  (`frontend/src/app/shared/paging.ts:1-13`); constants at `:20,24,27,31`;
-  `parsePage`/`parseSize` at `:42-57`; `lastPage` (≥ 1, so "Page 1 of 1" can never say "of 0")
-  at `:61-63`; `clampPage` at `:68-70`.
+  (`frontend/src/app/shared/paging.ts:1-13`); constants at `:19,23,26,30`;
+  `parsePage`/`parseSize` at `:41-56`; `lastPage` (≥ 1, so "Page 1 of 1" can never say "of 0")
+  at `:60-62`; `clampPage` at `:67-69`.
 - **Backend paging vocabulary** (one 400 exception, one message, one cap): `limit` optional —
   absent means no paging, present must be 1..200 else 400; `offset` optional — absent means
   the first page, negative is a 400; an offset past the end is an empty page, never an error
@@ -200,7 +200,7 @@ their inputs from the same dismissed-excluded store query
   reads (`src/main/java/ee/sheltermap/api/Pagination.java:112-122`), exposed cross-origin by
   name — never a wildcard (`src/main/java/ee/sheltermap/config/SecurityConfig.java:183-188`)
   — and read on the frontend with an honest degrade: a missing/blank/negative header falls
-  back to the fetched page's own length (`frontend/src/app/shared/paging.ts:71-79`).
+  back to the fetched page's own length (`frontend/src/app/shared/paging.ts:70-78`).
 - **The map's legend IS the filter** (wave 7), and **the source chips are gone** (wave 8): the
   five tone entries (`registry, user, partial, full, reported`) are toggle buttons; the
   selection is the URL's `tones` param, display-only — the loaded list is filtered

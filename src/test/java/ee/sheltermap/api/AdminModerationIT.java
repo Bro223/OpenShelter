@@ -326,11 +326,11 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$").value(org.hamcrest.Matchers.empty()));
 
-        // filters compose
+        // filters compose — the answer row is pinned by id, not just name
         mvc.perform(get("/admin/shelters").param("source", "USER").param("q", "otsitav a")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Otsitav A")));
-        assertThat(active).isNotNull();
+                .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Otsitav A")))
+                .andExpect(jsonPath("$[0].id").value(active));
     }
 
     @Test

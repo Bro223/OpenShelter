@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -157,7 +158,12 @@ public class ShelterService {
             throw new IllegalArgumentException(
                     "user-submitted shelters must be ACTIVE with source USER");
         }
-        if (!userRepository.isAdmin(user.getId())) {
+        // The admin kind is exempt from every abuse guard below — ONE
+        // column read settles the exemption for all three (single
+        // transaction: nothing in this write path can change the kind
+        // mid-request, so re-asking per guard only pays for round-trips).
+        boolean admin = userRepository.isAdmin(user.getId());
+        if (!admin) {
             // Per-user serialization of the read-check-write below (the
             // anti-abuse race): lock the user row BEFORE the cap check so
             // two concurrent submissions by the same user cannot both pass
@@ -180,7 +186,7 @@ public class ShelterService {
         // SUBMITTING act, independent of the active count. Deleting a row
         // frees its slot (the row is gone) — the churn vector stays bounded
         // by the active cap + the admin surface.
-        if (!userRepository.isAdmin(user.getId())) {
+        if (!admin) {
             Instant windowStart = clock.instant().minus(DAILY_SUBMISSION_WINDOW);
             long submitted = shelterRepository.countByCreatedByAndSourceAndCreatedAtAfter(
                     user.getId(), ShelterSource.USER, windowStart);
@@ -198,7 +204,7 @@ public class ShelterService {
         // id (the client can point at it or edit it via PUT). Cross-user by
         // design (the throwaway-account re-report vector); ADMIN kind is
         // exempt, like the caps above.
-        if (!userRepository.isAdmin(user.getId())) {
+        if (!admin) {
             findNearDuplicate(place)
                     .ifPresent(existing -> {
                         // The re-report vector is an alert row,
@@ -341,21 +347,33 @@ public class ShelterService {
     }
 
     /**
+     * The owner's PUT as the service sees it: the writable fields for
+     * one shelter row, addressed by the row's id. The trust state is
+     * deliberately NOT a component — {@link #updatePlace} decides it in
+     * every case, so no caller can ride a trust value through the edit.
+     */
+    public record OwnerEdit(long shelterId, String name, double latitude, double longitude,
+                            String description, Integer capacity, LocationKind locationKind) {
+    }
+
+    /**
      * The author's OWN update (the ownership guard now sits on the
      * service boundary, not only in the controller): re-checks
-     * {@link #requireOwnedBy} and applies {@link #updatePlace}. The
-     * controller still runs {@code requireOwnedBy} BEFORE its own 400
-     * validations (the status-code order the API documents: 404/403
-     * before a bbox 400); this second check makes the service safe to
-     * call from a future caller without the pre-check.
+     * {@link #requireOwnedBy}, builds the row the edit produces on the
+     * loaded one ({@link #ownerEditRow}) and applies it through
+     * {@link #updatePlace}. The controller still runs {@code
+     * requireOwnedBy} BEFORE its own 400 validations (the status-code
+     * order the API documents: 404/403 before a bbox 400); this second
+     * check makes the service safe to call from a future caller without
+     * the pre-check.
      *
      * @throws ShelterNotFoundException 404 — unknown shelter id
      * @throws NotAuthorException 403 — not the author
      */
     @Transactional
-    public void updateOwned(long userId, Shelter place) {
-        requireOwnedBy(place.getId(), userId);
-        updatePlace(place);
+    public void updateOwned(long userId, OwnerEdit edit) {
+        Shelter current = requireOwnedBy(edit.shelterId(), userId);
+        updatePlace(ownerEditRow(current, edit));
     }
 
     /**
@@ -452,6 +470,47 @@ public class ShelterService {
             history.record(place.getId(), current.getName(), current.getCreatedBy(),
                     ShelterHistoryLog.Action.EDITED, ShelterHistoryChanges.toJson(moved));
         }
+    }
+
+    /**
+     * The row an owner edit produces: the writable fields from
+     * {@code edit} on the values loaded for {@code current}. Everything
+     * the owner may not write is carried over from the loaded row —
+     * identity (id, createdAt, author), status/source, the registry
+     * fields and the admin/trust-owned state (the auto-hide disarm
+     * flag, the admin note, the "inaccurate" stamp, and the write-time
+     * trust snapshot — the standing is as at the SUBMISSION, an edit
+     * never re-snapshots it). {@code reviewStatus} is deliberately NOT
+     * copied: {@link #updatePlace} decides it in every case (the
+     * owner-edit trust reset — an owner can never self-confirm by
+     * editing). An absent {@code locationKind} keeps the row's current
+     * value.
+     */
+    private static Shelter ownerEditRow(Shelter current, OwnerEdit edit) {
+        Shelter next = new Shelter(
+                edit.name(),
+                new GeoPoint(edit.latitude(), edit.longitude()),
+                current.getStatus(),
+                current.getExternalId(),
+                current.getSource(),
+                current.getAddress(),
+                current.getCounty(),
+                current.getMunicipality(),
+                current.getDataAsOf(),
+                current.getSourceAttribution(),
+                edit.description(),
+                edit.capacity());
+        next.setId(current.getId());
+        next.setCreatedAt(current.getCreatedAt());
+        next.setCreatedBy(current.getCreatedBy());
+        next.setAutoHideDisarmed(current.isAutoHideDisarmed());
+        next.setReviewNote(current.getReviewNote());
+        next.setInaccurateMarkedAt(current.getInaccurateMarkedAt());
+        next.setInaccurateMarkedBy(current.getInaccurateMarkedBy());
+        next.setSubmitterVerifiedAtCreation(current.getSubmitterVerifiedAtCreation());
+        next.setLocationKind(edit.locationKind() == null
+                ? current.getLocationKind() : edit.locationKind());
+        return next;
     }
 
     /**

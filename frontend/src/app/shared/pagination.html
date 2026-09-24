@@ -1,40 +1,42 @@
-<nav class="pagination" [attr.aria-label]="'pagination.aria' | t" *ngIf="pages() > 1">
-  <button
-    type="button"
-    class="btn btn--ghost pagination__button"
-    [disabled]="page() <= 1"
-    [attr.aria-label]="'pagination.previous' | t"
-    (click)="onPrev()"
-  >
-    &larr;&nbsp;{{ 'pagination.previous' | t }}
-  </button>
-
-  <span class="pagination__status" role="status">
-    {{ 'pagination.pageOf' | t: { page: page(), pages: pages() } }}
-  </span>
-
-  <button
-    type="button"
-    class="btn btn--ghost pagination__button"
-    [disabled]="page() >= pages()"
-    [attr.aria-label]="'pagination.next' | t"
-    (click)="onNext()"
-  >
-    {{ 'pagination.next' | t }}&nbsp;&rarr;
-  </button>
-
-  <label class="pagination__size">
-    {{ sizeLabelKey() | t }}
-    <select
-      [attr.aria-label]="sizeLabelKey() | t"
-      [value]="size()"
-      (change)="onSizeChange($event)"
+@if (showChrome()) {
+  <nav class="pagination" [attr.aria-label]="'pagination.aria' | t">
+    <button
+      type="button"
+      class="btn btn--ghost pagination__button"
+      [disabled]="page() <= 1"
+      [attr.aria-label]="'pagination.previous' | t"
+      (click)="onPrev()"
     >
-      @for (option of sizes(); track option) {
-        <option [value]="option" [selected]="option === size()">
-          {{ option }}
-        </option>
-      }
-    </select>
-  </label>
-</nav>
+      &larr;&nbsp;{{ 'pagination.previous' | t }}
+    </button>
+
+    <span class="pagination__status" role="status">
+      {{ 'pagination.pageOf' | t: { page: page(), pages: pages() } }}
+    </span>
+
+    <button
+      type="button"
+      class="btn btn--ghost pagination__button"
+      [disabled]="page() >= pages()"
+      [attr.aria-label]="'pagination.next' | t"
+      (click)="onNext()"
+    >
+      {{ 'pagination.next' | t }}&nbsp;&rarr;
+    </button>
+
+    <label class="pagination__size">
+      {{ sizeLabelKey() | t }}
+      <select
+        [attr.aria-label]="sizeLabelKey() | t"
+        [value]="size()"
+        (change)="onSizeChange($event)"
+      >
+        @for (option of sizes(); track option) {
+          <option [value]="option" [selected]="option === size()">
+            {{ option }}
+          </option>
+        }
+      </select>
+    </label>
+  </nav>
+}

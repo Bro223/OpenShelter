@@ -18,7 +18,7 @@ import type {
  * status line, single-sourced for its consumers — the map sidebar, the
  * shelter detail header, the admin list, and the contributions panel.
  *
- * i18n (N7 i18n-completeness): every user-visible string in this module
+ * i18n: every user-visible string in this module
  * now runs through the CATALOG. Each copy function takes an optional
  * trailing `translate` callback — the same seam error-copy.ts's
  * bannerMessage() uses. Public pages pass `(key, params) => i18n.t(key,
@@ -178,30 +178,24 @@ export function communityBadgeClass(shelter: {
 }
 
 /**
- * The private-home declaration badge (community-review-queue): shown
- * on list rows, the detail page and the admin list for rows whose
- * submitter declared the location a private home/shelter. Muted styling
- * at the point of use — a description, not a caveat. The copy says what it
- * IS (a declared private home), never what it is NOT: the app carries no
- * access data and must not claim any (owner decision, Option A).
+ * The two trust badges this module no longer renders itself (their copy
+ * lives in the catalog and the templates render it through the `t` pipe):
  *
- * Rendered everywhere through the `t` pipe ('shelter.privateBadge' | t)
- * — the admin list included (closed), so the badge follows the
- * active locale with no frozen const.
- */
-
-/**
- * The "reported inaccurate" warning
- * (moderation-dashboard-completion): the single-sourced sentence for a
- * moderator-marked row. A marked row stays visible with status and trust
- * state untouched — the warning is the treatment. Rendered on every
- * surface that renders the unverified treatment: the map's around-you
- * line, the detail header, the /mine rows and the admin list. Muted
- * styling at the point of use: a caveat, not the crisis orange.
+ *  - the private-home declaration badge ('shelter.privateBadge') — shown
+ *    on list rows, the detail page and the admin list for rows whose
+ *    submitter declared the location a private home/shelter. Muted styling
+ *    at the point of use — a description, not a caveat. Its copy must say
+ *    what it IS (a declared private home), never what it is NOT: the app
+ *    carries no access data and must not claim any (owner decision,
+ *    Option A).
+ *  - the "reported inaccurate" warning (moderation-dashboard-completion) —
+ *    the single-sourced sentence for a moderator-marked row, the
+ *    catalog's account.contrib.inaccurate. A marked row stays visible with
+ *    status and trust state untouched — the warning is the treatment. Muted
+ *    styling at the point of use: a caveat, not the crisis orange.
  *
- * The key is the contributions panel's catalog entry (account.contrib.
- * inaccurate) — every template renders it through the `t` pipe (the
- * admin list included, closed).
+ * Both follow the active locale with no frozen const, the admin list
+ * included (the moderation surface reads in the moderator's language).
  */
 
 /** True for rows carrying the private-home declaration. */
@@ -467,7 +461,7 @@ export function verifiedAgoText(
  * to hard-code. A NEW community row is never verified — its line IS the
  * not-yet-verified signal, pairing the submission age with the missing
  * check; any other row without a verification record (e.g. a dev DB before
- * the first import) reads "No verification record yet". this line is
+ * the first import) reads "No verification record yet". The line is
  * rendered SEPARATELY from the community report count — the two facts are
  * never joined into one string (the detail header renders them as two
  * lines, each self-contained).
@@ -504,10 +498,10 @@ export function lastVerifiedText(
  * types)" — the LIFETIME TOTAL over all report types, labeled as such so
  * it cannot be read as a live tally: the open/closed and how-full taps are
  * live states (one per user, latest wins) and do not change this count, and
- * the count does not move the verification stamp on the line above. (The
- * badge's "Reported (n)" stays the open trust-report sum — nonexistent +
- * inaccurate, .) a separate line from the verification stamp —
- * never spliced onto it.
+ * the count does not move the verification stamp on the line above. The
+ * badge's "Reported (n)" stays the open trust-report sum (nonexistent +
+ * inaccurate). This line is rendered separately from the verification
+ * stamp — never spliced onto it.
  */
 export function communityReportsText(reportCount: number, translate?: ShelterTranslate): string {
   return resolve('shelter.communityReports', translate, { count: reportCount });

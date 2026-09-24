@@ -87,6 +87,7 @@ class ApiErrorHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.transactionSystem(ex, request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(response.getBody().message()).isEqualTo(CONFLICT_MESSAGE);
     }
 
     @Test

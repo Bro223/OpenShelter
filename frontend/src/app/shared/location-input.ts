@@ -15,7 +15,7 @@
  */
 
 /** Estonia bounding box — mirror of GeoPoint.inEstonia / ESTONIA_BOUNDS. */
-export const ESTONIA_PARSE_BOUNDS = {
+const ESTONIA_PARSE_BOUNDS = {
   minLat: 57.5,
   maxLat: 59.7,
   minLng: 21.5,
@@ -176,13 +176,14 @@ const LABEL_PATTERN = /\b(?:lat(?:itude)?|lng(?:itude)?)\s*:/gi;
 const LABEL_PRESENT_PATTERN = /\b(?:lat(?:itude)?|lng(?:itude)?)\s*:/i;
 
 /** A hemisphere letter touching a number: `59.44N`, `24.75 E`, `N 24.75` (NOT the 'n' inside "Tallinn"). */
-const HEMISHERE_ADMONST_PATTERN = /[-\d]\s*[NSEWnsew]|[NSEWnsew]\s*[-\d]/;
+const HEMISPHERE_LETTER_PATTERN = /[-\d]\s*[NSEWnsew]|[NSEWnsew]\s*[-\d]/;
 
 interface DmsToken {
   value: number;
   hemisphere: 'N' | 'S' | 'E' | 'W' | null;
 }
 
+/** Extract the pair carried by one URL query param value (comma/space/'+'-separated). */
 function toDecimalPair(text: string): [number, number] | null {
   const match = PAIR_PATTERN.exec(text);
   if (!match) {
@@ -191,7 +192,7 @@ function toDecimalPair(text: string): [number, number] | null {
   return [Number(match[1]), Number(match[2])];
 }
 
-/** Extract the pair carried by one URL query param value (comma/space/'+'-separated). */
+/** All DMS tokens in the text, in order (pair resolution is dmsToPair's job). */
 function dmsTokens(text: string): DmsToken[] {
   DMS_TOKEN_PATTERN.lastIndex = 0;
   const tokens: DmsToken[] = [];
@@ -331,7 +332,7 @@ export function parseLocationInput(text: string): ParseLocationResult {
   }
 
   const hasDegree = /[°º]/.test(trimmed);
-  const hasHemisphere = HEMISHERE_ADMONST_PATTERN.test(trimmed);
+  const hasHemisphere = HEMISPHERE_LETTER_PATTERN.test(trimmed);
   if (hasDegree || hasHemisphere) {
     const tokens = dmsTokens(trimmed);
     // An Estonian comma-decimal anywhere in a DMS input

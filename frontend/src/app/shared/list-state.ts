@@ -23,7 +23,7 @@ import type { MessageKey } from '../core/i18n/messages';
  * (the surfaces keep distinct wording for the same state — "the index ends
  * at page N" vs "the list ends at page N" — and distinct action labels).
  */
-export type ListStateKind = 'out-of-range' | 'empty';
+type ListStateKind = 'out-of-range' | 'empty';
 
 @Component({
   selector: 'app-list-state',

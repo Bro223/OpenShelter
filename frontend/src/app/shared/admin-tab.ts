@@ -33,7 +33,7 @@ export const ADMIN_TABS = [
 ] as const;
 
 /** The legal tab values (the union's member type). */
-export type AdminTabValue = (typeof ADMIN_TABS)[number];
+type AdminTabValue = (typeof ADMIN_TABS)[number];
 
 /** The default tab — the FIRST tab (the review queue): the param's
  *  absence is its URL form (omit-defaults). */
