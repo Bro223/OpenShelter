@@ -133,6 +133,34 @@ class RetentionPruningIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void anAccountIdleForExactlyTheHorizonIsKept() {
+        // The candidate query is strict-before: last_activity_at ==
+        // cutoff (exactly 24 months idle) is NOT a candidate. A flip to
+        // <= would delete exactly-horizon accounts one month early.
+        RegisteredUser exact = saveIdleUser("retention-exact-1@example.ee", "+37250000051", monthsBefore(NOW, 24));
+
+        RetentionService.RetentionReport report = service(true).prune(NOW);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class,
+                exact.getId())).isOne();
+        assertThat(report.accountsPruned()).isZero();
+    }
+
+    @Test
+    void anAuditRowExactlyAtTheHorizonIsKept() {
+        // The audit horizon delete is strict-before too: a row stamped
+        // exactly monthsBefore(NOW, 24) survives.
+        insertAuditRow(91005L, monthsBefore(NOW, 24));
+
+        RetentionService.RetentionReport report = service(true).prune(NOW);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM moderation_actions WHERE shelter_id = ?", Long.class,
+                91005L)).isOne();
+        assertThat(report.auditRowsPruned()).isZero();
+    }
+
+    @Test
     void prunesAuditRowsOlderThanTheHorizonAndKeepsTheNewerOnes() {
         insertAuditRow(91001L, monthsBefore(NOW, 25));
         insertAuditRow(91002L, monthsBefore(NOW, 1));

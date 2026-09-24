@@ -27,7 +27,7 @@ sentence. If an anchor no longer matches, re-derive from the code and report the
 - Design tokens: `frontend/src/styles.scss` — the `:root` block is the single source of truth
   (`frontend/src/styles.scss:3`), with one `[data-theme='high-contrast']` override block
   (`frontend/src/styles.scss:279`); the black-and-yellow theme is a runtime token map
-  (`BLACK_AND_YELLOW_TOKENS`, `frontend/src/app/core/theme-tokens.ts:82`). Spacing rides
+  (`BLACK_AND_YELLOW_TOKENS`, `frontend/src/app/core/theme-tokens.ts:52`). Spacing rides
   the `--space-*` scale the same
   way: the spacing-literal guard in `frontend/src/app/design-tokens.spec.ts` fails the build
   on any margin/padding/gap value off-scale, with a stated allow-list (zero/auto resets,
@@ -75,13 +75,13 @@ Anchors, row by row:
   `.shelter-marker--anchor` (`frontend/src/styles.scss:907-920`).
 - Token values: light theme `frontend/src/styles.scss:91,102,115,171,182,187`; high-contrast
   `frontend/src/styles.scss:388,393,398,430-432`; black-and-yellow
-  `frontend/src/app/core/theme-tokens.ts:127,128-129,133,169,170-171,172`. The unverified
+  `frontend/src/app/core/theme-tokens.ts:67,68-69,73,109,110-111,112`. The unverified
   yellow is the *same* `#ffd400` in every theme
-  (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:170-171`).
+  (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:140-141`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner
   decision, enforced in a spec: `frontend/src/app/design-tokens.spec.ts:913`). Light
   `frontend/src/styles.scss:102,115`; high-contrast `frontend/src/styles.scss:393,398`;
-  black-and-yellow `frontend/src/app/core/theme-tokens.ts:128-129,133`.
+  black-and-yellow `frontend/src/app/core/theme-tokens.ts:98-99,103`.
 - **Red-orange is reserved for reported**: no other state uses the red family — the pick
   pin's own comment: "red is reserved for" (`frontend/src/styles.scss:898-899`); the
   marker-meaning pin keeps it a distinct family in every theme

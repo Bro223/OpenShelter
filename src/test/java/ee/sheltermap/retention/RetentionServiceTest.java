@@ -165,6 +165,43 @@ class RetentionServiceTest {
     }
 
     @Test
+    void anAccountOneDayInsideTheHorizonIsKept() {
+        // The early-deletion direction of the account horizon: an account
+        // one day INSIDE the 23-month mark (23 months + 1 day idle) must
+        // survive a 24-month window. A horizon narrowed by one month
+        // would delete it a month early.
+        RegisteredUser inside = saveUser("Inside", "inside@example.ee");
+        users.markActive(inside.getId(), monthsBefore(NOW, 23).minus(Duration.ofDays(1)));
+
+        RetentionService.RetentionReport report = service(ON, shelters).prune(NOW);
+
+        assertThat(users.findById(inside.getId())).isNotNull();
+        assertThat(report).isEqualTo(new RetentionService.RetentionReport(0, 0));
+    }
+
+    @Test
+    void anAuditRowOneDayInsideTheHorizonIsKept() {
+        // Same early-deletion direction for the audit horizon: a row
+        // stamped 23 months + 1 day ago must survive a 24-month window.
+        MutableClock auditClock = new MutableClock(monthsBefore(NOW, 23).minus(Duration.ofDays(1)));
+        InMemoryModerationAuditLog audit2 = new InMemoryModerationAuditLog(auditClock);
+        RetentionService service =
+                new RetentionService(ON, users,
+                        new AccountService(users, new InMemoryUserCredentialsRepository(clock),
+                                new StubPasswordHasher(), shelters, audit2),
+                        audit2, runLog);
+
+        audit2.record(44L, null, 7L, ModerationAuditLog.Action.CONFIRM, "inside note", null, null);
+
+        RetentionService.RetentionReport report = service.prune(NOW);
+
+        assertThat(report.auditRowsPruned()).isZero();
+        assertThat(audit2.rows())
+                .extracting(ModerationAuditLog.Row::shelterId)
+                .containsExactly(44L);
+    }
+
+    @Test
     void prunesAuditRowsOlderThanTheHorizonAndKeepsTheNewerOnes() {
         // Rows stamped at NOW-25 months and NOW-1 month via the fake's
         // clock (the audit log stamps at record time).

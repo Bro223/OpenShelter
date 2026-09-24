@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -127,6 +128,96 @@ class FileVerificationSendLogTest {
         assertThat(Files.exists(logPath())).isFalse();
         log.record(1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant());
         assertThat(Files.exists(logPath())).isTrue();
+    }
+
+    @Test
+    void dropsEntriesOlderThanTheRetentionWindowOnLoadAndKeepsTheBoundaryEntry() throws Exception {
+        // Retention window = 2 days: the cutoff is clock.millis() - 2d,
+        // an entry exactly at the cutoff is kept, one millisecond past
+        // the window is dropped - and dropped lines are rewritten out of
+        // the file, not just memory.
+        Instant boundary = CLOCK.instant().minus(Duration.ofDays(2));
+        Instant onePast = boundary.minusMillis(1);
+        Instant inside = CLOCK.instant().minus(Duration.ofDays(1));
+
+        Files.writeString(logPath(),
+                "1\tEMAIL\t" + boundary.toEpochMilli() + "\n"
+                        + "2\tEMAIL\t" + onePast.toEpochMilli() + "\n"
+                        + "3\tEMAIL\t" + inside.toEpochMilli() + "\n");
+
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+
+        assertThat(log.lastSentAt(1L, VerificationLevel.EMAIL))
+                .as("an entry exactly 2 days old is at the retention boundary and must be kept")
+                .isEqualTo(boundary);
+        assertThat(log.lastSentAt(2L, VerificationLevel.EMAIL))
+                .as("an entry one millisecond past the 2-day retention window must be dropped on load")
+                .isNull();
+        assertThat(log.lastSentAt(3L, VerificationLevel.EMAIL))
+                .isEqualTo(inside);
+        assertThat(Files.readAllLines(logPath()))
+                .as("dropped entries are rewritten out of the log file, not just memory")
+                .hasSize(2)
+                .noneMatch(line -> line.startsWith("2\tEMAIL\t"));
+    }
+
+    @Test
+    void thePruneRewriteFiresAtExactlyTenThousandRecordsAndDropsExpiredEntries() throws Exception {
+        // The line budget: record() only prunes once the in-memory list
+        // reaches 10,000 entries. Below the cap the file is never
+        // rewritten (not even when an expired entry is appended); at the
+        // cap the expired entries are dropped and the file is rewritten
+        // to the canonical 3-field form (the legacy contact column gone).
+        int seededLines = 9_997;
+        long dayStart = Instant.parse("2026-09-01T09:00:00Z").toEpochMilli();
+        StringBuilder seed = new StringBuilder(seededLines * 48);
+        for (int i = 0; i < seededLines; i++) {
+            // Legacy 4-field form (contact column) - parseable, fresh.
+            seed.append("1\tEMAIL\tlegacy-contact@example.ee\t").append(dayStart + i).append('\n');
+        }
+        Files.writeString(logPath(), seed.toString());
+
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+        assertThat(Files.readString(logPath()))
+                .as("a load that drops nothing must not rewrite the file")
+                .contains("legacy-contact@example.ee");
+
+        Instant t1 = CLOCK.instant().plusMillis(1);
+        log.record(1L, VerificationLevel.EMAIL, "new@example.ee", t1);
+        assertThat(Files.readString(logPath()))
+                .as("9,999 records is one short of the 10,000-line budget - no rewrite yet")
+                .contains("legacy-contact@example.ee");
+
+        long expired = CLOCK.instant().minus(Duration.ofDays(3)).toEpochMilli();
+        log.record(1L, VerificationLevel.EMAIL, "new@example.ee", Instant.ofEpochMilli(expired));
+        assertThat(Files.readString(logPath()))
+                .as("still below the budget - an expired append must not trigger a rewrite")
+                .contains("legacy-contact@example.ee");
+
+        Instant t2 = CLOCK.instant().plusMillis(2);
+        log.record(1L, VerificationLevel.EMAIL, "new@example.ee", t2);
+
+        List<String> rewritten = Files.readAllLines(logPath());
+        assertThat(rewritten)
+                .as("the 10,000th record hits the line budget: expired entries dropped, file rewritten")
+                .hasSize(seededLines + 2)
+                .noneMatch(line -> line.contains("legacy-contact@example.ee"));
+        assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(seededLines + 2L);
+        assertThat(log.lastSentAt(1L, VerificationLevel.EMAIL)).isEqualTo(t2);
+    }
+
+    @Test
+    void tryRecordWithinTheCooldownWindowIsSkippedWithoutRecording() {
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+        log.record(1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant());
+
+        VerificationSendLog.SendDecision decision = log.tryRecord(
+                1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant().plusSeconds(30), 60, 10);
+
+        assertThat(decision).isEqualTo(VerificationSendLog.SendDecision.COOLDOWN);
+        assertThat(log.countToday(1L, VerificationLevel.EMAIL))
+                .as("a COOLDOWN decision records nothing")
+                .isEqualTo(1);
     }
 
     @Test
