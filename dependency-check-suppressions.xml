@@ -9,11 +9,55 @@
   when the owning lane bumps the dependency; an entry without a reason
   and an owner must not be added.
 
-  ACTIVE FINDINGS: none.
+  ACTIVE FINDINGS: 15 suppressed, one entry per CVE, 2026-09-25
+  (decision: docs/closing-decisions-2026-09-24.md §1).
 
-  The two entries this file once carried (W2-C, measured 2026-09-22 against
-  branch feature/frontend HEAD, plugin 12.1.9) were both CVSS v3.1 base 5.3
-  (MEDIUM — below the CVSS 7 gate threshold) and both owned by W3-C:
+  The decision names the two unfixed lines by their flagship artifacts —
+  spring-core 6.2.19 (12 findings at/above the gate: CVE-2026-47884/47890/47891/47892/59313
+  at 9.8, CVE-2026-59283 at 9.1, CVE-2026-47885/47886/47888/47889/47893/59282 at 7.5) and
+  spring-security-core 6.5.11 (3: CVE-2026-59270 at 9.1, CVE-2026-41707 and CVE-2026-47841
+  at 7.4). The NVD findings are PRODUCT-level: the plugin's CPE analyzer attributes each
+  CVE to the release-train CPEs (spring_framework:6.2.19, spring_security:6.5.11) and hence
+  to whichever artifacts of the line it identifies in a given run. The attribution set
+  varies run to run — measured 2026-09-25 across three scans: the gate-failing artifact
+  sets were {spring-core, spring-security-core}, then {spring-tx, spring-security-web},
+  then {spring-aop, spring-security-config}, each carrying byte-identical CVE id sets.
+  Per-artifact (packageUrl) entries would be whack-a-mole; the entries below pin each CVE
+  to the product CPEs of the exact shipped version instead, so they cover EVERY artifact
+  of the two lines in every run and nothing else (no other dependency in the tree maps to
+  those product CPEs at those versions).
+
+  WHY SUPPRESSED (per the decision): the patched releases do not exist on Maven Central —
+  6.2.20 and 6.5.12 are not there, both lines ended at the shipped versions, and Spring
+  Boot 3.5.16 is the last 3.5.x. The only fix is the Spring Boot 4 migration (Spring
+  Framework 7, Java 25+, jakarta churn across the backend), which the owner decided NOT
+  to take now: a framework major is the opposite of "minimal, stability first" (it would
+  touch every module and invalidate the verified test suite), and the affected paths are
+  server-side framework internals behind our own filters — no user-controlled
+  deserialisation is exposed. Every entry below is dated 2026-09-25 and names Boot 4 as
+  the re-fix trigger. Expiry condition for ALL 15: delete them when the Boot 4 migration
+  ships. Owner: the Boot 4 migration, a deliberately scheduled project, not a lane. A
+  suppressed 9.8 with no released fix is the legitimate case for suppression; an undated
+  one is not.
+
+  Not suppressed (visible in the scan report, below the CVSS 7 gate, no build impact):
+  5 further findings per Spring Framework 6.2.19 artifact (CVE-2026-47883/47887/59280/
+  59281/59314), 2 per Spring Security 6.5.11 artifact (CVE-2026-47842/59276),
+  spring-data-jpa 3.5.13 (CVE-2026-47834) and the DOMPurify 3.4.11 bundled in swagger-ui
+  5.32.7 (CVE-2026-66010, CVE-2026-75838 — new advisories on the fix release the pom
+  pinned for CVE-2026-65898; an advisory-lane call, not a suppression).
+
+  FILE HISTORY:
+  - 2026-09-25: namespace corrected. The file declared
+    https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0, but the 1.3
+    XSD shipped in plugin 12.1.9 (and the plugin's own dependencycheck-base-suppression.xml)
+    targets https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd —
+    every parse discarded this file with a cvc-elt.1.a warning. Harmless while the file was
+    empty (no lane runs the scan; gates skip dependency-check), but it would have silently
+    voided these entries, so the header now matches the bundled schema.
+  - The two entries this file once carried (W2-C, measured 2026-09-22 against
+    branch feature/frontend HEAD, plugin 12.1.9) were both CVSS v3.1 base 5.3
+    (MEDIUM — below the CVSS 7 gate threshold) and both owned by W3-C:
     - commons-lang3 3.17.0 / CVE-2025-48924 (uncontrolled recursion) —
       W3-C bumped commons-lang3 to 3.19.0 (fix landed at 3.18.0); entry
       deleted.
@@ -27,7 +71,97 @@
   dependency, fix version, owner, expiry) whenever a future scan surfaces a
   below-threshold finding you are deliberately not fixing yet.
 -->
-<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0"
-              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-              xsi:schemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0 https://jeremylong.github.io/DependencyCheck/css/dependency-suppression-1.3.0.xsd">
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <!-- Boot 4 trigger, 2026-09-25: the Spring Framework line ended at 6.2.19 — 6.2.20 is
+         not on Maven Central and Boot 3.5.16 is the last 3.5.x. Twelve findings at/above
+         the CVSS 7 gate, one entry per CVE, pinned to the product CPEs of the exact
+         shipped version: this covers every artifact of the 6.2.19 line (measured so far:
+         spring-core, spring-tx, spring-aop) in every scan. Re-fix trigger: the Spring
+         Boot 4 migration (Spring Framework 7, Java 25+) — owner-scheduled project, not a
+         lane. Delete with that migration. -->
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47884</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47890</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47891</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47892</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-59313</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-59283</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47885</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47886</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47888</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47889</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-47893</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Framework line ended at 6.2.19 (6.2.20 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.2.19 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_framework:6\.2\.19:.*$</cpe>
+        <cve>CVE-2026-59282</cve>
+    </suppress>
+
+    <!-- Boot 4 trigger, 2026-09-25: the Spring Security line ended at 6.5.11 — 6.5.12 is
+         not on Maven Central and Boot 3.5.16 is the last 3.5.x. Three findings at/above
+         the CVSS 7 gate, one entry per CVE, pinned to the product CPEs of the exact
+         shipped version: this covers every artifact of the 6.5.11 line (measured so far:
+         spring-security-core, spring-security-web, spring-security-config) in every scan.
+         Re-fix trigger: the Spring Boot 4 migration — owner-scheduled project, not a
+         lane. Delete with that migration. -->
+    <suppress>
+        <notes>Spring Security line ended at 6.5.11 (6.5.12 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.5.11 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_security:6\.5\.11:.*$</cpe>
+        <cve>CVE-2026-59270</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Security line ended at 6.5.11 (6.5.12 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.5.11 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_security:6\.5\.11:.*$</cpe>
+        <cve>CVE-2026-41707</cve>
+    </suppress>
+    <suppress>
+        <notes>Spring Security line ended at 6.5.11 (6.5.12 not on Maven Central; Boot 3.5.16 is the last 3.5.x); product-level finding covering all 6.5.11 artifacts. Suppressed 2026-09-25; re-fix trigger: the Spring Boot 4 migration (Spring Framework 7, Java 25+), owner-scheduled. Owner: Boot 4 migration project. Delete with that migration.</notes>
+        <cpe regex="true">^cpe:2\.3:a:(pivotal_software|springsource|vmware):spring_security:6\.5\.11:.*$</cpe>
+        <cve>CVE-2026-47841</cve>
+    </suppress>
+
 </suppressions>
