@@ -1,6 +1,7 @@
 package ee.sheltermap.app;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
+import ee.sheltermap.api.SubmitterVerification;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.ReviewStatus;
@@ -221,8 +222,13 @@ public class ShelterService {
         // claim — the exact definition the DTO derives for a live author
         // (addPlace's canWrite gate guarantees this account may submit; a
         // policy that ever allowed writing with no claims would snapshot
-        // false, which is the honest answer).
+        // false, which is the honest answer). The DEPTH twin (V35) rides
+        // alongside — the same claim set in the depth form; the erasure
+        // later re-freezes it to the account's last standing, while the
+        // boolean stays the write-time answer.
         place.setSubmitterVerifiedAtCreation(!user.getData().levels().isEmpty());
+        SubmitterVerification depthAtWrite = SubmitterVerification.of(user.getData().levels());
+        place.setSubmitterVerificationSnapshot(depthAtWrite == null ? null : depthAtWrite.name());
         // community-review-queue v2: new community rows publish
         // immediately with the unverified trust state — the public list
         // is unchanged, the UI shows the "newly added" treatment.
@@ -479,8 +485,9 @@ public class ShelterService {
      * identity (id, createdAt, author), status/source, the registry
      * fields and the admin/trust-owned state (the auto-hide disarm
      * flag, the admin note, the "inaccurate" stamp, and the write-time
-     * trust snapshot — the standing is as at the SUBMISSION, an edit
-     * never re-snapshots it). {@code reviewStatus} is deliberately NOT
+     * trust snapshots (the V31 boolean and its V35 depth twin) — the
+     * standing is as at the SUBMISSION, an edit never re-snapshots it).
+     * {@code reviewStatus} is deliberately NOT
      * copied: {@link #updatePlace} decides it in every case (the
      * owner-edit trust reset — an owner can never self-confirm by
      * editing). An absent {@code locationKind} keeps the row's current
@@ -508,6 +515,7 @@ public class ShelterService {
         next.setInaccurateMarkedAt(current.getInaccurateMarkedAt());
         next.setInaccurateMarkedBy(current.getInaccurateMarkedBy());
         next.setSubmitterVerifiedAtCreation(current.getSubmitterVerifiedAtCreation());
+        next.setSubmitterVerificationSnapshot(current.getSubmitterVerificationSnapshot());
         next.setLocationKind(edit.locationKind() == null
                 ? current.getLocationKind() : edit.locationKind());
         return next;

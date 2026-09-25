@@ -85,6 +85,22 @@ public class Shelter {
     private Instant inaccurateMarkedAt;
     /** The moderating admin's user id; {@code null} while unmarked (NO-FK semantics, V20). */
     private Long inaccurateMarkedBy;
+    /**
+     * Depth twin of the V31 boolean snapshot (V35): the submitter's
+     * verification DEPTH the row carries when its author is gone — one
+     * of the {@code SubmitterVerification} names (EMAIL / PHONE /
+     * SMART_ID / FULL) or {@code null}. Written at submission (the depth
+     * as at write time) and re-frozen by the erasure itself (the depth
+     * the row was reading at that moment — the last standing while the
+     * account was active), because the live derivation dies with the
+     * author. Reads use it only when the author is gone; {@code null}
+     * (pre-V35 rows, registry rows, an author with nothing confirmed at
+     * erasure) resolves the orphaned row UNVERIFIED — the no-backfill
+     * decision, as for the boolean. Stored as the enum's name (a String)
+     * because the enum lives in the api layer and the domain stays below
+     * it.
+     */
+    private String submitterVerificationSnapshot;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -189,6 +205,14 @@ public class Shelter {
 
     public void setSubmitterVerifiedAtCreation(Boolean submitterVerifiedAtCreation) {
         this.submitterVerifiedAtCreation = submitterVerifiedAtCreation;
+    }
+
+    public String getSubmitterVerificationSnapshot() {
+        return submitterVerificationSnapshot;
+    }
+
+    public void setSubmitterVerificationSnapshot(String submitterVerificationSnapshot) {
+        this.submitterVerificationSnapshot = submitterVerificationSnapshot;
     }
 
     public String getName() {

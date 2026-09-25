@@ -221,12 +221,14 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(status().isNotFound());
 
         // 2. the public row is ORPHANED: kept, created_by NULL, trust state
-        //    untouched (CONFIRMED stays CONFIRMED), and the V31 write-time
-        //    verification snapshot SURVIVES the erasure — the row keeps the
-        //    verified standing its author had at the write (the pre-V31
-        //    NULL-creator render is gone for rows written after the
-        //    snapshot column landed; the submitterVerification DEPTH stays
-        //    live-derived and is absent, because the author is gone).
+        //    untouched (CONFIRMED stays CONFIRMED), and the write-time
+        //    verification snapshots SURVIVE the erasure — the row keeps the
+        //    verified standing its author had (the V31 boolean as at the
+        //    write; the V35 depth, frozen by the erasure to the row's
+        //    standing at that moment — here the author's single confirmed
+        //    channel, EMAIL). (Pre-fix pin: the depth was asserted ABSENT
+        //    here, which pinned the degradation bug — see
+        //    reviews/code-review/erasure-depth-fix.md.)
         assertThat(shelters.findById(pubA)).isPresent();
         var pubAEntity = shelters.findById(pubA).orElseThrow();
         assertThat(pubAEntity.getCreatedBy()).isNull();
@@ -236,11 +238,12 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.locationKind").value("PUBLIC"))
                 .andExpect(jsonPath("$.submitterVerified").value(true))
-                // Erasure-trust: the depth behind the "verified yellow" marker
-                // is absent (the author is gone — the depth is still
-                // live-derived), and the row keeps its ordinary community
-                // provenance — deletion grants no NEW verified standing.
-                .andExpect(jsonPath("$.submitterVerification").doesNotExist())
+                // Erasure-trust: the depth behind the verified marker is the
+                // row's standing at erasure — the author's one confirmed
+                // channel, EMAIL (frozen onto the row by the erasure, V35).
+                // The row keeps its ordinary community provenance —
+                // deletion grants no NEW standing and takes none away.
+                .andExpect(jsonPath("$.submitterVerification").value("EMAIL"))
                 .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"))
                 .andExpect(jsonPath("$.address").value(nullValue()));
 

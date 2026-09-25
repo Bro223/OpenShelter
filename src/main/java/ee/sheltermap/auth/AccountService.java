@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.api.SubmitterVerification;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ShelterRepository;
@@ -133,9 +134,12 @@ public class AccountService {
      * delete would leave them cached); their child rows cascade via the
      * DB. Public community rows are ORPHANED instead ({@code created_by
      * -> NULL}, V7's ON DELETE SET NULL intent executed explicitly): map
-     * data outlives accounts, and trust state is untouched — a CONFIRMED
-     * row stays CONFIRMED with no author, and a newly-NULL creator is not
-     * a signal to re-review. The moderation-audit action rows survive,
+     * data outlives accounts, and the standing is preserved — a CONFIRMED
+     * row stays CONFIRMED with no author, a newly-NULL creator is not a
+     * signal to re-review, and the row's trust standing (the V31 verified
+     * snapshot, plus the V35 depth freeze re-frozen to the row's standing
+     * at this very moment) is what any read of the orphaned row serves.
+     * The moderation-audit action rows survive,
      * their free-text reasons redacted (the notes were written to the
      * erased submitter and may echo their contacts). The user row is
      * erased and the DB does the rest: every child {@code user_id} FK is
@@ -159,7 +163,15 @@ public class AccountService {
         // (managed entities), and the full id set — purged private homes
         // included — is the audit-redaction scope.
         List<Shelter> mine = shelterRepository.findByCreatedBy(userId);
-        purgePrivateHomesAndOrphanPublicRows(mine);
+        // The V35 depth freeze: the submitter's verification DEPTH as the
+        // orphaned rows read it at this very moment — the same pure
+        // function over the same active claim set the live derivation
+        // serves, so each orphaned row keeps exactly the standing it had
+        // while the account was active. Computed BEFORE the user row goes:
+        // the claim set cascades away with it, and this is the last moment
+        // it can be read.
+        SubmitterVerification depthAtErasure = SubmitterVerification.of(user.getData().levels());
+        purgePrivateHomesAndOrphanPublicRows(mine, depthAtErasure);
 
         // The audit rows stay; their free text goes.
         if (!mine.isEmpty()) {
@@ -175,15 +187,23 @@ public class AccountService {
      * The shelter side of the erasure, row by row: a declared private home
      * is purged; a public community row is orphaned — {@code created_by}
      * and the submitter-facing review note go NULL, the review and open
-     * status stay exactly as they were.
+     * status stay exactly as they were, and the V35 depth snapshot is
+     * re-frozen to {@code depthAtErasure} (the row's standing at the
+     * moment of the erasure): the live derivation dies with the author,
+     * so the orphaned row serves this frozen depth instead of it. A null
+     * here means the author had nothing confirmed — the row reads
+     * unverified, exactly as it read before the erasure.
      */
-    private void purgePrivateHomesAndOrphanPublicRows(List<Shelter> shelters) {
+    private void purgePrivateHomesAndOrphanPublicRows(List<Shelter> shelters,
+                                                      SubmitterVerification depthAtErasure) {
         for (Shelter shelter : shelters) {
             if (shelter.getLocationKind() == LocationKind.PRIVATE) {
                 shelterRepository.deleteById(shelter.getId());
             } else {
                 shelter.setCreatedBy(null);
                 shelter.setReviewNote(null);
+                shelter.setSubmitterVerificationSnapshot(
+                        depthAtErasure == null ? null : depthAtErasure.name());
                 shelterRepository.save(shelter);
             }
         }

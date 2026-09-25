@@ -78,6 +78,18 @@ public class ShelterEntity {
     @Column(name = "submitter_verified_at_creation")
     private Boolean submitterVerifiedAtCreation;
 
+    /**
+     * Depth twin of the V31 boolean snapshot (V35): the submitter's
+     * verification depth, frozen onto the row — at submission as at
+     * write time, re-frozen at erasure to the row's standing at that
+     * moment. One of the SubmitterVerification names, or NULL (pre-V35
+     * rows, registry rows, an author with nothing confirmed at erasure)
+     * — an orphaned row with NULL reads unverified (the no-backfill
+     * decision).
+     */
+    @Column(name = "submitter_verification_snapshot", length = 16)
+    private String submitterVerificationSnapshot;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -257,6 +269,14 @@ public class ShelterEntity {
 
     public void setSubmitterVerifiedAtCreation(Boolean submitterVerifiedAtCreation) {
         this.submitterVerifiedAtCreation = submitterVerifiedAtCreation;
+    }
+
+    public String getSubmitterVerificationSnapshot() {
+        return submitterVerificationSnapshot;
+    }
+
+    public void setSubmitterVerificationSnapshot(String submitterVerificationSnapshot) {
+        this.submitterVerificationSnapshot = submitterVerificationSnapshot;
     }
 
     public Instant getCreatedAt() {

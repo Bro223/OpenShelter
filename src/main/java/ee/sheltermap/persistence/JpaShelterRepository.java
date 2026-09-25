@@ -74,11 +74,13 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setCapacity(shelter.getCapacity());
         entity.setCreatedAt(shelter.getCreatedAt());
         entity.setCreatedBy(shelter.getCreatedBy());
-        // The write-time trust snapshot (V31) is carried through every save
-        // — in particular the erasure path's createdBy=NULL update must not
-        // drop it (AccountService.deleteAccount saves the mutated domain
-        // row; the snapshot rides on the domain, so it survives).
+        // The write-time trust snapshots (the V31 boolean and its V35 depth
+        // twin) are carried through every save — in particular the erasure
+        // path's createdBy=NULL update must not drop them (AccountService.
+        // deleteAccount saves the mutated domain row; the snapshots ride on
+        // the domain, so they survive).
         entity.setSubmitterVerifiedAtCreation(shelter.getSubmitterVerifiedAtCreation());
+        entity.setSubmitterVerificationSnapshot(shelter.getSubmitterVerificationSnapshot());
         entity.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
         entity.setReviewStatus(shelter.getReviewStatus());
         entity.setReviewNote(shelter.getReviewNote());
@@ -324,6 +326,7 @@ public class JpaShelterRepository implements ShelterRepository {
         shelter.setCreatedAt(entity.getCreatedAt());
         shelter.setCreatedBy(entity.getCreatedBy());
         shelter.setSubmitterVerifiedAtCreation(entity.getSubmitterVerifiedAtCreation());
+        shelter.setSubmitterVerificationSnapshot(entity.getSubmitterVerificationSnapshot());
         shelter.setAutoHideDisarmed(entity.isAutoHideDisarmed());
         shelter.setReviewStatus(entity.getReviewStatus());
         shelter.setReviewNote(entity.getReviewNote());

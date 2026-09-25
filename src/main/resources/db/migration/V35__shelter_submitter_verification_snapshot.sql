@@ -1,0 +1,23 @@
+-- Depth twin of the V31 boolean trust snapshot: the submitter's
+-- verification DEPTH (EMAIL / PHONE / SMART_ID / FULL) frozen onto the
+-- row so that account erasure — created_by ON DELETE SET NULL (V7) —
+-- cannot change a submission's standing. V31 froze "was verified at
+-- write time"; the depth is the field the pin actually renders, and
+-- while it was live-derived from the author's CURRENT claims it
+-- reverted every orphaned FULL/PARTIAL row to unverified the moment
+-- the account went away.
+--
+-- Written at submission (the depth as at write time) and re-frozen by
+-- the erasure itself, which saves each orphaned row carrying the depth
+-- it was reading at that moment — the standing the row had while the
+-- account was active (a channel revoked before erasure is already
+-- absent from it, exactly as a live read showed).
+--
+-- NULL = no snapshot: pre-V35 rows, every non-user write path (registry
+-- imports have no author by design), and orphans whose author had
+-- nothing confirmed at erasure. Reads use the column only when the
+-- author is gone; NULL there resolves UNVERIFIED — the no-backfill
+-- decision, as for the boolean: an already-orphaned pre-V35 row keeps
+-- the standing it has always resolved, and inventing a past for rows
+-- whose author is gone would be guessing provenance.
+ALTER TABLE shelters ADD COLUMN submitter_verification_snapshot VARCHAR(16);

@@ -112,13 +112,13 @@ public record ShelterDto(
                 + "author) and for authors whose account no longer exists "
                 + "(an orphaned pre-V31 row resolves unverified).")
         boolean submitterVerified,
-        @Schema(description = "The submitter's verification DEPTH, derived live "
-                + "from the author's CURRENT active claims: EMAIL / PHONE / "
-                + "SMART_ID when exactly one channel is confirmed, FULL at two "
-                + "or more, null when there is no author (registry rows, a "
-                + "deleted account) or no confirmed channel yet. A row added at "
-                + "one channel upgrades to FULL as soon as the author confirms "
-                + "a second — nothing is stored on the shelter.")
+        @Schema(description = "The submitter's verification DEPTH — EMAIL / PHONE / "
+                + "SMART_ID at exactly one confirmed channel, FULL at two or more. "
+                + "A row with a live author derives it from the author's CURRENT "
+                + "active claims (a one-channel row upgrades to FULL as soon as a "
+                + "second is confirmed); an orphaned row serves the depth frozen "
+                + "onto it at erasure — the standing it had while the account was "
+                + "active. Null on registry rows and orphans with no snapshot.")
         SubmitterVerification submitterVerification,
         @Schema(description = "The NON_EXISTENT subset of the community reports "
                 + "(0 when none) — the UI's orange 'Reported' affordance fires "
