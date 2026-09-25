@@ -60,7 +60,7 @@ class GuidanceValidationTest {
 
     @Test
     void optionalAdminLocalePassesNullThroughAndValidatesTheRest() {
-        // admin-locale-scope: absent = the legacy locale-blind read.
+        // An absent locale means the legacy locale-blind read.
         assertThat(GuidanceValidation.optionalAdminLocale(null)).isNull();
         assertThat(GuidanceValidation.optionalAdminLocale("ru")).isEqualTo("ru");
         assertThatThrownBy(() -> GuidanceValidation.optionalAdminLocale(" "))

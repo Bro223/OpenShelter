@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * {@code heroImageId} {@code null} clears the hero (the previous asset
  * stays in the library). {@code heroImportUrl}
  * {@code null} clears the import URL; a non-null URL is fetched, validated
- * and stored AT SAVE, draft or published alike (the trigger) — a
+ * and stored AT SAVE time, draft or published alike — a
  * failed import never blocks the update (the response's
  * {@code heroImportError} names it, the URL is kept for a retry).
  */

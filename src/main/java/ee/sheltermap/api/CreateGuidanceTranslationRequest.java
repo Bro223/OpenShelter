@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code POST /admin/guidance/{id}/translations} body (bilingual-guidance, V26).
+ * {@code POST /admin/guidance/{id}/translations} body.
  *
  * <p>Creates a translation of the post in a NEW locale. {@code locale} is
  * required (VARCHAR(5)); the post must not already have a translation there

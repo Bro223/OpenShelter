@@ -3,7 +3,6 @@ package ee.sheltermap.auth;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import ee.sheltermap.verification.InMemoryVerificationSendLog;
-import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.SmsSender;
 import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationSendLog;
@@ -54,9 +53,6 @@ class OtpContactCapIT extends AbstractPersistenceIT {
     InMemoryVerificationSendLog sendLog;
 
     @Autowired
-    RollingContactOtpLimiter contactLimiter;
-
-    @Autowired
     RecordingSmtpSender smtp;
 
     @Autowired
@@ -86,7 +82,8 @@ class OtpContactCapIT extends AbstractPersistenceIT {
     @BeforeEach
     void clearFakes() {
         sendLog.clear();
-        contactLimiter.clear();
+        // The shared in-memory contact limiter needs no reset: the tests
+        // below use disjoint contacts, so no window carries over.
         smtp.clear();
         sms.clear();
     }

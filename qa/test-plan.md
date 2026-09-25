@@ -67,7 +67,7 @@ Conventions:
 | − expired code → 400 | R | `verification/EmailVerificationProviderTest.confirmExpiredPendingReturnsFalse` |
 | − SMART_ID level → 400 "eID not available yet" (stub) | R | `verification/VerificationServiceTest.smartIdProviderIsStubAndThrows`; FE `verify-page.spec.ts` (SMART_ID hidden) |
 | − resend within 60 s cooldown → 429 + Retry-After countdown | R | `auth/VerificationThrottleIT.burstOfVerificationRequestsIsThrottledWith429` (per-IP), `verification/VerificationServiceTest.requestWithinCooldownIsThrottled`; FE countdown tests |
-| − 6th send same UTC day (per user+level cap, durable file log) → 429 until midnight | R | `auth/VerificationDailyCapIT.dailyCapThrottleCarriesRetryAfterUntilUtcMidnight`, `verification/FileVerificationSendLogTest.concurrentTryRecordHonorsTheDailyCapExactly` |
+| − 6th send same UTC day (per user+level cap, durable file log) → 429 until midnight | R | `auth/VerificationDailyCapIT.dailyCapThrottleCarriesRetryAfterUntilUtcMidnight`, `verification/VerificationServiceTest.dailyCapBlocksFurtherSends` |
 | − per-contact OTP cap (email/phone shared, across users) | R | `auth/OtpContactCapIT.phoneCapThrottlesThirdRequestToTheSamePhone` (+email) |
 | − malformed 6-digit code blocked client-side before gateway | R | FE `verify-page.spec.ts` |
 | − real SMS/SMTP delivery + code expiry timing | R | **NEEDS MANUAL TEST** |

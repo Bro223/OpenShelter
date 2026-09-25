@@ -7,13 +7,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * One row of the moderation audit trail (community-review-queue) —
- * newest first.
+ * One row of the moderation audit trail — newest first.
  *
- * <p>{@code shelterName} is resolved at read time and renders "Deleted
- * shelter" once the row is gone (a shelter delete records its audit row
- * before the cascade, so the audit row outlives the shelter);
- * {@code previousStatus}/{@code newStatus} are the review_status values
+ * <p>The row's subject sits in {@code shelterName}: a shelter row
+ * renders the shelter name, resolved at read time ("Deleted shelter"
+ * once the row is gone — a shelter delete records its audit row before
+ * the cascade, so the audit row outlives the shelter); a user-scope row
+ * (USER_SUSPEND / USER_UNSUSPEND) renders "Account: name (email)" ("Deleted
+ * account" after the target's erasure); a guidance/media row renders its
+ * stored label snapshot. For those non-shelter rows {@code shelterId} is
+ * null and the review-status fields are null too.
+ *
+ * <p>{@code previousStatus}/{@code newStatus} are the review_status values
  * around the action (equal when the action does not move the review
  * state; {@code newStatus} null for DELETE); {@code reason} is the
  * REJECT/NEEDS_INFO note when given; {@code moderatorName} is the acting

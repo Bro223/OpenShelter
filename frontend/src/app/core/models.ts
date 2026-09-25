@@ -942,7 +942,7 @@ export type GuidanceStatus = 'DRAFT' | 'PUBLISHED';
 /**
  * The admin's view of one guidance post (GET /admin/guidance — unscoped:
  * every post, drafts included, in the stored manual order; scoped via
- * `?locale=` (admin-locale-scope): only the posts that HAVE content in that
+ * `?locale=`: only the posts that HAVE content in that
  * locale — a translation row there or the post's home being it — carrying
  * that locale's content — and GET /admin/guidance/{id}, the id-keyed detail
  * the admin form edits by, the same optional `?locale=` serving that
@@ -968,7 +968,7 @@ export interface AdminGuidancePostDto {
   locale: string;
   /**
    * The post's OWN (home) locale — never the content locale of a scoped
-   * read (admin-locale-scope). A foreign-locale edit never moves the home
+   * read. A foreign-locale edit never moves the home
    * (400); only the post's own-locale edit can.
    */
   homeLocale: string;
@@ -981,7 +981,7 @@ export interface AdminGuidancePostDto {
    * slot-preserving (the visible posts take the submitted order in their
    * slots of the global order, the other languages' posts keep their
    * values) — after one, the values are no longer a contiguous 1..N. The
-   * admin table shows it as the post's position (admin-locale-scope).
+   * admin table shows it as the post's position.
    */
   sortOrder: number;
   /** The media-library key of the hero image; null = no hero. */

@@ -6,7 +6,8 @@ import jakarta.validation.constraints.Size;
 /**
  * Request for the dev e-mail test endpoint ({@code POST /dev/email-test}).
  * {@code subject}/{@code message} are optional — they default to a fixed
- * test payload so a minimal {@code {"to":"..."}} body is enough.
+ * test payload so a minimal {@code {"to":"..."}} body is enough; a provided
+ * {@code subject} is trimmed, a provided {@code message} is used as given.
  *
  * <p>These are the only strings handed straight to
  * an outbound SMTP sender, so they carry the same boundary caps as every other

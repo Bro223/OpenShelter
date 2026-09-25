@@ -109,12 +109,6 @@ public class RollingContactOtpLimiter {
         return Result.ok();
     }
 
-    /** Clears all windows (test seam). */
-    public void clear() {
-        events.clear();
-        lastSweepMillis = clock.millis();
-    }
-
     private void evictExpired(Deque<Long> deque, long now) {
         while (!deque.isEmpty() && now - deque.peekFirst() >= windowMillis) {
             deque.removeFirst();

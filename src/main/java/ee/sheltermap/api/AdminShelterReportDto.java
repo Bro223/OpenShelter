@@ -9,11 +9,16 @@ import java.time.Instant;
 /**
  * One row of the admin shelter-report queue — the
  * reporter's identity (profile name + email) is admin-only data, never
- * exposed outside {@code /admin/*}. {@code dismissed} is the queue's
+ * exposed outside {@code /admin/*}. A gone shelter renders
+ * {@code shelterName} "Unknown" and {@code shelterStatus} null; an erased
+ * reporter renders {@code reporterName} "Unknown" and {@code reporterEmail}
+ * null. {@code dismissed} is the queue's
  * resolved marker ({@code dismissed_at != null}); dismissed rows stay in
  * the list, recorded as resolved. {@code damped} flags the self-interested
  * negative votes — recorded and shown,
- * contributing 0 to the weighted auto-hide tally.
+ * contributing 0 to the weighted auto-hide tally; only NON_EXISTENT
+ * reports can be damped (the reporter's own other USER listing of the
+ * same place).
  */
 @Schema(description = "One row of the admin shelter-report queue. The "
         + "reporter's identity (profile name + e-mail) is admin-only data, "

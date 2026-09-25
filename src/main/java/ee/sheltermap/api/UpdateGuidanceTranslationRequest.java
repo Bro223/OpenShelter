@@ -4,8 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * {@code PUT /admin/guidance/{id}/translations/{locale}} body (bilingual-
- * guidance, V26) — a FULL replace of the translation's content. The locale is
+ * {@code PUT /admin/guidance/{id}/translations/{locale}} body — a FULL replace of the translation's content. The locale is
  * the PATH key and never moves here. {@code slug} is optional: the translation
  * KEEPS its current slug when it is omitted; when given it must not collide
  * with another translation in the same locale (409 naming the slug). The body is

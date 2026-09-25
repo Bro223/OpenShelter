@@ -1639,7 +1639,7 @@ describe('AdminPage', () => {
 
     await switchTab('Guidance', element, fixture);
 
-    // admin-locale-scope: the list is fetched for the active UI language.
+    // The list is fetched for the active UI language.
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledWith({
       locale: 'en',
@@ -1653,7 +1653,7 @@ describe('AdminPage', () => {
     expect(rows[1]!.textContent).toContain('varjumine-droonirunnaku-ajal');
     expect(rows[1]!.textContent).toContain('Published');
     expect(rows[1]!.textContent).toContain('et');
-    // The Position column shows the shared sortOrder (admin-locale-scope).
+    // The Position column shows the shared sortOrder.
     expect(rows[1]!.querySelectorAll('td')[1]!.textContent!.trim()).toBe('1');
     expect(rows[1]!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('Yes');
     // The Published column is merged from the public index by slug (not '—').
@@ -1695,14 +1695,13 @@ describe('AdminPage', () => {
     expect(buttonByText(element, 'New post')).not.toBeNull();
   });
 
-  // admin-locale-split replaced the pre-split behavior this used to spec:
-  // a UI language switch no longer re-fetches the list (the list is the
-  // CONTENT language's, not the UI language's) — the admin-locale-split
-  // specs below cover both directions.
+  // A UI language switch no longer re-fetches the list (the list is the
+  // CONTENT language's, not the UI language's) — the specs below cover
+  // both directions.
 
-  // ---- admin-locale-split: the admin UI language and the content language
-  // are INDEPENDENT. The UI language drives the chrome (tab labels, buttons,
-  // the scope line's copy); the CONTENT language drives what the guidance
+  // ---- The admin UI language and the content language are INDEPENDENT.
+  // The UI language drives the chrome (tab labels, buttons, the scope
+  // line's copy); the CONTENT language drives what the guidance
   // list/detail/save/reorder calls scope to. A UI-language switch changes
   // the chrome only — the listed content stays where it was.
 
@@ -2078,7 +2077,7 @@ describe('AdminPage', () => {
     const rows = element.querySelectorAll('tbody tr');
     buttonByText(rows[1]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
     await settle(fixture);
-    // admin-locale-scope: the detail fetch is scoped to the active UI
+    // The detail fetch is scoped to the active UI
     // language (the editor round-trips that locale's content).
     expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'en');
     expect(element.querySelector('app-guidance-editor')).not.toBeNull();

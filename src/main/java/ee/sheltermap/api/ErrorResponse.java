@@ -3,8 +3,8 @@ package ee.sheltermap.api;
 import java.time.Instant;
 
 /**
- * The one uniform error shape for the whole API (01-TASK.md §8):
- * every error response — validation, 401, 403, 404, 429, 500 — is this record.
+ * The one uniform error shape for the whole API: every error response —
+ * validation, 401, 403, 404, 429, 500 — is this record.
  *
  * @param timestamp when the error occurred
  * @param status    the HTTP status code

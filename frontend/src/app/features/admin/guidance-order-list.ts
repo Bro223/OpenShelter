@@ -35,7 +35,7 @@ export class GuidanceOrderList {
   readonly loadError = input<string | null>(null);
   /** The page's shared busy flag (one in-flight mutation at a time). */
   readonly busy = input(false);
-  /** The CONTENT language this list belongs to (admin-locale-scope) —
+  /** The CONTENT language this list belongs to —
    *  the empty state and the scope line name it. */
   readonly contentLocale = input('en');
   /** The applied search term (admin-guidance-search): '' = no filter.

@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
  * title; when given it is validated to the generated shape and used
  * exactly as given (collision → 409 naming the slug). {@code status} is
  * optional: absent (or DRAFT) the post is created as a draft, an explicit
- * PUBLISHED makes it a one-shot "write and publish" . {@code locale}
+ * PUBLISHED makes it a one-shot "write and publish". {@code locale}
  * defaults from {@code app.guidance.default-locale} when omitted.
  * {@code heroImageId} + {@code heroImageAlt}: the alt is mandatory iff
  * the hero is set — the cross-field rule the service enforces (400).

@@ -75,7 +75,7 @@ describe('I18nService (i18n-et-en)', () => {
     });
   });
 
-  /* The admin content language (admin-locale-split): the locale the
+  /* The admin content language: the locale the
      guidance admin's list/detail/save/reorder calls scope to. It is the
      SECOND, independent language — the UI language (locale/setLocale,
      the public switcher's path) drives the chrome; the content language

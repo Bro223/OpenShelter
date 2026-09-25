@@ -13,10 +13,12 @@ import jakarta.validation.constraints.Size;
  *
  * <p>{@code description} and {@code capacity} are USER-submission details and
  * are stored on the shelter — the request boundary must not validate a value
- * and then drop it.
+ * and then drop it. Both are optional: an absent (or {@code null})
+ * {@code description} leaves the shelter with none, an absent (or
+ * {@code null}) {@code capacity} leaves its capacity unknown.
  *
- * <p>{@code locationKind} is the private-home declaration
- * (community-review-queue v2): {@code "PUBLIC" | "PRIVATE"} —
+ * <p>{@code locationKind} is the private-home declaration:
+ * {@code "PUBLIC" | "PRIVATE"} —
  * absent (or {@code null}) means PUBLIC; an unknown value is a 400
  * malformed body.
  */

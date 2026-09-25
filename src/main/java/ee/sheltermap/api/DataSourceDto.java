@@ -26,6 +26,17 @@ public record DataSourceDto(
                 + "when no import has run yet.")
         LastImport lastImport) {
 
+    /**
+     * One data_imports audit row. {@code at} is when the run FINISHED;
+     * {@code status} is the run outcome — OK (data applied), FAILED
+     * (registry-down abort), NOT_MODIFIED (a 304 no-change run) or SKIPPED
+     * (overlap skip): only OK and NOT_MODIFIED VERIFY the source's rows as
+     * current, a FAILED or SKIPPED run verifies nothing. {@code
+     * sourceVersion} is the upstream data version the run saw (HTTP
+     * Last-Modified / ETag) — the feed for the next run's
+     * If-Modified-Since — or null when the upstream sent none. The record
+     * delta is the run's applied changes.
+     */
     @Schema(description = "One data_imports audit row: when the import ran, "
             + "its outcome, the source version it saw, and the record "
             + "delta.")

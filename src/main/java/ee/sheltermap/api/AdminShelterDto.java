@@ -15,23 +15,24 @@ import java.time.Instant;
  * trust derivations as the public list (no N+1) plus the submitter's
  * profile name.
  *
- * <p>{@code nonexistentReports} is 0 when none;
- * {@code occupancy} is the fresh (≤ 2 h) block, null when nothing is
- * fresh; {@code submitter} is the creator's profile name, {@code null} for
- * registry rows (no author) and for creators whose account no longer
- * exists.
+ * <p>{@code nonexistentReports} is the open (not dismissed) NON_EXISTENT
+ * count, 0 when none — a dismissed report stops counting; {@code
+ * occupancy} is the fresh (≤ 2 h) block, null when nothing is fresh;
+ * {@code capacity} is the shelter's capacity, {@code null} when unknown
+ * (never submitted or set); {@code submitter} is the creator's profile
+ * name, {@code null} for registry rows (no author) and for creators whose
+ * account no longer exists.
  *
- * <p>Community trust (community-review-queue v2): {@code reviewStatus}
- * is the row's trust state — the "Unconfirmed" tab filters USER + NEW —
- * {@code reviewNote} is the admin's REJECT reason, and
- * {@code locationKind} is the private-home declaration (the "Private
- * location" badge renders on this surface too).
+ * <p>Trust state: {@code reviewStatus} is the row's trust state — the
+ * "Unconfirmed" tab filters USER + NEW — {@code reviewNote} is the
+ * admin's REJECT reason (null while nothing is said), and {@code
+ * locationKind} is the private-home declaration (the "Private location"
+ * badge renders on this surface too).
  *
- * <p>Provenance taxonomy: {@code provenance}
- * is the same server-derived value as on {@link ShelterDto} — this is the
- * one surface where all six values are reachable (the list keeps hidden
- * rows), so the admin badge renders REPORTED_INACTIVE / REJECTED tones
- * here.
+ * <p>Provenance: {@code provenance} is the same server-derived value as
+ * on {@link ShelterDto} — this is the one surface where all six values
+ * are reachable (the list keeps hidden rows), so the admin badge renders
+ * REPORTED_INACTIVE / REJECTED tones here.
  *
  * <p>Information request:
  * {@code infoRequest} is the moderator→submitter exchange for this row —

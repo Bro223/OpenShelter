@@ -761,9 +761,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     });
     if (post === null) {
       // create mode — the form starts blank; the post is created in the
-      // CONTENT language (admin-locale-scope + admin-locale-split — the
-      // language line names it), so the locale control is prefilled with
-      // it. The admin UI language does not drive it.
+      // CONTENT language (the language line names it), so the locale
+      // control is prefilled with it. The admin UI language does not
+      // drive it.
       this.form.get('locale')?.setValue(this.i18n.contentLocale());
       // the "no image" tick starts checked, so the URL field starts off
       // (see syncHeroImportDisabled).
@@ -784,8 +784,8 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     // ngAfterViewInit loads it into Quill from this control.
     this.form.get('body')?.setValue(post.bodyHtml);
     // The locale control declares the post's HOME language — NOT the
-    // content locale being edited (admin-locale-scope: a scoped read serves
-    // the active locale's row, whose `locale` may differ from the home).
+    // content locale being edited (a scoped read serves the active
+    // locale's row, whose `locale` may differ from the home).
     // A foreign-locale edit never moves the home (server 400), so the
     // prefill is the home and the control stays a home declaration.
     this.form.get('locale')?.setValue(post.homeLocale);
@@ -1113,11 +1113,11 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   }
 
   /**
-   * The LANGUAGE LINE (admin-locale-scope): the UI must state which
+   * The LANGUAGE LINE: the UI must state which
    * language is being edited. Edit mode: the post's CONTENT locale of the
    * scoped read (the row the form round-trips); create mode: the CONTENT
-   * language the post will be created in (admin-locale-split — not the
-   * admin UI language). A plain method (re-evaluated on
+   * language the post will be created in (not the admin UI language).
+   * A plain method (re-evaluated on
    * each CD pass — the post input and the locale signal both change only
    * when the page recreates/switches the editor).
    */

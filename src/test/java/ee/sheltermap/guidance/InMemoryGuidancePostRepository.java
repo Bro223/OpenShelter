@@ -38,7 +38,7 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
             Comparator.comparingInt(GuidancePost::getSortOrder)
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
 
-    /** The GLOBAL stored manual order (admin-locale-scope): sortOrder asc,
+    /** The GLOBAL stored manual order: sortOrder asc,
      *  publishedAt desc with nulls LAST (a draft's NULL stamp ranks after
      *  any stamped instant — the V28 backfill's tie-break rule), id desc.
      *  The locale-scoped admin list and the locale-scoped reorder both

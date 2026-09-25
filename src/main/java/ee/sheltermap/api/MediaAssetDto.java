@@ -16,8 +16,9 @@ import java.time.Instant;
  * (the takedown trail; null for a manual upload).
  * {@code srcset} is the thumbnail-{@code srcset} string — one
  * {@code w} descriptor per derivative that EXISTS on disk, or null when
- * the asset has none (a WebP original, a pre-feature upload) — the slot
- * then renders the original via plain {@code src}.
+ * the asset has none (a WebP original, an upload stored before
+ * derivatives existed) — the slot then renders the original via plain
+ * {@code src}.
  */
 public record MediaAssetDto(
         long id,

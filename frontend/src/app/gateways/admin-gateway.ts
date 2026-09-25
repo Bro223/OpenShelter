@@ -284,7 +284,7 @@ export class AdminGateway {
   /**
    * GET /admin/guidance/{id} -> AdminGuidancePostDto — the id-keyed detail
    * (the admin form edits by id — a draft has a slug, but the form never
-   * navigates by it). 404 unknown id. Scoped (admin-locale-scope, `locale`
+   * navigates by it). 404 unknown id. Scoped (`locale`
    * given): the DTO carries that locale's content; a post without content in
    * the locale answers the same 404 as an unknown id.
    */
@@ -323,7 +323,7 @@ export class AdminGateway {
    * re-imports. A failed import never blocks the update: the 200 body's
    * `heroImportError` names it and the URL is kept for a retry.
    *
-   * <p>Scoped (admin-locale-scope, `locale` given): the content fields
+   * <p>Scoped (`locale` given): the content fields
    * (title/slug/body/hero alt) are written to THAT locale's translation row
    * while the post-level fields (pinned, the hero reference, the import
    * URL) stay shared on the post. `request.locale` is the post's HOME
@@ -516,7 +516,7 @@ export class AdminGateway {
 }
 
 /**
- * The optional `?locale=` scope (admin-locale-scope) — empty string when
+ * The optional `?locale=` scope — empty string when
  * absent (the unscoped read).
  */
 function localeQuery(locale?: string): string {

@@ -3,8 +3,7 @@ package ee.sheltermap.api;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * {@code POST /admin/guidance/{id}/translations/attach} body (bilingual-
- * guidance, V26).
+ * {@code POST /admin/guidance/{id}/translations/attach} body.
  *
  * <p>Attaches an EXISTING post as a translation of this one: the
  * {@code sourcePostId}'s home-locale translation row is re-parented onto the

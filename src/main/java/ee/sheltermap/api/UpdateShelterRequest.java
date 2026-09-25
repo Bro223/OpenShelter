@@ -15,9 +15,11 @@ import jakarta.validation.constraints.Size;
  * — name, description, capacity and the coordinate bounds cannot drift
  * between create and update. Only these fields are writable on an
  * existing shelter; status/source/registry fields/createdAt/createdBy
- * are never. {@code locationKind} is the private-home declaration
- * (community-review-queue v2): absent (or {@code null}) keeps the
- * row's current value.
+ * are never. The body is a FULL replace of the writable fields: an absent
+ * (or {@code null}) {@code description} or {@code capacity} CLEARS the
+ * stored value — the one kept-when-absent field is {@code locationKind},
+ * the private-home declaration (absent or {@code null} keeps the row's
+ * current value).
  *
  * <p>The shelter's trust state is NOT a field here: {@code
  * reviewStatus} is server-owned — the owner-edit trust reset in
