@@ -28,7 +28,10 @@ import java.time.Instant;
 public record AdminAlertDto(
         long id,
         @Schema(description = "The closed vocabulary of ThrottleAlert: "
-                + "submission daily cap / OTP contact cap / near-duplicate.")
+                + "submission daily cap / OTP contact cap (both 429 — the "
+                + "throttled caller) / near-duplicate (the 409 repeat-report "
+                + "rejection) / code-send-failure (a code delivery the channel "
+                + "refused — no HTTP error went out at all).")
         String kind,
         @Schema(description = "The flagged account or contact "
                 + "(user:<id> / contact:<normalized>).")

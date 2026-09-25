@@ -1705,7 +1705,7 @@ describe('AdminPage', () => {
   // list/detail/save/reorder calls scope to. A UI-language switch changes
   // the chrome only — the listed content stays where it was.
 
-  it('a UI language switch changes the admin chrome but leaves the listed content untouched (admin-locale-split)', async () => {
+  it('a UI language switch changes the admin chrome but leaves the listed content untouched', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
@@ -1738,7 +1738,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Varjumine droonirünnaku ajal');
   });
 
-  it('a UI language switch leaves the scoped empty state on the CONTENT locale (admin-locale-split)', async () => {
+  it('a UI language switch leaves the scoped empty state on the CONTENT locale', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([]));
     const i18nService = TestBed.inject(I18nService);
@@ -1762,7 +1762,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Keeles en juhiseid pole veel.');
   });
 
-  it('a content language switch changes the listed content and leaves the chrome untouched (admin-locale-split)', async () => {
+  it('a content language switch changes the listed content and leaves the chrome untouched', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
@@ -1793,7 +1793,7 @@ describe('AdminPage', () => {
     expect(document.documentElement.lang).toBe('en');
   });
 
-  it('the editor detail fetch and save scope to the content locale (admin-locale-split)', async () => {
+  it('the editor detail fetch and save scope to the content locale', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
@@ -1834,7 +1834,7 @@ describe('AdminPage', () => {
     expect(admin.updateGuidancePost.mock.calls[0]![2]).toBe('ru');
   });
 
-  it('reorder submits the content locale the rendered list came from (admin-locale-split)', async () => {
+  it('reorder submits the content locale the rendered list came from', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged(ORDERED_ROWS));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
@@ -1874,7 +1874,7 @@ describe('AdminPage', () => {
     expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12], 'et');
   });
 
-  it('the admin-language select is gone and the header switcher still changes the chrome (admin-locale-split)', async () => {
+  it('the admin-language select is gone and the header switcher still changes the chrome', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     const i18nService = TestBed.inject(I18nService);
     const { element, fixture } = await openAdmin();
@@ -1903,7 +1903,7 @@ describe('AdminPage', () => {
     expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
   });
 
-  it('the content-language control sits on the Guidance tab, re-scopes the list there, and leaves the chrome untouched (admin-locale-split)', async () => {
+  it('the content-language control sits on the Guidance tab, re-scopes the list there, and leaves the chrome untouched', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PUBLISHED]));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);

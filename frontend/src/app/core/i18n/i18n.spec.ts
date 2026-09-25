@@ -81,7 +81,7 @@ describe('I18nService (i18n-et-en)', () => {
      the public switcher's path) drives the chrome; the content language
      drives which posts are listed and which translation an edit writes.
      Default on first entry: the UI locale. Then independent + persisted. */
-  describe('contentLocale (admin-locale-split)', () => {
+  describe('contentLocale', () => {
     it('defaults to the UI locale when no content locale is stored', () => {
       const i18n = TestBed.inject(I18nService);
       expect(i18n.contentLocale()).toBe('en'); // UI locale is en
