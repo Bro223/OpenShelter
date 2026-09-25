@@ -52,6 +52,7 @@ import {
   markerTone,
 } from '../../shared/leaflet-service';
 import { haversineKm } from '../../shared/geolocation';
+import type { LegendTone } from './legend-view';
 import { LegendFilterView } from './legend-view';
 import { AnchorView } from './anchor-view';
 import { NearestView, nearestShelterAt } from './nearest-view';
@@ -65,7 +66,7 @@ const ANCHOR_ZOOM = 14;
  * Public home: '/map' (and '/', the default route). The read-only
  * shelter browse experience: a Leaflet map with divIcon markers toned
  * by verification depth (registry blue; community rows the
- * verification-depth shapes or the neutral unverified tone; the
+ * verification-depth shapes or the plain default community marker; the
  * reported-state red-orange override — the pin carries depth, not
  * recency) + a sidebar list, the "Open" / "Has capacity" chips, and
  * loading/empty/error states.
@@ -211,9 +212,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly sorted = computed<ShelterDto[]>(() => {
     const tones = this.legend.selectedTones();
     const rows = this.shelters().filter(
-      (row) =>
-        (!this.openOnly() || isOpenRowShared(row)) &&
-        (tones.size === 0 || tones.has(markerTone(row))),
+      (row) => (!this.openOnly() || isOpenRowShared(row)) && this.tonePasses(row, tones),
     );
     const list = [...rows];
     const userPosition = this.nearest.userPosition();
@@ -244,6 +243,19 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return da - db || a.name.localeCompare(b.name);
     });
   });
+
+  /** True when the row's pin tone passes the legend's selection — a
+   *  selection of zero tones shows everything. The selectable tones are
+   *  a subset of the markerTone() vocabulary: `user` (the plain default
+   *  community marker) is not a selectable tone, so such a row passes
+   *  only while no tone is selected. */
+  private tonePasses(row: ShelterDto, tones: ReadonlySet<LegendTone>): boolean {
+    if (tones.size === 0) {
+      return true;
+    }
+    const tone = markerTone(row);
+    return tone !== 'user' && tones.has(tone);
+  }
 
   /** Zero rows for the CURRENT view (the legend tone filter + the Open
    *  chip applied to the loaded list) — only when the fetch settled

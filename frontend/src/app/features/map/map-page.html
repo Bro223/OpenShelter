@@ -13,7 +13,7 @@
          over the map's bottom-left corner. Below 900px the stacked column
          renders it IN FLOW between the map and the sidebar — below the
          map, never over it (both placements pinned in map-page.spec.ts).
-         The legend IS the filter: the five pin-tone entries below are
+         The legend IS the filter: the four pin-tone entries below are
          toggle buttons. The selection is the URL's ?tones= param
          (URL-only — no localStorage) and is display-only (no refetch).
          The hint line is the mechanic AND the entries' accessible
@@ -39,24 +39,6 @@
           ></span>
         </span>
         {{ 'map.legend.registry' | t }}
-      </button>
-      <!-- Unverified community tone (yellow — the pin palette is
-           green/yellow/blue/red only, there is no grey in it): the pin
-           carries verification depth, not recency — NEW is a badge, never
-           a pin tone. -->
-      <button
-        type="button"
-        class="legend-item legend-item--toggle"
-        [class.legend-item--selected]="legend.toneSelected('user')"
-        [attr.aria-pressed]="legend.toneSelected('user')"
-        [attr.aria-describedby]="'map-legend-hint'"
-        (click)="legend.toggleTone('user')"
-        (keydown)="legend.onToneToggleKey('user', $event)"
-      >
-        <span class="legend-swatch-slot"
-          ><span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span
-        ></span>
-        {{ 'map.legend.unverified' | t }}
       </button>
       <!-- Verification depth by shape: yellow circle = one confirmed
            channel (partial), green circle = two or more (full). The trust

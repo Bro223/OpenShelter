@@ -54,17 +54,17 @@ export function inEstonia(latitude: number, longitude: number): boolean {
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
  * every theme; the verified-green re-tint did not touch
- * it). For
- * community rows the SHAPE + HUE then carry the submitter's verification
- * depth (submitter-verification-badge, owner logic): `user`
- * (depth absent) is the YELLOW TRIANGLE, `partial` (one confirmed channel)
- * the YELLOW CIRCLE, `full` (two or more) the GREEN CIRCLE — never colour
- * alone (WCAG 1.4.1, the same rationale as the anchor diamond). A
- * row whose depth the backend does not report (older API, deleted author)
- * keeps the community tone. There is deliberately NO recency term (owner
- * decision: the pin expresses verification depth, not recency — the NEW
- * state rides on the row's "Newly added" badge, never the marker). Registry
- * rows stay blue; hidden rows never reach the public map.
+ * it). For community rows the depth rides on the verified shapes:
+ * `partial` (one confirmed channel) is the YELLOW CIRCLE, `full`
+ * (two or more) the GREEN CIRCLE — never colour alone (WCAG 1.4.1, the
+ * same rationale as the anchor diamond). `user` (depth absent — older
+ * API, deleted author) is the plain default community marker: a plain
+ * circle in the community yellow, no verification affordance of its own
+ * (owner decision — the unverified pin state was removed). There is
+ * deliberately NO recency term (owner decision: the pin expresses
+ * verification depth, not recency — the NEW state rides on the row's
+ * "Newly added" badge, never the marker). Registry rows stay blue; hidden
+ * rows never reach the public map.
  */
 export function markerTone(shelter: {
   source: ShelterSource;
@@ -104,9 +104,9 @@ export function markerTone(shelter: {
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): the tone follows the trust
  * palette — registry blue (Päästeamet + Municipal), community rows the
- * verification-depth shapes (the verified green family) or the unverified
- * yellow community tone when the depth is absent; reported rows keep the
- * red override.
+ * verification-depth shapes (the verified green family) or the plain
+ * community yellow circle when the depth is absent; reported rows keep
+ * the red override.
  * The legend reuses the same classes, so the visual stays single-sourced.
  */
 @Injectable()

@@ -86,9 +86,9 @@ export function submitterVerificationKey(shelter: {
  * 'full' at two or more, null when there is nothing to show (registry rows, no
  * author, an older backend). The SHAPE carries the depth so the distinction
  * never rests on colour alone (WCAG 1.4.1) — the same rationale as the anchor
- * diamond. The colour family (verified green — the unverified user tone is
- * the yellow) is a second cue, not the only
- * one. Shares the tone vocabulary with {@code markerTone}.
+ * diamond. The colour family (verified green for the full shape, the
+ * community yellow for the partial and default circles) is a second
+ * cue, not the only one. Shares the tone vocabulary with {@code markerTone}.
  */
 export function verificationTone(shelter: {
   submitterVerification?: SubmitterVerification | null;

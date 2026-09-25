@@ -662,7 +662,7 @@ describe('design tokens', () => {
     // below re-derives the mix and checks the pair per theme). The
     // verified-green re-tint: the Community-checked badge text is the VERIFIED green
     // (the badge is the "confirmed by a verified submitter" cue; the
-    // unverified/half-verified pins are the yellow marker tones and the
+    // community/half-verified pins are the yellow marker tones and the
     // NEW badge is the solid warning chip below) — 4.67:1 light /
     // 8.05:1 dark, re-run by the spec on the literals.
     ['--color-shelter-registry', '--color-badge-registry'],
@@ -875,7 +875,7 @@ describe('design tokens', () => {
     // The same block's Community-checked chip (.badge--source.badge--user):
     // the verified green on its own 8% mix (4.71:1 light). Yellow can't
     // ride this pattern — yellow text on its own tint is 1.39:1 in light —
-    // so the unverified/half-verified pins use the fill-only marker tokens
+    // so the community/half-verified pins use the fill-only marker tokens
     // instead.
     {
       file: 'app/features/map/map-page.scss',
@@ -946,14 +946,14 @@ describe('design tokens', () => {
     expect(offenders, 'the verified family must be one value per theme').toEqual([]);
   });
 
-  it('the marker colours keep their meanings (owner decision: green=verified, yellow=unverified, blue=registry, red-orange=reported, teal=picked)', () => {
+  it('the marker colours keep their meanings (owner decision: green=verified, yellow=community, blue=registry, red-orange=reported, teal=picked)', () => {
     // The colour->meaning mapping the owner reads in the rest of the UI:
-    // GREEN means verified (the partial triangle + the full circle),
-    // UNVERIFIED is YELLOW (the community pin tone — the pin palette is
-    // green/yellow/blue/red only; there is no grey in it),
+    // GREEN means verified (the full circle), COMMUNITY is YELLOW (the
+    // plain default community marker + the partial circle — the pin
+    // palette is green/yellow/blue/red only; there is no grey in it),
     // registry stays BLUE, the reserved red-orange stays REPORTED, the pick
     // stays TEAL. A future re-tint that separates colour from meaning
-    // (verified re-painted yellow, the unverified tone painted green, the
+    // (verified re-painted yellow, the community tone painted green, the
     // reported family drifting into the green band) fails here in every
     // theme instead of shipping. The check is on HUE + SATURATION, not on
     // the hex, so a legitimate shade adjustment within a meaning still
@@ -1004,7 +1004,7 @@ describe('design tokens', () => {
         token: '--color-shelter-user',
         band: [45, 65],
         meaning:
-          'YELLOW — the unverified community tone (#ffd400 = 49.9°; the pin palette has no grey)',
+          'YELLOW — the community pin tone (#ffd400 = 49.9°; the pin palette has no grey)',
       },
       { token: '--color-shelter-registry', band: [190, 260], meaning: 'BLUE — registry' },
       {
@@ -1052,13 +1052,13 @@ describe('design tokens', () => {
     // both render — pinning each class to its token here means a re-tint can
     // only move the WHOLE meaning (the hue test above keeps the meaning),
     // never the assignment (e.g. painting .shelter-marker--user with the
-    // verified green while the legend still labels it unverified).
+    // verified green while the pin still reads as a verification state).
     const mapping: [string, string, string][] = [
       ['.shelter-marker--registry', 'background: var(--color-shelter-registry)', 'registry = blue'],
       [
         '.shelter-marker--user',
         'background: var(--color-shelter-user)',
-        'unverified = the yellow triangle (the fill is the inner pseudo-element triangle)',
+        'default community = the plain community yellow circle',
       ],
       [
         '.shelter-marker--full',
@@ -1094,9 +1094,9 @@ describe('design tokens', () => {
       expect(block, `${selector} rule missing from styles.scss (${why})`).not.toBeNull();
       expect(block, `${selector} must keep ${declaration} (${why})`).toContain(declaration);
     }
-    // The unverified triangle fill must NEVER take the verified green, in
-    // either direction of the fork (the whole block is checked: base rule +
-    // the nested pseudo-element edge/fill).
+    // The default community marker fill must NEVER take the verified green,
+    // in either direction of the fork (the whole block is checked: base
+    // rule + any nested pseudo-element fill).
     const user = balancedBlock(stylesCss, /^\.shelter-marker--user \{$/);
     expect(user, 'the .shelter-marker--user rule is missing').not.toBeNull();
     expect(user).not.toContain('var(--color-verified)');

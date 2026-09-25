@@ -101,17 +101,17 @@
      light, 10.31:1 dark). */
   --color-new: #237a57;
   /* Submitter-verified marker fill (submitter-verification-badge; the
-     verified-green re-tint): the ONE green-family value — shared by BOTH verification
-     shapes (triangle = one confirmed channel, circle = two or more; the
-     depth is carried by the shape, not by a second colour) AND the NEW
-     state (--color-new is unified with this token, owner decision). The
-     value is --color-success, the app's verification green — the colour
-     the owner reads as "verified" in the rest of the UI (verify page,
-     account verification state). One value on purpose: Leaflet renders
-     OSM tiles, which are light in every app theme — it holds 5.26:1 on
-     the white tile background, so the 2px --color-bg-surface edge
-     carries the silhouette. The UNVERIFIED user tone is the yellow
-     --color-shelter-user — yellow reads "not yet", never "verified". */
+     verified-green re-tint): the ONE green-family value — the FULL pin
+     (two or more confirmed channels; the depth is carried by the shape,
+     not by a second colour) AND the NEW state (--color-new is unified
+     with this token, owner decision). The value is --color-success, the
+     app's verification green — the colour the owner reads as "verified"
+     in the rest of the UI (verify page, account verification state). One
+     value on purpose: Leaflet renders OSM tiles, which are light in every
+     app theme — it holds 5.26:1 on the white tile background, so the 2px
+     --color-bg-surface edge carries the silhouette. The community (no-
+     depth) pin is the plain yellow --color-shelter-user circle — green
+     is the verified family, and yellow never reads "verified". */
   --color-verified: #237a57;
 
   /* Borders — quiet by design, below 3:1 on purpose (the documented
@@ -169,17 +169,17 @@
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
   --color-shelter-registry: #1769aa; /* registry (Päästeamet / municipality) — doubles as the badge text */
-  /* Unverified community tone (the verified-green re-tint, owner decision: the pin
-     palette is green / yellow / blue / red — UNVERIFIED is the yellow,
-     the community green became the verified family): the yellow the
-     verified pins used, now meaning "not yet verified" instead. The
-     fill-vs-tile contrast is the documented trade-off every marker tone
-     lives with (the 2px --color-bg-surface edge + the hue carry the pin).
-     FILL-ONLY: it paints the unverified triangle and the half-verified
-     circle — it never serves as TEXT (yellow on a tint is ~1.4:1 in light;
-     the Community-checked badge text is the verified green — the enforced
-     pair in design-tokens.spec.ts). */
-  --color-shelter-user: #ffd400; /* unverified community tone — yellow, never green */
+  /* Community pin yellow (the verified-green re-tint left the yellow to
+     the community family — the unverified pin state is gone, owner
+     decision): paints the PLAIN default community marker (a USER row
+     whose submitter depth the API does not report) and the PARTIAL
+     circle (one confirmed channel) — both render the same plain circle.
+     The fill-vs-tile contrast is the documented trade-off every marker
+     tone lives with (the 2px --color-bg-surface edge + the hue carry the
+     pin). FILL-ONLY: it paints marker fills only — it never serves as
+     TEXT (yellow on a tint is ~1.4:1 in light; the Community-checked
+     badge text is the verified green — the enforced pair in design-tokens.spec.ts). */
+  --color-shelter-user: #ffd400; /* community pin yellow — never the verified green */
   /* The selected/active-state hue (it was red — red now means "reported"
      and nothing else): darkened from the owner's #168c8c (4.07:1 on white
      — fails AA) to this value: 6.04:1 on the surface, 5.58:1 on bg,
@@ -322,10 +322,10 @@
 
      Map context: the MAP is not themed — OSM tiles stay light, so the
      marker tokens keep their TRUST coding (blue=registry, yellow=the
-     unverified community tone, green=the verified family, teal=the selected
+     yellow=the community tone, green=the verified family, teal=the selected
      pick — red means "reported" only; the verified-green re-tint moved the green
-     from the user tone to the verified family and the yellow from the
-     verified pins to the unverified tone).
+     from the user tone to the verified family and the yellow to the
+     community pins (the unverified triangle is gone — yellow = community).
      --color-shelter-registry is brightened from #1769aa, and
      --color-shelter-user keeps the light-theme yellow #ffd400, because the
      SAME tokens double as source/trust-badge TEXT in the
@@ -428,7 +428,7 @@
 
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
-  --color-shelter-user: #ffd400; /* the unverified yellow (the light value) — marker fill only, never a text colour (UI) */
+  --color-shelter-user: #ffd400; /* the community yellow (the light value) — marker fill only, never a text colour (UI) */
   --color-shelter-pick: #4dd0c4; /* the brightened accent — the pick pin is the selected state (see note above) */
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
 }
@@ -817,65 +817,65 @@ textarea::placeholder {
   background: var(--color-shelter-registry);
 }
 
-/* Unverified community tone — the YELLOW TRIANGLE (owner logic:
-   triangle = unverified user, yellow CIRCLE = half-verified user, green
-   circle = fully verified user — the shape AND the hue carry the state).
-   The triangle needs its edge drawn by pseudo-elements: `clip-path` on the
-   element itself clips the border away on the diagonal edges, which is why a
-   clipped triangle renders with no visible outline. Two clipped triangles —
-   the edge token behind, the fill in front, inset by scale() — reproduce the
-   circle's 2px border exactly.
-
-   REQUIRES A POSITIONED ANCESTOR: the pseudo-elements are absolute, so a
-   static host would resolve them against the nearest positioned ancestor
-   instead (map-page.scss .legend-swatch sets position: relative for exactly
-   this reason; Leaflet's own .leaflet-marker-icon is absolute). */
+/* Community default marker — a USER row whose submitter depth the API
+   does not report (an older backend that predates the field, or an
+   author whose account was erased and whose depth no longer derives)
+   renders the PLAIN community circle: the community yellow, the base
+   2px surface edge, no verification affordance of its own. The row's
+   badge and the detail page carry the not-yet-confirmed wording; the
+   pin carries verification depth, never recency (the "Newly added"
+   badge says NEW, never the pin).
+   OWNER DECISION: the distinct "unverified" pin state is removed. The
+   old state was the YELLOW TRIANGLE — triangle = unverified user, yellow
+   circle = half-verified user, green circle = fully verified user — and
+   it is gone for the reason the pin palette always argued: there is no
+   grey in it. Green is reserved for the verified depth, the community
+   yellow is the community's colour, so an unverified-own hue would have
+   stolen a hue that already meant something; the triangle separated
+   itself from the PARTIAL circle by shape alone, for a state (no
+   confirmed channel) the row already spells out in words. The plain
+   circle reads exactly that: community, depth not yet reported — and it
+   is deliberately indistinguishable from the partial pin (same hue, same
+   geometry), so a row that GAINS its first confirmed channel does not
+   repaint itself: the depth step is a state the row's badge already told
+   you about, not a colour jump.
+   The removed triangle was also the pin set's only SHAPE-only state pair
+   (it vs the partial circle, both yellow): with it gone, every remaining
+   pair that shares a shape shares a hue too — partial vs full was
+   already yellow vs green circles, never shape alone.
+   This rule declares a fill only: the circle's geometry (50% radius, the
+   2px surface edge, the shadow token) is inherited from `.shelter-marker`
+   — the deleted triangle was the only pin that had to override all three.
+   Kept, deliberately: the class name `--user` is markerTone's contract
+   for the no-depth USER row (and the legend-swatch class reuses it), and
+   `--color-shelter-user` is not a dead token — it feeds this rule AND
+   the partial circle below, in all three theme homes (this file's light
+   + high-contrast blocks, the BLACK_AND_YELLOW_TOKENS map in
+   core/theme-tokens.ts, the index.html prepaint — in lockstep, pinned
+   in design-tokens.spec.ts). The legend carries no entry for this
+   default tone: its entries are the SELECTABLE pin tones (registry /
+   partial / full / reported), and a row in this tone is visible by
+   default, never hidden behind its own filter.
+   Gone with the shape: the triangle's pseudo-element edge drawing
+   (clip-path cannot carry a border) and the triangle-only legend-swatch
+   fit in features/map/map-page.scss (recorded there for that file's
+   lane). A recency term must never re-enter markerTone for this tone —
+   the no-depth NEW and CONFIRMED rows share it, and the "Newly added"
+   badge, not the pin, says NEW (pinned in leaflet-service.spec.ts). */
 .shelter-marker--user {
-  background: none;
-  border: none;
-  border-radius: 0;
-  /* The inherited base shadow is a BOX shadow: it follows the element's square
-     box, so it painted a square halo behind the triangle (owner report: a
-     triangle sitting in a white square). drop-shadow() follows the RENDERED
-     shape instead — including the pseudo-element triangles below — and takes
-     the same token the circles use, so the depth cue stays consistent. */
-  box-shadow: none;
-  filter: drop-shadow(var(--shadow-marker));
-
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -2px; /* the circle's border box: the element is 14px, its edge is 18px */
-    clip-path: polygon(50% 4%, 96% 96%, 4% 96%);
-  }
-
-  &::before {
-    background: var(--color-bg-surface); /* the same edge token as the circle's border */
-  }
-
-  &::after {
-    /* The fill is inset from the OUTER triangle's edges by the same distance on
-       every side (a perpendicular offset, computed once and expressed in
-       percentages, so it holds at the map size and at the smaller legend
-       swatch). Scaling about the bounding box centre — the first attempt — left
-       an uneven gap, because a triangle's visual centre is not its box centre
-       (owner report: the yellow triangle looked off-centre inside the edge). */
-    background: var(--color-shelter-user);
-    clip-path: polygon(50% 26.4%, 79.8% 86%, 20.2% 86%);
-  }
+  background: var(--color-shelter-user);
 }
 
 /* Submitter verification depth (submitter-verification-badge, owner
-   logic — yellow is "not fully verified", green is verified): the HALF-
-   verified circle (one confirmed channel) keeps the unverified yellow, the
-   FULL circle (two or more) is the verified green; the unverified tone is
-   the yellow TRIANGLE above. Shape + hue carry the depth — never colour
-   alone (WCAG 1.4.1; the anchor diamond below uses the same rationale) —
-   and every shape carries the SAME 2px edge token as every other pin, so
-   the map and the legend read identically (an earlier dark outline here
-   read as a black border in the legend — owner report). Rows with an open
-   report keep the reported tone below. */
+   logic — yellow is "not fully verified", green is verified): the
+   PARTIAL circle (one confirmed channel) is the community yellow, the
+   FULL circle (two or more) the verified green; the plain default
+   community marker above is the no-depth row's plain circle. Shape + hue
+   carry the depth — never colour alone (WCAG 1.4.1; the anchor diamond
+   below uses the same rationale) — and every shape carries the SAME 2px
+   edge token as every other pin, so the map and the legend read
+   identically (an earlier dark outline here read as a black border in the
+   legend — owner report). Rows with an open report keep the reported tone below. */
 .shelter-marker--full {
   background: var(--color-verified);
 }

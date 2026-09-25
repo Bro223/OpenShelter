@@ -449,7 +449,7 @@ describe('MapPage', () => {
       ]);
     });
 
-    it('renders the six-entry legend: registry, the unverified community tone, the two verified shapes, reported, searched address', async () => {
+    it('renders the five-entry legend: registry, the two verified shapes, reported, searched address', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
@@ -457,16 +457,18 @@ describe('MapPage', () => {
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull(); // registry blue
       // NEW is NOT a marker tone and NOT a legend entry (owner decision: the
       // pin carries verification depth, not recency — the "Newly added"
-      // badge says NEW, never the pin): the legend stays six entries and
+      // badge says NEW, never the pin): the legend stays five entries and
       // carries no recency swatch (a re-added one needs the pin-tone
       // decision first).
       expect(legend?.querySelector('.shelter-marker--new')).toBeNull();
-      // The unverified community tone (the verified-green re-tint — green means
-      // verified, unverified is the YELLOW pin) is STILL rendered: a row
-      // whose submitter depth the API does not report keeps this tone.
-      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
+      // The unverified pin state is GONE (owner decision): no legend entry
+      // for the plain default community marker — a row whose submitter depth
+      // the API does not report renders the plain community circle, visible
+      // by default, never carried by its own legend entry.
+      expect(legend?.querySelector('.shelter-marker--user')).toBeNull();
       // Submitter verification depth (submitter-verification-badge): the SHAPE
-      // carries it — triangle at one confirmed channel, circle at two or more.
+      // carries it — the partial yellow circle at one confirmed channel, the
+      // full green circle at two or more.
       expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
@@ -475,14 +477,14 @@ describe('MapPage', () => {
       // "222 m from WHAT" is answerable at a glance.
       expect(legend?.querySelector('.shelter-marker--anchor')).not.toBeNull();
       expect(legend?.textContent).toContain('Registry');
-      expect(legend?.textContent).toContain('Added by an unverified user');
+      expect(legend?.textContent).not.toContain('Added by an unverified user');
       expect(legend?.textContent).toContain('Added by a partially verified user');
       expect(legend?.textContent).toContain('Added by a fully verified user');
       expect(legend?.textContent).toContain('Reported');
       expect(legend?.textContent).toContain('Searched address');
-      // Exactly six entries — no partner/official/proposed wording, no
-      // recency entry.
-      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(6);
+      // Exactly five entries — no partner/official/proposed wording, no
+      // recency entry, no unverified entry.
+      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(5);
       expect(legend?.textContent).not.toContain('Official');
       expect(legend?.textContent).not.toContain('Partner');
       expect(legend?.textContent).not.toContain('Proposed');
@@ -1446,13 +1448,13 @@ describe('MapPage', () => {
 
     it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
       const { element, fixture } = await open('/map');
-      // Unverified tone: TALLINN (a registry row) is filtered out of the
-      // list — a marker click arriving for it anyway (the filter changed
-      // between the map render and the click) must degrade silently.
-      const userToggle = element
-        .querySelector('.map-legend .shelter-marker--user')!
+      // Verified-depth tone: TALLINN (a registry row) is filtered out of
+      // the list — a marker click arriving for it anyway (the filter
+      // changed between the map render and the click) must degrade silently.
+      const fullToggle = element
+        .querySelector('.map-legend .shelter-marker--full')!
         .closest<HTMLButtonElement>('button.legend-item--toggle')!;
-      userToggle.click();
+      fullToggle.click();
       await settle(fixture);
       scrollSpy.mockClear();
 
@@ -1619,25 +1621,34 @@ describe('MapPage', () => {
       expect(gateway.list).toHaveBeenLastCalledWith('ALL');
     });
 
-    it('the chips combine with the legend tone selection (unverified tone + Open + Has capacity)', async () => {
+    it('the chips combine with the legend tone selection (partial tone + Open + Has capacity)', async () => {
+      const PARTIAL_CELLAR = shelter({
+        id: 53,
+        name: 'Partial Cellar',
+        address: null,
+        source: 'USER',
+        reviewStatus: 'CONFIRMED',
+        submitterVerification: 'PHONE',
+      });
       gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
-        Promise.resolve(trust?.hasCapacity ? [TALLINN] : [BASEMENT, TALLINN]),
+        Promise.resolve(trust?.hasCapacity ? [TALLINN] : [BASEMENT, PARTIAL_CELLAR, TALLINN]),
       );
       const { element, fixture } = await open('/map');
       const { open: openChip, hasCapacity } = trustControls(element);
 
-      // Unverified tone selected (BASEMENT is a USER row without a reported
-      // depth): only the community row shows, display-only.
-      const userToggle = element
-        .querySelector('.map-legend .shelter-marker--user')!
+      // Partial tone selected (PARTIAL_CELLAR is a USER row at one confirmed
+      // channel): only that row shows, display-only. The no-depth BASEMENT
+      // row is not a selectable tone, so it never matches the selection.
+      const partialToggle = element
+        .querySelector('.map-legend .shelter-marker--partial')!
         .closest<HTMLButtonElement>('button.legend-item--toggle')!;
-      userToggle.click();
+      partialToggle.click();
       await settle(fixture);
-      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+      expect(leaflet.lastRendered).toEqual([PARTIAL_CELLAR]);
 
-      openChip.click(); // client-side — BASEMENT is open (nothing fresh), stays
+      openChip.click(); // client-side — PARTIAL_CELLAR is open (nothing fresh), stays
       fixture.detectChanges();
-      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+      expect(leaflet.lastRendered).toEqual([PARTIAL_CELLAR]);
 
       hasCapacity.click(); // server-side — the ONLY refetch param left on the page
       await settle(fixture);
@@ -1649,7 +1660,7 @@ describe('MapPage', () => {
       // The tone selection applies on top of the fresh response: TALLINN is
       // a registry row, so the filtered view is empty.
       expect(leaflet.lastRendered).toEqual([]);
-      expect(router.url).toBe('/map?tones=user');
+      expect(router.url).toBe('/map?tones=partial');
     });
 
     it('a Has capacity refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
@@ -1853,19 +1864,19 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Legend filter (the legend IS the filter): the five pin-tone
+  // Legend filter (the legend IS the filter): the four pin-tone
   // entries are real toggle buttons (accessible name + pressed state,
   // keyboard operable); the selection persists in the URL only (?tones=,
   // URL-only — no localStorage), is display-only (no refetch, never alters
   // the loaded data), and the swatches keep reusing the EXACT marker classes
-  // (selection must not fork geometry or colour). The sixth entry — the
+  // (selection must not fork geometry or colour). The fifth entry — the
   // anchor diamond, the "Searched address" browse reference point — is NOT a
   // shelter pin tone, so it stays an inert legend entry.
   // ---------------------------------------------------------------------------
   describe('legend filter (the legend is the filter)', () => {
     // One shelter per pin tone, already in the name-sorted order:
-    // registry (blue) / user (yellow — the unverified triangle, the
-    // verified-green re-tint) / partial (yellow circle) / full (green
+    // registry (blue) / community (yellow — the plain default marker, not
+    // a selectable tone) / partial (yellow circle) / full (green
     // circle) / reported (red — beats everything).
     const REGISTRY_ROW = shelter({ id: 31, name: 'Alpha Registry Shelter' });
     const USER_ROW = shelter({
@@ -1913,19 +1924,18 @@ describe('MapPage', () => {
       return button;
     }
 
-    it('renders the five pin tones as real toggle buttons (accessible name + pressed state); the anchor entry stays inert', async () => {
+    it('renders the four pin tones as real toggle buttons (accessible name + pressed state); the anchor entry stays inert', async () => {
       const { element } = await open('/map');
       const legend = element.querySelector<HTMLElement>('.map-legend');
       const toggles = [
         ...legend!.querySelectorAll<HTMLButtonElement>('button.legend-item--toggle'),
       ];
-      expect(toggles).toHaveLength(5);
+      expect(toggles).toHaveLength(4);
       // Accessible name = the entry's own label text.
       expect(toggles[0].textContent).toContain('Registry (Päästeamet)');
-      expect(toggles[1].textContent).toContain('Added by an unverified user');
-      expect(toggles[2].textContent).toContain('Added by a partially verified user');
-      expect(toggles[3].textContent).toContain('Added by a fully verified user');
-      expect(toggles[4].textContent).toContain('Reported');
+      expect(toggles[1].textContent).toContain('Added by a partially verified user');
+      expect(toggles[2].textContent).toContain('Added by a fully verified user');
+      expect(toggles[3].textContent).toContain('Reported');
       // Initially nothing is selected; every toggle names the affordance
       // line as its accessible description (the how is text, not a colour).
       for (const button of toggles) {
@@ -1940,8 +1950,8 @@ describe('MapPage', () => {
       const anchorEntry = legend!.querySelector('.shelter-marker--anchor');
       expect(anchorEntry).not.toBeNull();
       expect(anchorEntry!.closest('button')).toBeNull();
-      // Still exactly six entries — no entry added or removed.
-      expect(legend!.querySelectorAll('.legend-item')).toHaveLength(6);
+      // Still exactly five entries — no entry added or removed.
+      expect(legend!.querySelectorAll('.legend-item')).toHaveLength(5);
     });
 
     it('selecting a tone filters the markers AND the list (display-only, no refetch)', async () => {
@@ -2017,6 +2027,12 @@ describe('MapPage', () => {
     it('clamps hand-typed values: an unknown tone drops and the URL normalizes in place', async () => {
       await open('/map?tones=bogus');
       expect(router.url).toBe('/map'); // the garbage value is dropped — no filter
+      expect(leaflet.lastRendered).toEqual(TONE_ROWS);
+    });
+
+    it('a stale link on the removed user tone sanitizes to no filter (the tone is gone)', async () => {
+      await open('/map?tones=user');
+      expect(router.url).toBe('/map'); // the removed tone drops — no filter
       expect(leaflet.lastRendered).toEqual(TONE_ROWS);
     });
 

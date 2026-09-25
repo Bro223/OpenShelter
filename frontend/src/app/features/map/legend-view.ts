@@ -1,14 +1,14 @@
 import { signal } from '@angular/core';
 import type { ActivatedRoute, Router, Params } from '@angular/router';
 
-/** The legend's five SELECTABLE pin tones, in legend order (the
+/** The legend's four SELECTABLE pin tones, in legend order (the
  *  legend IS the filter). The order is the canonical URL order for the
  *  `tones` param, and the names are the markerTone() vocabulary — the
  *  same words the marker classes use (`shelter-marker--{tone}`) — so a
- *  selected entry is exactly the pin the map draws. The sixth legend
- *  entry (the anchor diamond, the searched ADDRESS) is a UI reference
- *  point, not a shelter pin tone: it is deliberately not a member. */
-export const LEGEND_TONES = ['registry', 'user', 'partial', 'full', 'reported'] as const;
+ *  selected entry is exactly the pin the map draws. The plain `user` tone
+ *  (the default community marker) is deliberately not a member — the
+ *  default state has no filter entry — and neither is the anchor. */
+export const LEGEND_TONES = ['registry', 'partial', 'full', 'reported'] as const;
 
 /** One selectable legend (pin-tone) entry. */
 export type LegendTone = (typeof LEGEND_TONES)[number];

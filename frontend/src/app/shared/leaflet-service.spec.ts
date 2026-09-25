@@ -231,13 +231,13 @@ describe('LeafletService', () => {
 
   it('the pin carries verification depth, not recency: a freshly-added row at EVERY verification depth renders its depth tone, never a NEW tone (owner decision)', () => {
     // The regression the owner reported: recency outranked verification
-    // depth, so fresh community pins read as one unverified tone. The pin
-    // now expresses depth ONLY — a freshly-added row with one confirmed
-    // channel is the partial shape, two+ is the full shape, and a fresh
-    // no-depth row keeps the community tone alongside CONFIRMED rows
-    // (the "Newly added" badge, not the pin, says NEW). Every depth the
-    // model carries is rendered here, so a re-introduced recency tone
-    // cannot hide in a depth nobody renders.
+    // depth, so fresh community pins read as the plain no-depth community
+    // marker. The pin now expresses depth ONLY — a freshly-added row with
+    // one confirmed channel is the partial shape, two+ is the full shape,
+    // and a fresh no-depth row keeps the community tone alongside
+    // CONFIRMED rows (the "Newly added" badge, not the pin, says NEW).
+    // Every depth the model carries is rendered here, so a re-introduced
+    // recency tone cannot hide in a depth nobody renders.
     const freshEmail = shelter({
       id: 42,
       name: 'Fresh Email',

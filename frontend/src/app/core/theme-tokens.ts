@@ -138,7 +138,7 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   /* Map + markers (the map is not themed — tiles stay light) */
   '--color-shelter-registry': '#7ab8ff',
   '--color-shelter-user':
-    '#ffd400' /* the unverified yellow (the light value), never the verified green */,
+    '#ffd400' /* the community yellow (the light value), never the verified green */,
   '--color-shelter-pick': '#4dd0c4',
   '--color-map-placeholder': '#e9eef2',
 };
