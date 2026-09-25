@@ -349,20 +349,23 @@
     color: var(--color-danger);
   }
 
+  /* The address-result list role: the /submit .address-results carries
+     the same list gap (space-6) and result padding (space-8 space-12) —
+     one value for the same element (closing-decisions-2026-09-24 §4). */
   .anchor-search__results {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: var(--space-6);
 
     .anchor-search__result {
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
       width: 100%;
-      padding: var(--space-8) var(--space-10);
+      padding: var(--space-8) var(--space-12);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-lg);
       background: var(--color-bg-surface);
