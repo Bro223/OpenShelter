@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Spring Data repository for {@link GuidanceTranslationEntity} — internal to
- * the persistence layer (bilingual-guidance, V26).
+ * the persistence layer (V26).
  */
 public interface SpringDataGuidanceTranslationRepository
         extends JpaRepository<GuidanceTranslationEntity, Long> {

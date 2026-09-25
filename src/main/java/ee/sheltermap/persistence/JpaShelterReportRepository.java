@@ -137,6 +137,8 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
     @Override
     @Transactional(readOnly = true)
     public long countAll() {
+        // The report table's row count without paging (X-Total-Count) —
+        // the inherited CrudRepository.count is the one COUNT.
         return reports.count();
     }
 

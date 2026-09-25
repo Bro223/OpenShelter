@@ -104,7 +104,7 @@ public class ShelterEntity {
     private boolean autoHideDisarmed;
 
     /**
-     * Community trust state (V11, community-review-queue v2). NOT
+     * Community trust state (V11). NOT
      * NULL with the DB default NEW; the V11 backfill is the authority for
      * existing rows (USER → NEW, registry → CONFIRMED). The domain
      * aggregate carries the CONFIRMED default (the registry side), so
@@ -118,7 +118,7 @@ public class ShelterEntity {
     @Column(name = "review_note", length = 500)
     private String reviewNote;
 
-    /** The submitter's private-home declaration (V11, community-review-queue v2). */
+    /** The submitter's private-home declaration (V11). */
     @Enumerated(EnumType.STRING)
     @Column(name = "location_kind", nullable = false, length = 10)
     private LocationKind locationKind;

@@ -63,9 +63,6 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
             + "order by r.createdAt desc, r.id desc offset :offset fetch first :limit rows only")
     List<ShelterReportEntity> findLatest(@Param("offset") long offset, @Param("limit") int limit);
 
-    /** The report table's row count without paging (X-Total-Count —
-     *  the inherited {@code CrudRepository.count} is the one COUNT). */
-
     /** The NON-dismissed report count without paging — the admin queue's
      *  open-scope X-Total-Count (a single COUNT; the dismissed rows
      *  excluded by the same predicate every other read of this table uses). */

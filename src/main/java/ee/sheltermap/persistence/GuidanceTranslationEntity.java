@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code guidance_post_translations} (V26, bilingual-guidance).
+ * JPA entity for {@code guidance_post_translations} (V26).
  * One row per (post, locale); the (post_id, locale) and (locale, slug)
  * uniquenesses are enforced by the database constraints, and the post_id FK
  * cascades a hard delete of the post onto its translations. Every mapped column

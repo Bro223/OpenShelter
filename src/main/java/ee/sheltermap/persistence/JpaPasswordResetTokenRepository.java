@@ -13,7 +13,8 @@ import java.util.Objects;
 
 /**
  * JPA implementation of {@link PasswordResetTokenRepository}.
- * Codes are stored hashed (SHA-256); single-use is enforced by
+ * Codes are stored as a keyed one-way hash (the {@code v2:} form —
+ * {@code PiiCrypto.codeHash}); single-use is enforced by
  * {@code usedAt} + the service logic.
  */
 @Repository

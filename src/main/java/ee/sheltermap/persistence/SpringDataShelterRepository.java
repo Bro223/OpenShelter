@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -36,17 +37,17 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     /** Per-user daily submission cap count. */
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
-                                                    java.time.Instant createdAtAfter);
+                                                    Instant createdAtAfter);
 
     /** Derived reporter trust input. */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);
 
     /** Oldest USER submission since {@code createdAtAfter} — Retry-After for the daily cap. */
-    java.util.Optional<ShelterEntity> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
-            Long createdBy, ShelterSource source, java.time.Instant createdAtAfter);
+    Optional<ShelterEntity> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, Instant createdAtAfter);
 
-    /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
+    /** Stable order between requests: id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);
 
     List<ShelterEntity> findByIdIn(Collection<Long> ids);

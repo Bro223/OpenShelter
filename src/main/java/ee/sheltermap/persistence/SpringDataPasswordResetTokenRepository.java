@@ -22,14 +22,14 @@ public interface SpringDataPasswordResetTokenRepository extends JpaRepository<Pa
             + " and t.expiresAt > :now")
     void deleteActiveByUserId(@Param("userId") Long userId, @Param("now") Instant now);
 
-    /** V8 (S1b): newest created_at for the user's reset rows, or {@code null}. */
+    /** V8: newest created_at for the user's reset rows, or {@code null}. */
     @Query("select max(t.createdAt) from PasswordResetTokenEntity t where t.userId = :userId")
     Instant findLatestCreatedAtByUserId(@Param("userId") Long userId);
 
-    /** V8 (S1b): rows created within [from, to) — the UTC-day window. */
+    /** V8: rows created within [from, to) — the UTC-day window. */
     long countByUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             Long userId, Instant from, Instant to);
 
-    /** V8 (S1c): delete the user's rows past expiry. */
+    /** V8: delete the user's rows past expiry. */
     int deleteByUserIdAndExpiresAtLessThan(Long userId, Instant now);
 }

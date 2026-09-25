@@ -11,8 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * JPA implementation of {@link GuidanceTranslationRepository} (bilingual-
- * guidance, V26). The (post_id, locale) and (locale, slug) uniquenesses are
+ * JPA implementation of {@link GuidanceTranslationRepository} (V26). The (post_id, locale) and (locale, slug) uniquenesses are
  * enforced by the database constraints — a duplicate surfaces as a
  * {@code DataIntegrityViolationException} (the service pre-checks with
  * {@code existsBy*} and maps the expected duplicate to 409).

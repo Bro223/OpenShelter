@@ -14,8 +14,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code moderation_actions} (V11, community-review-queue
- *) — one row per admin moderation action, written in the same
+ * JPA entity for {@code moderation_actions} (V11) — one row per admin
+ * moderation action, written in the same
  * transaction as the action it records.
  */
 @Entity

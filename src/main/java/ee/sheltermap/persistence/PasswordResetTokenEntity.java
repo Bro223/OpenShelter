@@ -30,7 +30,7 @@ public class PasswordResetTokenEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    /** V8: creation time — anchors the rotation cooldown + daily cap (S1b). */
+    /** V8: creation time — anchors the rotation cooldown + daily cap. */
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

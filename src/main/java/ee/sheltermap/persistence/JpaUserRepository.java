@@ -188,12 +188,11 @@ public class JpaUserRepository implements UserRepository {
             return Map.of();
         }
         List<UserEntity> entities = users.findAllById(ids);
-        // One batched claims query for all users — no per-user N+1.
-        Map<Long, List<VerificationClaimEntity>> claimsByUser = claims.findByUserIdIn(ids).stream()
-                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
-        return entities.stream()
-                .collect(Collectors.toMap(UserEntity::getId,
-                        e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto)));
+        // The claims query runs over the LOADED ids, not the requested ones:
+        // an id with no user row has no claim rows (the FK cascades), so the
+        // result set is the same either way.
+        return toDomains(entities).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
     }
 
     @Override
@@ -250,16 +249,7 @@ public class JpaUserRepository implements UserRepository {
     @Override
     @Transactional(readOnly = true)
     public List<User> findAll() {
-        List<UserEntity> entities = users.findAllByOrderByIdAsc();
-        // One batched claims query for all users — no per-user N+1 (the
-        // findByIds idiom).
-        Map<Long, List<VerificationClaimEntity>> claimsByUser =
-                entities.isEmpty() ? Map.of()
-                        : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()
-                                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
-        return entities.stream()
-                .map(e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto))
-                .toList();
+        return toDomains(users.findAllByOrderByIdAsc());
     }
 
     @Override
@@ -267,17 +257,9 @@ public class JpaUserRepository implements UserRepository {
     public List<User> findAccountPage(long offset, int limit) {
         // The tab's population is REGISTERED + ADMIN: GUEST rows are
         // excluded in the SQL, so a page never loads — and never decrypts
-        // — the whole account population. One batched claims query for the
-        // page (the findAll idiom).
-        List<UserEntity> entities = users.findAccountPage(
-                List.of(UserKind.REGISTERED, UserKind.ADMIN), offset, limit);
-        Map<Long, List<VerificationClaimEntity>> claimsByUser =
-                entities.isEmpty() ? Map.of()
-                        : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()
-                                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
-        return entities.stream()
-                .map(e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto))
-                .toList();
+        // — the whole account population.
+        return toDomains(users.findAccountPage(
+                List.of(UserKind.REGISTERED, UserKind.ADMIN), offset, limit));
     }
 
     @Override
@@ -313,10 +295,15 @@ public class JpaUserRepository implements UserRepository {
     public List<User> findInactiveBefore(Instant cutoff) {
         Objects.requireNonNull(cutoff, "cutoff");
         // REGISTERED-kind only: the job prunes accounts — ADMIN is never
-        // a candidate, GUEST rows have no sign-in route. One batched
-        // claims query for the candidates (the findAll idiom).
-        List<UserEntity> entities =
-                users.findAllByKindAndLastActivityAtBefore(UserKind.REGISTERED, cutoff);
+        // a candidate, GUEST rows have no sign-in route.
+        return toDomains(users.findAllByKindAndLastActivityAtBefore(UserKind.REGISTERED, cutoff));
+    }
+
+    /**
+     * Maps the loaded rows to domains with ONE batched claims query —
+     * no per-user N+1 (the empty list skips the query).
+     */
+    private List<User> toDomains(List<UserEntity> entities) {
         Map<Long, List<VerificationClaimEntity>> claimsByUser =
                 entities.isEmpty() ? Map.of()
                         : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()

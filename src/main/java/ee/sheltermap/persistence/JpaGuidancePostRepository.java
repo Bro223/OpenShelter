@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -71,7 +73,7 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<GuidancePost> findByIds(java.util.Collection<Long> ids) {
+    public List<GuidancePost> findByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -111,7 +113,11 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
     @Override
     @Transactional(readOnly = true)
     public int maxSortOrder() {
-        return posts.maxSortOrder() == null ? 0 : posts.maxSortOrder();
+        // The append position is max + 1 (a concurrent append may land on
+        // the same position — the public order tie-breaks duplicates, so
+        // one max read is enough).
+        Integer max = posts.maxSortOrder();
+        return max == null ? 0 : max;
     }
 
     @Override

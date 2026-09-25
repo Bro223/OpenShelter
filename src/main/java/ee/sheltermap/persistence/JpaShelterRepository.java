@@ -40,7 +40,7 @@ public class JpaShelterRepository implements ShelterRepository {
         ShelterEntity entity;
         if (shelter.getId() != null) {
             // UPDATE path: mutate the MANAGED row in place. The domain has no
-            // version field (B7b), so merging a fresh entity would carry a
+            // version field, so merging a fresh entity would carry a
             // null @Version and the optimistic-lock UPDATE would match zero
             // rows. In-place mutation keeps the row's current version, which
             // is exactly what makes concurrent writes fail with an
@@ -232,25 +232,11 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional(readOnly = true)
     public List<Shelter> findAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern,
                                        long offset, int limit) {
-        // The same dynamic-query discipline as findActivePage (the planner
-        // traps documented there apply verbatim).
-        Map<String, Object> params = new HashMap<>();
-        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
-        if (sources.size() < ShelterSource.values().length) {
-            where.append(" AND s.source IN (:sources)");
-            params.put("sources", names(sources));
-        }
-        if (status != null) {
-            where.append(" AND s.status = :status");
-            params.put("status", status.name());
-        }
-        if (qPattern != null) {
-            where.append(" AND (lower(s.name) LIKE :q ESCAPE '\\' OR lower(s.address) LIKE :q ESCAPE '\\')");
-            params.put("q", qPattern);
-        }
+        AdminWhere where = adminWhere(status, sources, qPattern);
+        Map<String, Object> params = new HashMap<>(where.params());
         params.put("limit", limit);
         params.put("offset", offset);
-        String sql = "SELECT * FROM shelters s" + where
+        String sql = "SELECT * FROM shelters s" + where.fragment()
                 + " ORDER BY s.id ASC LIMIT :limit OFFSET :offset";
         return nativeRows(sql, params).stream().map(JpaShelterRepository::toDomain).toList();
     }
@@ -258,8 +244,23 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional(readOnly = true)
     public long countAdminPage(ShelterStatus status, List<ShelterSource> sources, String qPattern) {
-        // The count twin of findAdminPage — same dynamic where (the
-        // X-Total-Count value is the FILTERED length without paging).
+        // The count twin of findAdminPage: the X-Total-Count value is the
+        // FILTERED length without paging, so it must run the page's WHERE
+        // unmodified — one adminWhere, no second copy to drift.
+        AdminWhere where = adminWhere(status, sources, qPattern);
+        Query q = em.createNativeQuery("SELECT COUNT(*) FROM shelters s" + where.fragment(), Long.class);
+        where.params().forEach(q::setParameter);
+        return ((Number) q.getSingleResult()).longValue();
+    }
+
+    /**
+     * The admin list's dynamic WHERE, built exactly once for BOTH halves of
+     * the page-and-total pair: the page's rows and the X-Total-Count must
+     * answer the same filter, or a page and its total stop agreeing. The
+     * dynamic-query discipline is findActivePage's (the planner traps
+     * documented there apply verbatim).
+     */
+    private static AdminWhere adminWhere(ShelterStatus status, List<ShelterSource> sources, String qPattern) {
         Map<String, Object> params = new HashMap<>();
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         if (sources.size() < ShelterSource.values().length) {
@@ -274,9 +275,11 @@ public class JpaShelterRepository implements ShelterRepository {
             where.append(" AND (lower(s.name) LIKE :q ESCAPE '\\' OR lower(s.address) LIKE :q ESCAPE '\\')");
             params.put("q", qPattern);
         }
-        Query q = em.createNativeQuery("SELECT COUNT(*) FROM shelters s" + where, Long.class);
-        params.forEach(q::setParameter);
-        return ((Number) q.getSingleResult()).longValue();
+        return new AdminWhere(where.toString(), params);
+    }
+
+    /** The shared dynamic WHERE of the admin page and its count twin. */
+    private record AdminWhere(String fragment, Map<String, Object> params) {
     }
 
     /** A native SELECT over the shelter table, named params bound. */
