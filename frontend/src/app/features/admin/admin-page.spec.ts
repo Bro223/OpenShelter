@@ -2350,7 +2350,7 @@ describe('AdminPage', () => {
   // delete a foreign one (the two-tap confirm; the home-locale row is
   // never offered the trigger).
 
-  describe('translations (bilingual-guidance)', () => {
+  describe('translations', () => {
     it('the section shows the loading state while the rows load', async () => {
       admin.listShelters.mockResolvedValue(paged([]));
       admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));

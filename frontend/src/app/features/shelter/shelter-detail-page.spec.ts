@@ -924,7 +924,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
   // picker.
   // All endpoints mocked; 409 → the plain sentence-case line.
   // ---------------------------------------------------------------------------
-  describe('trust layer (shelter-trust-and-reports)', () => {
+  describe('trust layer', () => {
     const minutesAgo = (minutes: number): string =>
       new Date(Date.now() - minutes * 60000).toISOString();
 

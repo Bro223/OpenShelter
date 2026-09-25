@@ -1752,7 +1752,7 @@ describe('GuidanceEditor', () => {
 // on-screen row, the post-level fields are off it, and Save emits the
 // create-translation payload (the CREATE endpoint — never update).
 
-describe('translation authoring (bilingual-guidance)', () => {
+describe('translation authoring', () => {
   it('prefills from the on-screen row (title, body, alt; the slug BLANK) and Save emits the create-translation payload — never the update or create-post payloads', () => {
     const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
     expect(inputById(h.element, 'ge-title')!.value).toBe(EDIT_POST.title);
@@ -1855,7 +1855,7 @@ const EDIT_POST_EN: AdminGuidancePostDto = {
   heroImageAlt: 'Basement, view from the entrance',
 };
 
-describe('translation editing (bilingual-guidance)', () => {
+describe('translation editing', () => {
   it('prefills from the scoped row (title, body, alt, the slug PREFILLED) and Save emits the update-translation payload — never the update, create, or create-translation payloads', () => {
     const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
     expect(inputById(h.element, 'ge-title')!.value).toBe(EDIT_POST_EN.title);

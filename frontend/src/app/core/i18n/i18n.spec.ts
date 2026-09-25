@@ -20,7 +20,7 @@ import { TranslatePipe } from './translate-pipe';
  *    untranslated string can never silently ship blank.
  */
 
-describe('I18nService (i18n-et-en)', () => {
+describe('I18nService', () => {
   beforeEach(() => {
     // Fresh service per test (TestBed auto-reset) reads localStorage in
     // its constructor — clear it BEFORE the first inject.
@@ -139,7 +139,7 @@ describe('I18nService (i18n-et-en)', () => {
      locale wins, the shipped catalog is the default, the catalog default
      is readable for ANY locale (the admin panel's placeholder), and the
      link URLs fall back to the shipped defaults. */
-  describe('site-text overlay (site_texts)', () => {
+  describe('site-text overlay', () => {
     it('with no overrides, t() serves the shipped catalog (the default)', () => {
       const i18n = TestBed.inject(I18nService);
       expect(i18n.siteTexts()).toBeNull();
@@ -239,7 +239,7 @@ describe('TranslatePipe (t)', () => {
   });
 });
 
-describe('lazy catalog loading (bundle-lazy-i18n)', () => {
+describe('lazy catalog loading', () => {
   beforeEach(() => {
     // Fresh service per test (TestBed auto-reset) reads localStorage in
     // its constructor — clear it BEFORE the first inject.

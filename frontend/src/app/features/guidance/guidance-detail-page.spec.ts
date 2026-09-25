@@ -721,7 +721,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   // `alternates` carries the reader's locale, links that version (the
   // reader's choice; the URL is never switched silently).
   // ---------------------------------------------------------------------------
-  describe('locale fallback (bilingual-guidance)', () => {
+  describe('locale fallback', () => {
     it('a fallback shows the notice naming the served language, with no link when alternates lacks the reader locale', async () => {
       const i18nService = TestBed.inject(I18nService);
       i18nService.setLocale('ru');

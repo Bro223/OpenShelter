@@ -1706,7 +1706,7 @@ describe('design tokens', () => {
     expect(outlet![0]).not.toMatch(/flex\s*:\s*1/);
   });
 
-  it('the /submit private-home checkbox keeps its native glyph size (mobile-responsive-polish)', () => {
+  it('the /submit private-home checkbox keeps its native glyph size', () => {
     // Regression guard: the global `.field input { width: 100% }` form rule
     // stretched the checkbox into a ~112px flex item at 360px (the label
     // text was displaced to the middle of the row). The checkbox must carry

@@ -852,7 +852,7 @@ describe('PageShell', () => {
      at a time. The choice persists (openshelter-locale) and flips
      <html lang> + the whole chrome. jsdom cannot measure media queries,
      so the acceptance is the DOM/state wiring, not the CSS. */
-  describe('language switcher (i18n-et-en)', () => {
+  describe('language switcher', () => {
     function langGroup(): HTMLElement {
       const group = fixture.nativeElement.querySelector('.shell-lang') as HTMLElement;
       expect(group, '.shell-lang group missing').not.toBeNull();
@@ -979,7 +979,7 @@ describe('PageShell', () => {
     });
   });
 
-  describe('data provenance line (official-dataset-csv)', () => {
+  describe('data provenance line', () => {
     const DS: DataSourceDto = {
       sourceName: 'Päästeamet',
       officialUrl: 'https://www.rescue.ee/et/juhend/avaandmed/avalikud-varjumiskohad',
