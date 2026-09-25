@@ -112,7 +112,7 @@ public class AdminGuidanceController {
     @GetMapping
     @Operation(summary = "The admin guidance list",
             description = "Every post, drafts included, in the stored manual order. "
-                    + "With ?locale= (admin-locale-scope) only the posts that have content in "
+                    + "With ?locale= only the posts that have content in "
                     + "that locale are returned — a translation row there, or the post's home "
                     + "locale being it — carrying that locale's title/slug/body/alt (the DTO's "
                     + "`locale` names the content locale, `homeLocale` the post's own). The "
@@ -139,7 +139,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public ResponseEntity<List<AdminGuidancePostDto>> list(
-            @Parameter(description = "Optional: the active UI language (admin-locale-scope) — "
+            @Parameter(description = "Optional: the active UI language — "
                     + "only the posts that have content in it are returned. Absent = every "
                     + "post (the legacy locale-blind list).")
             @RequestParam(required = false) String locale,

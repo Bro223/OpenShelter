@@ -49,7 +49,7 @@ import java.util.Objects;
  * administrator manages every language.
  */
 @Tag(name = "Public guidance",
-        description = "The public crisis-guidance reads — permit-all (no JWT): "
+        description = "The public crisis guidance reads — permit-all (no JWT): "
                 + "the /blog pages read these anonymously. PUBLISHED posts only, "
                 + "pinned first; a draft slug and an unknown slug answer the SAME "
                 + "404 (a draft's existence is never revealed). Optional locale "

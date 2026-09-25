@@ -1132,7 +1132,7 @@
         "type" : "object"
       },
       "RegisterRequest" : {
-        "description" : "Registration payload (03-auth.puml). No national ID code is collected (remove-national-id).",
+        "description" : "Registration payload (03-auth.puml). No national ID code is collected.",
         "properties" : {
           "email" : {
             "description" : "The account e-mail — a login contact and the e-mail verification channel.",
@@ -2712,12 +2712,12 @@
     },
     "/admin/guidance" : {
       "get" : {
-        "description" : "Every post, drafts included, in the stored manual order. With ?locale= (admin-locale-scope) only the posts that have content in that locale are returned — a translation row there, or the post's home locale being it — carrying that locale's title/slug/body/alt (the DTO's `locale` names the content locale, `homeLocale` the post's own). The stored (sanitized) bodyHtml is returned — the editor round-trips what is stored. An empty scope is an empty list; a present but blank or over-long locale is 400. Optional q (case-insensitive substring over the list's title and tag-stripped body) and limit (1..200) / offset (>= 0) slice the (filtered) stored manual order; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
+        "description" : "Every post, drafts included, in the stored manual order. With ?locale= only the posts that have content in that locale are returned — a translation row there, or the post's home locale being it — carrying that locale's title/slug/body/alt (the DTO's `locale` names the content locale, `homeLocale` the post's own). The stored (sanitized) bodyHtml is returned — the editor round-trips what is stored. An empty scope is an empty list; a present but blank or over-long locale is 400. Optional q (case-insensitive substring over the list's title and tag-stripped body) and limit (1..200) / offset (>= 0) slice the (filtered) stored manual order; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
         "operationId" : "list_2",
         "parameters" : [ {
           "name" : "locale",
           "in" : "query",
-          "description" : "Optional: the active UI language (admin-locale-scope) — only the posts that have content in it are returned. Absent = every post (the legacy locale-blind list).",
+          "description" : "Optional: the active UI language — only the posts that have content in it are returned. Absent = every post (the legacy locale-blind list).",
           "required" : false,
           "schema" : {
             "type" : "string"
@@ -7267,7 +7267,7 @@
     },
     "/api/shelters" : {
       "get" : {
-        "description" : "ACTIVE rows only (auto-hidden shelters are absent). The optional trust filters combine: hasCapacity (capacity data present). The minRating rating filter was removed in V21 — an unknown minRating param is ignored for API compatibility, not an error. provenance: keeps rows whose server-derived provenance matches; absent = no provenance filter; a value outside the enum is a 400 (same as source). Viewport (shelter-bbox-paging): minLat/minLng/maxLat/maxLng are ALL or NONE, inclusive, and keep the rows inside the box; limit (1..200) and offset (>= 0) page the stable id-ascending answer — the trust filters apply before paging. Omitting all of them answers exactly the pre-change list.",
+        "description" : "ACTIVE rows only (auto-hidden shelters are absent). The optional trust filters combine: hasCapacity (capacity data present). The minRating rating filter was removed in V21 — an unknown minRating param is ignored for API compatibility, not an error. provenance: keeps rows whose server-derived provenance matches; absent = no provenance filter; a value outside the enum is a 400 (same as source). Viewport minLat/minLng/maxLat/maxLng are ALL or NONE, inclusive, and keep the rows inside the box; limit (1..200) and offset (>= 0) page the stable id-ascending answer — the trust filters apply before paging. Omitting all of them answers exactly the pre-change list.",
         "operationId" : "list",
         "parameters" : [ {
           "name" : "source",
@@ -9597,8 +9597,8 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
-    "name" : "Data source",
-    "description" : "The public provenance read (official-dataset-csv): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
+    "name" : "Geo",
+    "description" : "The short-link resolver. JWT-protected (inside the authenticated set — NOT permitAll) and rate-limited per client IP (5 requests/minute) — 429 above it."
   }, {
     "name" : "Admin guidance",
     "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably)."
@@ -9608,9 +9608,6 @@
   }, {
     "name" : "Public media",
     "description" : "Serving of stored hero images — permit-all (the public guidance pages show them to anonymous visitors). Only generated names (32 hex + .jpg/.png/.webp) resolve; the Content-Type comes from the stored type and the response is immutable-cacheable (generated names are never reused). Everything unknown is a 404."
-  }, {
-    "name" : "Geo",
-    "description" : "The short-link resolver (shelter-location-input). JWT-protected (inside the authenticated set — NOT permitAll) and rate-limited per client IP (5 requests/minute) — 429 above it."
   }, {
     "name" : "Auth",
     "description" : "The public auth surface: registration, login, refresh rotation, logout and password reset. The login/refresh responses carry bearer credentials (TokenResponse) — never log them. Login, reset-request and registration are rate-limited per real client IP (X-Forwarded-For aware) and, for login/reset, per contact — 429 above the buckets."
@@ -9630,10 +9627,13 @@
     "name" : "Account & verification",
     "description" : "The authenticated account surface — every operation requires a Bearer JWT and the user is resolved from the token, never from the body. The change-request endpoints are additionally throttled per client IP (429 above); the confirms are code-verified and attempt-limited instead. The request endpoints ack with CodeSentDto — the cooldown a client should count down before resending."
   }, {
-    "name" : "Public guidance",
-    "description" : "The public crisis-guidance reads — permit-all (no JWT): the /blog pages read these anonymously. PUBLISHED posts only, pinned first; a draft slug and an unknown slug answer the SAME 404 (a draft's existence is never revealed). Optional locale query parameter: absent = the server's default locale; a post in another locale is a 404."
-  }, {
     "name" : "Admin site texts",
     "description" : "The admin-editable popup/header/footer texts (site_texts). Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup (never a role claim in the token). Anonymous → 401; non-admin → 403; a disallowed key/locale/value/URL → 400."
+  }, {
+    "name" : "Data source",
+    "description" : "The public provenance read: the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
+  }, {
+    "name" : "Public guidance",
+    "description" : "The public crisis guidance reads — permit-all (no JWT): the /blog pages read these anonymously. PUBLISHED posts only, pinned first; a draft slug and an unknown slug answer the SAME 404 (a draft's existence is never revealed). Optional locale query parameter: absent = the server's default locale; a post in another locale is a 404."
   } ]
 }

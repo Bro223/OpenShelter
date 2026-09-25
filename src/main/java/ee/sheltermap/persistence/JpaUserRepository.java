@@ -165,9 +165,17 @@ public class JpaUserRepository implements UserRepository {
         if (email == null || email.isBlank()) {
             return null;
         }
-        String hash = piiCrypto.blindIndex(
-                PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(email));
+        String canonical = PiiCrypto.canonicalEmail(email);
+        String hash = piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, canonical);
+        // Bounded V34 transition: rows written before the length-prefix
+        // framing hold the legacy raw-concat index — try the framed index
+        // first, then the legacy one, so a pre-V34 row (or one written by
+        // an older instance during a rolling deploy) still resolves. The
+        // window closes when V34 has rewritten every row; retire the
+        // fallback deliberately, then.
+        String legacyHash = piiCrypto.legacyBlindIndex(PiiCrypto.DOMAIN_USER_EMAIL, canonical);
         return users.findByEmailHash(hash)
+                .or(() -> users.findByEmailHash(legacyHash))
                 .filter(e -> e.getKind() != UserKind.GUEST)
                 .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId()), piiCrypto))
                 .orElse(null);
@@ -196,9 +204,14 @@ public class JpaUserRepository implements UserRepository {
         if (phone == null || phone.isBlank()) {
             return null;
         }
-        String hash = piiCrypto.blindIndex(
-                PiiCrypto.DOMAIN_USER_PHONE, PhoneNumbers.normalizeE164(phone));
+        String canonical = PhoneNumbers.normalizeE164(phone);
+        String hash = piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, canonical);
+        // Bounded V34 transition — the e-mail twin (see findByEmail):
+        // framed index first, legacy raw-concat index until V34 has
+        // rewritten every row.
+        String legacyHash = piiCrypto.legacyBlindIndex(PiiCrypto.DOMAIN_USER_PHONE, canonical);
         return users.findByPhoneHash(hash)
+                .or(() -> users.findByPhoneHash(legacyHash))
                 .filter(e -> e.getKind() != UserKind.GUEST)
                 .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId()), piiCrypto))
                 .orElse(null);

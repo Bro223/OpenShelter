@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * link to the official open-data page, and when the last import ran.
  */
 @Tag(name = "Data source",
-        description = "The public provenance read (official-dataset-csv): the "
+        description = "The public provenance read: the "
                 + "map is built from the Päästeamet open-data shelter dataset, "
                 + "and the app says so — source, link to the official open-data "
                 + "page, and when the last import ran. Public (no JWT).")

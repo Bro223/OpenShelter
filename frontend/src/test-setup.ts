@@ -20,7 +20,6 @@ import ruLocale from '@angular/common/locales/ru';
 registerLocaleData(etLocale);
 registerLocaleData(ruLocale);
 
-
 function createMemoryStorage(): Storage {
   const data = new Map<string, string>();
   return {

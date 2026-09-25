@@ -26,7 +26,13 @@ import java.util.HexFormat;
  *
  * <p>The blind index is deterministic (same canonical contact ⇒ same
  * hash), keyed (a DB dump alone cannot be reversed) and domain-separated
- * (an e-mail and a phone with identical bytes hash differently).
+ * (an e-mail and a phone with identical bytes hash differently). Domain
+ * separation is structural, not accidental: the HMAC message is framed
+ * as {@code uint16be(len) ‖ part} for the domain AND the value, so no
+ * two (domain, value) pairs can produce the same message — the tag set
+ * never has to stay prefix-free. (Pre-V34 rows hold the legacy
+ * {@code domain ‖ value} raw-concat index; the lookup path falls back
+ * to it until the V34 reframe migration rewrites them.)
  * Canonical forms: e-mail lower-cased + trimmed, phone E.164 — the same
  * normalizations the registration/login paths already apply.
  */
@@ -139,24 +145,17 @@ public class PiiCrypto {
     }
 
     /**
-     * HMAC-SHA256 blind index of {@code canonicalValue} under a
-     * domain-separated message ({@code domain || value}), hex-encoded.
-     * Deterministic: the same canonical input always yields the same
-     * index — that is what makes it usable as a unique index + lookup key.
+     * HMAC-SHA256 blind index of {@code canonicalValue} under the
+     * length-prefix framed, domain-separated message (see
+     * {@link #frameMessage}), hex-encoded. Deterministic: the same
+     * canonical input always yields the same index — that is what makes
+     * it usable as a unique index + lookup key.
      */
     public String blindIndex(String domain, String canonicalValue) {
         if (domain == null || canonicalValue == null) {
             throw new IllegalArgumentException("domain and value must be non-null");
         }
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(keys.hmacKey());
-            mac.update(domain.getBytes(StandardCharsets.UTF_8));
-            mac.update(canonicalValue.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(mac.doFinal());
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("HmacSHA256 unavailable", e);
-        }
+        return hmacHex(frameMessage(domain, canonicalValue));
     }
 
     /**
@@ -172,15 +171,93 @@ public class PiiCrypto {
 
     /**
      * The keyed, domain-separated one-time-code hash under the active
-     * {@code v2:} slot: {@code v2:} + HMAC-SHA256({@code domain || code}).
-     * A 6-digit code is a 10<sup>6</sup> space, so an UNKEYED single-round
-     * SHA-256 (the legacy form) is reversible from a DB dump in under a
-     * second per row; the keyed form is not (a dump alone cannot be
-     * reversed). Domain-separated, so a code from one flow never hashes to
-     * the value of the same code in another flow. The caller passes the raw
+     * {@code v2:} slot: {@code v2:} + HMAC-SHA256 over the length-prefix
+     * framed message (see {@link #blindIndex}). A 6-digit code is a
+     * 10<sup>6</sup> space, so an UNKEYED single-round SHA-256 (the
+     * legacy form) is reversible from a DB dump in under a second per
+     * row; the keyed form is not (a dump alone cannot be reversed).
+     * Domain-separated, so a code from one flow never hashes to the
+     * value of the same code in another flow. The caller passes the raw
      * code (codes are already canonical — no trim/case needed).
      */
     public String codeHash(String domain, String code) {
         return CODE_HASH_PREFIX + blindIndex(domain, code);
+    }
+
+    /**
+     * The LEGACY raw-concat {@code v2:} code hash (pre-V34 slot format):
+     * {@code v2:} + HMAC-SHA256({@code domain ‖ code}). Transitional —
+     * the confirm path accepts it so codes issued before the V34
+     * framing cutover keep verifying until their TTL (natural expiry,
+     * the same migration path the unkeyed legacy acceptance uses).
+     * Delete with the confirm fallback once that window is closed.
+     */
+    public String legacyCodeHash(String domain, String code) {
+        return CODE_HASH_PREFIX + legacyBlindIndex(domain, code);
+    }
+
+    /**
+     * The LEGACY raw-concat blind index ({@code domain ‖ value}, the
+     * pre-V34 format), hex-encoded. Transitional: the read fallback in
+     * the lookup path and the V34 tests use it to recognise rows stored
+     * before the framing cutover. It carries NO domain-separation
+     * guarantee — a domain tag that is a prefix of another lets two
+     * (domain, value) pairs frame to the same message
+     * ({@code "users" ‖ ".emailx@x.com"} == {@code "users.email" ‖
+     * "x@x.com"} as byte strings). Never use it for a NEW index; delete
+     * it once V34 has run on every database and the read fallback is
+     * retired.
+     */
+    public String legacyBlindIndex(String domain, String canonicalValue) {
+        if (domain == null || canonicalValue == null) {
+            throw new IllegalArgumentException("domain and value must be non-null");
+        }
+        byte[] domainBytes = domain.getBytes(StandardCharsets.UTF_8);
+        byte[] valueBytes = canonicalValue.getBytes(StandardCharsets.UTF_8);
+        byte[] message = new byte[domainBytes.length + valueBytes.length];
+        System.arraycopy(domainBytes, 0, message, 0, domainBytes.length);
+        System.arraycopy(valueBytes, 0, message, domainBytes.length, valueBytes.length);
+        return hmacHex(message);
+    }
+
+    /**
+     * The unambiguous message framing: {@code uint16be(|domain|) ‖
+     * domain ‖ uint16be(|value|) ‖ value}, lengths in UTF-8 bytes.
+     * The length of each part is explicit, so the domain and the value
+     * can never merge into each other across the boundary — parsing the
+     * message recovers exactly one (domain, value) pair, which is what
+     * makes the index collision-free regardless of the tag set. Each
+     * part must fit in 65535 bytes; anything larger fails closed
+     * instead of wrapping the length prefix.
+     */
+    private static byte[] frameMessage(String domain, String value) {
+        byte[] domainBytes = domain.getBytes(StandardCharsets.UTF_8);
+        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
+        if (domainBytes.length > 0xFFFF || valueBytes.length > 0xFFFF) {
+            throw new IllegalArgumentException(
+                    "blind-index part exceeds the 65535-byte framing limit");
+        }
+        byte[] message = new byte[domainBytes.length + valueBytes.length + 4];
+        int i = 0;
+        message[i++] = (byte) (domainBytes.length >> 8);
+        message[i++] = (byte) domainBytes.length;
+        System.arraycopy(domainBytes, 0, message, i, domainBytes.length);
+        i += domainBytes.length;
+        message[i++] = (byte) (valueBytes.length >> 8);
+        message[i++] = (byte) valueBytes.length;
+        System.arraycopy(valueBytes, 0, message, i, valueBytes.length);
+        return message;
+    }
+
+    /** HMAC-SHA256 over the message, hex-encoded (the one keyed digest). */
+    private String hmacHex(byte[] message) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(keys.hmacKey());
+            mac.update(message);
+            return HexFormat.of().formatHex(mac.doFinal());
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("HmacSHA256 unavailable", e);
+        }
     }
 }

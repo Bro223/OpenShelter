@@ -152,8 +152,7 @@ public class VerificationService {
 
     /**
      * The per-(user, level) gate, read-only: the resend cooldown first,
-     * then the per-UTC-day cap — the same decision and silent-skip rules as
-     * the send log's atomic {@code tryRecord} ({@code cooldownSeconds <= 0}
+     * then the per-UTC-day cap (silent skip: {@code cooldownSeconds <= 0}
      * skips the cooldown, {@code maxPerDay <= 0} skips the cap). A
      * throttled decision records nothing and throws the generic 429 (which
      * throttle fired is never revealed) with the exact seconds a retry may

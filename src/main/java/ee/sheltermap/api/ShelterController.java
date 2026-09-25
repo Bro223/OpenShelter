@@ -150,7 +150,7 @@ public class ShelterController {
                     + "an error. provenance: keeps rows whose server-derived "
                     + "provenance matches; absent = no provenance filter; a value "
                     + "outside the enum is a 400 (same as source). Viewport "
-                    + "(shelter-bbox-paging): minLat/minLng/maxLat/maxLng are ALL or "
+                    + "minLat/minLng/maxLat/maxLng are ALL or "
                     + "NONE, inclusive, and keep the rows inside the box; limit "
                     + "(1..200) and offset (>= 0) page the stable id-ascending answer "
                     + "— the trust filters apply before paging. Omitting all of them "

@@ -326,6 +326,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
     });
 
     it('a switch while the fetch is in flight re-fetches, and a stale response cannot land', async () => {
+      const i18n = TestBed.inject(I18nService);
       // The post exists ONLY in English; the first fetch (EN) hangs.
       guidanceGateway.set('water-and-heating', guidancePost(), ['en']);
       let resolveFirst!: (row: GuidancePostDto) => void;
@@ -335,14 +336,23 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
         });
       guidanceGateway.getBySlug = vi.fn(hanging) as never;
 
-      const { element, fixture } = await open('/blog/water-and-heating');
+      // The interleaving is FORCED, not left to the scheduler: the EN fetch
+      // hangs until the test resolves it by hand (last, below), the ET fetch
+      // is a controlled immediate 404, and the ET CATALOG is preloaded here.
+      // The not-found copy asserted below is Estonian — until the lazy et
+      // chunk lands, t() serves the default-locale copy (the documented
+      // fallback), so an unawaited chunk load would race the assertion and
+      // flake the run. The locale is still 'en', so preloading triggers no
+      // re-fetch (only the locale signal does).
+      await i18n.ensureCatalog('et');
+
+      const { element, fixture, page } = await open('/blog/water-and-heating');
       expect(text(fixture)).toContain('Loading guidance post…');
 
-      // Switch to Estonian while EN is in flight: the ET fetch 404s and
-      // lands FIRST (the post is not in Estonian) — and the not-found
-      // copy is Estonian, the UI now being in Estonian (the switcher's
-      // signal reaches the page through change detection, so settle
-      // before the outcome asserts).
+      // Switch to Estonian while the EN fetch is in flight: the ET fetch
+      // 404s (the post is not in Estonian) and settles the not-found state
+      // in the Estonian copy — the UI is Estonian now and its catalog is
+      // already in memory, so the copy is immediate.
       guidanceGateway.getBySlug = vi.fn(async (): Promise<GuidancePostDto> => {
         throw ApiError.fromHttp(
           404,
@@ -350,19 +360,87 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
           '/api/guidance/water-and-heating?locale=et',
         );
       }) as never;
-      TestBed.inject(I18nService).setLocale('et');
+      i18n.setLocale('et');
       await settle(fixture);
       expect(text(fixture)).toContain('Juhise artiklit ei leitud');
       expect(element.querySelector('.banner--error')).toBeNull();
 
-      // ...then the STALE EN 200 arrives last: the fetchSeq guard drops
-      // it — the not-found state stays (the post is not in Estonian).
+      // ...then the STALE EN 200 arrives (the test releases the hung
+      // fetch): the fetchSeq guard drops it — the not-found state stays
+      // (the post is not in Estonian).
       resolveFirst(guidancePost());
       await settle(fixture);
       expect(text(fixture)).toContain('Juhise artiklit ei leitud');
       expect(element.querySelector('h1')?.textContent).not.toBe(
         'Water and heating in the first days',
       );
+      // Model-level pin: the stale 200 must not land in `post` at all.
+      // The DOM alone cannot see a guard-removing regression — the
+      // not-found branch renders OVER a stale post (the template checks
+      // notFound() first), so with the guard disabled the stale 200 sets
+      // `post` and the DOM still shows the not-found state (mutation-
+      // proven: success-branch guard disabled → post() = the EN post).
+      expect(page.post()).toBeNull();
+    });
+
+    it('a stale failure from the superseded fetch cannot land over the settled not-found either', async () => {
+      // The twin of the stale-200 case for the FAILURE branch of the same
+      // fetchSeq guard: the in-flight EN fetch settles 500 AFTER the
+      // switch's 404 has settled the not-found state — the stale failure
+      // must not turn the not-found state into an error banner.
+      const i18n = TestBed.inject(I18nService);
+      guidanceGateway.set('water-and-heating', guidancePost(), ['en']);
+      let rejectFirst!: (failure: unknown) => void;
+      guidanceGateway.getBySlug = vi.fn(
+        () =>
+          new Promise<GuidancePostDto>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      ) as never;
+      // Same preload as the twin: the asserted ET copy needs the chunk in
+      // memory (the locale is still 'en', so no re-fetch is triggered).
+      await i18n.ensureCatalog('et');
+
+      const { element, fixture, page } = await open('/blog/water-and-heating');
+      expect(text(fixture)).toContain('Loading guidance post…');
+
+      // Switch to Estonian while the EN fetch is in flight: the ET fetch
+      // 404s and settles the not-found state (Estonian copy).
+      guidanceGateway.getBySlug = vi.fn(async (): Promise<GuidancePostDto> => {
+        throw ApiError.fromHttp(
+          404,
+          { timestamp: 't', status: 404, error: 'Not Found', message: 'Post not found', path: 'x' },
+          '/api/guidance/water-and-heating?locale=et',
+        );
+      }) as never;
+      i18n.setLocale('et');
+      await settle(fixture);
+      expect(text(fixture)).toContain('Juhise artiklit ei leitud');
+
+      // ...then the STALE EN fetch fails 500 (the test releases the hung
+      // fetch as a failure): the fetchSeq guard drops it.
+      rejectFirst(
+        ApiError.fromHttp(
+          500,
+          {
+            timestamp: 't',
+            status: 500,
+            error: 'Internal Server Error',
+            message: 'boom',
+            path: '/api/guidance/water-and-heating',
+          },
+          '/api/guidance/water-and-heating',
+        ),
+      );
+      await settle(fixture);
+      expect(text(fixture)).toContain('Juhise artiklit ei leitud');
+      expect(element.querySelector('.banner--error')).toBeNull();
+      // Model-level pin: the stale failure must not land in `error` — the
+      // not-found branch masks a stale error in the DOM (the template
+      // checks notFound() first), so a DOM-only assertion cannot see the
+      // guard-removing regression (mutation-proven: failure-branch guard
+      // disabled → error() = the stale 500's banner message).
+      expect(page.error()).toBeNull();
     });
   });
 

@@ -673,6 +673,11 @@ describe('GuidanceListPage (/blog)', () => {
 
       guidanceGateway.rows = manyPosts(12); // ET has fewer posts
       TestBed.inject(I18nService).setLocale('et');
+      // bundle-lazy-i18n: the et chunk is on demand — await it BEFORE the
+      // copy assertion below (the out-of-range line is Estonian; until the
+      // chunk lands, t() serves the default-locale copy and the assertion
+      // would race the chunk load, flaking isolated runs).
+      await TestBed.inject(I18nService).ensureCatalog('et');
       await settle(fixture);
 
       // The same page is re-fetched at the same size...

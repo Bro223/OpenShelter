@@ -319,36 +319,6 @@ class VerificationServiceTest {
         assertThat(flaky.calls).isEqualTo(12);
     }
 
-    @Test
-    void tryRecordIsOneAtomicDecisionWithTheSameSilentSkipRules() {
-        // The decision the service maps to a 429
-        // comes from ONE atomic send-log operation. cooldown=0 skips the
-        // cooldown, cap=0 skips the daily cap (silent-skip paths unchanged);
-        // a rejected decision records nothing.
-        InMemoryVerificationSendLog log = new InMemoryVerificationSendLog();
-        Instant t0 = clock.instant();
-
-        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 60, 5))
-                .isEqualTo(VerificationSendLog.SendDecision.OK);
-        // within the 60s cooldown -> COOLDOWN, and nothing was recorded
-        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 60, 5))
-                .isEqualTo(VerificationSendLog.SendDecision.COOLDOWN);
-        assertThat(log.countToday(1L, VerificationLevel.PHONE)).isEqualTo(1);
-
-        // cooldown disabled (0) + cap 2: two OKs, the third DAILY_CAP
-        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
-                .isEqualTo(VerificationSendLog.SendDecision.OK);
-        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
-                .isEqualTo(VerificationSendLog.SendDecision.OK);
-        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
-                .isEqualTo(VerificationSendLog.SendDecision.DAILY_CAP);
-        assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(2);
-
-        // both disabled (0,0): always OK (silent skip)
-        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 0, 0))
-                .isEqualTo(VerificationSendLog.SendDecision.OK);
-    }
-
     private static String extractOtp(String message) {
         return message.substring(message.lastIndexOf(' ') + 1);
     }

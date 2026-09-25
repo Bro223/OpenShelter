@@ -17,7 +17,7 @@ import jakarta.validation.constraints.Size;
  * an external PKI flow that stores no code.
  */
 @Schema(description = "Registration payload (03-auth.puml). No national ID "
-        + "code is collected (remove-national-id).")
+        + "code is collected.")
 public record RegisterRequest(
         @Schema(description = "Display name; stored as given (registration "
                 + "has no canonicalization).")

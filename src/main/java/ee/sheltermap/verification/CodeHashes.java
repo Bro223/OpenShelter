@@ -53,13 +53,23 @@ public final class CodeHashes {
      * accepted so codes issued before the keyed slot keep verifying until
      * their TTL — the migration path for already-issued codes is a natural
      * expiry, not a data migration. Constant-time end to end.
+     *
+     * <p>Bounded V34 transition: a {@code v2:} hash issued under the
+     * legacy raw-concat framing (pre-V34) is ALSO accepted — the same
+     * natural-expiry bridge the unkeyed legacy form uses, so an in-flight
+     * code survives the framing cutover until its TTL. Retire the
+     * fallback deliberately once no such code can be alive anymore
+     * (one code TTL after every instance runs the framed slot).
      */
     public static boolean matches(PiiCrypto pii, String stored, String domain, String code) {
         if (stored == null || code == null) {
             return false;
         }
         if (stored.startsWith(PiiCrypto.CODE_HASH_PREFIX)) {
-            return constantTimeEquals(stored, pii.codeHash(domain, code));
+            if (constantTimeEquals(stored, pii.codeHash(domain, code))) {
+                return true;
+            }
+            return constantTimeEquals(stored, pii.legacyCodeHash(domain, code));
         }
         return constantTimeEquals(stored, sha256Hex(code));
     }

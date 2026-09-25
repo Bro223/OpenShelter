@@ -41,7 +41,7 @@ import java.util.Set;
  * enumeration of the reason).
  */
 @Tag(name = "Geo",
-        description = "The short-link resolver (shelter-location-input). "
+        description = "The short-link resolver. "
                 + "JWT-protected (inside the authenticated set — NOT permitAll) "
                 + "and rate-limited per client IP (5 requests/minute) — 429 "
                 + "above it.")

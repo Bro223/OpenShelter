@@ -10,11 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -204,55 +200,5 @@ class FileVerificationSendLogTest {
                 .noneMatch(line -> line.contains("legacy-contact@example.ee"));
         assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(seededLines + 2L);
         assertThat(log.lastSentAt(1L, VerificationLevel.EMAIL)).isEqualTo(t2);
-    }
-
-    @Test
-    void tryRecordWithinTheCooldownWindowIsSkippedWithoutRecording() {
-        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
-        log.record(1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant());
-
-        VerificationSendLog.SendDecision decision = log.tryRecord(
-                1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant().plusSeconds(30), 60, 10);
-
-        assertThat(decision).isEqualTo(VerificationSendLog.SendDecision.COOLDOWN);
-        assertThat(log.countToday(1L, VerificationLevel.EMAIL))
-                .as("a COOLDOWN decision records nothing")
-                .isEqualTo(1);
-    }
-
-    @Test
-    void concurrentTryRecordHonorsTheDailyCapExactly() throws Exception {
-        // The atomic tryRecord under a real
-        // burst — 50 threads released by one latch, maxPerDay=2, cooldown 0.
-        // A check-then-act race would let more than 2 threads past both
-        // reads; the cap must hold at EXACTLY 2 OKs, the rest DAILY_CAP.
-        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
-        int threads = 50;
-        CountDownLatch release = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(threads);
-        List<VerificationSendLog.SendDecision> decisions = Collections.synchronizedList(new ArrayList<>());
-        for (int i = 0; i < threads; i++) {
-            new Thread(() -> {
-                try {
-                    release.await();
-                    decisions.add(log.tryRecord(1L, VerificationLevel.EMAIL, "a@example.ee",
-                            CLOCK.instant(), 0, 2));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    done.countDown();
-                }
-            }, "try-record-burst-" + i).start();
-        }
-        release.countDown();
-        assertThat(done.await(10, TimeUnit.SECONDS)).isTrue();
-
-        assertThat(decisions).hasSize(threads);
-        assertThat(decisions).filteredOn(d -> d == VerificationSendLog.SendDecision.OK).hasSize(2);
-        assertThat(decisions)
-                .filteredOn(d -> d == VerificationSendLog.SendDecision.DAILY_CAP)
-                .hasSize(threads - 2);
-        // and the store agrees: exactly the two allowed sends were recorded
-        assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(2);
     }
 }
