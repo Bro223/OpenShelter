@@ -1003,8 +1003,7 @@ describe('design tokens', () => {
       {
         token: '--color-shelter-user',
         band: [45, 65],
-        meaning:
-          'YELLOW — the community pin tone (#ffd400 = 49.9°; the pin palette has no grey)',
+        meaning: 'YELLOW — the community pin tone (#ffd400 = 49.9°; the pin palette has no grey)',
       },
       { token: '--color-shelter-registry', band: [190, 260], meaning: 'BLUE — registry' },
       {

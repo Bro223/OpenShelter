@@ -34,6 +34,17 @@ sentence. If an anchor no longer matches, re-derive from the code and report the
   1–2px hairlines, negative offsets, calc/clamp, %/em/ch measures, vendored bytes) and a
   matched-count floor. The role-by-role audit behind it — 44 roles, 13 fixed declarations,
   the documented exceptions — is `reviews/19-spacing-audit.md`.
+- Migrations: Flyway runs to
+  `src/main/resources/db/migration/V35__shelter_submitter_verification_snapshot.sql:1-8` —
+  the depth twin of the V31 boolean trust snapshot: the submitter's verification depth is
+  frozen onto the row at submission and re-frozen at erasure, so an orphaned row keeps the
+  standing it had while its author was active. Before it, the Java migration
+  `V34BlindIndexFramingMigration`
+  (`src/main/java/ee/sheltermap/migration/V34BlindIndexFramingMigration.java:14-20,52`) recomputes
+  every stored blind index under the unambiguous length-prefix framing — Java, not SQL,
+  because the recomputation needs the app's env key — and
+  `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql` moved the hero
+  import from publish to save (§5).
 
 ---
 
@@ -46,7 +57,7 @@ once, from server fields to marker class: `markerTone` at
 
 | State | Server fields behind it | Shape | Colour token — light / high-contrast / black-and-yellow |
 | --- | --- | --- | --- |
-| **Unverified** community | `source=USER`, submitter depth absent (`submitterVerification` null) | yellow **triangle** | `--color-shelter-user` — `#ffd400` in all three themes |
+| **Community (no depth)** | `source=USER`, submitter depth absent (`submitterVerification` null) | plain yellow **circle** | `--color-shelter-user` — `#ffd400` in all three themes |
 | **Partially verified** | depth = exactly one confirmed channel (EMAIL, PHONE or SMART_ID) | yellow **circle** | same `#ffd400` |
 | **Fully verified** | depth = two or more channels (`FULL`) | green **circle** | `--color-verified` — `#237a57` / `#7fd49a` / `#7fd49a` |
 | **Reported** | an open report of *either* kind; overrides everything | red-orange **circle** | `--color-reported` — `#c2410c` / `#ffa94d` / `#ff6b4d` |
@@ -66,8 +77,9 @@ Anchors, row by row:
 - Marker classes (the `shelter-marker` family in `frontend/src/styles.scss`): the base
   circle `.shelter-marker` (the shared 2px surface edge)
   (`frontend/src/styles.scss:810-814`); the registry fill `.shelter-marker--registry`
-  (`frontend/src/styles.scss:816-818`); the unverified triangle `.shelter-marker--user`
-  (`frontend/src/styles.scss:820-867`); the full green circle `.shelter-marker--full`
+  (`frontend/src/styles.scss:816-818`); the default community circle `.shelter-marker--user`
+  (`frontend/src/styles.scss:820-867` — the plain-circle rule + the owner-decision record);
+  the full green circle `.shelter-marker--full`
   (`frontend/src/styles.scss:869-881`); the partial yellow circle
   `.shelter-marker--partial` (`frontend/src/styles.scss:883-885`); reported
   `.shelter-marker--reported` (`frontend/src/styles.scss:887-895`); the pick pin
@@ -75,7 +87,7 @@ Anchors, row by row:
   `.shelter-marker--anchor` (`frontend/src/styles.scss:907-920`).
 - Token values: light theme `frontend/src/styles.scss:91,102,115,171,182,187`; high-contrast
   `frontend/src/styles.scss:388,393,398,430-432`; black-and-yellow
-  `frontend/src/app/core/theme-tokens.ts:97,98-99,103,139,140-141,142`. The unverified
+  `frontend/src/app/core/theme-tokens.ts:97,98-99,103,139,140-141,142`. The community
   yellow is the *same* `#ffd400` in every theme
   (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:140-141`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner
@@ -86,29 +98,34 @@ Anchors, row by row:
   pin's own comment: "red is reserved for" (`frontend/src/styles.scss:898-899`); the
   marker-meaning pin keeps it a distinct family in every theme
   (`frontend/src/app/design-tokens.spec.ts:949`). The pin palette has no grey — the
-  unverified tone's comment says "there is no grey in it",
-  `frontend/src/app/core/i18n/en.ts:181-184`.
-- **The shape distinction carries depth separately from colour** (WCAG 1.4.1 — never
-  colour alone): unverified = triangle, partial = circle, full = circle with the verified
-  green (the shape-carrying notes, `frontend/src/styles.scss:820-822,873-874`). Separately,
-  the browse anchor is a diamond against shelter circles on shape — the code's own words
+  marker's owner-decision record says "there is no grey in it"
+  (`frontend/src/styles.scss:831-832`).
+- **Depth is carried by hue, in words** (WCAG 1.4.1 — never colour alone on a pin):
+  community (no depth) and partial = the community-yellow circle, full = the
+  verified-green circle; the hue step is always spelled in words beside the pin (the
+  legend's labels, the row's badge) — the removal's record: "every remaining pair that
+  shares a shape shares a hue too — partial vs full was already yellow vs green circles,
+  never shape alone" (`frontend/src/styles.scss:843-845`). Separately, the browse anchor is
+  a diamond against shelter circles on shape — the code's own words
   are "not a circle — the shape IS the distinction"
   (`frontend/src/styles.scss:915-920`; `setAnchor` at
   `frontend/src/app/shared/leaflet-service.ts:331,341,352`; the pick pin is `setPick` at
-  `frontend/src/app/shared/leaflet-service.ts:288,285`).
+  `frontend/src/app/shared/leaflet-service.ts:288,299`).
 - The legend swatches reuse these exact marker classes — the section's own note
   (`frontend/src/styles.scss:806-809`) — so map and legend can never drift. Legend copy:
-  the `map.legend.` entries at `frontend/src/app/core/i18n/en.ts:177,179-180,185-186,190`.
+  the `map.legend.` entries at `frontend/src/app/core/i18n/en.ts:177,180-182,186`.
 - Server-side states: the community trust lifecycle is `ReviewStatus` NEW / CONFIRMED /
   REJECTED (`src/main/java/ee/sheltermap/domain/ReviewStatus.java:20-23`); new rows publish
   as NEW, and registry rows are backfilled CONFIRMED (the field default,
   `src/main/java/ee/sheltermap/domain/Shelter.java:74`). The standing where-does-this-row
   come-from question is the derived `Provenance` (never stored, derived on read):
   `src/main/java/ee/sheltermap/domain/Provenance.java:59-80`.
-- The submitter-verification depth is **derived on every read** from the author's current
-  active claims — a row added while its submitter had one channel upgrades itself the moment
-  the second channel is confirmed; nothing is stored on the shelter
-  (`src/main/java/ee/sheltermap/api/SubmitterVerification.java:10-13,26-33`).
+- The submitter-verification depth is **derived on every read** for rows with a live
+  author — a row added while its submitter had one channel upgrades itself the moment
+  the second channel is confirmed — while an orphaned row (author erased) serves the
+  depth frozen onto it at erasure (V35): nothing on a live row's standing can go stale
+  (`src/main/java/ee/sheltermap/api/SubmitterVerification.java:10-13,26-33`; the
+  orphan-serving read, `src/main/java/ee/sheltermap/api/ShelterQueryService.java:412-414`).
 - There is deliberately **no recency term** in the pin: NEW vs CONFIRMED rows without a
   reported depth share the community tone; the comment above that return —
   "the badge says NEW, not the pin" (`frontend/src/app/shared/leaflet-service.ts:86-88`).
@@ -132,7 +149,7 @@ the threshold check `distinctConfirmers(shelter) >= ShelterReport.AUTO_CONFIRM_T
   (`src/main/java/ee/sheltermap/domain/ShelterReport.java:26-28`; the removal is an inline
   filter at `src/main/java/ee/sheltermap/app/ShelterReportService.java:380-383`). Guests and
   unverified registered users cannot file reports or taps at all — the
-  `requireVerified` gate (403) at `src/main/java/ee/sheltermap/app/ShelterReportService.java:161,213,250-252`.
+  `requireVerified` gate (403) at `src/main/java/ee/sheltermap/app/ShelterReportService.java:161,212,249-251`.
 
 **How it differs from the auto-hide tally** (do not conflate the two):
 
@@ -146,7 +163,7 @@ the threshold check `distinctConfirmers(shelter) >= ShelterReport.AUTO_CONFIRM_T
 | Effect | NEW → CONFIRMED | ACTIVE → INACTIVE (`ShelterReportService.java:309-314`) |
 
 The hide tally is the weighted sum over distinct `NON_EXISTENT` reporters
-(`hideTally`, `src/main/java/ee/sheltermap/app/ShelterReportService.java:269-280`), and
+(`hideTally`, `src/main/java/ee/sheltermap/app/ShelterReportService.java:268-279`), and
 both tallies read their inputs from the same dismissed-excluded store query
 (`reportersByShelterAndType`,
 `src/main/java/ee/sheltermap/persistence/SpringDataShelterReportRepository.java:16-22`).
@@ -199,7 +216,7 @@ both tallies read their inputs from the same dismissed-excluded store query
 - **Per-list namespaced parameters.** Each admin paged list owns its own `{list}Page` /
   `{list}Size` pair — `guidancePage/guidanceSize`, `shelterPage/shelterSize`,
   `reportPage/reportSize`, `userPage/userSize`, `mediaPage/mediaSize`, `auditPage/auditSize`
-  (`frontend/src/app/features/admin/admin-page.ts:453-468`).
+  (`frontend/src/app/features/admin/admin-page.ts:453-467`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
   (`frontend/src/app/shared/paging.ts:1-16`); the four `PAGE_SIZE_` constants at
@@ -217,25 +234,27 @@ both tallies read their inputs from the same dismissed-excluded store query
   `src/main/java/ee/sheltermap/config/SecurityConfig.java:183-188`) — and read on the
   frontend with an honest degrade: a missing/blank/negative header falls back to the
   fetched page's own length (`parseTotal`, `frontend/src/app/shared/paging.ts:71-78`).
-- **The map's legend IS the filter** (wave 7), and **the source chips are gone** (wave 8):
-  the five tone entries (`registry, user, partial, full, reported`) are toggle buttons
+- **The map's legend IS the filter**, and **the source chips are gone**:
+  the four tone entries (`registry, partial, full, reported`) are toggle buttons
   (in the template, `frontend/src/app/features/map/map-page.html:16-17`); the selection is
   the URL's `tones` param, display-only — the loaded list is filtered client-side and the
   markers re-render, never a refetch (`LEGEND_TONES`,
   `frontend/src/app/features/map/legend-view.ts:4-11`; the view `LegendFilterView` at
-  `:54-68`). The sixth legend entry (the anchor diamond) is a reference point, deliberately
-  not a filter (`LEGEND_TONES` javadoc, `:8-11`). The old source-kind chips (All /
+  `:54-68`). The fifth legend entry (the anchor diamond) is a reference point, deliberately
+  not a filter (`LEGEND_TONES` javadoc, `:8-11`). The default community tone (the no-depth
+  plain circle) has no entry at all — such rows are visible by default, never filterable
+  (owner decision — `frontend/src/styles.scss:820-867`). The old source-kind chips (All /
   Registry / User) were removed as the duplicate of the legend filter, and the `?source=`
   refetch went with them — "The list always fetches ALL sources"
   (`frontend/src/app/features/map/map-page.ts:94-95`). The two remaining chips compose with
   the legend: "Open" is client-side (the backend has no open/closed param), "Has capacity"
-  is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:321-329`).
+  is server-side `?hasCapacity=` (`frontend/src/app/features/map/map-page.ts:318-331`).
 
 ## 5. The guidance hero — imported when the post is SAVED
 
-- **The import runs at save time — create and update, draft or published alike** (Wave 9
-  moved it from publish to save), downloading, validating and storing the image under a
-  generated name (`src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:23-26`);
+- **The import runs at save time — create and update, draft or published alike** —
+  downloading, validating and storing the image under a generated name
+  (`src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:23-26`);
   the save-side decision is `resolveHeroOnSave`
   (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:802-827`); the trigger moved by
   migration `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql:4-5`.
@@ -256,7 +275,7 @@ both tallies read their inputs from the same dismissed-excluded store query
   asset's origin is recorded as `source_url`), a same-URL save does not re-fetch or
   duplicate (`isHeroImportedFrom`,
   `src/main/java/ee/sheltermap/guidance/GuidanceService.java:853-860`; the no-re-fetch
-  branch, the `isHeroImportedFrom` guard, at `:826-834`).
+  branch, the `isHeroImportedFrom` guard, at `:831-835`).
 
 ## 6. Data provenance — the registry import
 
@@ -314,9 +333,9 @@ both tallies read their inputs from the same dismissed-excluded store query
 ## Unsettled — flagged, not decided
 
 - The RU and ET legend/map copy are **MACHINE DRAFTs in the source, awaiting native
-  speaker review** — do not treat them as final (the `MACHINE DRAFT` legend blocks,
-  `frontend/src/app/core/i18n/ru.ts:195-203`; the Estonian `MACHINE DRAFT` legend blocks
-  at `frontend/src/app/core/i18n/et.ts:189-197`).
+  speaker review** — do not treat them as final (the `MACHINE DRAFT` legend affordance
+  blocks, `frontend/src/app/core/i18n/ru.ts:196-198`; the Estonian twin at
+  `frontend/src/app/core/i18n/et.ts:190-192`).
 - The backend suite's status on **JDK 27** was flagged that one must not "treat the suite
   as green for CI until this is decided" in the 2026-09-21 review
   (`reviews/run1-2026-09-21/12-summary.md:183`); that decision's

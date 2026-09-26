@@ -186,11 +186,6 @@ export const ET: Messages = {
   'map.legend.registry': 'Register (Päästeamet)',
   'map.legend.partialVerified': 'Lisanud osaliselt kinnitatud kasutaja',
   'map.legend.fullVerified': 'Lisanud täielikult kinnitatud kasutaja',
-  // Unverified community tone (green = verified, unverified is
-  // the YELLOW tone; the pin palette is green/yellow/blue/red only, there
-  // is no grey in it). MACHINE DRAFT — awaiting native Estonian review;
-  // do not treat as final.
-  'map.legend.unverified': 'Lisanud kinnitamata kasutaja',
   'map.legend.reported': 'Teatatud',
   // Legend filter affordance line. MACHINE DRAFT — awaiting native
   // Estonian review; do not treat as final.

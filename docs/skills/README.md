@@ -16,9 +16,12 @@ worked around).
 
 Re-fetching: run the exact command from the repo root; it prints the same
 prompt-format document. All commands below were run **2026-09-24** from
-`/home/aleks/MyScripts/LocalRepos/OpenShelter`.
+`/home/aleks/MyScripts/LocalRepos/OpenShelter`, except the three
+`addyosmani/web-quality-skills` rows (fetched **2026-09-26** by the
+design-review lane, together with the two rejected siblings in the table
+below).
 
-## Skills (24)
+## Skills (27)
 
 | Skill | Source (repo, stars on 2026-09-24) | What it is for | Stored at | Lane(s) and when | Fetch command (exit) |
 |---|---|---|---|---|---|
@@ -35,6 +38,9 @@ prompt-format document. All commands below were run **2026-09-24** from
 | docs-sync-audit | github/awesome-copilot (39 321) | Read-only docs-drift audit with severity rubric and evidence standard | `docs-sync-audit.md` (175 L) | docs + `.puml` sync lane, during review | `timeout 300 npx -y skills use "https://github.com/github/awesome-copilot" --skill "docs-sync-audit"` (0) |
 | plantuml-ascii | github/awesome-copilot (39 321; 9.7 K) | PlantUML syntax and ASCII/text-mode output for diagram maintenance | `plantuml-ascii.md` (312 L) | `.puml` sync lane, when rewriting or checking diagrams | `timeout 300 npx -y skills use "https://github.com/github/awesome-copilot" --skill "plantuml-ascii"` (0) |
 | accessibility | addyosmani/web-quality-skills (2 831; 54.6 K) | WCAG 2.2 audit workflow (POUR, conformance levels, testing checklist, Lighthouse) | `accessibility.md` (476 L) | frontend lanes (three a11y themes, public reporting UI), during review | `timeout 90 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "accessibility"` (0) |
+| performance | addyosmani/web-quality-skills (2 841; 2026-09-26) | Evidence-led performance: field (RUM/CWV) + lab (trace) measurement before editing, before/after reporting | `performance.md` (411 L) | frontend lanes, during review (perf axis) | `timeout 300 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "performance"` (0, 2026-09-26) |
+| core-web-vitals | addyosmani/web-quality-skills (2 841; 2026-09-26) | LCP / INP / CLS: field data for user impact, browser traces for causes, per-metric optimisation | `core-web-vitals.md` (240 L) | frontend lanes, during review (CWV axis) | `timeout 300 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "core-web-vitals"` (0, 2026-09-26) |
+| web-quality-audit | addyosmani/web-quality-skills (2 841; 2026-09-26) | Whole-page quality audit: performance, accessibility, SEO, best practices, agentic browsing — evidence-led, no aggregate-score proof | `web-quality-audit.md` (221 L) | design-review lane, during review (the audit spine) | `timeout 300 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "web-quality-audit"` (0, 2026-09-26) |
 | code-review-and-quality | addyosmani/agent-skills (98 703; 46.6 K) | Five-axis code review (correctness, maintainability, dead code, change sizing, …) | `code-review-and-quality.md` (403 L) | review lanes (later batches), during review | `timeout 300 npx -y skills use "https://github.com/addyosmani/agent-skills" --skill "code-review-and-quality"` (0) |
 | documentation-and-adrs | addyosmani/agent-skills (98 703; 39.6 K) | Writing docs and ADRs; decision records with status lifecycle | `documentation-and-adrs.md` (295 L) | docs lane, when recording decisions or updating API docs | `timeout 300 npx -y skills use "https://github.com/addyosmani/agent-skills" --skill "documentation-and-adrs"` (0) |
 | ce-simplify-code | everyinc/compound-engineering-plugin (25 234; 3.1 K) | Simplify settled code (clarity, reuse, behaviour-preserved) — the run's core task | `ce-simplify-code.md` (78 L) | every lane, after making changes and before reporting | `timeout 90 npx -y skills use "https://github.com/everyinc/compound-engineering-plugin" --skill "ce-simplify-code"` (0) |
@@ -60,6 +66,8 @@ Fetched and rejected after reading the content:
 | owasp-top-10-testing | usestrix/strix (64 383; 6.1 K) | `timeout 300 npx -y skills use "https://github.com/usestrix/strix" --skill "owasp-top-10-testing"` (0) | Strix product runner: needs the `strix` binary, a running instance and an LLM key — not a code-review skill |
 | upstash-ratelimit-js | upstash/skills (28; 12.6 K) | `timeout 300 npx -y skills use "https://github.com/upstash/skills" --skill "upstash-ratelimit-js"` (0) | TypeScript/Upstash-Redis SDK integration; the app is Java/Spring. Closest on-target "rate limiting" result in the ecosystem — see the anti-abuse gap below |
 | clean-code | sickn33/agentic-awesome-skills (46 836; 11.5 K) | `timeout 300 npx -y skills use "https://github.com/sickn33/agentic-awesome-skills" --skill "clean-code"` (0) | Near-duplicate of the already-vendored `clean-code.md` (same Uncle Bob material, same sections) |
+| best-practices | addyosmani/web-quality-skills (2 841; 2026-09-26) | `timeout 300 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "best-practices"` (0, 2026-09-26) | Its security section is the spine and points at an un-vendored `references/SECURITY.md`; security is already covered by the vendored `security-review` (methodology) + `springboot-security` (framework); the a11y/perf rest is a subset of the kept `accessibility` + `web-quality-audit` |
+| seo | addyosmani/web-quality-skills (2 841; 2026-09-26) | `timeout 300 npx -y skills use "https://github.com/addyosmani/web-quality-skills" --skill "seo"` (0, 2026-09-26) | Off-target for this run: no SEO lane in the code-review run; its design-relevant items (semantic structure, meta, image alt) are already covered by `web-quality-audit` + `accessibility` |
 
 Rejected on reputation/overlap without fetching:
 
@@ -100,9 +108,17 @@ Rejected on reputation/overlap without fetching:
   at `timeout 300`. Use ≥300 s for that repo.
 - Supporting (auxiliary) files for `test-gap-audit`, `docs-sync-audit`,
   `accessibility`, `ce-simplify-code`, `systematic-debugging`,
-  `security-review`, `angular-developer` and `skill-creator` were downloaded to
-  ephemeral `/tmp/skills-use-*` dirs at fetch time and are **not** in the repo.
+  `security-review`, `angular-developer`, `skill-creator`, `performance`
+  (`/tmp/skills-use-hZOMuA/performance`), `core-web-vitals`
+  (`/tmp/skills-use-TlYAV9/core-web-vitals`) and `web-quality-audit`
+  (`/tmp/skills-use-9tpztJ/web-quality-audit`) were downloaded to ephemeral
+  `/tmp/skills-use-*` dirs at fetch time and are **not** in the repo.
   Each skill's core instructions are self-contained in its file; lanes needing an
-  auxiliary reference report the gap rather than fetching it.
+  auxiliary reference report the gap rather than fetching it. Note:
+  `web-quality-audit` also routes to `scripts/analyze.sh` and
+  `../performance/references/MEASUREMENT.md` (not vendored) — the design-review
+  lane did the source-inspection path only and reports accordingly.
 - Gate check (2026-09-24): all 24 files non-empty, line counts in the table
   column "Stored at"; `wc -l docs/skills/*.md` → 24 files, 5 878 lines total.
+  2026-09-26 (design-review lane): +3 kept skills / −2 rejected (deleted from
+  this directory) → 27 files, 6 750 lines total.

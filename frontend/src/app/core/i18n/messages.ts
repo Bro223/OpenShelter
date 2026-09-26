@@ -210,16 +210,10 @@ export interface Messages {
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
-  /** The submitter-verification shapes: a
-   *  triangle at one confirmed channel, a circle at two or more. */
+  /** The submitter-verification tones: one confirmed channel (partial)
+   *  and two or more (full). */
   'map.legend.partialVerified': string;
   'map.legend.fullVerified': string;
-  /** The unverified community tone (the verified-green re-tint, owner decision: green
-   *  means verified, unverified is the YELLOW tone — the pin palette is
-   *  green/yellow/blue/red only, there is no grey in it): the community
-   *  pin a USER row whose submitter depth the API does not report keeps —
-   *  the trust-scale rung below the two verified shapes. */
-  'map.legend.unverified': string;
   'map.legend.reported': string;
   /** The legend filter's affordance line (the legend IS the
    *  filter): the one-line mechanic the pin-tone toggle entries implement.

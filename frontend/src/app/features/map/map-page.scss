@@ -161,38 +161,19 @@
   .legend-swatch {
     width: 14px; /* the slot's size: the circle inscribes edge-to-edge */
     height: 14px;
-    /* The verification TRIANGLE (.shelter-marker--user in styles.scss):
-       that shape draws its 2px edge with absolutely-positioned
-       pseudo-elements (clip-path on the element cannot carry a border).
-       A static span would let them resolve against the legend instead,
-       painting a legend-sized triangle — this makes the swatch their
-       containing block, exactly like Leaflet's absolute
-       .leaflet-marker-icon does on the map. */
-    position: relative;
 
     /* Consistent inscription: every shape's RENDERED bounding box lands
        on the slot's 14px, which means each shape is fit to the slot by
-       its OWN class geometry (no parallel geometry — the triangle's
-       edge and the diamond's rotation are declared in styles.scss, not
-       here):
+       its OWN class geometry (no parallel geometry — the diamond's
+       rotation is declared in styles.scss, not here):
        • circle — 14px element, the 2px edge sits INSIDE the box:
          14.0 × 14.0 (its exact map size);
-       • triangle — the class's edge extends the element by 2px per
-         side (inset: -2px), so a 10px element inscribes the
-         14.0 × 14.0 edge triangle (ink 12.88, the class's own 4%
-         corner inset);
        • diamond — the class rotates the square 45°, so its bounding box
          is element × √2: 9.9px inscribes the 14.0 × 14.0 diamond
          (9.9 × √2 = 14.00).
-       The map keeps its full pin geometry untouched (shape is
-       load-bearing there — the class→token mapping is pinned in
-       design-tokens.spec.ts); only the legend's presentational fit is
-       local. */
-    &.shelter-marker--user {
-      width: 10px;
-      height: 10px;
-    }
-
+       The map keeps its full pin geometry untouched (the class→token
+       mapping is pinned in design-tokens.spec.ts); only the legend's
+       presentational fit is local. */
     &.shelter-marker--anchor {
       width: 9.9px;
       height: 9.9px;

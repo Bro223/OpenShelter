@@ -192,11 +192,6 @@ export const RU: Messages = {
   'map.legend.registry': 'Реестр (Päästeamet)',
   'map.legend.partialVerified': 'Добавлено частично подтверждённым пользователем',
   'map.legend.fullVerified': 'Добавлено полностью подтверждённым пользователем',
-  // Unverified community tone (green = verified, unverified is
-  // the YELLOW tone; the pin palette is green/yellow/blue/red only, there
-  // is no grey in it). MACHINE DRAFT — awaiting native Russian review;
-  // do not treat as final.
-  'map.legend.unverified': 'Добавлено неподтверждённым пользователем',
   'map.legend.reported': 'Сообщено',
   // Legend filter affordance line. MACHINE DRAFT — awaiting native
   // Russian review; do not treat as final.

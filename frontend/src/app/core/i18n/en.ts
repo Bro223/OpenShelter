@@ -175,14 +175,10 @@ export const EN: Messages = {
   // Legend entry for the blue registry marker: it names the primary registry
   // source (owner wording: "Registry (Päästeamet)").
   'map.legend.registry': 'Registry (Päästeamet)',
-  // The submitter-verification shapes: a triangle at one confirmed channel, a circle at two or more.
+  // The submitter-verification tones: one confirmed channel (partial,
+  // community yellow) and two or more (full, verified green).
   'map.legend.partialVerified': 'Added by a partially verified user',
   'map.legend.fullVerified': 'Added by a fully verified user',
-  // The unverified community tone (the verified-green re-tint — green means verified,
-  // unverified is the YELLOW tone; the pin palette is green/yellow/blue/
-  // red only, there is no grey in it): the community pin a USER row whose
-  // submitter depth the API does not report keeps.
-  'map.legend.unverified': 'Added by an unverified user',
   'map.legend.reported': 'Reported',
   // The legend filter's affordance line (the legend IS the filter):
   // the one-line mechanic the pin-tone toggle entries implement. It doubles
