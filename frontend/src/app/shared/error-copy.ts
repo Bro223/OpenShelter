@@ -66,7 +66,7 @@ export type ErrorKind =
  *    over-limit are deliberately indistinguishable) — and neither starts
  *    with a listed field name, so a genuine bad code ALWAYS keeps the
  *    generic copy;
- *  - the malformed-body 400s say "Malformed request" (no field prefix);
+ *  - the malformed-body 400s are per-type sentences that all begin "The" and never with a request-payload field name (no field prefix);
  *  - if a future DTO field is ever added without updating this table, the
  *    message falls back to the GENERIC copy — the failure direction is
  *    safe: a validation failure can read as "bad code", never the reverse
