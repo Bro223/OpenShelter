@@ -8,6 +8,7 @@ import ee.sheltermap.app.DuplicateReportException;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.InfoRequestAlreadyAnsweredException;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.PagingBoundsException;
 import ee.sheltermap.app.ShelterDuplicateException;
 import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.auth.DuplicateAccountException;

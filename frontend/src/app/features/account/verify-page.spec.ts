@@ -22,7 +22,7 @@ const PROFILE: MeResponse = {
 /** The ack body of a successful code send (the server's cooldown in seconds). */
 const ACK = { resendAvailableAfterSeconds: 60 };
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeAuthGateway {
   register = vi.fn();
   login = vi.fn();

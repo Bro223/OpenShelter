@@ -34,7 +34,7 @@ const SHELTER_ROW: AdminShelterDto = {
   inaccurate: false, // no mark on this row
 };
 
-/** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
+/** Hand-written fake ApiClient — the gateway must only pick paths/bodies. */
 class FakeApiClient {
   get = vi.fn();
   getWithHeaders = vi.fn();

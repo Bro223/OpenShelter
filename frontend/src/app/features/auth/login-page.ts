@@ -29,7 +29,7 @@ export class LoginPage implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   /** The i18n seam: the banner's client-authored error.* copy resolves in
-   *  the active locale (N7 i18n-completeness). */
+   *  the active locale. */
   private readonly i18n = inject(I18nService);
 
   readonly form = new FormGroup({

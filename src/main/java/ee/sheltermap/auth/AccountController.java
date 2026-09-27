@@ -1,6 +1,5 @@
 package ee.sheltermap.auth;
 
-import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +11,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,7 +23,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Thin HTTP shell for the authenticated account surface: parse, validate,
@@ -53,23 +50,20 @@ public class AccountController {
     private final CurrentCaller currentCaller;
     private final RateLimiter changeRequestRateLimiter;
     private final ContactChangeProperties properties;
-    private final Set<String> trustedProxies;
-    private final boolean trustLoopback;
+    private final ClientThrottle clientThrottle;
 
     public AccountController(ContactChangeService contactChangeService,
                              AccountService accountService,
                              UserRepository userRepository,
                              @Qualifier("changeRequestRateLimiter") RateLimiter changeRequestRateLimiter,
                              ContactChangeProperties properties,
-                             @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
-                             @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
+                             ClientThrottle clientThrottle) {
         this.contactChangeService = Objects.requireNonNull(contactChangeService, "contactChangeService");
         this.accountService = Objects.requireNonNull(accountService, "accountService");
         this.currentCaller = new CurrentCaller(userRepository);
         this.changeRequestRateLimiter = Objects.requireNonNull(changeRequestRateLimiter, "changeRequestRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
-        this.trustLoopback = trustLoopback;
-        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
+        this.clientThrottle = Objects.requireNonNull(clientThrottle, "clientThrottle");
     }
 
     /** The authenticated user's real profile + verified claims (no rate bucket — cheap read). */
@@ -112,7 +106,7 @@ public class AccountController {
             + "the resend cooldown in seconds", content = @Content(schema = @Schema(
             implementation = CodeSentDto.class)))
     public CodeSentDto requestEmailChange(@Valid @RequestBody ChangeEmailRequest body, HttpServletRequest http) {
-        requireRate(http);
+        clientThrottle.requireRate(changeRequestRateLimiter, http);
         contactChangeService.requestEmailChange(currentUser(), body.newEmail());
         return new CodeSentDto((int) properties.cooldownSeconds());
     }
@@ -137,7 +131,7 @@ public class AccountController {
             + "the resend cooldown in seconds", content = @Content(schema = @Schema(
             implementation = CodeSentDto.class)))
     public CodeSentDto requestPhoneChange(@Valid @RequestBody ChangePhoneRequest body, HttpServletRequest http) {
-        requireRate(http);
+        clientThrottle.requireRate(changeRequestRateLimiter, http);
         contactChangeService.requestPhoneChange(currentUser(), body.newPhone());
         return new CodeSentDto((int) properties.cooldownSeconds());
     }
@@ -215,13 +209,6 @@ public class AccountController {
         // require passing an identity check. The provisioned-admin refusal
         // is enforced in AccountService.deleteAccount.
         accountService.deleteAccount(registered);
-    }
-
-    private void requireRate(HttpServletRequest http) {
-        RateLimiter.Result result = changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
-        if (!result.acquired()) {
-            throw new RateLimitExceededException(result.retryAfterSeconds());
-        }
     }
 
     /**

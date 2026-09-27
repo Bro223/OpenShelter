@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.Pagination;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.domain.PublicGuidanceView;
 import ee.sheltermap.guidance.GuidanceService;

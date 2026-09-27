@@ -12,10 +12,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The extracted search seam directly: the searchable-text
- * derivation and the match rule in {@link GuidanceSearch} — the
- * {@code GuidanceService} delegates (the pre-extraction public surface)
- * are covered by {@code GuidanceServiceTest}, this suite covers the
- * class that now owns the policy.
+ * derivation, the match rule and the query bound in
+ * {@link GuidanceSearch} — the {@code GuidanceService} delegates (the
+ * pre-extraction public surface) are covered by
+ * {@code GuidanceServiceTest}, this suite covers the class that now owns
+ * the policy. This is also the unit-level pin of the admin guidance
+ * list's search policy (the controller delegates it to
+ * {@code GuidanceSearch}: absent/blank q = no filter, over the bound =
+ * 400 with the uniform message, the post-level match over EXACTLY the
+ * content the read renders) — the end-to-end matrix (real persistence,
+ * HTTP) is {@code AdminGuidanceSearchPagingIT}.
  */
 class GuidanceSearchTest {
 
@@ -75,8 +81,11 @@ class GuidanceSearchTest {
     @Test
     void requireSearchTrimsAndPassesThroughWithinTheBound() {
         assertThat(GuidanceSearch.requireSearch("  water  ")).isEqualTo("water");
+        assertThat(GuidanceSearch.requireSearch("  kelder  ")).isEqualTo("kelder");
         assertThat(GuidanceSearch.requireSearch("a".repeat(200)))
                 .isEqualTo("a".repeat(200));
+        assertThat(GuidanceSearch.requireSearch("x".repeat(GuidanceSearch.MAX_SEARCH_LENGTH)))
+                .hasSize(GuidanceSearch.MAX_SEARCH_LENGTH);
     }
 
     @Test
@@ -84,6 +93,11 @@ class GuidanceSearchTest {
         assertThatThrownBy(() -> GuidanceSearch.requireSearch("a".repeat(201)))
                 .isInstanceOf(GuidanceValidationException.class)
                 .hasMessage("q must be at most 200 characters");
+        // the same 400 with the message built from the bound constant
+        // (the admin list's spelling of the same pin):
+        assertThatThrownBy(() -> GuidanceSearch.requireSearch("x".repeat(201)))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("q must be at most " + GuidanceSearch.MAX_SEARCH_LENGTH + " characters");
     }
 
     @Test
@@ -94,6 +108,10 @@ class GuidanceSearchTest {
                 .as("a blank term is no filter, like an absent one")
                 .isTrue();
         assertThat(GuidanceSearch.matchesPost(post, row("<p>row body</p>"), List.of(), null)).isTrue();
+        // the admin list's own scenario pins the same two answers:
+        GuidancePost bare = post("T", "<p>b</p>");
+        assertThat(GuidanceSearch.matchesPost(bare, null, List.of(), null)).isTrue();
+        assertThat(GuidanceSearch.matchesPost(bare, null, List.of(), "   ")).isTrue();
     }
 
     @Test
@@ -108,6 +126,11 @@ class GuidanceSearchTest {
                 .as("the home columns are not searched when a row renders")
                 .isFalse();
         assertThat(GuidanceSearch.matchesPost(post, row, List.of(), "home body")).isFalse();
+        // the row's TITLE is searchable too (the IT's Estonian scenario):
+        GuidancePost home = post("Estonian shelter guide", "<p>en body</p>");
+        GuidanceTranslation et = row("et", "Eestikeelne keldri juhend", "<p>et keha</p>");
+        assertThat(GuidanceSearch.matchesPost(home, et, List.of(), "keldri")).isTrue();
+        assertThat(GuidanceSearch.matchesPost(home, et, List.of(), "Estonian")).isFalse();
     }
 
     @Test
@@ -118,6 +141,11 @@ class GuidanceSearchTest {
         assertThat(GuidanceSearch.matchesPost(post, null, List.of(), "home title")).isTrue();
         assertThat(GuidanceSearch.matchesPost(post, null, List.of(), "home body")).isTrue();
         assertThat(GuidanceSearch.matchesPost(post, null, List.of(), "absent")).isFalse();
+        // the admin list's own scenario, same three answers:
+        GuidancePost home = post("Estonian shelter guide", "<p>en body</p>");
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(), "Estonian")).isTrue();
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(), "en body")).isTrue();
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(), "keldri")).isFalse();
     }
 
     @Test
@@ -129,6 +157,12 @@ class GuidanceSearchTest {
         assertThat(GuidanceSearch.matchesPost(post, null, rows, "first")).isTrue();
         assertThat(GuidanceSearch.matchesPost(post, null, rows, "second")).isTrue();
         assertThat(GuidanceSearch.matchesPost(post, null, rows, "absent")).isFalse();
+        // the covered row's TITLE matches too (the IT's Estonian scenario):
+        GuidancePost home = post("Estonian shelter guide", "<p>en body</p>");
+        GuidanceTranslation et = row("et", "Eestikeelne keldri juhend", "<p>et keha</p>");
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(et), "keldri")).isTrue();
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(et), "Estonian")).isTrue();
+        assertThat(GuidanceSearch.matchesPost(home, null, List.of(et), "absent word")).isFalse();
     }
 
     @Test
@@ -149,6 +183,11 @@ class GuidanceSearchTest {
 
     private static GuidanceTranslation row(String bodyHtml) {
         return GuidanceTranslation.forPost(1L, "ru", "slug-1-ru", "row title", bodyHtml,
+                null, NOW);
+    }
+
+    private static GuidanceTranslation row(String locale, String title, String bodyHtml) {
+        return GuidanceTranslation.forPost(1L, locale, locale + "-slug", title, bodyHtml,
                 null, NOW);
     }
 

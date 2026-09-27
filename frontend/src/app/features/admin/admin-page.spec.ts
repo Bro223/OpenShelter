@@ -292,7 +292,7 @@ const MEDIA_ROW_UNUSED: MediaAssetDto = {
   reusedBy: 0,
 };
 
-// ---- hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics) ----
+// ---- hand-written fakes — no mocking framework gymnastics ----
 
 class FakeAdminGateway {
   listShelters = vi.fn();

@@ -30,7 +30,7 @@ const SHELTER_ROW: MineShelterDto = {
   infoRequest: null, // no moderator question on this row
 };
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeShelterGateway {
   list = vi.fn();
   get = vi.fn();

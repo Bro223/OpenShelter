@@ -35,7 +35,7 @@ const POST_NO_BODY: GuidancePostDto = {
   alternates: null,
 };
 
-/** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */
+/** Hand-written fake ApiClient — the gateway must only pick paths. */
 const NO_TOTAL = new HttpHeaders({});
 
 class FakeApiClient {

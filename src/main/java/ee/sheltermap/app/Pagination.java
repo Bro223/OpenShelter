@@ -1,4 +1,4 @@
-package ee.sheltermap.api;
+package ee.sheltermap.app;
 
 import java.util.List;
 import java.util.Objects;

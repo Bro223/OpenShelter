@@ -90,7 +90,7 @@ public interface UserRepository {
      * SQL (they have no credentials to suspend, and a page must not
      * decrypt the whole account population to answer them), id-ordered,
      * LIMIT/OFFSET (the caller validates the bounds —
-     * {@code ee.sheltermap.api.Pagination}).
+     * {@code ee.sheltermap.app.Pagination}).
      */
     List<User> findAccountPage(long offset, int limit);
 

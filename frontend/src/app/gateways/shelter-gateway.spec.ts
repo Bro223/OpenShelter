@@ -38,7 +38,7 @@ const USER_ROW: ShelterDto = {
   submitterVerified: true, // creator has a completed verification
 };
 
-/** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */
+/** Hand-written fake ApiClient — the gateway must only pick paths. */
 class FakeApiClient {
   get = vi.fn();
   post = vi.fn();

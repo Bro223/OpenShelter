@@ -57,7 +57,7 @@ function findTemplates(): string[] {
   return out;
 }
 
-/** The full template set (31 files). The completeness test pins the
+/** The full template set (35 files). The completeness test pins the
  *  exact set — a new or missing template fails it until someone has
  *  looked at it, which is the point. */
 const EXPECTED_TEMPLATES = [

@@ -12,7 +12,7 @@ import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { LeafletService } from '../../shared/leaflet-service';
 import { SubmitShelterPage } from './submit-shelter-page';
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeShelterGateway {
   create = vi.fn();
   update = vi.fn();
@@ -1206,7 +1206,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(gateway.create).not.toHaveBeenCalled();
   });
 
-  it('a whitespace-only name is rejected as blank, not as too-long (N10)', async () => {
+  it('a whitespace-only name is rejected as blank, not as too-long', async () => {
     const { element, fixture } = await open();
     fillValidForm(element);
     const name = input(element, 'shelter-name');

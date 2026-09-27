@@ -1,8 +1,8 @@
 package ee.sheltermap.guidance;
 
-import ee.sheltermap.api.Pagination;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.Pagination;
 import ee.sheltermap.auth.MutableClock;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;

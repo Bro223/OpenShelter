@@ -273,7 +273,7 @@ describe('occupancy copy (hedged at one, firm at two+)', () => {
     );
   });
 
-  it('the band heads are catalog keys — the firm set REUSES the band picker\u2019s detail.band.* (N7 i18n-completeness)', () => {
+  it('the band heads are catalog keys — the firm set REUSES the band picker\u2019s detail.band.*', () => {
     expect(OCCUPANCY_FIRM_KEY).toEqual({
       SPACE: 'detail.band.space',
       GETTING_FULL: 'detail.band.gettingFull',
@@ -478,14 +478,14 @@ describe('communityReportsText ', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Locale seam (N7 i18n-completeness): the same facts, resolved through a
+// Locale seam: the same facts, resolved through a
 // translate callback — the ET proofs below assert the ET catalog value
 // flows through (interpolate(ET[key], params)), i.e. the seam renders the
 // active locale and one fact has exactly one translation. The EN fallback
 // (no callback) is already pinned everywhere above — byte-identical.
 // ---------------------------------------------------------------------------
 
-describe('locale seam (N7 i18n-completeness)', () => {
+describe('locale seam', () => {
   const et: ShelterTranslate = (key, params) => interpolate(ET[key], params ?? {});
 
   const NOW = Date.parse('2026-09-11T12:12:00Z');

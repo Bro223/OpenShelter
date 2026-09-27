@@ -494,6 +494,17 @@ describe('design tokens', () => {
     }
   });
 
+  it('styles.scss — both dark themes declare color-scheme: dark (the UA chrome follows the theme)', () => {
+    // Form controls, scrollbars and the colour-scheme-affected UA UI must
+    // render dark under BOTH dark themes; the light theme stays on the
+    // default (light) scheme and declares nothing. Comments are blanked
+    // first, so only a real declaration can satisfy the pin.
+    const m = withoutCssComments(stylesCss).match(
+      /\[data-theme='high-contrast'\],\s*\[data-theme='black-and-yellow'\]\s*\{\s*color-scheme:\s*dark;\s*\}/,
+    );
+    expect(m, 'styles.scss must group both dark themes with color-scheme: dark').not.toBeNull();
+  });
+
   /* --- The theme is pinned HARD — name-set equality (both directions)
      + the contrast math behind the styles.scss "verified for this palette"
      comment. The math runs on the token LITERALS, so a value edit that

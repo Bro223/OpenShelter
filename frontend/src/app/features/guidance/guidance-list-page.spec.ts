@@ -12,7 +12,7 @@ import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
 import { GuidanceListPage } from './guidance-list-page';
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeGuidanceGateway {
   rows: GuidancePostDto[] = [];
   /** When set, list/listPage rejects with it (the error-state seam). */
@@ -322,8 +322,8 @@ describe('GuidanceListPage (/blog)', () => {
     // The no-layout-shift + lazy-load contract (the admin hero-thumb idiom).
     expect(img?.getAttribute('loading')).toBe('lazy');
     expect(img?.getAttribute('decoding')).toBe('async');
-    // IMAGE-CACHING CONTRACT (owner report: "guidance pages load images each
-    // visit"): the browser was already caching (immutable year-long
+    // IMAGE-CACHING CONTRACT (the reported regression: "guidance pages load
+    // images each visit"): the browser was already caching (immutable year-long
     // Cache-Control pinned server-side in GuidanceAuthorizationIT; verified
     // empirically — a reloaded page transfers 0 bytes for an already-seen
     // hero). What the CLIENT controls is pinned here: the no-CLS width/height
@@ -673,7 +673,7 @@ describe('GuidanceListPage (/blog)', () => {
 
       guidanceGateway.rows = manyPosts(12); // ET has fewer posts
       TestBed.inject(I18nService).setLocale('et');
-      // bundle-lazy-i18n: the et chunk is on demand — await it BEFORE the
+      // the et chunk is on demand — await it BEFORE the
       // copy assertion below (the out-of-range line is Estonian; until the
       // chunk lands, t() serves the default-locale copy and the assertion
       // would race the chunk load, flaking isolated runs).

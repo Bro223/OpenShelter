@@ -78,6 +78,12 @@ class SourceVocabularyTest {
             Pattern.compile("\\breviewer [NF]\\d+\\b"),
             // finding counts spelled out in prose
             Pattern.compile("\\bN\\d+ finding\\b"),
+            // a bare N-digit planning id standing alone: the reader cannot
+            // resolve which review row it names. The census over the whole
+            // scanned tree shows every such token occurs as a planning
+            // reference (a spec title or a comment), never as an identifier,
+            // an i18n key or a class name
+            Pattern.compile("\\bN\\d+\\b"),
             // a swagger-ledger row id: no source identifier and no English
             // word carries the SW-C prefix, so this shape is only ever a row
             Pattern.compile("\\bSW-C\\d+\\b"),
@@ -97,6 +103,12 @@ class SourceVocabularyTest {
             // the dash-spelled form of the same wave citation: the census
             // over the tree shows no identifier carries that shape
             Pattern.compile("\\bWave-\\d+"),
+            // the all-caps spelling of the same wave citation, both the
+            // space and the dash form: the census over the tree shows no
+            // identifier pairs the all-caps word with a bare number, so the
+            // shape is only ever a planning row
+            Pattern.compile("\\bWAVE \\d+"),
+            Pattern.compile("\\bWAVE-\\d+"),
             // a wave-task id: a capital W, a number, a dash, a task letter
             Pattern.compile("\\bW\\d+-[A-Z]\\b"),
             // a decision id: a capital D followed by digits, standing alone

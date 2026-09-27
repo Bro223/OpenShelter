@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
-import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.security.Contacts;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
@@ -16,7 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,7 +24,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Locale;
-import java.util.Set;
 
 /**
  * Thin shell (01-TASK.md §7) — parse, validate, rate-limit, delegate.
@@ -58,8 +55,7 @@ public class AuthController {
     private final RateLimiter sessionRateLimiter;
     private final RollingContactOtpLimiter contactOtpLimiter;
     private final ThrottleAlertRecorder alerts;
-    private final Set<String> trustedProxies;
-    private final boolean trustLoopback;
+    private final ClientThrottle clientThrottle;
 
     public AuthController(AuthService authService,
                           @Qualifier("loginRateLimiter") RateLimiter loginRateLimiter,
@@ -70,8 +66,7 @@ public class AuthController {
                           @Qualifier("sessionRateLimiter") RateLimiter sessionRateLimiter,
                           RollingContactOtpLimiter contactOtpLimiter,
                           ThrottleAlertRecorder alerts,
-                          @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
-                          @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
+                          ClientThrottle clientThrottle) {
         this.authService = authService;
         this.loginRateLimiter = loginRateLimiter;
         this.loginIpRateLimiter = loginIpRateLimiter;
@@ -81,8 +76,7 @@ public class AuthController {
         this.sessionRateLimiter = sessionRateLimiter;
         this.contactOtpLimiter = contactOtpLimiter;
         this.alerts = alerts;
-        this.trustLoopback = trustLoopback;
-        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
+        this.clientThrottle = clientThrottle;
     }
 
     @PostMapping("/register")
@@ -102,7 +96,7 @@ public class AuthController {
     })
     @SecurityRequirements({})
     public void register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
-        requireRate(registerRateLimiter, clientIp(http));
+        clientThrottle.requireRate(registerRateLimiter, http);
         // Per-e-mail rolling cap on registration ATTEMPTS
         // ("register:" namespace — independent of the "verify:" send cap),
         // every attempt counts (a duplicate-409 retry is still an attempt),
@@ -137,11 +131,11 @@ public class AuthController {
     })
     @SecurityRequirements({})
     public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
-        String ip = clientIp(http);
+        String ip = clientThrottle.clientIp(http);
         // BOTH buckets must pass — the per-IP aggregate (one IP hammering
         // many accounts) and the per-(IP, contact) bucket below.
-        requireRate(loginIpRateLimiter, ip);
-        requireRate(loginRateLimiter, ip + "|" + normalizedContact(request.emailOrPhone()));
+        clientThrottle.requireRate(loginIpRateLimiter, ip);
+        clientThrottle.requireRate(loginRateLimiter, ip + "|" + normalizedContact(request.emailOrPhone()));
         return authService.login(request);
     }
 
@@ -156,7 +150,7 @@ public class AuthController {
         // Session-lifecycle throttle (per-IP): refresh is unauthenticated and
         // DB-touching, so one IP must not hammer token rotation across
         // accounts. The global 429 contract (Retry-After) applies.
-        requireRate(sessionRateLimiter, clientIp(http));
+        clientThrottle.requireRate(sessionRateLimiter, http);
         return authService.refresh(request);
     }
 
@@ -168,7 +162,7 @@ public class AuthController {
     public void logout(@Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
         // Same per-IP session-lifecycle throttle as refresh — logout is
         // unauthenticated and DB-touching too (revocation).
-        requireRate(sessionRateLimiter, clientIp(http));
+        clientThrottle.requireRate(sessionRateLimiter, http);
         authService.logout(request.refreshToken());
     }
 
@@ -198,7 +192,8 @@ public class AuthController {
             + "administrator's email — password reset is not available for it")
     @SecurityRequirements({})
     public CodeSentDto requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
-        requireRate(resetRateLimiter, clientIp(http) + "|" + Contacts.normalize(request.email()));
+        String ip = clientThrottle.clientIp(http);
+        clientThrottle.requireRate(resetRateLimiter, ip + "|" + Contacts.normalize(request.email()));
         authService.requestPasswordReset(request.email());
         return new CodeSentDto(PasswordResetService.reissueCooldownSeconds());
     }
@@ -228,19 +223,9 @@ public class AuthController {
     public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest http) {
         // Per-(IP, email) anti-guess bucket — a 6-digit code must not be
         // brute-forceable through the confirm endpoint.
-        requireRate(resetConfirmRateLimiter, clientIp(http) + "|" + Contacts.normalize(request.email()));
+        String ip = clientThrottle.clientIp(http);
+        clientThrottle.requireRate(resetConfirmRateLimiter, ip + "|" + Contacts.normalize(request.email()));
         authService.resetPassword(request.email(), request.code(), request.newPassword());
-    }
-
-    private String clientIp(HttpServletRequest http) {
-        return ClientIps.resolve(http, trustedProxies, trustLoopback);
-    }
-
-    private static void requireRate(RateLimiter limiter, String key) {
-        RateLimiter.Result result = limiter.tryAcquire(key);
-        if (!result.acquired()) {
-            throw new RateLimitExceededException(result.retryAfterSeconds());
-        }
     }
 
     /**

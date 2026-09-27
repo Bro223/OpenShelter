@@ -144,7 +144,7 @@ describe('list card hero (guidance-list-page) — fixed 4/3 box, cover', () => {
     expect(attr(tag, 'width')).toBe('400');
     expect(attr(tag, 'height')).toBe('300');
     expect(Number(attr(tag, 'width')!) / Number(attr(tag, 'height')!)).toBeCloseTo(4 / 3, 6);
-    expect(attr(tag, 'sizes')).toBe('400px'); // the slot's fixed CSS width
+    expect(attr(tag, 'sizes')).toBe('400px'); // the fluid slot's measured max (~390px) is covered
     expect(tag).toContain('[attr.srcset]');
     expect(attr(tag, 'loading')).toBe('lazy');
   });

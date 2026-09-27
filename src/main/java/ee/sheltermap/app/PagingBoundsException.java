@@ -1,4 +1,4 @@
-package ee.sheltermap.api;
+package ee.sheltermap.app;
 
 /**
  * The ONE 400 for a paging bound violation — a {@code limit} outside

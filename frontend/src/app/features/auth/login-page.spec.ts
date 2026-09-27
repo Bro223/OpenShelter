@@ -293,7 +293,7 @@ describe('LoginPage', () => {
     expect(bannerText(element)).toContain('Cannot reach the backend');
   });
 
-  it('renders the client-authored error.* banner in the active locale (N7 i18n-completeness)', async () => {
+  it('renders the client-authored error.* banner in the active locale', async () => {
     // Before this fix the banner callback was never passed, so the nine
     // error.* keys were unreachable from public pages: every banner was
     // the hardcoded EN fallback even in the ET locale. Proof: a plain
@@ -301,7 +301,7 @@ describe('LoginPage', () => {
     // active-locale catalog.
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');
-    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+    await i18n.ensureCatalog('et'); // the et chunk is on demand
 
     const { page, element, fixture } = await open('/login');
     page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
@@ -331,7 +331,7 @@ describe('LoginPage', () => {
     // banner could never render in Estonian (or Russian).
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');
-    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+    await i18n.ensureCatalog('et'); // the et chunk is on demand
 
     const { page, element, fixture } = await open('/login');
     page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
@@ -352,7 +352,7 @@ describe('LoginPage', () => {
     // there is one translated line for all of them.
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('ru');
-    await i18n.ensureCatalog('ru'); // bundle-lazy-i18n: the ru chunk is on demand
+    await i18n.ensureCatalog('ru'); // the ru chunk is on demand
 
     const { page, element, fixture } = await open('/login');
     page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });

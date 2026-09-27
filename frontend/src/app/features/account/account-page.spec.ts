@@ -47,7 +47,7 @@ const SHELTER_ROW: ShelterDto = {
   inaccurate: false, // no moderator mark on this row
 };
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeAuthGateway {
   register = vi.fn();
   login = vi.fn();
@@ -256,7 +256,7 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain('kontakt@example.ee');
   });
 
-  it('Retry shows a pending state while the profile fetch is in flight (N15)', async () => {
+  it('Retry shows a pending state while the profile fetch is in flight', async () => {
     account.me.mockRejectedValue(ApiError.fromNetwork());
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
@@ -460,7 +460,7 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain('Resend in 1m 00s');
   });
 
-  it('the code phase locks the phone target input too (F5)', async () => {
+  it('the code phase locks the phone target input too', async () => {
     const { page, element, fixture } = await open();
     page.newPhone.setValue('+37250000002');
     account.requestPhoneChange.mockResolvedValue(ACK);
@@ -497,7 +497,7 @@ describe('AccountPage', () => {
     ).toBe('false');
   });
 
-  it('the done state renders the server truth, not the form value (F5)', async () => {
+  it('the done state renders the server truth, not the form value', async () => {
     const { page, element, fixture } = await open();
     // The user types a local phone form; the backend stores E.164.
     page.newPhone.setValue('50000003');
@@ -518,7 +518,7 @@ describe('AccountPage', () => {
     expect(doneCopy?.querySelector('strong')?.textContent?.trim()).toBe('+37250000003');
   });
 
-  it('startOver clears a stale confirm error (N14)', async () => {
+  it('startOver clears a stale confirm error', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('new@example.ee');
     account.requestEmailChange.mockResolvedValue(ACK);

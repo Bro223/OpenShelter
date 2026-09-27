@@ -82,7 +82,7 @@ export const EN: Messages = {
   'how.what':
     'OpenShelter is an independent, community-maintained map of shelters in Estonia. It is not an emergency service or an official government system. In an emergency, call 112 and follow official instructions.',
   'how.sources':
-    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue Registry marker. Community locations are added by users: an unverified submitter shows a yellow triangle, a partially verified submitter a yellow circle, and a fully verified submitter a green circle. A location with an open report shows a red marker. A community submission is never automatically official.',
+    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue Registry marker. Community locations are added by users: a partially verified submitter shows a yellow circle, and a fully verified submitter a green circle. A location with an open report shows a red marker. A community submission is never automatically official.',
   'how.report':
     'Verified users can submit a shelter or report a listed location as closed, inaccurate, or no longer existing. Reports go to administrators, who review them and may hide or correct a location.',
   'how.nearest':

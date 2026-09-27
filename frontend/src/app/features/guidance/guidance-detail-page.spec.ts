@@ -13,7 +13,7 @@ import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
 import { GuidanceDetailPage } from './guidance-detail-page';
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics).
+/** Hand-written fakes — no mocking framework gymnastics.
     The fake honours the server's locale contract: a slug resolves PER
     LOCALE — a row present in one language is a 404 in the other (and a
     draft is a 404 in every language). The active locale is read from the
@@ -466,8 +466,8 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(img?.getAttribute('alt')).toBe('A shelter entrance in snow');
       // The stored alt is NOT the post title (which would duplicate the h1).
       expect(img?.getAttribute('alt')).not.toBe('Water and heating in the first days');
-      // IMAGE-CACHING CONTRACT (owner report: "guidance pages load images each
-      // visit"): the browser was already caching — the server serves the
+      // IMAGE-CACHING CONTRACT (the reported regression: "guidance pages load
+      // images each visit"): the browser was already caching — the server serves the
       // immutable year-long Cache-Control (pinned in GuidanceAuthorizationIT)
       // and the URL is stable. What the CLIENT controls is pinned here so a
       // future change cannot silently break that contract:
@@ -693,7 +693,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Param switching (the shelter-detail N7 pattern): back/forward between
+  // Param switching (the pattern the shelter-detail spec pins): back/forward between
   // two posts re-loads the new slug instead of keeping the old post.
   // ---------------------------------------------------------------------------
   describe('slug switching', () => {

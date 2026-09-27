@@ -94,7 +94,7 @@ describe('SiteTextsPanel', () => {
 
   it('the loaded override is the value; the shipped catalog is the placeholder for the rest', async () => {
     await render();
-    // bundle-lazy-i18n: the non-default placeholders stand in the default
+    // the non-default placeholders stand in the default
     // locale's copy until the chunk lands; the blocks computed re-runs with
     // the real values once it does (the tracked catalogVersion read).
     await Promise.all([

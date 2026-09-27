@@ -61,8 +61,14 @@
                      this hero (built from disk truth — null for a WebP
                      original / pre-feature upload, then plain src only);
                      sizes is the slot's declared width for srcset
-                     selection (400 px — always ≥ the rendered card
-                     width, so the chosen derivative is never too small). -->
+                     selection. The slot is FLUID (the auto-fill grid's
+                     track minus the card's padding + border): measured in
+                     headless Chromium across 320-1440px viewports, the
+                     rendered hero tops out just under 390px (single
+                     column, at the content width just below the 2-column
+                     breakpoint of 416px), so 400px covers every rendered
+                     width and the chosen derivative (96/192/480/800w
+                     ladder) is never too small. -->
                 <img
                   class="guidance-post__hero"
                   [src]="heroUrl"

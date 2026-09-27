@@ -89,7 +89,7 @@ describe('TermsPage', () => {
     expect(text()).toContain('Terms of use');
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');
-    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+    await i18n.ensureCatalog('et'); // the et chunk is on demand
     fixture.detectChanges();
     expect(text()).toContain('Kasutustingimused');
     expect(text()).toContain('Mis on OpenShelter');

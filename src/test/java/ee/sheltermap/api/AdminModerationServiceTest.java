@@ -13,6 +13,8 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.Pagination;
+import ee.sheltermap.app.PagingBoundsException;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ShelterHistoryChanges;

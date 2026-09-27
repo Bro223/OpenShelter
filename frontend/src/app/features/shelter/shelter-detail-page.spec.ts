@@ -26,7 +26,7 @@ import { ShelterDetailPage } from './shelter-detail-page';
 // so main.ts's registerLocaleData never runs here).
 registerLocaleData(ruLocale);
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes — no mocking framework gymnastics. */
 class FakeShelterGateway {
   rows = new Map<number, ShelterDetailDto>();
   get = vi.fn(async (id: number): Promise<ShelterDetailDto> => {
@@ -516,7 +516,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).not.toContain('Loading shelter…');
     });
 
-    it('a manual URL edit to another shelter re-loads the new id (N7)', async () => {
+    it('a manual URL edit to another shelter re-loads the new id', async () => {
       shelterGateway.rows.set(1, registryShelter());
       shelterGateway.rows.set(7, userShelter());
       const { element, fixture, router } = await open('/shelters/1');
@@ -769,7 +769,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.shelter-detail__distance-line')).toBeNull();
     });
 
-    it('a failed retry clears the last success (F1: no stale distance beside the error)', async () => {
+    it('a failed retry clears the last success (no stale distance beside the error)', async () => {
       const fake = vi.fn();
       let success: ((p: GeolocationPosition) => void) | undefined;
       let failure: ((e: { code: number }) => void) | undefined;
@@ -878,7 +878,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(leaflet.created).toBe(1); // nothing was re-created
     });
 
-    it('an id switch clears the previous pin before the new fetch settles (F9)', async () => {
+    it('an id switch clears the previous pin before the new fetch settles', async () => {
       shelterGateway.rows.set(1, registryShelter());
       shelterGateway.rows.set(7, userShelter());
       const { fixture, router } = await open('/shelters/1');

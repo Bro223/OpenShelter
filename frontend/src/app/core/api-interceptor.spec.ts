@@ -187,7 +187,7 @@ describe('apiInterceptor', () => {
     expect((error as HttpErrorResponse).status).toBe(0);
   });
 
-  it('a 401 from /account/profile is a BUSINESS error (wrong current password) — no refresh dance, propagates to the page (F2)', async () => {
+  it('a 401 from /account/profile is a BUSINESS error (wrong current password) — no refresh dance, propagates to the page', async () => {
     fakeTokens.access.mockReturnValue('access-1');
 
     let error: unknown;
@@ -216,7 +216,7 @@ describe('apiInterceptor', () => {
     expect((error as HttpErrorResponse).status).toBe(401);
   });
 
-  it('a 401 on the POST-REFRESH RETRY redirects to /login?session=expired, rethrows, and does NOT loop (N3)', async () => {
+  it('a 401 on the POST-REFRESH RETRY redirects to /login?session=expired, rethrows, and does NOT loop', async () => {
     fakeTokens.access.mockReturnValueOnce('access-1').mockReturnValue('access-2');
     fakeAuth.refresh.mockResolvedValue(true);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);

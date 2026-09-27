@@ -297,7 +297,7 @@ describe('RegisterPage', () => {
     expect(targets).not.toContain('/register');
   });
 
-  it('surfaces a 409 duplicate-email as an INLINE field error with the backend message (N16)', async () => {
+  it('surfaces a 409 duplicate-email as an INLINE field error with the backend message', async () => {
     const { page, fixture } = await open();
     fillValid(page);
     gateway.register.mockRejectedValue(
@@ -325,7 +325,7 @@ describe('RegisterPage', () => {
     expect(element.textContent).not.toContain('Account created');
   });
 
-  it('surfaces a 409 duplicate-phone inline on the phone field (N16)', async () => {
+  it('surfaces a 409 duplicate-phone inline on the phone field', async () => {
     const { page, fixture } = await open();
     fillValid(page);
     gateway.register.mockRejectedValue(
@@ -351,7 +351,7 @@ describe('RegisterPage', () => {
     expect(element.querySelector('.banner')).toBeNull();
   });
 
-  it('an unrecognizable 409 falls back to the banner (N16)', async () => {
+  it('an unrecognizable 409 falls back to the banner', async () => {
     const { page, fixture } = await open();
     fillValid(page);
     gateway.register.mockRejectedValue(

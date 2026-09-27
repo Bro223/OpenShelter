@@ -25,7 +25,7 @@ import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { MapPage } from './map-page';
 
 /**
- * Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). The
+ * Hand-written fakes — no mocking framework gymnastics. The
  * page logic is tested against a fake LeafletService; the real service's
  * marker/lifecycle behaviour lives in leaflet-service.spec.ts.
  */
@@ -535,7 +535,7 @@ describe('MapPage', () => {
       expect(leaflet.lastRendered).toEqual([BASEMENT, PARNU, TALLINN]);
     });
 
-    it('a 429 list fetch shows the shared rate-limited copy, not raw backend text (N9)', async () => {
+    it('a 429 list fetch shows the shared rate-limited copy, not raw backend text', async () => {
       gateway.list.mockRejectedValue(
         ApiError.fromHttp(
           429,
@@ -924,7 +924,7 @@ describe('MapPage', () => {
       ).toBe(false);
     });
 
-    it('the "Add shelter" CTA waits for the auth boot to settle (F6)', async () => {
+    it('the "Add shelter" CTA waits for the auth boot to settle', async () => {
       // init() has not DECISIVELY decided the boot state yet: authenticated
       // is true in the fake, but the gate (the shell's pattern) keeps the
       // entry hidden until initialized flips — no CTA flicker.
@@ -982,7 +982,7 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
-    it('a failed retry clears the stale Nearest line (F1)', async () => {
+    it('a failed retry clears the stale Nearest line', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
       gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
@@ -1018,7 +1018,7 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
-    it('a locate settling after a failed trust refetch does not offer the empty state beside the banner (F5)', async () => {
+    it('a locate settling after a failed trust refetch does not offer the empty state beside the banner', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
       gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
@@ -1663,7 +1663,7 @@ describe('MapPage', () => {
       expect(router.url).toBe('/map?tones=partial');
     });
 
-    it('a Has capacity refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
+    it('a Has capacity refetch failure can be retried by toggling the same chip', async () => {
       let calls = 0;
       gateway.list.mockImplementation(() => {
         calls++;
@@ -1856,7 +1856,7 @@ describe('MapPage', () => {
     it('renders the block in Estonian after a locale switch', async () => {
       TestBed.inject(I18nService).setLocale('et');
       const { element } = await open('/map');
-      await TestBed.inject(I18nService).ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+      await TestBed.inject(I18nService).ensureCatalog('et'); // the et chunk is on demand
       const how = element.querySelector('.map-page__how');
       expect(how?.textContent).toContain('Kuidas OpenShelter töötab');
       expect(how?.textContent).toContain('hädaabiteenus');

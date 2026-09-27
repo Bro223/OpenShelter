@@ -84,7 +84,8 @@ class ApiErrorHandlerClientErrorsMvcTest {
                                 new byte[]{1})))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("Malformed request"))
+                .andExpect(jsonPath("$.message")
+                        .value("The request is missing the required part file"))
                 .andExpect(jsonPath("$.path").value("/upload"));
     }
 

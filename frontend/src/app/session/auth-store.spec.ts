@@ -50,7 +50,7 @@ function expiredRefreshError(): ApiError {
   );
 }
 
-/** Hand-written fake gateway (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fake gateway — no mocking framework gymnastics. */
 class FakeAuthGateway {
   register = vi.fn();
   login = vi.fn();
@@ -145,7 +145,7 @@ describe('AuthStore', () => {
       expect(account.me).not.toHaveBeenCalled();
     });
 
-    it('backend down on boot -> anonymous, keeps the refresh token AND stays retryable (N2)', async () => {
+    it('backend down on boot -> anonymous, keeps the refresh token AND stays retryable', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValue(ApiError.fromNetwork());
 
@@ -158,7 +158,7 @@ describe('AuthStore', () => {
       expect(localStorage.getItem('os.refresh')).toBe('refresh-1');
     });
 
-    it('a failed boot is retryable — a later init() re-attempts the refresh (N2)', async () => {
+    it('a failed boot is retryable — a later init() re-attempts the refresh', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValueOnce(ApiError.fromNetwork());
 
@@ -212,7 +212,7 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(true);
     });
 
-    it('boot rotation goes through the single-flight refresh() — a concurrent caller shares the run (W13)', async () => {
+    it('boot rotation goes through the single-flight refresh() — a concurrent caller shares the run', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       let resolveRefresh!: (value: TokenResponse) => void;
       gateway.refresh.mockReturnValue(
@@ -362,7 +362,7 @@ describe('AuthStore', () => {
       expect(gateway.refresh).toHaveBeenCalledTimes(2);
     });
 
-    it('a network AND a 5xx refresh failure keep the stored token — only a 401 clears (F3)', async () => {
+    it('a network AND a 5xx refresh failure keep the stored token — only a 401 clears', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValueOnce(ApiError.fromNetwork()).mockRejectedValueOnce(
         ApiError.fromHttp(500, {
@@ -383,7 +383,7 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(false);
     });
 
-    it('retries ONCE with the token another tab rotated in flight, before clearing (F4)', async () => {
+    it('retries ONCE with the token another tab rotated in flight, before clearing', async () => {
       localStorage.setItem('os.refresh', 'refresh-1');
       gateway.refresh.mockImplementation(async (token: string) => {
         if (token === 'refresh-1') {
@@ -404,7 +404,7 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(true);
     });
 
-    it('clears the session only on the FINAL 401 after a cross-tab retry (F4)', async () => {
+    it('clears the session only on the FINAL 401 after a cross-tab retry', async () => {
       localStorage.setItem('os.refresh', 'refresh-1');
       gateway.refresh.mockImplementation(async (token: string) => {
         if (token === 'refresh-1') {
@@ -598,7 +598,7 @@ describe('AuthStore', () => {
   });
 
   describe('session epoch (identity generation)', () => {
-    it('an in-flight me() from a previous identity is NOT adopted after logout + login as another user (F1)', async () => {
+    it('an in-flight me() from a previous identity is NOT adopted after logout + login as another user', async () => {
       let resolveMe!: (value: MeResponse) => void;
       account.me
         .mockReturnValueOnce(
@@ -634,7 +634,7 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(true);
     });
 
-    it('an in-flight refresh that LANDS after logout does not resurrect the session (N1)', async () => {
+    it('an in-flight refresh that LANDS after logout does not resurrect the session', async () => {
       gateway.login.mockResolvedValue(PAIR);
       await store.login('a@example.ee', 's3cret!');
       expect(store.authenticated()).toBe(true);

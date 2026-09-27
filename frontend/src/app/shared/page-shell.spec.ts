@@ -887,7 +887,7 @@ describe('PageShell', () => {
       // The active language is hidden; the buttons now offer the two ways back.
       expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'RU']);
 
-      // bundle-lazy-i18n: the et chunk is on demand — the chrome showed the
+      // the et chunk is on demand — the chrome showed the
       // default locale's copy until it landed; settle it before asserting copy.
       await TestBed.inject(I18nService).ensureCatalog('et');
       fixture.detectChanges();
@@ -940,7 +940,7 @@ describe('PageShell', () => {
       // The active language is hidden; the buttons offer the two others.
       expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'ET']);
 
-      // bundle-lazy-i18n: the ru chunk is on demand — settle it before asserting copy.
+      // the ru chunk is on demand — settle it before asserting copy.
       await TestBed.inject(I18nService).ensureCatalog('ru');
       fixture.detectChanges();
 
@@ -968,7 +968,7 @@ describe('PageShell', () => {
       langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
 
-      // bundle-lazy-i18n: the et chunk is on demand — settle it before asserting copy.
+      // the et chunk is on demand — settle it before asserting copy.
       await TestBed.inject(I18nService).ensureCatalog('et');
       fixture.detectChanges();
 

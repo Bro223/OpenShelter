@@ -1,6 +1,5 @@
 package ee.sheltermap.auth;
 
-import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
@@ -16,7 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,7 +25,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Thin HTTP shell for verification — exposes the service-level verification
@@ -65,22 +62,19 @@ public class VerificationController {
     private final CurrentCaller currentCaller;
     private final RateLimiter verifyRateLimiter;
     private final VerificationProperties properties;
-    private final Set<String> trustedProxies;
-    private final boolean trustLoopback;
+    private final ClientThrottle clientThrottle;
 
     public VerificationController(VerificationService verificationService,
                                   UserRepository userRepository,
                                   @Qualifier("verifyRateLimiter") RateLimiter verifyRateLimiter,
                                   VerificationProperties properties,
-                                  @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
-                                  @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
+                                  ClientThrottle clientThrottle) {
         this.verificationService = Objects.requireNonNull(verificationService, "verificationService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.currentCaller = new CurrentCaller(userRepository);
         this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
-        this.trustLoopback = trustLoopback;
-        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
+        this.clientThrottle = Objects.requireNonNull(clientThrottle, "clientThrottle");
     }
 
     /**
@@ -107,10 +101,7 @@ public class VerificationController {
                     + "or per-IP throttle — Retry-After in seconds")
     })
     public CodeSentDto request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
-        RateLimiter.Result result = verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
-        if (!result.acquired()) {
-            throw new RateLimitExceededException(result.retryAfterSeconds());
-        }
+        clientThrottle.requireRate(verifyRateLimiter, http);
         RegisteredUser user = currentUser();
         if (body.level() == VerificationLevel.SMART_ID) {
             // The SMART_ID provider is a stub in v1 (no e-ID integration yet):

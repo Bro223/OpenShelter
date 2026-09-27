@@ -39,7 +39,7 @@ public interface MediaAssetRepository {
     /**
      * A page of the library listing: the SAME newest-first order as
      * {@link #findAll()}, OFFSET/LIMIT in the store (the caller validates
-     * the bounds — {@code ee.sheltermap.api.Pagination}).
+     * the bounds — {@code ee.sheltermap.app.Pagination}).
      */
     List<MediaAsset> findPage(long offset, int limit);
 

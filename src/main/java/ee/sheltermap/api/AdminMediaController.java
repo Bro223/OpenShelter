@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.Pagination;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;

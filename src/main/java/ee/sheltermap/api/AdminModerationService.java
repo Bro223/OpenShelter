@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.Pagination;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ShelterNotFoundException;

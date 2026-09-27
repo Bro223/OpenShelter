@@ -918,3 +918,14 @@ textarea::placeholder {
   border-radius: 2px; /* not a circle — the shape IS the distinction */
   transform: rotate(45deg);
 }
+
+/* Browser-chrome colour scheme for the two dark themes: form controls,
+   scrollbars and the UA UI (select dropdowns, date pickers, autocomplete)
+   follow the theme instead of forcing the light scheme on top of a dark
+   page. The light theme keeps the default (light) scheme, so it declares
+   nothing. (web-design-guidelines: respect the page's scheme in the
+   controls.) */
+[data-theme='high-contrast'],
+[data-theme='black-and-yellow'] {
+  color-scheme: dark;
+}

@@ -55,7 +55,7 @@ describe('I18nService', () => {
       const i18n = TestBed.inject(I18nService);
       expect(i18n.t('nav.map')).toBe('Shelter map');
       i18n.setLocale('et');
-      await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+      await i18n.ensureCatalog('et'); // the et chunk is on demand
       expect(i18n.t('nav.map')).toBe('Varjupaikade kaart');
     });
   });
@@ -155,7 +155,7 @@ describe('I18nService', () => {
       });
       expect(i18n.t('a11y.popup.title')).toBe('Contrast'); // en overridden
       i18n.setLocale('et');
-      await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+      await i18n.ensureCatalog('et'); // the et chunk is on demand
       expect(i18n.t('a11y.popup.title')).toBe('Kättesaadavus'); // et not overridden → catalog
     });
 
@@ -192,7 +192,7 @@ describe('I18nService', () => {
       const i18n = TestBed.inject(I18nService);
       i18n.setSiteTexts({ en: { 'nav.map': { value: 'X' } }, et: {}, ru: {} });
       expect(i18n.defaultText('nav.map', 'en')).toBe('Shelter map'); // not the override
-      // bundle-lazy-i18n: the non-default placeholders stand in the default
+      // the non-default placeholders stand in the default
       // locale until their chunks land — the real values after the load.
       await Promise.all([i18n.ensureCatalog('et'), i18n.ensureCatalog('ru')]);
       expect(i18n.defaultText('nav.map', 'et')).toBe('Varjupaikade kaart');
@@ -233,7 +233,7 @@ describe('TranslatePipe (t)', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toBe('Shelter map');
 
     TestBed.inject(I18nService).setLocale('et');
-    await TestBed.inject(I18nService).ensureCatalog('et'); // bundle-lazy-i18n: the chunk is on demand
+    await TestBed.inject(I18nService).ensureCatalog('et'); // the chunk is on demand
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toBe('Varjupaikade kaart');
   });

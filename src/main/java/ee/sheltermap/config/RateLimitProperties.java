@@ -9,10 +9,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 0.084/s).
  *
  * <p>{@code app.ratelimit.trusted-proxies} / {@code app.ratelimit.trust-loopback}
- * live in the same yml block but are NOT part of this record: the four
- * rate-limiting controllers parse them via
- * {@code @Value} directly (see {@code ClientIps} for the keying rule), and
- * the bound components were never read.
+ * live in the same yml block but are NOT part of this record: the shared
+ * {@code auth/ClientThrottle} component binds and parses them once (it is
+ * what the four rate-limiting controllers use for their bucket keys; see
+ * {@code ClientIps} for the keying rule).
  */
 @ConfigurationProperties(prefix = "app.ratelimit")
 public record RateLimitProperties(

@@ -218,7 +218,7 @@ describe('bannerMessage — status × kind matrix', () => {
     expect(bannerMessage(apiError(status, message), kind)).toBe(expected);
   });
 
-  it('N6: a 5xx with a NON-JSON body (reverse-proxy HTML) is never echoed into the banner', () => {
+  it('a 5xx with a NON-JSON body (reverse-proxy HTML) is never echoed into the banner', () => {
     const html =
       '<html><head><title>502 Bad Gateway</title></head><body><center>nginx</center></body></html>';
     // A non-JSON string body becomes ApiError.message verbatim — the copy

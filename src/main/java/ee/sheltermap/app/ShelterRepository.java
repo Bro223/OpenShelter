@@ -56,7 +56,7 @@ public interface ShelterRepository {
      * {@code provenanceReviewStatus}; null = either) — the exact
      * (source, reviewStatus) pair of the derived provenance the caller
      * filtered on. Stable id-ascending order, LIMIT/OFFSET; the caller
-     * validates the bounds ({@code ee.sheltermap.api.Pagination}).
+     * validates the bounds ({@code ee.sheltermap.app.Pagination}).
      */
     List<Shelter> findActivePage(List<ShelterSource> sources, BoundingBox bbox, Boolean hasCapacity,
                                  ShelterSource provenanceSource, ReviewStatus provenanceReviewStatus,

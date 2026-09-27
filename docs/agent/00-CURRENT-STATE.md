@@ -91,13 +91,13 @@ Anchors, row by row:
   yellow is the *same* `#ffd400` in every theme
   (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:140-141`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner
-  decision, enforced in a spec: `frontend/src/app/design-tokens.spec.ts:913`). Light
+  decision, enforced in a spec: `frontend/src/app/design-tokens.spec.ts:924`). Light
   `frontend/src/styles.scss:102,115`; high-contrast `frontend/src/styles.scss:393,398`;
   black-and-yellow `frontend/src/app/core/theme-tokens.ts:98-99,103`.
 - **Red-orange is reserved for reported**: no other state uses the red family — the pick
   pin's own comment: "red is reserved for" (`frontend/src/styles.scss:898-899`); the
   marker-meaning pin keeps it a distinct family in every theme
-  (`frontend/src/app/design-tokens.spec.ts:949`). The pin palette has no grey — the
+  (`frontend/src/app/design-tokens.spec.ts:960`). The pin palette has no grey — the
   marker's owner-decision record says "there is no grey in it"
   (`frontend/src/styles.scss:831-832`).
 - **Depth is carried by hue, in words** (WCAG 1.4.1 — never colour alone on a pin):
@@ -125,7 +125,7 @@ Anchors, row by row:
   the second channel is confirmed — while an orphaned row (author erased) serves the
   depth frozen onto it at erasure (V35): nothing on a live row's standing can go stale
   (`src/main/java/ee/sheltermap/api/SubmitterVerification.java:10-13,26-33`; the
-  orphan-serving read, `src/main/java/ee/sheltermap/api/ShelterQueryService.java:412-414`).
+  orphan-serving read, `src/main/java/ee/sheltermap/api/ShelterQueryService.java:413-415`).
 - There is deliberately **no recency term** in the pin: NEW vs CONFIRMED rows without a
   reported depth share the community tone; the comment above that return —
   "the badge says NEW, not the pin" (`frontend/src/app/shared/leaflet-service.ts:86-88`).
@@ -189,15 +189,15 @@ both tallies read their inputs from the same dismissed-excluded store query
   - **List** (the admin report queue): the default queue renders everything with dismissed
     rows dimmed (dismissal records the resolution, it never deletes the report); the
     moderator's "hide dismissed" scope (`excludeDismissed=true`,
-    `src/main/java/ee/sheltermap/api/AdminController.java:397`) drops the dismissed rows in
+    `src/main/java/ee/sheltermap/api/AdminController.java:398`) drops the dismissed rows in
     the domain (`openReportPage`,
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:414-438`) — and its
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:415-439`) — and its
     X-Total-Count *is* the sum of the per-shelter open counts the pins read
     (`listShelterReports` with `excludeDismissed`,
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:311-326`).
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:312-327`).
   - So: the count/tally filter lives in the store queries (`dismissedAt is null`); the list
     filter lives in the queue's open-scope reads (`openReportPage`/`openReportCount` at
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:414,448`).
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:415,449`).
 
 ## 4. Paging and filtering — the view IS the URL
 
@@ -226,10 +226,10 @@ both tallies read their inputs from the same dismissed-excluded store query
   rule): `limit` optional — absent means no paging, present must be 1..200 else 400;
   `offset` optional — absent means the first page, negative is a 400; an offset past the end
   is an empty page, never an error (`Pagination` at
-  `src/main/java/ee/sheltermap/api/Pagination.java:20-30`, `MAX_PAGE_SIZE` at `:33`,
+  `src/main/java/ee/sheltermap/app/Pagination.java:20-30`, `MAX_PAGE_SIZE` at `:33`,
   `requireLimit` at `:44-58`, `requireOffset` at `:60-74`, `slice` at `:91-110`).
 - **`X-Total-Count`** is the filtered length WITHOUT paging, always present on the paged
-  reads (`Paged`, `src/main/java/ee/sheltermap/api/Pagination.java:112-123`), exposed
+  reads (`Paged`, `src/main/java/ee/sheltermap/app/Pagination.java:112-123`), exposed
   cross-origin by name — never a wildcard (`setExposedHeaders`,
   `src/main/java/ee/sheltermap/config/SecurityConfig.java:183-188`) — and read on the
   frontend with an honest degrade: a missing/blank/negative header falls back to the
@@ -326,7 +326,7 @@ both tallies read their inputs from the same dismissed-excluded store query
    written for" (`docs/autopilot/findings/LEDGER.md:265`), and the literal-token audit
    being blind to computed `color-mix()` fills — the spec's own words:
    "the token pairs above pass while the mix can still fail"
-   (`frontend/src/app/design-tokens.spec.ts:855-865`). Lesson: a green guard
+   (`frontend/src/app/design-tokens.spec.ts:866-876`). Lesson: a green guard
    proves the guard ran, not that the behaviour exists — verify the path the guard was
    written for, then trust the guard.
 

@@ -153,7 +153,7 @@ interface EditorHarness {
   admin: FakeAdminGateway;
 }
 
-// ---- hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics) ----
+// ---- hand-written fakes — no mocking framework gymnastics ----
 
 class FakeAdminGateway {
   uploadMediaAsset = vi.fn();

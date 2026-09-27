@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.DataImportLog;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.Pagination;
 import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ShelterOccupancyRepository;
 import ee.sheltermap.app.ShelterOpenStatusRepository;

@@ -91,7 +91,7 @@ describe('ConsentBanner', () => {
       imports: [ConsentBanner],
       providers: [provideRouter([])],
     });
-    TestBed.inject(I18nService).setLocale('et'); // bundle-lazy-i18n: starts the on-demand et chunk
+    TestBed.inject(I18nService).setLocale('et'); // starts the on-demand et chunk
     const fixture = TestBed.createComponent(ConsentBanner);
     await TestBed.inject(I18nService).ensureCatalog('et'); // the chunk lands before the assertions
     fixture.detectChanges();

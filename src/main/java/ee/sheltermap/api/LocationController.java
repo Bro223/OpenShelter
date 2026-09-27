@@ -1,11 +1,10 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationResolveService;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.auth.ClientIps;
-import ee.sheltermap.auth.RateLimitExceededException;
+import ee.sheltermap.auth.ClientThrottle;
 import ee.sheltermap.auth.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -16,7 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Thin shell for the short-link resolver:
@@ -51,17 +48,14 @@ public class LocationController {
 
     private final LocationResolveService resolveService;
     private final RateLimiter geoResolveRateLimiter;
-    private final Set<String> trustedProxies;
-    private final boolean trustLoopback;
+    private final ClientThrottle clientThrottle;
 
     public LocationController(LocationResolveService resolveService,
                               @Qualifier("geoResolveRateLimiter") RateLimiter geoResolveRateLimiter,
-                              @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
-                              @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
+                              ClientThrottle clientThrottle) {
         this.resolveService = Objects.requireNonNull(resolveService, "resolveService");
         this.geoResolveRateLimiter = Objects.requireNonNull(geoResolveRateLimiter, "geoResolveRateLimiter");
-        this.trustLoopback = trustLoopback;
-        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
+        this.clientThrottle = Objects.requireNonNull(clientThrottle, "clientThrottle");
     }
 
     @PostMapping("/resolve")
@@ -87,11 +81,7 @@ public class LocationController {
     })
     public LocationResolvedDto resolve(@Valid @RequestBody LocationResolveRequest request,
                                        HttpServletRequest http) {
-        RateLimiter.Result permit =
-                geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback));
-        if (!permit.acquired()) {
-            throw new RateLimitExceededException(permit.retryAfterSeconds());
-        }
+        clientThrottle.requireRate(geoResolveRateLimiter, http);
         return toResponse(resolveService.resolve(request.url()));
     }
 

@@ -115,12 +115,13 @@ class ApiErrorHandlerTest {
     @Test
     void missingMultipartPartMapsTo400Not500() {
         // a multipart body without the required "file" part is a plain
-        // client mistake — the same 400 vocabulary as the malformed group
+        // client mistake — the message names the missing part
         ResponseEntity<ErrorResponse> response = handler.malformed(
                 new MissingServletRequestPartException("file"), request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody().message()).isEqualTo("Malformed request");
+        assertThat(response.getBody().message())
+                .isEqualTo("The request is missing the required part file");
     }
 
     @Test

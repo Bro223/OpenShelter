@@ -8,7 +8,7 @@ import { GeoGateway } from './geo-gateway';
 /** A resolved short link (maps.app.goo.gl -> Google Maps with an in-Estonia pair). */
 const RESOLVED: LocationResolved = { latitude: 59.43703, longitude: 24.75353 };
 
-/** Hand-written fake ApiClient — the gateway must only pick path + body (01-TASK.md §8). */
+/** Hand-written fake ApiClient — the gateway must only pick path + body. */
 class FakeApiClient {
   get = vi.fn();
   post = vi.fn();

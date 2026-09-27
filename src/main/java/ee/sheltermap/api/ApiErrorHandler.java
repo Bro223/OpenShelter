@@ -8,6 +8,8 @@ import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotAuthorException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.Pagination;
+import ee.sheltermap.app.PagingBoundsException;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
@@ -92,6 +94,15 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_REQUEST, message, request);
     }
 
+    /**
+     * The malformed-request 400s — the message names what was malformed:
+     * an unparseable body, the missing required parameter/part by name,
+     * the parameter whose value the converter or a constraint rejected.
+     * The message never starts with a request-payload field name — the
+     * client's code-confirm flows treat a field-prefixed 400 as a
+     * validation failure, and a malformed body must keep the generic
+     * copy there (anti-enumeration).
+     */
     @ExceptionHandler({
             ConstraintViolationException.class,
             HttpMessageNotReadableException.class,
@@ -99,7 +110,29 @@ public class ApiErrorHandler {
             MissingServletRequestPartException.class,
             MethodArgumentTypeMismatchException.class})
     ResponseEntity<ErrorResponse> malformed(Exception ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, "Malformed request", request);
+        return error(HttpStatus.BAD_REQUEST, malformedMessage(ex), request);
+    }
+
+    private static String malformedMessage(Exception ex) {
+        if (ex instanceof HttpMessageNotReadableException) {
+            return "The request body is not valid JSON";
+        }
+        if (ex instanceof MissingServletRequestParameterException e) {
+            return "The request is missing the required parameter " + e.getParameterName();
+        }
+        if (ex instanceof MissingServletRequestPartException e) {
+            return "The request is missing the required part " + e.getRequestPartName();
+        }
+        if (ex instanceof MethodArgumentTypeMismatchException e) {
+            return "The parameter " + e.getName() + " has an invalid value";
+        }
+        if (ex instanceof ConstraintViolationException e) {
+            return e.getConstraintViolations().stream()
+                    .findFirst()
+                    .map(v -> "The value of " + v.getPropertyPath() + " is invalid")
+                    .orElse("The request contains an invalid value");
+        }
+        return "Malformed request";
     }
 
     /**
