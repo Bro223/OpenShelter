@@ -116,6 +116,18 @@ class AdminSeederTest {
     }
 
     @Test
+    void anAtLessConfiguredAddressIsStillSeeded() {
+        // Also exercises maskEmail's @-less branch (the boot log's mask
+        // argument evaluates to the fixed placeholder): the seeder never
+        // validates the address format — it seeds what it is given.
+        seeder("admin-local", PASSWORD).run(null);
+
+        RegisteredUser admin = users.findByEmail("admin-local");
+        assertThat(admin).isInstanceOf(AdminUser.class);
+        assertThat(users.isAdmin(admin.getId())).isTrue();
+    }
+
+    @Test
     void preExistingUserWithSameEmailIsNeverTouched() {
         // a normal account registered through the app holds the email first
         RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001");

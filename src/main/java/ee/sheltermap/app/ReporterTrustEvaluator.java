@@ -16,9 +16,8 @@ import java.util.Objects;
  * auto-hides a shelter, and the same multiplier the public pulse shows.
  *
  * <p>The weight is NEVER stored: it is re-derived from the rows that
- * already exist (the reporter's own submissions + the moderation audit
- * trail), so it cannot drift and a rolled-back report leaves no score
- * behind.
+ * already exist, so it cannot drift and a rolled-back report leaves no
+ * score behind — {@link ReporterTrust} states the full derivation rule.
  */
 @Component
 public class ReporterTrustEvaluator {

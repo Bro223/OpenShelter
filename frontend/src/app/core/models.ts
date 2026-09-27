@@ -355,9 +355,9 @@ export interface MeResponse {
 }
 
 /**
- * The submitter's verification depth (submitter-verification-badge): the
- * single confirmed channel, or 'FULL' at two or more. Server-derived on every
- * read — see {@link ShelterDto.submitterVerification}.
+ * The submitter's verification depth: the single confirmed channel, or
+ * 'FULL' at two or more. Server-derived on every read for rows with a live
+ * author — see {@link ShelterDto.submitterVerification}.
  */
 export type SubmitterVerification = 'EMAIL' | 'PHONE' | 'SMART_ID' | 'FULL';
 
@@ -384,13 +384,13 @@ export interface ShelterDto {
    */
   submitterVerified: boolean;
   /**
-   * The submitter's verification DEPTH (submitter-verification-badge),
-   * backend-derived on every read from the author's CURRENT claims: 'EMAIL' /
-   * 'PHONE' / 'SMART_ID' when exactly one channel is confirmed, 'FULL' at two
-   * or more, null when there is nothing to describe (registry rows, a deleted
-   * account, an author with no confirmed channel yet). A row added at one
-   * channel upgrades to 'FULL' the moment the author confirms a second —
-   * nothing is stored on the row, so the badge cannot go stale.
+   * The submitter's verification DEPTH, backend-computed: 'EMAIL' / 'PHONE'
+   * / 'SMART_ID' when exactly one channel is confirmed, 'FULL' at two or
+   * more, null when there is nothing to describe (registry rows, a deleted
+   * account, an author with no confirmed channel yet). For rows with a live
+   * author the depth is derived on every read (a one-channel row upgrades to
+   * 'FULL' the moment a second channel is confirmed); an orphaned row serves
+   * the depth frozen onto it at erasure.
    *
    * Optional on purpose: the UI treats absent and null identically (no badge),
    * so an older backend that omits the field renders exactly as before.

@@ -243,17 +243,22 @@ auth, verification, shelter submission, community reports); run/build docs in
 | `ingestion`    | `ShelterRegistryClient` (csv/paasteamet/dev clients), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                                                                              |
 | `api`          | `ShelterController`, `LocationController`, `DataSourceController`, `AdminController` + `AdminModerationService` (admin-moderation), the dev `EmailTestController`/`SmsTestController` diagnostics, query services, DTOs, `ErrorResponse`, global advice                                                                               |
 | `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                                                                               |
-| `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `ApiDocsGuard`, `OpenApiConfig`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                                               |
+| `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `ApiDocsGuard`, `OpenApiConfig`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`, `SchedulingConfig` (the `@EnableScheduling` home) |
 
 | `security`     | `PiiCrypto` (AES-256-GCM + HMAC blind index), `PiiKeys` (fail-closed key loading) |
-| `migration`    | `V13PiiEncryptionMigration` — the Java-based PII migration Flyway runs between V12 and V14 |
+| `migration`    | Java-based Flyway migrations: `V13PiiEncryptionMigration` (PII encryption + blind-index backfill, runs between V12 and V14) and `V34BlindIndexFramingMigration` (blind-index length-prefix reframing) |
 | `guidance`     | crisis-guidance: `GuidanceService`, `SlugFactory`, `BodySanitizer`, `MediaService`, `MediaStorage`, `MediaImageInspector` |
+| `retention`    | `RetentionService` (the daily prune), `RetentionScheduler`, `RetentionRunLog`, `RetentionProperties` |
+| `alerts`       | `ThrottleAlert` (the 429 alert record), `ThrottleAlertRecorder` (ring buffer behind the throttle 429s) |
+| `sitetexts`    | `SiteTextsService`, `SiteTextRepository`, `SiteTextKeys`, `SiteTextEntry`, `SiteTextValidationException` — the admin-editable site texts |
 
 The `api` package additionally carries the crisis-guidance surface: `GuidanceController` and
 `MediaController` (public reads) plus `AdminGuidanceController` and `AdminMediaController`.
 
 Dependency rule: `api`/`auth`/`ingestion` → `app`/`verification` → `domain`. `domain` depends
 on nothing. Cross-package access goes through interfaces only.
+
+**Where new code goes.** Two axes coexist: horizontal layers (`domain` → `app` → `api`) and vertical feature slices (`auth`, `verification`, `ingestion`, `guidance`, `retention`, `sitetexts`, `alerts`). A feature that owns a domain concept plus its own table lives in its own slice package and keeps its service, slice-specific ports, exceptions and properties there. Every feature's HTTP surface stays in `api` (the controllers and their DTOs), `auth` being the one slice that keeps its own controllers. Cross-feature application services, the shared repository interfaces and shared exceptions live in `app`; JPA entities and their Spring Data implementations only in `persistence`; `domain` stays pure Java; boot wiring, the fail-closed guards and the job wiring (`SchedulingConfig`, the `*Scheduler` beans, `RegistryRunConfig`) live in `config`. Known deviation, recorded in `reviews/12-summary.md` (P3-A): `ShelterQueryService` and `AdminModerationService` sit in `api` next to the endpoints they serve; moving them is a structural change that must travel with the anchor-pinned current-state doc's re-derivation.
 
 ## Documentation
 

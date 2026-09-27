@@ -5,12 +5,11 @@
  * Haversine distance both pages compute client-side (the "no new
  * endpoint" precedent).
  *
- * Stays page-local on purpose: the per-page
- * FAILURE COPY. The map page maps the failure kinds to i18n message keys
- * (its NEAREST_KEY) and the detail page to plain copy (its DISTANCE_COPY)
- * — their trailing alternatives differ, so each page keeps its own
- * documented mirror. This module owns the mechanism + mapping + math only,
- * never the copy.
+ * Stays page-local on purpose: each page maps the failure kinds to its
+ * OWN i18n message keys (the map view's NEAREST_KEY, the detail page's
+ * DISTANCE_KEY) — their trailing alternatives differ, so each page keeps
+ * its own documented mirror. This module owns the mechanism + mapping +
+ * math only, never the copy.
  */
 
 /** The failure kinds of a one-shot geolocation request: the API's error

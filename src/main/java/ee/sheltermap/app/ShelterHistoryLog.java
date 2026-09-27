@@ -57,7 +57,7 @@ public interface ShelterHistoryLog {
 
     /**
      * The shelter's events in ASCENDING order (created_at asc, id asc as the
-     * same-timestamp tie-break — the stable-order discipline, B7a). Includes
+     * same-timestamp tie-break — the stable-order discipline). Includes
      * rows whose shelter_id dangles (the shelter is deleted) — those are the
      * point: a deleted shelter's history still serves.
      */

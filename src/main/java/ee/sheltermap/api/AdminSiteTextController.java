@@ -1,21 +1,16 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.sitetexts.SiteTextValidationException;
 import ee.sheltermap.sitetexts.SiteTextsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Clock;
 import java.util.Objects;
 
 /**
@@ -37,14 +32,11 @@ public class AdminSiteTextController {
 
     private final SiteTextsService siteTexts;
     private final AdminAccess adminAccess;
-    private final Clock clock;
 
     public AdminSiteTextController(SiteTextsService siteTexts,
-                                   AdminAccess adminAccess,
-                                   Clock clock) {
+                                   AdminAccess adminAccess) {
         this.siteTexts = Objects.requireNonNull(siteTexts, "siteTexts");
         this.adminAccess = Objects.requireNonNull(adminAccess, "adminAccess");
-        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @PutMapping
@@ -63,18 +55,5 @@ public class AdminSiteTextController {
         adminAccess.requireAdmin();
         siteTexts.update(request.texts());
         return ResponseEntity.noContent().build();
-    }
-
-    /** A refused batch → the uniform 400 (the shared ApiErrorHandler keeps
-        the 401/403 mappings for the auth exceptions above). */
-    @ExceptionHandler(SiteTextValidationException.class)
-    ResponseEntity<ErrorResponse> validation(SiteTextValidationException ex,
-                                             HttpServletRequest request) {
-        return ResponseEntity.badRequest().body(new ErrorResponse(
-                clock.instant(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()));
     }
 }

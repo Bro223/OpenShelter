@@ -466,9 +466,9 @@ describe('MapPage', () => {
       // the API does not report renders the plain community circle, visible
       // by default, never carried by its own legend entry.
       expect(legend?.querySelector('.shelter-marker--user')).toBeNull();
-      // Submitter verification depth (submitter-verification-badge): the SHAPE
-      // carries it — the partial yellow circle at one confirmed channel, the
-      // full green circle at two or more.
+      // Submitter verification depth: the TONE carries it — the partial
+      // yellow circle at one confirmed channel, the full green circle at two
+      // or more.
       expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
@@ -1742,7 +1742,7 @@ describe('MapPage', () => {
       // The trust entries stay (the orange one is ADDED, not swapped).
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
       // ...and the community entries are the two verification SHAPES
-      // (submitter-verification-badge), not the old amber/green tones.
+      // (the submitter-verification depth), not the old amber/green tones.
       expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
     });

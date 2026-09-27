@@ -420,7 +420,7 @@ public class AdminController {
     /**
      * The account list behind the Users tab: every REGISTERED
      * and ADMIN account with its suspension state, id-ordered.
-     * {@code limit} (1..200; absent = the whole list) and {@code offset}
+     * {@code limit} (1..200, default 100) and {@code offset}
      * (>= 0) page it (the owner's "every admin list pages" rule),
      * and the {@code X-Total-Count} header is the tab's population
      * WITHOUT paging (always present).
@@ -429,8 +429,8 @@ public class AdminController {
     @Operation(summary = "The account list (Users tab)",
             description = "Every REGISTERED and ADMIN account with its "
                     + "suspension state, id-ordered. E-mail is admin-only data, "
-                    + "served from /admin/* only. Optional limit (1..200; "
-                    + "absent = the whole list) / offset (>= 0) page it; the "
+                    + "served from /admin/* only. Optional limit (1..200, "
+                    + "default 100) / offset (>= 0) page it; the "
                     + "X-Total-Count response header is the tab's population "
                     + "WITHOUT paging (always present).")
     @ApiResponse(responseCode = "200", description = "The account rows "
@@ -444,8 +444,8 @@ public class AdminController {
     @ApiResponse(responseCode = "400", description = "A limit outside 1..200, "
             + "or a negative offset")
     public ResponseEntity<List<AdminUserDto>> listUsers(
-            @Parameter(description = "Optional page size: 1..200; absent = the "
-                    + "whole list.")
+            @Parameter(description = "Rows to return, 1..200 (default 100; "
+                    + "anything else 400).")
             @RequestParam(required = false) Integer limit,
             @Parameter(description = "Optional offset into the list: >= 0; past "
                     + "the end answers an empty array.")

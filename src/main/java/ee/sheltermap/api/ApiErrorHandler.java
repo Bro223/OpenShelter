@@ -37,6 +37,7 @@ import ee.sheltermap.guidance.MediaAssetInUseException;
 import ee.sheltermap.guidance.MediaTooLargeException;
 import ee.sheltermap.guidance.SlugAlreadyUsedException;
 import ee.sheltermap.guidance.UnsupportedImageException;
+import ee.sheltermap.sitetexts.SiteTextValidationException;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -156,6 +157,10 @@ public class ApiErrorHandler {
      *       cannot be read. (The hero-import path throws the same family
      *       too, but it is caught save-time and stored as the post's
      *       heroImportError — it never reaches this handler.)</li>
+     *   <li>{@link SiteTextValidationException} — a refused site-texts batch
+     *       (unknown key, unknown locale, over-cap value, a URL on a
+     *       non-link key or a non-https URL); the whole batch is refused
+     *       before anything is written — a 400 changes nothing.</li>
      * </ul>
      */
     @ExceptionHandler({
@@ -165,7 +170,8 @@ public class ApiErrorHandler {
             InvalidShelterException.class,
             PagingBoundsException.class,
             GuidanceValidationException.class,
-            UnsupportedImageException.class})
+            UnsupportedImageException.class,
+            SiteTextValidationException.class})
     ResponseEntity<ErrorResponse> badRequest(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }

@@ -6249,12 +6249,12 @@
     },
     "/admin/users" : {
       "get" : {
-        "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only. Optional limit (1..200; absent = the whole list) / offset (>= 0) page it; the X-Total-Count response header is the tab's population WITHOUT paging (always present).",
+        "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only. Optional limit (1..200, default 100) / offset (>= 0) page it; the X-Total-Count response header is the tab's population WITHOUT paging (always present).",
         "operationId" : "listUsers",
         "parameters" : [ {
           "name" : "limit",
           "in" : "query",
-          "description" : "Optional page size: 1..200; absent = the whole list.",
+          "description" : "Rows to return, 1..200 (default 100; anything else 400).",
           "required" : false,
           "schema" : {
             "type" : "integer",

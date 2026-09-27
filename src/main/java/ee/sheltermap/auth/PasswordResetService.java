@@ -26,8 +26,9 @@ import java.util.Objects;
 
 /**
  * Password reset (03-auth.puml): a 6-digit one-time code e-mailed to the
- * account address (no URL link), 15 min TTL, stored SHA-256-hashed,
- * single-use, 5 failed attempts per code. {@link #requestReset} always
+ * account address (no URL link), 15 min TTL, stored as the keyed
+ * {@code v2:} hash, single-use, 5 failed attempts per code. {@link
+ * #requestReset} always
  * "succeeds" — never reveals whether an email is registered (no
  * enumeration); a new request invalidates the previous code (one active
  * code per user). A successful reset revokes <em>all</em> refresh tokens
@@ -40,12 +41,12 @@ import java.util.Objects;
  * five failures lock the code out, so a 6-digit code cannot be
  * brute-forced. Every failure mode is indistinguishable to the caller.
  *
- * <p>Rotation protection (S1b, V8 {@code created_at}): re-issuing a code is
- * throttled per user — a 60-second cooldown and a per-UTC-day cap of 5
- * reissues. Both skip paths are silent no-ops that leave the current
+ * <p>Rotation protection (the V8 {@code created_at} anchor): re-issuing a
+ * code is throttled per user — a 60-second cooldown and a per-UTC-day cap
+ * of 5 reissues. Both skip paths are silent no-ops that leave the current
  * active code valid, so the endpoint still answers the identical 200 ack
  * (no enumeration, no rotation oracle). The confirm path is
- * additionally rate-limited per (IP, e-mail) at the controller (S1a).
+ * additionally rate-limited per (IP, e-mail) at the controller.
  *
  * <p>The provisioned admin (kind {@code ADMIN}) is the ONE exception to
  * the anti-enumeration uniformity: both the request and the confirm are
@@ -66,9 +67,9 @@ public class PasswordResetService {
             "The environment-provisioned administrator account cannot use password reset — "
                     + "its password is set by the deployment environment";
 
-    /** Min gap between two reissues for the same user (S1b). */
+    /** Min gap between two reissues for the same user. */
     static final Duration REISSUE_COOLDOWN = Duration.ofSeconds(60);
-    /** Max reissues per user per UTC day (S1b). */
+    /** Max reissues per user per UTC day. */
     static final int MAX_REISSUES_PER_UTC_DAY = 5;
 
     /** The reissue cooldown in whole seconds — the value the request ack body tells clients to count down. */
@@ -124,18 +125,18 @@ public class PasswordResetService {
 
     /**
      * E-mails a 6-digit reset code to the account with {@code email} and
-     * stores its SHA-256 hash for 15 minutes, invalidating any earlier
-     * active code for the same user (one active code per user). For
-     * unknown emails this is a silent no-op — callers cannot distinguish
-     * it from success.
+     * stores its keyed {@code v2:} hash for 15 minutes, invalidating any
+     * earlier active code for the same user (one active code per user).
+     * For unknown emails this is a silent no-op — callers cannot
+     * distinguish it from success.
      *
-     * <p>Rotation protection (S1b): a re-request inside the {@link
+     * <p>Rotation protection: a re-request inside the {@link
      * #REISSUE_COOLDOWN}, or beyond the {@link #MAX_REISSUES_PER_UTC_DAY}
      * per-UTC-day cap, is a silent no-op that leaves the current active
      * code valid — the answer is the identical ack success, and a
      * rotation brute-force window never opens.
      *
-     * <p>Send-first-then-commit (reviews F2): this method is deliberately
+     * <p>Send-first-then-commit: this method is deliberately
      * NOT {@code @Transactional} — the SMTP exchange must not hold a
      * pooled database connection, and this endpoint is unauthenticated,
      * so a slow provider could otherwise pin the pool with ordinary
@@ -208,7 +209,7 @@ public class PasswordResetService {
             throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_RESET_MESSAGE);
         }
         Instant now = clock.instant();
-        // Prune this user's rows past expiry first (S1c — bounds table
+        // Prune this user's rows past expiry first (bounds table
         // growth for active users; a global prune of dormant users' old
         // rows is a scheduler job, not per-request work). Pruned BEFORE
         // the latest/cap reads, as in the pre-refactor single transaction:

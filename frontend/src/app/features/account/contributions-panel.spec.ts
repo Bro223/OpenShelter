@@ -110,7 +110,7 @@ describe('ContributionsPanel', () => {
     expect(links.some((a) => a.getAttribute('href') === '/shelters/7')).toBe(true);
   });
 
-  it('offers "Submit a shelter" while shelters are present (map-crisis-actions regression pin)', async () => {
+  it('offers "Submit a shelter" while shelters are present', async () => {
     shelters.mine.mockResolvedValue([SHELTER_ROW]);
     const { element } = await open();
 

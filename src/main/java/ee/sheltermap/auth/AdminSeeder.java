@@ -93,7 +93,7 @@ public class AdminSeeder implements ApplicationRunner {
         if (users.findByEmail(email) != null) {
             // Create-if-absent: whatever row already holds this email
             // (REGISTERED or ADMIN) is left completely untouched.
-            log.info("Admin e-mail {} already in use — seeder is a no-op", email);
+            log.info("Admin e-mail {} already in use — seeder is a no-op", maskEmail(email));
             return;
         }
         // No phone on the account (null — it is outside the unique
@@ -107,6 +107,24 @@ public class AdminSeeder implements ApplicationRunner {
         // NOT NULL last_activity_at column honest).
         users.markActive(admin.getId(), clock.instant());
         credentials.save(new UserCredentials(admin.getId(), passwordHasher.hash(password), clock.instant()));
-        log.info("Seeded admin account {}", email);
+        log.info("Seeded admin account {}", maskEmail(email));
+    }
+
+    /**
+     * Log-safe e-mail mask (PII): first character + {@code ***} + the
+     * full domain, e.g. {@code jane.doe@example.com} → {@code j***@example.com}.
+     * The provisioned admin's e-mail is a live login contact (the
+     * account's only credential door), so the boot log must not carry the
+     * full address — the same mask rule as the sender classes. The callers
+     * guarantee a non-null address (the blank guard at the top of
+     * {@link #run} runs first); an @-less misconfiguration still logs a
+     * fixed placeholder instead of the raw value.
+     */
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 }

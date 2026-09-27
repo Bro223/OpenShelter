@@ -7,9 +7,11 @@ import java.util.Objects;
  * Single-use, expiring password-reset CODE (03-auth.puml).
  *
  * <p>Code discipline mirrors verification: the 6-digit code is stored
- * <strong>hashed</strong> (SHA-256) — the plaintext code travels only in the
- * reset e-mail; failed confirmations are attempts-limited (brute-force
- * guard); {@code usedAt} is {@code null} while unused.
+ * <strong>hashed</strong> (the keyed {@code v2:} form,
+ * {@code PiiCrypto.codeHash} — the legacy unkeyed SHA-256 stays readable
+ * through its transition) — the plaintext travels only in the reset e-mail;
+ * failed confirmations are attempts-limited (brute-force guard); {@code
+ * usedAt} is {@code null} while unused.
  */
 public class PasswordResetToken {
 

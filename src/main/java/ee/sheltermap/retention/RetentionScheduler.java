@@ -1,7 +1,6 @@
 package ee.sheltermap.retention;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +21,6 @@ import java.util.Objects;
  * / {@code app.retention.zone}.
  */
 @Component
-@EnableScheduling
 @ConditionalOnProperty(name = "app.retention.enabled", havingValue = "true", matchIfMissing = false)
 public class RetentionScheduler {
 

@@ -258,18 +258,20 @@ public class SecurityConfig {
                     // copy every visitor sees. The write side is /admin/** (the
                     // ADMIN-kind rule below), not /api/**.
                     .requestMatchers(HttpMethod.GET, "/api/site-texts").permitAll()
-                    // Public crisis guidance reads: the /blog pages are
+                    // Public crisis guidance reads: the /blog
                     // pages are readable anonymously. GETs ONLY — the write
                     // side is /admin/** (ADMIN kind, per-request lookup),
                     // already covered by the rule below.
                     .requestMatchers(HttpMethod.GET, "/api/guidance/**").permitAll()
-                    // Public media serving (hero images): GET and HEAD — a
-                    // public, permit-all asset must answer HEAD the way GET
-                    // does (same status, Content-Type and Content-Length, no
-                    // body) so proxies, CDNs and monitoring can probe it.
-                    // The write side is /admin/** (ADMIN kind, per-request
-                    // lookup), already covered by the rule below; every other
-                    // method on /api/media/** stays authenticated.
+                    // Public media serving (hero images): GET and HEAD — the
+                    // media path is the ONE public surface that answers HEAD
+                    // the way GET does (same status, Content-Type and
+                    // Content-Length, no body) so proxies, CDNs and
+                    // monitoring can probe it; the other public GETs are
+                    // deny-by-default, answering HEAD with 401. The write side
+                    // is /admin/** (ADMIN kind, per-request lookup), already
+                    // covered by the rule below; every other method on
+                    // /api/media/** stays authenticated.
                     .requestMatchers(HttpMethod.GET, "/api/media/**").permitAll()
                     .requestMatchers(HttpMethod.HEAD, "/api/media/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()

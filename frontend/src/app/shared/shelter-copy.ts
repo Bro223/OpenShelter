@@ -71,7 +71,7 @@ const SUBMITTER_LABEL_KEY: Record<SubmitterVerification, MessageKey> = {
  * the `| t` pipe, so the badge follows the active locale with no extra seam.
  *
  * Rendered on the shelter DETAIL header; the map row deliberately stays lean —
- * there the marker SHAPE carries the depth (owner decision: no extra badge
+ * there the marker's HUE carries the depth (owner decision: no extra badge
  * clutter in the sidebar row).
  */
 export function submitterVerificationKey(shelter: {
@@ -84,11 +84,11 @@ export function submitterVerificationKey(shelter: {
 /**
  * The marker's verification tone: 'partial' at exactly one confirmed channel,
  * 'full' at two or more, null when there is nothing to show (registry rows, no
- * author, an older backend). The SHAPE carries the depth so the distinction
- * never rests on colour alone (WCAG 1.4.1) — the same rationale as the anchor
- * diamond. The colour family (verified green for the full shape, the
- * community yellow for the partial and default circles) is a second
- * cue, not the only one. Shares the tone vocabulary with {@code markerTone}.
+ * author, an older backend). The tone's HUE carries the depth — verified
+ * green vs the community yellow — while the legend's labels and the row
+ * badge say it in words beside the pin, so the distinction never rests on
+ * colour alone (WCAG 1.4.1; the anchor diamond gets the same guarantee,
+ * from its shape). Shares the tone vocabulary with {@code markerTone}.
  */
 export function verificationTone(shelter: {
   submitterVerification?: SubmitterVerification | null;
@@ -107,7 +107,7 @@ export function verificationTone(shelter: {
  *   CONFIRMED -> "Community-checked" badge follows the same unverified
  *                  family pair; the badge TEXT carries the state — the
  *                  submitter-verification depth is a separate dimension,
- *                  carried by the pin SHAPE, never by this badge)
+ *                  carried by the pin's tone, never by this badge)
  *   REJECTED  -> "Rejected"          (hidden; /mine + admin surfaces only)
  * The keys are the contributions panel's catalog set (account.contrib.
  * badge.*) — the same words the /mine panel has rendered translated all

@@ -2,7 +2,6 @@ package ee.sheltermap.config;
 
 import ee.sheltermap.ingestion.ShelterImportService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +13,7 @@ import org.springframework.stereotype.Component;
  * our own API, which serves whatever this job last stored.
  *
  * <p>Scheduling choice: Spring's built-in {@code @Scheduled} (via
- * {@code @EnableScheduling}) — the app is a single instance with no clustering
+ * {@code SchedulingConfig}) — the app is a single instance with no clustering
  * or distributed-lock needs, so Quartz / Spring Cloud Task / an external cron
  * would be infrastructure the project does not have. Overlap protection lives
  * in {@link ShelterImportService} (an {@code AtomicBoolean} guard shared with
@@ -22,7 +21,6 @@ import org.springframework.stereotype.Component;
  * must never overlap a scheduled one.
  */
 @Component
-@EnableScheduling
 @ConditionalOnProperty(name = "app.registry.schedule-enabled", havingValue = "true", matchIfMissing = true)
 public class RegistryScheduler {
 

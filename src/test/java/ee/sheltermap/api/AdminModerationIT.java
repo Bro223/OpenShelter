@@ -1,5 +1,8 @@
 package ee.sheltermap.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
@@ -20,17 +23,25 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import jakarta.persistence.EntityManager;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -139,7 +150,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
         return ((Number) JsonPath.read(result.getResponse().getContentAsString(), "$.id")).longValue();
     }
 
-    private void expectError(org.springframework.test.web.servlet.ResultActions result,
+    private void expectError(ResultActions result,
                              int status, String error) throws Exception {
         result.andExpect(status().is(status))
                 .andExpect(jsonPath("$.timestamp").isNotEmpty())
@@ -254,7 +265,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andReturn();
         String body = result.getResponse().getContentAsString();
-        assertThat(((java.util.List<?>) JsonPath.read(body, "$")).size()).isEqualTo(3);
+        assertThat(((List<?>) JsonPath.read(body, "$")).size()).isEqualTo(3);
 
         mvc.perform(get("/admin/shelters").header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[0].name").value("Kasutaja varjend"))
@@ -351,23 +362,21 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(5))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .header().string("X-Total-Count", "5"));
+                .andExpect(header().string("X-Total-Count", "5"));
 
         // Consecutive pages tile the filtered order (id-ascending — the
         // stored order), no overlap or skips, the header is the FILTERED
         // length (the registry row never counts).
-        List<Long> tiled = new java.util.ArrayList<>();
+        List<Long> tiled = new ArrayList<>();
         for (long offset = 0; offset < 5; offset += 2) {
-            com.jayway.jsonpath.DocumentContext pageJson =
-                    com.jayway.jsonpath.JsonPath.parse(mvc.perform(get("/admin/shelters")
+            DocumentContext pageJson =
+                    JsonPath.parse(mvc.perform(get("/admin/shelters")
                                     .param("source", "USER")
                                     .param("limit", "2")
                                     .param("offset", String.valueOf(offset))
                                     .header("Authorization", "Bearer " + token))
                             .andExpect(status().isOk())
-                            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                                    .header().string("X-Total-Count", "5"))
+                            .andExpect(header().string("X-Total-Count", "5"))
                             .andReturn().getResponse().getContentAsString());
             List<?> page = pageJson.read("$[*].id");
             for (Object id : page) {
@@ -382,8 +391,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .header().string("X-Total-Count", "5"));
+                .andExpect(header().string("X-Total-Count", "5"));
 
         // The bounds are the public guidance's vocabulary (uniform 400s).
         mvc.perform(get("/admin/shelters").param("limit", "0")
@@ -542,17 +550,15 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
                 .andExpect(status().isOk());
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .put("/api/shelters/" + id + "/occupancy")
-                        .header("Authorization", "Bearer " + verifiedToken("Aru2", "aru2@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"band\":\"FULL\"}"))
+        mvc.perform(put("/api/shelters/" + id + "/occupancy")
+                .header("Authorization", "Bearer " + verifiedToken("Aru2", "aru2@example.ee"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"band\":\"FULL\"}"))
                 .andExpect(status().isNoContent());
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .put("/api/shelters/" + id + "/open-status")
-                        .header("Authorization", "Bearer " + verifiedToken("Aru3", "aru3@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"state\":\"OPEN\"}"))
+        mvc.perform(put("/api/shelters/" + id + "/open-status")
+                .header("Authorization", "Bearer " + verifiedToken("Aru3", "aru3@example.ee"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"state\":\"OPEN\"}"))
                 .andExpect(status().isNoContent());
 
         mvc.perform(delete("/admin/shelters/" + id).header("Authorization", "Bearer " + adminToken()))
@@ -647,30 +653,30 @@ class AdminModerationIT extends AbstractPersistenceIT {
         // 120 rows for ONE shelter (24 users x 5 types — the unique
         // (shelter, user, type) holds), each a minute older than the last:
         // row i has created_at = base - i minutes, so row 0 is newest.
-        java.time.Instant base = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        Instant base = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         for (int i = 0; i < 120; i++) {
             jdbc.update("INSERT INTO shelter_reports (shelter_id, user_id, type, detail, created_at) "
                             + "VALUES (?, ?, ?, NULL, ?)",
                     shelterId, userIds[i % 24], types[i % 5],
-                    java.sql.Timestamp.from(base.minus(i, java.time.temporal.ChronoUnit.MINUTES)));
+                    Timestamp.from(base.minus(i, ChronoUnit.MINUTES)));
         }
         String token = adminToken();
 
-        java.util.List<Instant> all = queueCreatedAts(mvc.perform(
+        List<Instant> all = queueCreatedAts(mvc.perform(
                         get("/admin/reports").param("limit", "200")
                                 .header("Authorization", "Bearer " + token))
                 .andReturn(), 120);
 
         // default: the newest 100 of the 120
-        java.util.List<Instant> defaulted = queueCreatedAts(mvc.perform(
+        List<Instant> defaulted = queueCreatedAts(mvc.perform(
                         get("/admin/reports").header("Authorization", "Bearer " + token))
                 .andReturn(), 100);
         assertThat(defaulted).isEqualTo(all.subList(0, 100)); // the bound trims the TAIL
         assertThat(defaulted).doesNotContain(
-                base.minus(100, java.time.temporal.ChronoUnit.MINUTES)); // the 101st-newest row is outside the window
+                base.minus(100, ChronoUnit.MINUTES)); // the 101st-newest row is outside the window
 
         // an explicit smaller limit: the same newest-first prefix
-        java.util.List<Instant> fifty = queueCreatedAts(mvc.perform(
+        List<Instant> fifty = queueCreatedAts(mvc.perform(
                         get("/admin/reports").param("limit", "50")
                                 .header("Authorization", "Bearer " + token))
                 .andReturn(), 50);
@@ -683,7 +689,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
         }
 
         // the bound applies to the shelter-scoped queue the same way
-        java.util.List<Instant> scoped = queueCreatedAts(mvc.perform(
+        List<Instant> scoped = queueCreatedAts(mvc.perform(
                         get("/admin/reports").param("shelterId", String.valueOf(shelterId))
                                 .header("Authorization", "Bearer " + token))
                 .andReturn(), 100);
@@ -699,14 +705,14 @@ class AdminModerationIT extends AbstractPersistenceIT {
     }
 
     /** The queue response's createdAt column, parsed, with a pinned row count. */
-    private java.util.List<Instant> queueCreatedAts(
-            org.springframework.test.web.servlet.MvcResult result, int expectedSize)
+    private List<Instant> queueCreatedAts(
+            MvcResult result, int expectedSize)
             throws Exception {
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        com.fasterxml.jackson.databind.JsonNode rows = new com.fasterxml.jackson.databind.ObjectMapper()
+        JsonNode rows = new ObjectMapper()
                 .readTree(result.getResponse().getContentAsString());
         assertThat(rows.isArray()).as("the queue response is a JSON array").isTrue();
-        java.util.List<Instant> stamps = new java.util.ArrayList<>();
+        List<Instant> stamps = new ArrayList<>();
         rows.forEach(row -> stamps.add(Instant.parse(row.get("createdAt").asText())));
         assertThat(stamps).hasSize(expectedSize);
         return stamps;
@@ -733,11 +739,11 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andReturn();
         int total = Integer.parseInt(all.getResponse().getHeader("X-Total-Count"));
-        java.util.List<Long> allIds = parseIds(all.getResponse().getContentAsString());
+        List<Long> allIds = parseIds(all.getResponse().getContentAsString());
         assertThat(allIds).hasSize(total);
         assertThat(allIds).isNotEmpty();
 
-        java.util.Set<Long> seen = new java.util.HashSet<>();
+        Set<Long> seen = new HashSet<>();
         for (long offset = 0; offset < allIds.size(); offset += 2) {
             MvcResult page = mvc.perform(get("/admin/users")
                             .header("Authorization", "Bearer " + token)
@@ -745,7 +751,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                     .andExpect(status().isOk())
                     .andExpect(header().string("X-Total-Count", String.valueOf(total)))
                     .andReturn();
-            java.util.List<Long> pageIds = parseIds(page.getResponse().getContentAsString());
+            List<Long> pageIds = parseIds(page.getResponse().getContentAsString());
             assertThat(pageIds).as("page at offset " + offset).hasSize(Math.min(2, allIds.size() - (int) offset));
             assertThat(pageIds).as("each page is the same stable window of the full order")
                     .isEqualTo(allIds.subList((int) offset, (int) offset + pageIds.size()));
@@ -764,7 +770,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
         // report count), never the page length.
         long shelterId = seedShelter("Ridade", ShelterSource.USER);
         String[] types = {"NON_EXISTENT", "CLOSED", "OPEN_CONFIRMED"};
-        java.time.Instant base = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        Instant base = Instant.now().truncatedTo(ChronoUnit.MINUTES);
         for (int i = 0; i < 3; i++) {
             RegisteredUser u = new RegisteredUser("Ridade" + i, "ridade" + i + "@example.ee",
                     "+3725004" + String.format("%04d", i));
@@ -772,7 +778,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
             jdbc.update("INSERT INTO shelter_reports (shelter_id, user_id, type, detail, created_at) "
                             + "VALUES (?, ?, ?, NULL, ?)",
                     shelterId, u.getId(), types[i],
-                    java.sql.Timestamp.from(base.minus(i, java.time.temporal.ChronoUnit.MINUTES)));
+                    Timestamp.from(base.minus(i, ChronoUnit.MINUTES)));
         }
         String token = adminToken();
 
@@ -783,8 +789,8 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Total-Count", "3"))
                 .andReturn();
-        java.util.List<Instant> middleStamps = queueCreatedAts(middle, 1);
-        java.util.List<Instant> full = queueCreatedAts(mvc.perform(get("/admin/reports")
+        List<Instant> middleStamps = queueCreatedAts(middle, 1);
+        List<Instant> full = queueCreatedAts(mvc.perform(get("/admin/reports")
                         .header("Authorization", "Bearer " + token)
                         .param("shelterId", String.valueOf(shelterId)))
                 .andReturn(), 3);
@@ -844,7 +850,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .isGreaterThanOrEqualTo(3);
         String firstBody = first.getResponse().getContentAsString();
         assertThat(firstBody).as("the newest actions are this test's own").contains("Auvitamine A");
-        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(firstBody, "\"id\""))
+        assertThat(StringUtils.countOccurrencesOf(firstBody, "\"id\""))
                 .isEqualTo(2);
 
         long tailOffset = total - 1L;
@@ -855,15 +861,15 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(header().string("X-Total-Count", String.valueOf(total)))
                 .andReturn();
         String tailBody = tail.getResponse().getContentAsString();
-        assertThat(org.springframework.util.StringUtils.countOccurrencesOf(tailBody, "\"id\""))
+        assertThat(StringUtils.countOccurrencesOf(tailBody, "\"id\""))
                 .as("the tail page carries the single oldest action").isEqualTo(1);
     }
 
     /** The "id" column of a JSON array of admin DTOs. */
-    private java.util.List<Long> parseIds(String json) throws Exception {
-        com.fasterxml.jackson.databind.JsonNode rows = new com.fasterxml.jackson.databind.ObjectMapper()
+    private List<Long> parseIds(String json) throws Exception {
+        JsonNode rows = new ObjectMapper()
                 .readTree(json);
-        java.util.List<Long> ids = new java.util.ArrayList<>();
+        List<Long> ids = new ArrayList<>();
         rows.forEach(row -> ids.add(row.get("id").asLong()));
         return ids;
     }
@@ -984,7 +990,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(header().exists("X-Total-Count"))
                 .andReturn();
         int total = Integer.parseInt(result.getResponse().getHeader("X-Total-Count"));
-        java.util.List<Long> ids = parseIds(result.getResponse().getContentAsString());
+        List<Long> ids = parseIds(result.getResponse().getContentAsString());
         assertThat(ids).hasSizeLessThanOrEqualTo(AdminModerationService.AUDIT_DEFAULT_LIMIT);
         assertThat(total).isGreaterThanOrEqualTo(ids.size());
     }
