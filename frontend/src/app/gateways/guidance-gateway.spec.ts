@@ -175,10 +175,12 @@ describe('GuidanceGateway', () => {
 
     await gateway.listPage(3, 10);
 
-    expect(api.getWithHeaders).toHaveBeenLastCalledWith('/api/guidance?locale=et&limit=10&offset=20');
+    expect(api.getWithHeaders).toHaveBeenLastCalledWith(
+      '/api/guidance?locale=et&limit=10&offset=20',
+    );
   });
 
-  it('listPage degrades to the page\'s own length when X-Total-Count is missing (out-of-range stays honest)', async () => {
+  it("listPage degrades to the page's own length when X-Total-Count is missing (out-of-range stays honest)", async () => {
     api.emitPage([POST_NO_BODY, POST], null);
 
     const result = await gateway.listPage(1, 20);

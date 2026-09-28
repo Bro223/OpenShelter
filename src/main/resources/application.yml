@@ -76,7 +76,9 @@ springdoc:
     # this property to 5.32.2 in its own bundled springdoc.config.properties,
     # so without this line the handler keeps serving the old path and the
     # bumped webjar 404s every UI asset. Bump the two together.
-    version: 5.32.7
+    # 2026-09-28: moved with <swagger-ui.version> to 5.32.15 — the webjar
+    # bundles DOMPurify 3.4.13 (fixes CVE-2026-66010, CVE-2026-75838).
+    version: 5.32.15
   # The document must not absorb the actuator surface (health,info only there).
   show-actuator: false
 

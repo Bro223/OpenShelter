@@ -46,8 +46,13 @@
              2.8.17's own springdoc.config.properties defaults that
              property to 5.32.2, and its /swagger-ui/** resource handler
              serves the UI from the property-named webjar path; the webjar
-             bump alone 404s every UI asset (proven, then reverted). -->
-        <swagger-ui.version>5.32.7</swagger-ui.version>
+             bump alone 404s every UI asset (proven, then reverted).
+             2026-09-28: 5.32.7 -> 5.32.15 — the webjar bundles DOMPurify
+             3.4.13, fixing CVE-2026-66010 (3.4.12) and CVE-2026-75838 /
+             GHSA-55q2-fjhq-7xh7 (3.4.13); 5.32.13-5.32.15 all bundle
+             3.4.13, 5.32.15 is the latest. The two values still move
+             together. -->
+        <swagger-ui.version>5.32.15</swagger-ui.version>
         <!-- HTML sanitizer for admin-authored guidance bodies.
              Bumps need review: the parser behaviour is part of the
              security boundary, not just a version number. -->
