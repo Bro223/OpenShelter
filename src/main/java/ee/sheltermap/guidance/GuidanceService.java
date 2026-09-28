@@ -115,38 +115,6 @@ public class GuidanceService {
     /** The uniform 404 message — a draft slug and an unknown slug answer the SAME 404. */
     public static final String POST_NOT_FOUND_MESSAGE = "Guidance post not found";
 
-    /** The title column width ({@code guidance_posts.title VARCHAR(255)}) — home: {@link GuidanceValidation}. */
-    public static final int MAX_TITLE_LENGTH = GuidanceValidation.MAX_TITLE_LENGTH;
-
-    /**
-     * The locale column width ({@code guidance_posts.locale VARCHAR(5)})
-     * — the service bound; the constant's home is
-     * {@link GuidanceValidation}, this reference keeps the pre-extraction
-     * public surface intact.
-     */
-    public static final int MAX_LOCALE_LENGTH = GuidanceValidation.MAX_LOCALE_LENGTH;
-
-    /**
-     * The body's searchable text (admin-guidance-search) — moved to
-     * {@link GuidanceSearch}; this delegate keeps the pre-extraction
-     * public surface (the {@code GuidanceServiceTest} seam) intact.
-     */
-    public static String searchableBody(String bodyHtml) {
-        return GuidanceSearch.searchableBody(bodyHtml);
-    }
-
-    /**
-     * The admin list's search match (admin-guidance-search) — moved to
-     * {@link GuidanceSearch}; this delegate keeps the pre-extraction
-     * public surface (the {@code GuidanceServiceTest} seam) intact.
-     */
-    public static boolean matchesSearch(String title, String bodyHtml, String needle) {
-        return GuidanceSearch.matchesSearch(title, bodyHtml, needle);
-    }
-
-    /** The pending-import URL column width ({@code hero_import_url VARCHAR(2048)}) — home: {@link HeroSaveResolver}. */
-    public static final int MAX_HERO_IMPORT_URL_LENGTH = HeroSaveResolver.MAX_HERO_IMPORT_URL_LENGTH;
-
     private final GuidancePostRepository posts;
     private final Clock clock;
     /** The app's primary language (mirrors the frontend's DEFAULT_LOCALE). */

@@ -78,12 +78,6 @@ public class AdminModerationService {
     /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
 
-    /** The read-time rendering of a gone shelter's name in the audit trail — home: {@link AdminAuditTrail}. */
-    public static final String DELETED_SHELTER_NAME = AdminAuditTrail.DELETED_SHELTER_NAME;
-
-    /** The read-time rendering of a gone subject account in the audit trail — home: {@link AdminAuditTrail}. */
-    public static final String DELETED_ACCOUNT_NAME = AdminAuditTrail.DELETED_ACCOUNT_NAME;
-
     /**
      * The read-time rendering of a referent whose name no longer resolves
      * (the literal was inlined five times across the admin classes and
@@ -92,12 +86,6 @@ public class AdminModerationService {
      * account whose profile name is blank.
      */
     public static final String UNKNOWN_NAME = "Unknown";
-
-    /** Plain-spoken 409 for a suspend/unsuspend of a GUEST account (no credentials) — home: {@link AdminUserModeration}. */
-    public static final String NON_REGISTERED_SUSPENSION_MESSAGE = AdminUserModeration.NON_REGISTERED_SUSPENSION_MESSAGE;
-
-    /** Plain-spoken 403 for a suspend/unsuspend of the provisioned ADMIN account — home: {@link AdminUserModeration}. */
-    public static final String PROVISIONED_ADMIN_SUSPENSION_MESSAGE = AdminUserModeration.PROVISIONED_ADMIN_SUSPENSION_MESSAGE;
 
     private final ShelterQueryService queryService;
     private final ShelterRepository shelters;
@@ -530,7 +518,7 @@ public class AdminModerationService {
      * start. The answer's {@link Pagination.Paged#total()} is the
      * trail's length WITHOUT paging (the X-Total-Count value). Shelter
      * names and moderator names resolve in ONE batched lookup each (no
-     * N+1); a gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
+     * N+1); a gone shelter renders {@link AdminAuditTrail#DELETED_SHELTER_NAME} (the row
      * outlives a hard delete).
      *
      * <p>The implementation lives in {@link AdminAuditTrail#listAudit};

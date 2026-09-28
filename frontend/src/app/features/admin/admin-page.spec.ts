@@ -22,6 +22,8 @@ import type {
   TokenResponse,
 } from '../../core/models';
 import { AdminPage } from './admin-page';
+import type { SheltersView } from './shelters-view';
+import type { UnconfirmedView } from './unconfirmed-view';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ADMIN_TABS } from '../../shared/admin-tab';
 
@@ -428,6 +430,13 @@ describe('AdminPage', () => {
     fixture.detectChanges();
   });
 
+  /** The page's state views (protected on the page — the narrow cast
+   *  reaches the spec-pinned controls without widening the page's
+   *  public surface). */
+  function views(page: AdminPage): { shelters: SheltersView; unconfirmed: UnconfirmedView } {
+    return page as unknown as { shelters: SheltersView; unconfirmed: UnconfirmedView };
+  }
+
   async function openAdmin(profile: MeResponse = ADMIN_PROFILE) {
     account.me.mockResolvedValue(profile);
     auth.login.mockResolvedValue(PAIR);
@@ -780,7 +789,7 @@ describe('AdminPage', () => {
     const send = buttonByText(element, 'Send');
     expect(send?.disabled).toBe(true);
     // the disabled button is the guard — touch the control to pin the error copy
-    page.requestMessage.markAsTouched();
+    views(page).shelters.requestMessage.markAsTouched();
     fixture.detectChanges();
 
     expect(admin.requestInfo).not.toHaveBeenCalled();
@@ -971,7 +980,7 @@ describe('AdminPage', () => {
     await toShelters(element, fixture);
     expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
 
-    page.searchQuery.setValue('  kelder  ');
+    views(page).shelters.searchQuery.setValue('  kelder  ');
     const form = element.querySelector('form.admin-search') as HTMLFormElement;
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await fixture.whenStable();
@@ -1208,13 +1217,14 @@ describe('AdminPage', () => {
     expect(rejectButton?.disabled).toBe(true); // blank reason — disabled
 
     // Type a blank reason: the guard rejects it WITHOUT calling the API.
-    const page = fixture.debugElement.query(By.directive(AdminPage))!
-      .componentInstance as AdminPage;
-    page.rejectReason.setValue('   ');
+    const { unconfirmed } = views(
+      fixture.debugElement.query(By.directive(AdminPage))!.componentInstance as AdminPage,
+    );
+    unconfirmed.rejectReason.setValue('   ');
     fixture.detectChanges();
     expect(rejectButton?.disabled).toBe(true);
 
-    page.rejectRow(row7());
+    unconfirmed.rejectRow(row7());
     await fixture.whenStable();
     fixture.detectChanges();
     expect(admin.reviewShelter).not.toHaveBeenCalled();
@@ -1235,7 +1245,7 @@ describe('AdminPage', () => {
 
     buttonByText(firstRow(element), 'Reject')!.click();
     fixture.detectChanges();
-    page.rejectReason.setValue('Could not verify the address');
+    views(page).unconfirmed.rejectReason.setValue('Could not verify the address');
     fixture.detectChanges();
 
     buttonByText(firstRow(element), 'Reject')!.click();
@@ -3530,9 +3540,8 @@ describe('AdminPage', () => {
       });
       // …the search composes WITH the chip (AND on the server) and resets
       // the page to 1.
-      const page = fixture.debugElement.query(By.directive(AdminPage))!
-        .componentInstance as AdminPage;
-      page.searchQuery.setValue('kelder');
+      views(fixture.debugElement.query(By.directive(AdminPage))!.componentInstance as AdminPage)
+        .shelters.searchQuery.setValue('kelder');
       (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
         new Event('submit', { bubbles: true, cancelable: true }),
       );

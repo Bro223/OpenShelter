@@ -13,10 +13,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * The extracted search seam directly: the searchable-text
  * derivation, the match rule and the query bound in
- * {@link GuidanceSearch} — the {@code GuidanceService} delegates (the
- * pre-extraction public surface) are covered by
- * {@code GuidanceServiceTest}, this suite covers the class that now owns
- * the policy. This is also the unit-level pin of the admin guidance
+ * {@link GuidanceSearch} — the class that owns the policy. This is
+ * also the unit-level pin of the admin guidance
  * list's search policy (the controller delegates it to
  * {@code GuidanceSearch}: absent/blank q = no filter, over the bound =
  * 400 with the uniform message, the post-level match over EXACTLY the
@@ -192,14 +190,4 @@ class GuidanceSearchTest {
     }
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
-
-    @Test
-    void theServiceDelegateIsTheSamePolicy() {
-        // the pre-extraction public surface delegates — same answers, by
-        // construction and by test.
-        assertThat(GuidanceService.searchableBody("<p>hello</p>"))
-                .isEqualTo(GuidanceSearch.searchableBody("<p>hello</p>"));
-        assertThat(GuidanceService.matchesSearch("T", "<p>b</p>", "b"))
-                .isEqualTo(GuidanceSearch.matchesSearch("T", "<p>b</p>", "b"));
-    }
 }

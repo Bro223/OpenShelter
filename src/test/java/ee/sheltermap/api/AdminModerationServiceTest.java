@@ -299,7 +299,7 @@ class AdminModerationServiceTest {
 
         assertThat(rows).hasSize(2);
         assertThat(rows.get(0).action()).isEqualTo(ModerationAuditLog.Action.DELETE);
-        assertThat(rows.get(0).shelterName()).isEqualTo(AdminModerationService.DELETED_SHELTER_NAME);
+        assertThat(rows.get(0).shelterName()).isEqualTo(AdminAuditTrail.DELETED_SHELTER_NAME);
         assertThat(rows.get(0).previousStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(rows.get(0).newStatus()).isNull();
         assertThat(rows.get(0).moderatorName()).isEqualTo("Admin");
@@ -340,7 +340,7 @@ class AdminModerationServiceTest {
         // The second has no subject either: neither lookup may take a null key.
         assertThat(rows.get(0).moderatorName()).isEqualTo("Unknown");
         assertThat(rows.get(0).shelterName())
-                .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
+                .isEqualTo(AdminAuditTrail.DELETED_ACCOUNT_NAME);
     }
 
     // ---------- user suspension ----------
@@ -403,7 +403,7 @@ class AdminModerationServiceTest {
         // admin/guest vocabulary: 403 admin, 409 guest).
         assertThatThrownBy(() -> service.suspendUser(adminId, adminId))
                 .isInstanceOf(ProvisionedAdminProtectedException.class)
-                .hasMessage(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+                .hasMessage(AdminUserModeration.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
         assertThat(users.findById(adminId).isSuspended()).isFalse();
         assertThat(audit.rows()).isEmpty();
     }
@@ -414,7 +414,7 @@ class AdminModerationServiceTest {
         // (not a no-op 204): same 403, same message, nothing changes.
         assertThatThrownBy(() -> service.unsuspendUser(adminId, adminId))
                 .isInstanceOf(ProvisionedAdminProtectedException.class)
-                .hasMessage(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+                .hasMessage(AdminUserModeration.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
         assertThat(users.findById(adminId).isSuspended()).isFalse();
         assertThat(audit.rows()).isEmpty();
     }
@@ -431,10 +431,10 @@ class AdminModerationServiceTest {
         }
         assertThatThrownBy(() -> service.suspendUser(adminId, guestId))
                 .isInstanceOf(NonSuspendableUserException.class)
-                .hasMessage(AdminModerationService.NON_REGISTERED_SUSPENSION_MESSAGE);
+                .hasMessage(AdminUserModeration.NON_REGISTERED_SUSPENSION_MESSAGE);
         assertThatThrownBy(() -> service.unsuspendUser(adminId, guestId))
                 .isInstanceOf(NonSuspendableUserException.class)
-                .hasMessage(AdminModerationService.NON_REGISTERED_SUSPENSION_MESSAGE);
+                .hasMessage(AdminUserModeration.NON_REGISTERED_SUSPENSION_MESSAGE);
         assertThat(audit.rows()).isEmpty();
     }
 
@@ -473,7 +473,7 @@ class AdminModerationServiceTest {
 
         List<AdminAuditDto> rows = service.listAudit(null, null).rows();
         assertThat(rows.get(0).shelterName())
-                .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
+                .isEqualTo(AdminAuditTrail.DELETED_ACCOUNT_NAME);
     }
 
     // ---------- edit-history projection ----------

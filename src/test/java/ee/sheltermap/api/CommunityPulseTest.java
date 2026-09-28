@@ -168,7 +168,7 @@ class CommunityPulseTest {
 
         // the timestamps run NOW … NOW-11m; the ten newest survive, the
         // two oldest (NOW-10m, NOW-11m) are cut
-        assertThat(pulse.recentReports()).hasSize(ShelterQueryService.RECENT_REPORTS_CAP);
+        assertThat(pulse.recentReports()).hasSize(CommunityPulseAggregator.RECENT_REPORTS_CAP);
         assertThat(pulse.recentReports().get(0).reportedAt()).isEqualTo(NOW);
         assertThat(pulse.recentReports().get(9).reportedAt())
                 .isEqualTo(NOW.minus(Duration.ofMinutes(9)));
@@ -312,7 +312,7 @@ class CommunityPulseTest {
 
     @Test
     void theOpenClosedDerivationAnswersNullOnZeroData() {
-        assertThat(ShelterQueryService.deriveOpenClosedPulse(List.of(), Map.of())).isNull();
+        assertThat(CommunityPulseAggregator.deriveOpenClosedPulse(List.of(), Map.of())).isNull();
     }
 
     @Test
@@ -321,33 +321,33 @@ class CommunityPulseTest {
         ShelterOpenStatusReport open = new ShelterOpenStatusReport(1L, 1L, OpenStatusState.OPEN, NOW);
         ShelterOpenStatusReport closed = new ShelterOpenStatusReport(1L, 2L, OpenStatusState.CLOSED, NOW);
 
-        assertThat(ShelterQueryService.deriveOpenClosedPulse(
+        assertThat(CommunityPulseAggregator.deriveOpenClosedPulse(
                 List.of(open, closed), Map.of()).openShare()).isEqualTo(0.5);
-        assertThat(ShelterQueryService.deriveOpenClosedPulse(
+        assertThat(CommunityPulseAggregator.deriveOpenClosedPulse(
                 List.of(open), Map.of()).openShare()).isEqualTo(1.0);
-        assertThat(ShelterQueryService.deriveOpenClosedPulse(
+        assertThat(CommunityPulseAggregator.deriveOpenClosedPulse(
                 List.of(closed), Map.of()).openShare()).isEqualTo(0.0);
     }
 
     @Test
     void theOccupancyDerivationScoresGettingFullAtHalfAndNullsOnZeroData() {
-        assertThat(ShelterQueryService.deriveOccupancyPulse(List.of(), Map.of())).isNull();
+        assertThat(CommunityPulseAggregator.deriveOccupancyPulse(List.of(), Map.of())).isNull();
         ShelterOccupancyReport gettingFull = new ShelterOccupancyReport(
                 1L, 1L, OccupancyBand.GETTING_FULL, NOW);
-        assertThat(ShelterQueryService.deriveOccupancyPulse(
+        assertThat(CommunityPulseAggregator.deriveOccupancyPulse(
                 List.of(gettingFull), Map.of()).fullness()).isEqualTo(0.5);
 
         // the middle band at half weight: one SPACE + one FULL ties at 0.5
         ShelterOccupancyReport space = new ShelterOccupancyReport(1L, 2L, OccupancyBand.SPACE, NOW);
         ShelterOccupancyReport full = new ShelterOccupancyReport(1L, 3L, OccupancyBand.FULL, NOW);
-        assertThat(ShelterQueryService.deriveOccupancyPulse(
+        assertThat(CommunityPulseAggregator.deriveOccupancyPulse(
                 List.of(space, full), Map.of()).fullness()).isEqualTo(0.5);
     }
 
     @Test
     void theRecentReportDerivationOrdersNewestFirstWithADeterministicTieBreak() {
         // same instant: the kind name breaks the tie (deterministic output)
-        List<ShelterDto.CommunityPulse.RecentReport> log = ShelterQueryService
+        List<ShelterDto.CommunityPulse.RecentReport> log = CommunityPulseAggregator
                 .deriveRecentReports(
                         List.of(new ShelterOpenStatusReport(1L, 1L, OpenStatusState.OPEN, NOW),
                                 new ShelterOpenStatusReport(1L, 2L, OpenStatusState.CLOSED, NOW)),

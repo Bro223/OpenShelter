@@ -203,7 +203,7 @@ class GuidanceServiceTest {
                 .isInstanceOf(GuidanceValidationException.class);
         assertThatThrownBy(() -> service.create(ADMIN_ID, "T", null, "   ", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
-        assertThatThrownBy(() -> service.create(ADMIN_ID, "x".repeat(GuidanceService.MAX_TITLE_LENGTH + 1),
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "x".repeat(GuidanceValidation.MAX_TITLE_LENGTH + 1),
                 null, "<p>b</p>", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
         assertThat(posts.findAllForAdmin()).isEmpty();
@@ -805,7 +805,7 @@ class GuidanceServiceTest {
     void blankOrOverlongLocalesAre400OnIndexAndDetail() {
         GuidancePost post = createAndPublish("T", "en");
         for (String bad : List.of("", "   ", "abcdef",
-                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+                "a".repeat(GuidanceValidation.MAX_LOCALE_LENGTH + 1))) {
             assertThatThrownBy(() -> service.listPublic(bad))
                     .isInstanceOf(GuidanceValidationException.class)
                     .as("index locale %s", bad);
@@ -906,7 +906,7 @@ class GuidanceServiceTest {
     void aBlankOrOverlongAdminLocaleIs400AndAnAbsentOneStaysUnscoped() {
         createAndPublish("English", "en");
         for (String bad : List.of("", "   ", "abcdef",
-                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+                "a".repeat(GuidanceValidation.MAX_LOCALE_LENGTH + 1))) {
             assertThatThrownBy(() -> service.listForAdmin(bad))
                     .isInstanceOf(GuidanceValidationException.class)
                     .as("list locale %s", bad);
@@ -1237,7 +1237,7 @@ class GuidanceServiceTest {
     void aScopedReorderRefusesABlankOrOverlongLocale() {
         createAndPublish("A", "en");
         for (String bad : List.of("", "   ", "abcdef",
-                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+                "a".repeat(GuidanceValidation.MAX_LOCALE_LENGTH + 1))) {
             assertThatThrownBy(() -> service.reorderInLocale(ADMIN_ID, bad, List.of()))
                     .isInstanceOf(GuidanceValidationException.class);
         }
@@ -1571,45 +1571,45 @@ class GuidanceServiceTest {
 
     @Test
     void searchableBodyStripsEveryTagAndCollapsesWhitespace() {
-        assertThat(GuidanceService.searchableBody("<p>hello</p>"))
+        assertThat(GuidanceSearch.searchableBody("<p>hello</p>"))
                 .isEqualTo("hello");
-        assertThat(GuidanceService.searchableBody("<p><b>Bold</b> and   spaced</p><p>more</p>"))
+        assertThat(GuidanceSearch.searchableBody("<p><b>Bold</b> and   spaced</p><p>more</p>"))
                 .isEqualTo("Bold and spaced more");
         // Null-safe (a missing body is empty text, not an NPE).
-        assertThat(GuidanceService.searchableBody(null)).isEmpty();
+        assertThat(GuidanceSearch.searchableBody(null)).isEmpty();
         // Markup is NOT searchable text: a search for the tag itself finds
         // nothing in a stripped body.
-        assertThat(GuidanceService.searchableBody("<p>hello</p>")).doesNotContain("<");
+        assertThat(GuidanceSearch.searchableBody("<p>hello</p>")).doesNotContain("<");
     }
 
     @Test
     void matchesSearchIsACaseInsensitiveSubstringOverTitleAndStrippedBody() {
         // Title hit, any case...
-        assertThat(GuidanceService.matchesSearch("Kelder juhend", null, "kelder")).isTrue();
-        assertThat(GuidanceService.matchesSearch("Kelder juhend", null, "KELDER")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch("Kelder juhend", null, "kelder")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch("Kelder juhend", null, "KELDER")).isTrue();
         // ...body hit through the tag-stripped text...
-        assertThat(GuidanceService.matchesSearch("Muu", "<p><b>Varjendus</b> keha</p>", "varjendus")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch("Muu", "<p><b>Varjendus</b> keha</p>", "varjendus")).isTrue();
         // ...and a miss when neither carries the term.
-        assertThat(GuidanceService.matchesSearch("Muu", "<p>keha</p>", "varjendus")).isFalse();
+        assertThat(GuidanceSearch.matchesSearch("Muu", "<p>keha</p>", "varjendus")).isFalse();
         // Markup is not a feature: the stripped body never contains tags.
-        assertThat(GuidanceService.matchesSearch("Muu", "<p>hello</p>", "<p>"))
+        assertThat(GuidanceSearch.matchesSearch("Muu", "<p>hello</p>", "<p>"))
                 .isFalse();
     }
 
     @Test
     void aBlankOrAbsentNeedleIsNoFilter() {
-        assertThat(GuidanceService.matchesSearch("Title", "<p>body</p>", null)).isTrue();
-        assertThat(GuidanceService.matchesSearch("Title", "<p>body</p>", "   ")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch("Title", "<p>body</p>", null)).isTrue();
+        assertThat(GuidanceSearch.matchesSearch("Title", "<p>body</p>", "   ")).isTrue();
         // A blank needle matches even an all-null row (nothing to filter).
-        assertThat(GuidanceService.matchesSearch(null, null, " ")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch(null, null, " ")).isTrue();
     }
 
     @Test
     void matchesSearchIsNullSafeOnTheRow() {
         // A null title only: the body still matches.
-        assertThat(GuidanceService.matchesSearch(null, "<p>hello</p>", "hello")).isTrue();
+        assertThat(GuidanceSearch.matchesSearch(null, "<p>hello</p>", "hello")).isTrue();
         // Both null: a non-blank needle finds nothing (no NPE).
-        assertThat(GuidanceService.matchesSearch(null, null, "hello")).isFalse();
+        assertThat(GuidanceSearch.matchesSearch(null, null, "hello")).isFalse();
     }
 
     // ------------------------------------------------------------- audit

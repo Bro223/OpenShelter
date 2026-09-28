@@ -74,9 +74,6 @@ public class ShelterQueryService {
     /** Freshness window for the live state blocks (occupancy, and the open/closed tap on the same level): reports older than this are silent. */
     public static final Duration OCCUPANCY_FRESHNESS_WINDOW = Duration.ofHours(2);
 
-    /** The recent-report log length the community pulse answers — home: {@link CommunityPulseAggregator}. */
-    public static final int RECENT_REPORTS_CAP = CommunityPulseAggregator.RECENT_REPORTS_CAP;
-
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
     private final ShelterReportRepository reportRepository;
@@ -622,38 +619,6 @@ public class ShelterQueryService {
         return new AdminShelterDto.InfoRequest(request.message(), request.requestedAt(),
                 requester == null ? AdminModerationService.UNKNOWN_NAME : requester.getData().name(),
                 request.replyMessage(), request.repliedAt());
-    }
-
-    // ---- community pulse (report aggregation UI) -------------------------------
-
-    /**
-     * Frozen test seam: the derivation now lives in
-     * {@link CommunityPulseAggregator#deriveOpenClosedPulse} — this
-     * delegate keeps the frozen {@code CommunityPulseTest} reference.
-     */
-    static ShelterDto.CommunityPulse.OpenClosed deriveOpenClosedPulse(
-            List<ShelterOpenStatusReport> fresh, Map<Long, Integer> weights) {
-        return CommunityPulseAggregator.deriveOpenClosedPulse(fresh, weights);
-    }
-
-    /**
-     * Frozen test seam: the derivation now lives in
-     * {@link CommunityPulseAggregator#deriveOccupancyPulse} — this
-     * delegate keeps the frozen {@code CommunityPulseTest} reference.
-     */
-    static ShelterDto.CommunityPulse.OccupancyBands deriveOccupancyPulse(
-            List<ShelterOccupancyReport> fresh, Map<Long, Integer> weights) {
-        return CommunityPulseAggregator.deriveOccupancyPulse(fresh, weights);
-    }
-
-    /**
-     * Frozen test seam: the derivation now lives in
-     * {@link CommunityPulseAggregator#deriveRecentReports} — this
-     * delegate keeps the frozen {@code CommunityPulseTest} reference.
-     */
-    static List<ShelterDto.CommunityPulse.RecentReport> deriveRecentReports(
-            List<ShelterOpenStatusReport> taps, List<ShelterOccupancyReport> bands) {
-        return CommunityPulseAggregator.deriveRecentReports(taps, bands);
     }
 
     /**

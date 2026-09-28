@@ -21,10 +21,6 @@ import java.util.Locale;
  * matching, markup is not a feature) has one home. The admin list's
  * query bound ({@link #requireSearch}) and its post-level match
  * ({@link #matchesPost}) live here too — moved from that controller.
- *
- * <p>{@code GuidanceService.searchableBody}/{@code matchesSearch} remain
- * as delegates — the pre-extraction public surface (the
- * {@code GuidanceServiceTest} seam stays green by construction).
  */
 public final class GuidanceSearch {
 

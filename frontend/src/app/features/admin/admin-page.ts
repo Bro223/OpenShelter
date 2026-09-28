@@ -9,13 +9,11 @@ import {
   signal,
 } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
-import type { FormControl } from '@angular/forms';
 import localeEnGB from '@angular/common/locales/en-GB';
 import { ActivatedRoute, Router, type Params } from '@angular/router';
 import type {
   AdminAlertRow,
   AdminAuditRow,
-  AdminShelterDto,
   AdminShelterReportDto,
   AdminUserDto,
   MediaAssetDto,
@@ -194,13 +192,6 @@ export class AdminPage implements OnInit, OnDestroy {
     parseAdminTab(this.route.snapshot.queryParams['tab']) ?? ADMIN_TAB_DEFAULT,
   );
 
-  // ---- unconfirmed (review-queue) tab ------------------------------------------
-  /** The reject reason control (public so specs can drive it — page
-   *  convention; the view owns the control). */
-  get rejectReason(): FormControl<string> {
-    return this.unconfirmed.rejectReason;
-  }
-
   // ---- shelters tab ----------------------------------------------------------
   // The Shelters tab's state — the URL→state→load seam (the applied
   // shelterQ/source/page/size, the inline-panel and delete-confirm state,
@@ -210,16 +201,6 @@ export class AdminPage implements OnInit, OnDestroy {
   // survive tab switches (the lazy-load rule). Its field is declared with
   // the shared UI state below, where the feedback signals it joins are
   // initialized first.
-  /** The search input (public so specs can drive it — page convention;
-   *  the view owns the control). */
-  get searchQuery(): FormControl<string> {
-    return this.shelters.searchQuery;
-  }
-  /** The info-request question editor (public so specs can drive it —
-   *  page convention; the view owns the control). */
-  get requestMessage(): FormControl<string> {
-    return this.shelters.requestMessage;
-  }
 
   // ---- shelter-report tab ----------------------------------------------------
   /** The hide-dismissed filter (a first-class control): true = the OPEN
@@ -619,16 +600,6 @@ export class AdminPage implements OnInit, OnDestroy {
       params['tab'] = tab;
     }
     void this.router.navigate([], { relativeTo: this.route, queryParams: params });
-  }
-
-  // -------------------------------------------------------------------------
-  // Unconfirmed (review-queue) tab
-  // -------------------------------------------------------------------------
-  /** "Reject" (the spec-pinned entry point — the view owns the action):
-   *  the reason is REQUIRED (non-blank, ≤500); on success the editor
-   *  closes and the shelters list refetches (the queue recomputes). */
-  async rejectRow(row: AdminShelterDto): Promise<void> {
-    await this.unconfirmed.rejectRow(row);
   }
 
   // -------------------------------------------------------------------------
