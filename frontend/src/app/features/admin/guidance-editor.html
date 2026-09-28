@@ -141,9 +141,9 @@
                plain src; sizes = the slot's fixed 56 px CSS width). -->
           <img
             class="guidance-editor__hero-thumb"
-            [src]="hero.url"
+            [src]="hero.url | apiUrl"
             [alt]="hero.name"
-            [attr.srcset]="hero.srcset ?? null"
+            [attr.srcset]="(hero.srcset ?? null) | apiSrcset"
             sizes="56px"
             width="56"
             height="56"
@@ -202,9 +202,9 @@
                        (null → plain src; sizes = the slot's fixed 72 px
                        CSS width). -->
                     <img
-                      [src]="asset.url"
+                      [src]="asset.url | apiUrl"
                       [alt]="asset.originalFilename"
-                      [attr.srcset]="asset.srcset ?? null"
+                      [attr.srcset]="(asset.srcset ?? null) | apiSrcset"
                       sizes="72px"
                       width="72"
                       height="72"

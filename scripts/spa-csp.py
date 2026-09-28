@@ -9,6 +9,13 @@ update the `script-src` line in your proxy's CSP header with what it prints:
 
     python3 scripts/spa-csp.py frontend/dist/frontend/browser/index.html
 
+For a SPLIT deployment (the SPA served from a different origin than the
+API), pass the API origin so its XHRs (connect-src) and its /api/media/**
+images (img-src) are allow-listed too:
+
+    python3 scripts/spa-csp.py frontend/dist/frontend/browser/index.html \
+        --api-origin https://api.example.ee
+
 The policy is applied at the REVERSE PROXY (nginx/caddy/ingress) as the
 `Content-Security-Policy` response header on the SPA's document and static
 assets — never as a <meta> tag inside index.html (see the doc for why).
@@ -24,7 +31,11 @@ import sys
 
 # The policy's other directives are constants of the app's load profile
 # (own origin, OpenStreetMap tiles, OSM Nominatim geocoder — see
-# docs/deploy/spa-csp.md). Only the hashes below change per build.
+# docs/deploy/spa-csp.md). Only the hashes below change per build. The
+# 'self' entries assume the API is SAME-ORIGIN (the designed topology);
+# a split deployment gets the API origin folded into connect-src and
+# img-src via --api-origin (directives_for below) — without it the
+# browser blocks every API call and every media image.
 STATIC_DIRECTIVES = (
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline'",
@@ -37,6 +48,24 @@ STATIC_DIRECTIVES = (
     "frame-ancestors 'none'",
     "upgrade-insecure-requests",
 )
+
+
+def directives_for(api_origin: str) -> list[str]:
+    """The static directives, with the API origin folded in when given.
+
+    '' (no --api-origin) returns them verbatim — the same-origin policy.
+    A split deployment appends the API origin to connect-src (the XHRs)
+    and img-src (the /api/media/** images); no other directive loads
+    from the API origin.
+    """
+    if not api_origin:
+        return list(STATIC_DIRECTIVES)
+    folded = []
+    for directive in STATIC_DIRECTIVES:
+        if directive.startswith(("connect-src ", "img-src ")):
+            directive += " " + api_origin
+        folded.append(directive)
+    return folded
 
 
 def inline_scripts(html: str) -> list[str]:
@@ -54,18 +83,34 @@ def inline_scripts(html: str) -> list[str]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: " + sys.argv[0] + " <built-index.html>", file=sys.stderr)
+    args = sys.argv[1:]
+    api_origin = ""
+    if "--api-origin" in args:
+        i = args.index("--api-origin")
+        if i + 1 >= len(args):
+            print("error: --api-origin needs a value (scheme://host[:port])", file=sys.stderr)
+            return 2
+        api_origin = args[i + 1]
+        del args[i : i + 2]
+    if api_origin and not re.fullmatch(r"https?://[^/\s]+", api_origin):
+        print(
+            "error: --api-origin must be an exact origin (scheme://host[:port]), got: "
+            + repr(api_origin),
+            file=sys.stderr,
+        )
+        return 2
+    if len(args) != 1:
+        print("usage: " + sys.argv[0] + " <built-index.html> [--api-origin ORIGIN]", file=sys.stderr)
         return 2
     try:
-        with open(sys.argv[1], encoding="utf-8") as f:
+        with open(args[0], encoding="utf-8") as f:
             html = f.read()
     except OSError as e:
-        print(f"error: cannot read {sys.argv[1]}: {e}", file=sys.stderr)
+        print(f"error: cannot read {args[0]}: {e}", file=sys.stderr)
         return 2
     scripts = inline_scripts(html)
     if not scripts:
-        print(f"error: no inline <script> found in {sys.argv[1]} — "
+        print(f"error: no inline <script> found in {args[0]} — "
               "unexpected for this app's pre-paint theme/locale blocks", file=sys.stderr)
         return 2
 
@@ -75,13 +120,13 @@ def main() -> int:
     ]
     script_src = "script-src 'self' " + " ".join(hashes)
 
-    print(f"# {sys.argv[1]}: {len(scripts)} inline script(s) hashed")
+    print(f"# {args[0]}: {len(scripts)} inline script(s) hashed")
     print()
     print(script_src)
     print()
     print("Full header value for the proxy (one line):")
     print()
-    print("; ".join([script_src, *STATIC_DIRECTIVES]))
+    print("; ".join([script_src, *directives_for(api_origin)]))
     return 0
 
 

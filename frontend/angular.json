@@ -64,6 +64,27 @@
                   "with": "src/environments/environment.development.ts"
                 }
               ]
+            },
+            "split-api": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "741401b",
+                  "maximumError": "1MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "4kB",
+                  "maximumError": "10kB"
+                }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.split.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"

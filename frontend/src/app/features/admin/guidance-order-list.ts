@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import type { AdminGuidancePostDto } from '../../core/models';
+import { ApiSrcsetPipe, ApiUrlPipe } from '../../core/api-url';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import { ConfirmAction } from '../../shared/confirm-action';
@@ -24,7 +25,7 @@ import { ConfirmAction } from '../../shared/confirm-action';
  */
 @Component({
   selector: 'app-guidance-order-list',
-  imports: [DatePipe, LoadingIndicator, TranslatePipe],
+  imports: [DatePipe, LoadingIndicator, TranslatePipe, ApiUrlPipe, ApiSrcsetPipe],
   templateUrl: './guidance-order-list.html',
   styleUrl: './guidance-order-list.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -28,6 +28,8 @@ derived from what the built app actually loads:
 | critical CSS inlined at build time (beasties) + Angular's runtime-injected component `<style>` tags | inline | `style-src 'unsafe-inline'` |
 | map tiles (Leaflet → OpenStreetMap) | `https://tile.openstreetmap.org` | `img-src` |
 | Nominatim geocoder (search) | `https://nominatim.openstreetmap.org` | `connect-src` |
+| API calls (XHR/fetch — every page's data) | the API origin — `'self'` in the designed topology (SPA and API on one origin) | `connect-src` |
+| hero images and media thumbnails (served by the API at `/api/media/**`; the URLs are API-relative) | the API origin — `'self'` in the designed topology | `img-src` |
 | the transparent-gif image fallback inside the bundle | `data:` | `img-src` |
 | app-created object URLs (the account JSON-export download) — defensive, a page's own blob: URL is not otherwise a CSP load | `blob:` | `img-src` |
 
@@ -42,7 +44,7 @@ Apply this as the `Content-Security-Policy` response header on the SPA's
 document and static assets, at the proxy:
 
 ```
-script-src 'self' sha256-3Wmiy+aAAuDTtbWePtJ6EDupdf4CePDMWZkU8L7reMw= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+script-src 'self' sha256-DLjLq71u6uWa0CSMi1WQwnMP4HxHVpIS0nAYDjfGmAE= sha256-8BqtEG4ckIJfyonVQ++PbjRG1Cht6hDTeCs93kny2d4=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 ```
 
 Notes on the non-obvious parts:
@@ -83,6 +85,52 @@ It prints the current `script-src` directive and the full one-line header —
 paste the new header into your proxy config and reload. (The values above
 are correct for the current build; the script is the source of truth.)
 
+## Split-origin deployment (SPA on a different host than the API)
+
+Everything above describes the designed topology: the SPA and the API on ONE
+origin, the proxy forwarding `/api`, `/auth`, `/account`, `/verify/`,
+`/admin/` to the backend. The dev-server proxy
+(`frontend/proxy.conf.js`) fakes exactly this same-origin-ness in dev and is
+part of NO production path — a production proxy must forward the same five
+prefixes itself (and keep the `/account` route-vs-API rule from that file).
+To serve the two from different hosts:
+
+1. **Bake the API origin into the SPA build.** Set `apiUrl` in
+   `frontend/src/environments/environment.split.ts` to the public API origin
+   (e.g. `'https://api.example.ee'`), then
+   `ng build --configuration split-api` (that configuration compiles
+   `environment.split.ts` instead of `environment.ts`). Both files ship
+   with `apiUrl: ''` — the same-origin build; a same-origin deployment
+   never touches this.
+2. **Allow the SPA origin on the API.** Set `CORS_ALLOWED_ORIGINS` to the
+   exact public SPA origin(s), comma-separated (property
+   `app.cors.allowed-origins`, bound in `SecurityConfig`). Exact origins
+   only: the CORS configuration sets credentials, and Spring refuses `*`
+   together with credentials. No backend code or build change is involved.
+3. **Extend the proxy's CSP** — recompute it with the API origin so the
+   browser allows the cross-origin XHRs and the cross-origin media images:
+
+   ```
+   python3 scripts/spa-csp.py frontend/dist/frontend/browser/index.html \
+       --api-origin https://api.example.ee
+   ```
+
+   The printed header gains the API origin in `connect-src` and `img-src`.
+   Without it the browser blocks every API call and every `/api/media/**`
+   image — the site looks dead while the API sees only prefetched 403s or
+   nothing at all.
+4. **Media needs no configuration.** The SPA resolves the API-relative
+   `/api/media/...` URLs it renders (heroes, thumbnails, the admin media
+   library) against the baked-in API base (`apiUrl`/`apiSrcset` pipes);
+   same-origin builds pass them through byte-for-byte unchanged.
+
+Both origins must be `https`: `upgrade-insecure-requests` forces https on
+the cross-origin loads, and the Bearer tokens (localStorage, no cookies)
+must not ride plain HTTP. Rate limiting and HSTS behind the SPA's own proxy
+are backend-side switches (`RATELIMIT_TRUSTED_PROXIES` /
+`RATELIMIT_TRUST_LOOPBACK`) — see the deploy-readiness review, not this
+policy.
+
 ## nginx example
 
 ```nginx
@@ -90,7 +138,7 @@ server {
     # ... your existing SPA serving (root, try_files, /vendor passthrough) ...
 
     add_header Content-Security-Policy
-        "script-src 'self' sha256-3Wmiy+aAAuDTtbWePtJ6EDupdf4CePDMWZkU8L7reMw= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+        "script-src 'self' sha256-DLjLq71u6uWa0CSMi1WQwnMP4HxHVpIS0nAYDjfGmAE= sha256-8BqtEG4ckIJfyonVQ++PbjRG1Cht6hDTeCs93kny2d4=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         always;
 }
 ```

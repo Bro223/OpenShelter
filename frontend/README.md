@@ -151,7 +151,12 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   the backend — see [`environment.ts`](src/environments/environment.ts): the production
   file ships `apiUrl: ''` (same-origin default: correct when a reverse proxy serves
   SPA + API from one origin, and never points an end user at their own localhost). If
-  the API lives on another origin, set it to that public origin and rebuild.
+  the API lives on another origin, set it to that public origin and rebuild with
+  `ng build --configuration split-api` (it compiles
+  [`environment.split.ts`](src/environments/environment.split.ts) instead) — the full
+  split-origin switch (plus the backend `CORS_ALLOWED_ORIGINS` and the CSP extension)
+  is the [Split-origin deployment](../docs/deploy/spa-csp.md#split-origin-deployment-spa-on-a-different-host-than-the-api)
+  section of `docs/deploy/spa-csp.md`.
 - **Bundle budget** (`angular.json`, documented per the M6 change — strict-JSON
   tooling keeps the rationale here, not in the file): the default route `/map` is a
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's

@@ -62,6 +62,15 @@ export class UnconfirmedView {
       .filter((row) => row.source === 'USER' && row.reviewStatus === 'NEW')
       .sort((a, b) => b.id - a.id),
   );
+  /** The tab button's count part: ` (n)` once the queue has loaded
+   *  (n = the queue's rows — a client-side filter of the already-loaded
+   *  full list: no endpoint, no new copy — a number needs no
+   *  translation, the tab word supplies the context). '' while the
+   *  initial load is in flight: before a load, `(0)` would read "empty"
+   *  for "unknown". P5 (owner-ruled): the queue depth on the tab. */
+  readonly tabCount = computed(() =>
+    this.queueRows() === null ? '' : ` (${this.rows().length})`,
+  );
   /** The row whose reject-reason editor is open (null = closed). */
   readonly rejectRowFor = signal<AdminShelterDto | null>(null);
   /** The reject reason: required (non-blank — the shared blank validator,

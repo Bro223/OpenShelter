@@ -11,6 +11,7 @@ import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { skip } from 'rxjs';
 import { ApiError } from '../../core/api-error';
+import { ApiSrcsetPipe, ApiUrlPipe } from '../../core/api-url';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { GuidancePostDto } from '../../core/models';
@@ -43,7 +44,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
  */
 @Component({
   selector: 'app-guidance-detail-page',
-  imports: [DatePipe, RouterLink, BannerComponent, LoadingIndicator, TranslatePipe],
+  imports: [DatePipe, RouterLink, BannerComponent, LoadingIndicator, TranslatePipe, ApiUrlPipe, ApiSrcsetPipe],
   templateUrl: './guidance-detail-page.html',
   styleUrl: './guidance-detail-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

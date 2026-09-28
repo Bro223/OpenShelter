@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import type { MediaAssetDto } from '../../core/models';
+import { ApiSrcsetPipe, ApiUrlPipe } from '../../core/api-url';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
@@ -31,7 +32,7 @@ import { PAGE_SIZES } from '../../shared/paging';
  */
 @Component({
   selector: 'app-media-panel',
-  imports: [DatePipe, LoadingIndicator, ListState, Pagination, TranslatePipe],
+  imports: [DatePipe, LoadingIndicator, ListState, Pagination, TranslatePipe, ApiUrlPipe, ApiSrcsetPipe],
   templateUrl: './media-panel.html',
   styleUrl: './media-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

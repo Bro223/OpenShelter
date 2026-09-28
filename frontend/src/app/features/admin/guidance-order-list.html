@@ -78,9 +78,9 @@
                        sizes is the slot's fixed CSS width (40 px). -->
                   <img
                     class="admin-guidance-thumb"
-                    [src]="heroUrl"
+                    [src]="heroUrl | apiUrl"
                     [alt]="row.heroImageAlt ?? ''"
-                    [attr.srcset]="row.heroImageSrcset ?? null"
+                    [attr.srcset]="(row.heroImageSrcset ?? null) | apiSrcset"
                     sizes="40px"
                     width="40"
                     height="40"

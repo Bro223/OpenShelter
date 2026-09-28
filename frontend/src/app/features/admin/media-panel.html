@@ -67,9 +67,9 @@
                    pixel-ratio candidate comes from the 192w entry). -->
               <img
                 class="admin-media-thumb"
-                [src]="row.url"
+                [src]="row.url | apiUrl"
                 [alt]="row.originalFilename"
-                [attr.srcset]="row.srcset ?? null"
+                [attr.srcset]="(row.srcset ?? null) | apiSrcset"
                 sizes="48px"
                 width="48"
                 height="48"

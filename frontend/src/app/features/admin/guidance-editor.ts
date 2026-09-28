@@ -26,6 +26,7 @@ import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { MessageKey } from '../../core/i18n/messages';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ApiError, toApiError } from '../../core/api-error';
+import { ApiSrcsetPipe, ApiUrlPipe } from '../../core/api-url';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import type {
   AdminGuidancePostDto,
@@ -517,7 +518,7 @@ function dropEmptyInlines(root: ParentNode): void {
  */
 @Component({
   selector: 'app-guidance-editor',
-  imports: [ReactiveFormsModule, TranslatePipe, BannerComponent],
+  imports: [ReactiveFormsModule, TranslatePipe, BannerComponent, ApiUrlPipe, ApiSrcsetPipe],
   templateUrl: './guidance-editor.html',
   styleUrl: './guidance-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

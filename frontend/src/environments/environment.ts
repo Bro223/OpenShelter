@@ -20,7 +20,7 @@ export const environment = {
   production: true,
   // Same-origin default: when the SPA and the API share an origin behind a
   // proxy that forwards /api to the Spring Boot backend, '' is correct and
-  // safest (never the end-user's own localhost). Deployments with the API on
-  // another origin must set this to that origin (see README) before building.
+  // safest (never the end-user's own localhost). A split deployment builds
+  // with split-api instead — apiUrl lives in environment.split.ts.
   apiUrl: '',
 };
