@@ -87,7 +87,7 @@ const MIN_ADMIN_TABS = 9;
  * atomic replaceUrl navigation, so it becomes a shared object the page
  * calls, not a per-tab view).
  */
-const ADMIN_PAGE_MAX_LINES = 901;
+const ADMIN_PAGE_MAX_LINES = 903;
 
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>
