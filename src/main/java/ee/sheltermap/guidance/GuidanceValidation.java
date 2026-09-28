@@ -3,8 +3,9 @@ package ee.sheltermap.guidance;
 import java.util.function.Predicate;
 
 /**
- * The guidance locale/slug validation vocabulary (extracted from
- * {@link GuidanceService}).
+ * The guidance write-time validation vocabulary (extracted from
+ * {@link GuidanceService}): the locale, the slug, and the content every
+ * write validates and cleans before it touches a row.
  *
  * <p>The locale: the VARCHAR(5) column bound and the three distinct
  * absences — a PRESENT-but-blank value on a public read is a 400 (an
@@ -18,6 +19,13 @@ import java.util.function.Predicate;
  * the post and translation endpoints cannot answer differently — the
  * collision predicate is the post table for posts and (locale, slug)
  * for translations, parameterised by {@code slugTaken}.
+ *
+ * <p>The content: the title (required, trimmed, column-bounded), the
+ * body (required, stored as the {@link BodySanitizer}'s OUTPUT — the
+ * stored value is what every reader gets, so no rendering path can skip
+ * the sanitizer) and the hero alt (trimmed; null stays null). Create,
+ * update, the locale-scoped update and the translation create/update
+ * all run these checks in this order, in one place.
  */
 final class GuidanceValidation {
 
@@ -138,5 +146,43 @@ final class GuidanceValidation {
                 return candidate;
             }
         }
+    }
+
+    // ------------------------------------------------------------- content
+
+    /** The title column width ({@code guidance_posts.title VARCHAR(255)}) — the service bound. */
+    static final int MAX_TITLE_LENGTH = 255;
+
+    /**
+     * The content a guidance write stores: the validated title, the
+     * sanitized body, and the trimmed hero alt. The order of the checks
+     * (title, then body, then alt) is the write order.
+     */
+    record CleanedContent(String title, String bodyHtml, String heroAlt) {
+    }
+
+    static CleanedContent cleanedContent(String title, String body, String heroImageAlt) {
+        return new CleanedContent(requireTitle(title), sanitize(body),
+                heroImageAlt == null ? null : heroImageAlt.trim());
+    }
+
+    /** Title required and bounded by the column width (400 otherwise). */
+    static String requireTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new GuidanceValidationException("title is required");
+        }
+        String trimmed = title.trim();
+        if (trimmed.length() > MAX_TITLE_LENGTH) {
+            throw new GuidanceValidationException("title must be at most " + MAX_TITLE_LENGTH + " characters");
+        }
+        return trimmed;
+    }
+
+    /** Body required, and ALWAYS stored as the sanitizer's output. */
+    static String sanitize(String body) {
+        if (body == null || body.isBlank()) {
+            throw new GuidanceValidationException("body is required");
+        }
+        return BodySanitizer.sanitize(body);
     }
 }

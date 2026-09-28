@@ -256,26 +256,26 @@ both tallies read their inputs from the same dismissed-excluded store query
   downloading, validating and storing the image under a generated name
   (`src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:23-26`);
   the save-side decision is `resolveHeroOnSave`
-  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:802-827`); the trigger moved by
+  (`src/main/java/ee/sheltermap/guidance/HeroSaveResolver.java:131-156`); the trigger moved by
   migration `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql:4-5`.
 - **A failed import never blocks the save.** The import runs in its own transaction
   (`REQUIRES_NEW` paragraph, `src/main/java/ee/sheltermap/guidance/HeroImageImportService.java:28-35`):
   a failure rolls back only the asset row and propagates to the save, which
   **stores the post anyway** and surfaces the error against the hero field — the catch's own
   words, "A failed import NEVER blocks the save"
-  (`src/main/java/ee/sheltermap/guidance/GuidanceService.java:839-850`).
+  (`src/main/java/ee/sheltermap/guidance/HeroSaveResolver.java:168-180`).
 - **Hero state after a failure:** the hero falls back to the request's library reference, or
   — none given — to what the post already had; a fresh post is simply hero-less (which renders
   fine). The import URL is kept on the post as a retryable pending import — the next save
   retries it. A hero is always a validated stored asset or nothing: the import URL is never a
   rendering source, on any page, in any state (the fallback assignment,
-  `src/main/java/ee/sheltermap/guidance/GuidanceService.java:845-849`;
+  `src/main/java/ee/sheltermap/guidance/HeroSaveResolver.java:174-177`;
   `src/main/resources/db/migration/V33__guidance_hero_import_on_save.sql:13-20`).
 - **Idempotent re-save:** if the post's current hero is exactly this URL's own import (the
   asset's origin is recorded as `source_url`), a same-URL save does not re-fetch or
   duplicate (`isHeroImportedFrom`,
-  `src/main/java/ee/sheltermap/guidance/GuidanceService.java:853-860`; the no-re-fetch
-  branch, the `isHeroImportedFrom` guard, at `:831-835`).
+  `src/main/java/ee/sheltermap/guidance/HeroSaveResolver.java:182-189`; the no-re-fetch
+  branch, the `isHeroImportedFrom` guard, at `:160-164`).
 
 ## 6. Data provenance — the registry import
 

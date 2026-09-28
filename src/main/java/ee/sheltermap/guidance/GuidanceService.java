@@ -4,13 +4,11 @@ import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.GuidanceTranslation;
-import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.domain.PublicGuidanceView;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +22,16 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The crisis guidance authoring surface.
+ * The crisis guidance authoring surface. The service keeps the {@code
+ * @Transactional} boundary of every guidance operation and the
+ * post-level writes (create / update / the locale-scoped update); the
+ * feature's other seams live in collaborators it constructs from its own
+ * repositories — the unit suite freezes this constructor's argument
+ * list, so none is an injected bean: {@link GuidanceOrderingService}
+ * (the reorder writes), {@link GuidanceLifecycleService} (publish /
+ * unpublish / delete and their audit rows),
+ * {@link GuidanceTranslationService} (the per-locale translation rows)
+ * and {@link HeroSaveResolver} (the save-time hero decision).
  *
  * <p>Lifecycle: a post is created DRAFT (PUBLISHED when the create call
  * explicitly asks, so a one-shot "write and publish" is possible);
@@ -74,10 +81,11 @@ import java.util.Set;
  * languages' slots untouched and lose no post.
  *
  * <p>Hero import: a post's hero may be given as an admin-supplied http(s)
- * URL in {@code heroImportUrl} instead of a library reference.
+ * URL in {@code heroImportUrl} instead of a library reference; the
+ * decision (and its 400s) lives in {@link HeroSaveResolver}.
  * {@link #create}, {@link #update} and {@link #updateInLocale} run
- * {@link HeroImageImportService} at SAVE time — draft or published alike —
- * and link the stored asset as the hero. A re-save with the SAME url whose
+ * {@link HeroImageImportService} at SAVE time — draft or published alike
+ * — and link the stored asset as the hero. A re-save with the SAME url whose
  * import already produced the current hero is idempotent (no re-fetch); a
  * CHANGED url re-imports. A failed fetch or validation NEVER blocks the
  * save: the post is stored with the url kept (retryable on the next save)
@@ -90,9 +98,10 @@ import java.util.Set;
  * image can fail for the first time, so no post is unpublishable because
  * of an image problem.
  *
- * <p>Audit: publish / unpublish / delete call
- * {@link ModerationAuditLog#recordLabeled} inside this service's
- * {@code @Transactional} method with the label
+ * <p>Audit: publish / unpublish / delete (the lifecycle, in
+ * {@link GuidanceLifecycleService}) call
+ * {@link ModerationAuditLog#recordLabeled} inside the {@code
+ * @Transactional} methods with the label
  * {@code Guidance post "<title>" (<slug>)} — the same transaction commits
  * action and row, and a rolled-back action leaves no row.
  *
@@ -106,8 +115,8 @@ public class GuidanceService {
     /** The uniform 404 message — a draft slug and an unknown slug answer the SAME 404. */
     public static final String POST_NOT_FOUND_MESSAGE = "Guidance post not found";
 
-    /** The title column width ({@code guidance_posts.title VARCHAR(255)}) — the service bound. */
-    public static final int MAX_TITLE_LENGTH = 255;
+    /** The title column width ({@code guidance_posts.title VARCHAR(255)}) — home: {@link GuidanceValidation}. */
+    public static final int MAX_TITLE_LENGTH = GuidanceValidation.MAX_TITLE_LENGTH;
 
     /**
      * The locale column width ({@code guidance_posts.locale VARCHAR(5)})
@@ -135,26 +144,26 @@ public class GuidanceService {
         return GuidanceSearch.matchesSearch(title, bodyHtml, needle);
     }
 
-    /** The pending-import URL column width ({@code hero_import_url VARCHAR(2048)}). */
-    public static final int MAX_HERO_IMPORT_URL_LENGTH = 2048;
+    /** The pending-import URL column width ({@code hero_import_url VARCHAR(2048)}) — home: {@link HeroSaveResolver}. */
+    public static final int MAX_HERO_IMPORT_URL_LENGTH = HeroSaveResolver.MAX_HERO_IMPORT_URL_LENGTH;
 
     private final GuidancePostRepository posts;
-    private final MediaAssetRepository mediaAssets;
-    private final ModerationAuditLog audit;
     private final Clock clock;
     /** The app's primary language (mirrors the frontend's DEFAULT_LOCALE). */
     private final String defaultLocale;
-    /** The remote-hero importer — runs at save time, in its own transaction. */
-    private final HeroImageImportService heroImport;
     /** The per-locale translation rows. */
     private final GuidanceTranslationRepository translations;
     /**
-     * The ordering seam — the reorder implementations, constructed from
-     * this service's own collaborators (the unit suite freezes this
-     * constructor's argument list, so the seam is a component, not an
-     * injected bean).
+     * The feature's seams — the reorder writes, the post lifecycle, the
+     * translation-row writes, and the save-time hero decision, each
+     * constructed from this service's own collaborators (the unit suite
+     * freezes this constructor's argument list, so the seams are
+     * components, not injected beans).
      */
     private final GuidanceOrderingService ordering;
+    private final HeroSaveResolver heroResolver;
+    private final GuidanceTranslationService translationService;
+    private final GuidanceLifecycleService lifecycle;
 
     public GuidanceService(GuidancePostRepository posts,
                            MediaAssetRepository mediaAssets,
@@ -164,13 +173,16 @@ public class GuidanceService {
                            HeroImageImportService heroImport,
                            GuidanceTranslationRepository translations) {
         this.posts = Objects.requireNonNull(posts, "posts");
-        this.mediaAssets = Objects.requireNonNull(mediaAssets, "mediaAssets");
-        this.audit = Objects.requireNonNull(audit, "audit");
+        MediaAssetRepository media = Objects.requireNonNull(mediaAssets, "mediaAssets");
+        ModerationAuditLog auditLog = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.defaultLocale = Objects.requireNonNull(defaultLocale, "defaultLocale");
-        this.heroImport = Objects.requireNonNull(heroImport, "heroImport");
+        HeroImageImportService importer = Objects.requireNonNull(heroImport, "heroImport");
         this.translations = Objects.requireNonNull(translations, "translations");
-        this.ordering = new GuidanceOrderingService(posts, translations, audit);
+        this.ordering = new GuidanceOrderingService(posts, translations, auditLog);
+        this.heroResolver = new HeroSaveResolver(media, importer);
+        this.translationService = new GuidanceTranslationService(translations, clock);
+        this.lifecycle = new GuidanceLifecycleService(posts, translations, auditLog, clock);
     }
 
     /**
@@ -425,16 +437,17 @@ public class GuidanceService {
                             String heroImageAlt, String heroImportUrl,
                             GuidanceStatus requestedStatus) {
         Instant now = clock.instant();
-        CleanedContent content = cleanedContent(title, body, heroImageAlt);
+        GuidanceValidation.CleanedContent content = GuidanceValidation.cleanedContent(title, body, heroImageAlt);
         String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
-        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
+        String cleanImportUrl = heroResolver.normalizeImportUrl(heroImportUrl);
+        heroResolver.requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String finalSlug = slug == null || slug.isBlank()
                 ? GuidanceValidation.nextGeneratedSlug(content.title(), posts::existsBySlug)
                 : GuidanceValidation.resolveSuppliedSlug(slug, null, posts::existsBySlug);
         // The save-time hero import runs AFTER every write-time validation
         // above (400/404/409) — a doomed create never spends a network fetch.
-        HeroResolution hero = resolveHeroOnSave(adminId, null, heroImageId, cleanImportUrl);
+        HeroSaveResolver.HeroResolution hero =
+                heroResolver.resolveHeroOnSave(adminId, null, heroImageId, cleanImportUrl);
 
         GuidancePost post = GuidancePost.draft(finalSlug, content.title(), content.bodyHtml(),
                 cleanLocale, pinned, hero.heroImageId(), content.heroAlt(), hero.heroImportUrl(),
@@ -450,7 +463,7 @@ public class GuidanceService {
         GuidancePost saved = posts.save(post);
         // Every post owns at least one translation row — its own — so the
         // public reads (which key off translations) see it in its own locale.
-        saveOwnTranslation(saved, now);
+        translationService.saveOwnTranslation(saved, now);
         return new SavedPost(saved, hero.error());
     }
 
@@ -479,16 +492,17 @@ public class GuidanceService {
                             String heroImageAlt, String heroImportUrl) {
         GuidancePost post = requirePost(id);
         Instant now = clock.instant();
-        CleanedContent content = cleanedContent(title, body, heroImageAlt);
+        GuidanceValidation.CleanedContent content = GuidanceValidation.cleanedContent(title, body, heroImageAlt);
         String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
-        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
+        String cleanImportUrl = heroResolver.normalizeImportUrl(heroImportUrl);
+        heroResolver.requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, post.getSlug(),
                 posts::existsBySlug);
         String oldLocale = post.getLocale();
         // The save-time hero import — after every write-time validation, so
         // a doomed update never spends a network fetch.
-        HeroResolution hero = resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
+        HeroSaveResolver.HeroResolution hero =
+                heroResolver.resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
 
         post.update(finalSlug, content.title(), content.bodyHtml(), cleanLocale, pinned, hero.heroImageId(),
                 content.heroAlt(), hero.heroImportUrl(), now);
@@ -500,7 +514,7 @@ public class GuidanceService {
         }
         // Re-sync the (possibly new) own-locale translation from the
         // post's home content.
-        saveOwnTranslation(saved, now);
+        translationService.saveOwnTranslation(saved, now);
         return new SavedPost(saved, hero.error());
     }
 
@@ -574,22 +588,23 @@ public class GuidanceService {
         GuidanceTranslation translation = translations.findByPostIdAndLocale(id, validatedEditLocale)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
         Instant now = clock.instant();
-        CleanedContent content = cleanedContent(title, body, heroImageAlt);
-        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
+        GuidanceValidation.CleanedContent content = GuidanceValidation.cleanedContent(title, body, heroImageAlt);
+        String cleanImportUrl = heroResolver.normalizeImportUrl(heroImportUrl);
+        heroResolver.requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         boolean hasHero = heroImageId != null || cleanImportUrl != null;
         // The post row's OWN alt (the home alt) moves with the hero — see
-        // homeAltAfterHeroChange.
+        // HeroSaveResolver.homeAltAfterHeroChange.
         String oldHomeAlt = post.getHeroImageAlt();
-        String postAlt = homeAltAfterHeroChange(oldHomeAlt, hasHero, content.heroAlt());
-        HeroResolution hero = resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
+        String postAlt = HeroSaveResolver.homeAltAfterHeroChange(oldHomeAlt, hasHero, content.heroAlt());
+        HeroSaveResolver.HeroResolution hero =
+                heroResolver.resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
         post.update(post.getSlug(), post.getTitle(), post.getBodyHtml(), post.getLocale(),
                 pinned, hero.heroImageId(), postAlt, hero.heroImportUrl(), now);
         GuidancePost saved = posts.save(post);
         if (!Objects.equals(oldHomeAlt, postAlt)) {
             // The home alt moved with the hero: re-sync the home row (the
             // home translation mirrors the post's home columns).
-            saveOwnTranslation(saved, now);
+            translationService.saveOwnTranslation(saved, now);
         }
         // The content lands on the edit locale's translation row (the row
         // was resolved above, before any write).
@@ -610,45 +625,31 @@ public class GuidanceService {
      * hero — a post with an unimported or failed hero URL publishes
      * exactly as stored (the URL stays for a retry on the next save), so
      * publishing is never the moment an image can fail for the first
-     * time, and no post is unpublishable because of an image problem.
+     * time, and no post is unpublishable because of an image problem. The
+     * implementation lives in {@link GuidanceLifecycleService#publish};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface.
      *
      * @throws GuidanceNotFoundException 404 — unknown id
      */
     @Transactional
     public void publish(long adminId, long id) {
-        GuidancePost post = requirePost(id);
-        if (post.isPublished()) {
-            // Idempotent no-op: no save, NO audit row.
-            return;
-        }
-        // sort_order is NEVER touched here: a re-publish stamps a fresh
-        // publishedAt, but the post's slot is its stored manual position —
-        // it does not re-enter the list at the top.
-        post.publish(clock.instant());
-        posts.save(post);
-        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_PUBLISH,
-                auditLabel(post), null);
+        lifecycle.publish(adminId, id);
     }
 
     /**
      * Unpublish: back to DRAFT, {@code publishedAt} cleared,
      * GUIDANCE_UNPUBLISH recorded in this transaction. Idempotent —
-     * unpublishing a draft is a no-op that writes NO audit row.
+     * unpublishing a draft is a no-op that writes NO audit row. The
+     * implementation lives in {@link GuidanceLifecycleService#unpublish};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface.
      *
      * @throws GuidanceNotFoundException 404 — unknown id
      */
     @Transactional
     public void unpublish(long adminId, long id) {
-        GuidancePost post = requirePost(id);
-        if (!post.isPublished()) {
-            return;
-        }
-        // sort_order is NEVER touched here: the draft's slot survives its
-        // (un)publication.
-        post.unpublish();
-        posts.save(post);
-        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_UNPUBLISH,
-                auditLabel(post), null);
+        lifecycle.unpublish(adminId, id);
     }
 
     /**
@@ -656,27 +657,17 @@ public class GuidanceService {
      * UI shows a confirm dialog). The GUIDANCE_DELETE audit row joins this
      * transaction with the label snapshot computed BEFORE the row is gone
      * — the trail stays readable after the delete. The post's media assets
-     * stay in the library (uploads are inventory, not garbage).
+     * stay in the library (uploads are inventory, not garbage). The
+     * implementation lives in {@link GuidanceLifecycleService#delete};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface.
      *
      * @throws GuidanceNotFoundException 404 — unknown id
      * @throws GuidanceValidationException 400 — confirm is false
      */
     @Transactional
     public void delete(long adminId, long id, boolean confirm) {
-        GuidancePost post = requirePost(id);
-        if (!confirm) {
-            throw new GuidanceValidationException("confirm=true is required to delete a guidance post");
-        }
-        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_DELETE,
-                auditLabel(post), null);
-        // sort_order is NEVER written by a delete: the remaining posts keep
-        // their positions and leave GAPS in the numbering — order is by
-        // value, not adjacency, so the gaps are invisible until the next
-        // reorder re-densifies.
-        // The post's translation rows die with it (the FK cascades in the
-        // DB; the explicit delete keeps the in-memory twin honest too).
-        translations.deleteAllByPostId(post.getId());
-        posts.delete(post);
+        lifecycle.delete(adminId, id, confirm);
     }
 
     /**
@@ -723,190 +714,6 @@ public class GuidanceService {
         return GuidanceValidation.optionalAdminLocale(locale);
     }
 
-    /**
-     * The audit subject label — a snapshot of the post's title and slug
-     * at the moment of the action (the column has no FK: a deleted post
-     * must stay readable in the trail, exactly like a dangling
-     * shelter_id).
-     */
-    private static String auditLabel(GuidancePost post) {
-        return "Guidance post \"" + post.getTitle() + "\" (" + post.getSlug() + ")";
-    }
-
-    /** Title required and bounded by the column width (400 otherwise). */
-    private String requireTitle(String title) {
-        if (title == null || title.isBlank()) {
-            throw new GuidanceValidationException("title is required");
-        }
-        String trimmed = title.trim();
-        if (trimmed.length() > MAX_TITLE_LENGTH) {
-            throw new GuidanceValidationException("title must be at most " + MAX_TITLE_LENGTH + " characters");
-        }
-        return trimmed;
-    }
-
-    /** Body required, and ALWAYS stored as the sanitizer's output. */
-    private String sanitize(String body) {
-        if (body == null || body.isBlank()) {
-            throw new GuidanceValidationException("body is required");
-        }
-        return BodySanitizer.sanitize(body);
-    }
-
-    /**
-     * Alt mandatory iff a hero is set — a hero being a stored-asset
-     * reference OR an import URL (both directions 400; the CHECK on the
-     * post row mirrors the reference half). A hero id must name a live
-     * asset (unknown id → 404).
-     */
-    private void requireHeroPairing(Long heroImageId, String heroImageAlt, String heroImportUrl) {
-        boolean hasHero = heroImageId != null || heroImportUrl != null;
-        boolean hasAlt = heroImageAlt != null && !heroImageAlt.isBlank();
-        if (hasHero && !hasAlt) {
-            throw new GuidanceValidationException("heroImageAlt is required when a hero image is set");
-        }
-        if (!hasHero && hasAlt) {
-            throw new GuidanceValidationException(
-                    "heroImageAlt requires a hero image (heroImageId or heroImportUrl)");
-        }
-        if (heroImageId != null && mediaAssets.findById(heroImageId).isEmpty()) {
-            throw new GuidanceNotFoundException(MediaService.ASSET_NOT_FOUND_MESSAGE);
-        }
-    }
-
-    /**
-     * The post row's home alt after a foreign-locale save: a hero set on
-     * a hero-less post takes the request's alt as the new home alt (the
-     * home edit can refine it later); a cleared hero nulls it; otherwise
-     * the home value is untouched.
-     */
-    private static String homeAltAfterHeroChange(String oldHomeAlt, boolean hasHero, String requestAlt) {
-        if (!hasHero) {
-            return null;
-        }
-        if (oldHomeAlt == null || oldHomeAlt.isBlank()) {
-            return requestAlt;
-        }
-        return oldHomeAlt;
-    }
-
-    /**
-     * One save's hero decision (the save-time import): the hero reference
-     * and import URL to WRITE, plus the import's failure ({@code null}
-     * when no import ran or it succeeded). A non-null error never blocked
-     * the save — see {@link #resolveHeroOnSave}.
-     */
-    private record HeroResolution(Long heroImageId, String heroImportUrl, String error) {
-    }
-
-    /**
-     * The save-time hero decision: the import runs when the post is
-     * SAVED, draft or published alike, not when it is published —
-     * <ul>
-     *   <li>no URL in the request → the hero is the request's library
-     *       reference (or nothing); any stored URL is cleared (a cleared
-     *       hero imports nothing);</li>
-     *   <li>the URL is set and the post's CURRENT hero is exactly this
-     *       URL's own import → idempotent re-save: no re-fetch, no
-     *       duplicate asset;</li>
-     *   <li>otherwise — a new/changed URL, a retry after a failed import,
-     *       or a create — {@link HeroImageImportService} fetches,
-     *       validates and stores the image (in its OWN transaction, so a
-     *       failure cannot roll back this save): success links the new
-     *       asset (superseding the previous hero — the replaced asset
-     *       stays in the library); failure keeps the URL for a retry on
-     *       the next save and falls the hero back to the request's
-     *       library reference, or — none given — to what the post already
-     *       had. A hero is always a validated stored asset or nothing: no
-     *       broken reference, no placeholder — a published post's live
-     *       hero is never lost to a failed fetch, and a fresh post is
-     *       simply hero-less, which renders fine.</li>
-     * </ul>
-     */
-    private HeroResolution resolveHeroOnSave(long adminId, GuidancePost post,
-                                             Long requestHeroImageId, String cleanImportUrl) {
-        if (cleanImportUrl == null) {
-            return new HeroResolution(requestHeroImageId, null, null);
-        }
-        if (post != null && isHeroImportedFrom(post, cleanImportUrl)) {
-            // The current hero IS this URL's import — a re-save with the
-            // same URL does not re-fetch (the admin changed no hero).
-            return new HeroResolution(post.getHeroImageId(), cleanImportUrl, null);
-        }
-        try {
-            MediaAsset imported = heroImport.importHero(adminId, cleanImportUrl);
-            return new HeroResolution(imported.getId(), cleanImportUrl, null);
-        } catch (HeroImportRefusedException | HeroImportUnreachableException
-                 | MediaTooLargeException | UnsupportedImageException ex) {
-            // A failed import NEVER blocks the save — the error is
-            // returned to the write response (the admin sees it against
-            // the hero field), the post is stored with the URL kept, and
-            // the hero falls back as described above.
-            Long fallback = requestHeroImageId;
-            if (fallback == null && post != null) {
-                fallback = post.getHeroImageId();
-            }
-            return new HeroResolution(fallback, cleanImportUrl, ex.getMessage());
-        }
-    }
-
-    /**
-     * Whether the post's current hero is the imported asset of exactly
-     * {@code url} (the asset's recorded origin, {@code source_url}) —
-     * the idempotency check that keeps a same-URL re-save from minting a
-     * duplicate asset. A hero whose origin is null (a plain library pick)
-     * is never "imported from" a URL.
-     */
-    private boolean isHeroImportedFrom(GuidancePost post, String url) {
-        if (post.getHeroImageId() == null) {
-            return false;
-        }
-        return mediaAssets.findById(post.getHeroImageId())
-                .map(asset -> url.equals(asset.getSourceUrl()))
-                .orElse(false);
-    }
-
-    /**
-     * The admin-supplied import URL, normalized (trimmed) and shape-
-     * checked BEFORE it is stored (the fetch-time policy re-validates
-     * everything — this is the early 400 that saves the admin a save
-     * round-trip): a parseable absolute http(s) URL with a host and no
-     * embedded credentials. Blank means "no import URL" (null) —
-     * clearing the hero URL is a null, like clearing the hero id.
-     *
-     * @throws GuidanceValidationException 400 — a malformed, non-http(s),
-     *                                       hostless or credentialed URL
-     */
-    private static String normalizeImportUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return null;
-        }
-        String trimmed = url.trim();
-        if (trimmed.length() > MAX_HERO_IMPORT_URL_LENGTH) {
-            throw new GuidanceValidationException("heroImportUrl must be at most "
-                    + MAX_HERO_IMPORT_URL_LENGTH + " characters");
-        }
-        URI uri;
-        try {
-            uri = URI.create(trimmed);
-        } catch (IllegalArgumentException e) {
-            throw new GuidanceValidationException("heroImportUrl must be a valid http(s) URL");
-        }
-        if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
-            throw new GuidanceValidationException(
-                    "heroImportUrl must use http or https (got '"
-                            + (uri.getScheme() == null ? "<none>" : uri.getScheme()) + "')");
-        }
-        if (uri.getHost() == null || uri.getHost().isBlank()) {
-            throw new GuidanceValidationException("heroImportUrl must name a host");
-        }
-        if (uri.getUserInfo() != null) {
-            throw new GuidanceValidationException(
-                    "heroImportUrl must not carry credentials (user:pass@)");
-        }
-        return trimmed;
-    }
-
     private GuidancePost requirePost(long id) {
         return posts.findById(id)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
@@ -919,7 +726,10 @@ public class GuidanceService {
      * have. The slug is generated from the title when omitted (the same
      * shape rules); an explicit slug is validated and must be free WITHIN
      * the locale (409 naming it). The stored body is the sanitizer
-     * output.
+     * output. The implementation lives in
+     * {@link GuidanceTranslationService#createTranslation}; this bean
+     * method keeps the {@code @Transactional} boundary and the public
+     * surface (the post's 404 runs before the call).
      *
      * @throws GuidanceNotFoundException   404 — unknown post id
      * @throws GuidanceValidationException 400 — missing/oversized title or body,
@@ -933,26 +743,16 @@ public class GuidanceService {
     public GuidanceTranslation createTranslation(long postId, String locale, String slug,
                                                  String title, String body, String heroImageAlt) {
         requirePost(postId);
-        Instant now = clock.instant();
-        String cleanLocale = GuidanceValidation.requireLocale(locale);
-        CleanedContent content = cleanedContent(title, body, heroImageAlt);
-        if (translations.existsByPostIdAndLocale(postId, cleanLocale)) {
-            throw new GuidanceValidationException(
-                    "post already has a " + cleanLocale + " translation — update or delete it first");
-        }
-        String finalSlug = slug == null || slug.isBlank()
-                ? GuidanceValidation.nextGeneratedSlug(content.title(),
-                        candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate))
-                : GuidanceValidation.resolveSuppliedSlug(slug, null,
-                        candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate));
-        return translations.save(GuidanceTranslation.forPost(postId, cleanLocale, finalSlug,
-                content.title(), content.bodyHtml(), content.heroAlt(), now));
+        return translationService.createTranslation(postId, locale, slug, title, body, heroImageAlt);
     }
 
     /**
      * Full replace of a translation's content (the locale is the KEY — it
      * never moves here). The slug is kept when omitted; the body is
-     * re-sanitized.
+     * re-sanitized. The implementation lives in
+     * {@link GuidanceTranslationService#updateTranslation}; this bean
+     * method keeps the {@code @Transactional} boundary and the public
+     * surface (the post's 404 runs before the call).
      *
      * @throws GuidanceNotFoundException   404 — unknown post, or no translation
      *                                     in this locale
@@ -964,22 +764,17 @@ public class GuidanceService {
     public GuidanceTranslation updateTranslation(long postId, String locale, String slug,
                                                  String title, String body, String heroImageAlt) {
         requirePost(postId);
-        String cleanLocale = GuidanceValidation.requireLocale(locale);
-        GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
-                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
-        Instant now = clock.instant();
-        CleanedContent content = cleanedContent(title, body, heroImageAlt);
-        String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, translation.getSlug(),
-                candidate -> translations.existsByLocaleAndSlug(cleanLocale, candidate));
-        translation.update(finalSlug, content.title(), content.bodyHtml(), content.heroAlt(), now);
-        return translations.save(translation);
+        return translationService.updateTranslation(postId, locale, slug, title, body, heroImageAlt);
     }
 
     /**
      * Deletes a post's translation in a locale. A post's HOME-locale
      * translation cannot be deleted — it is the post's own content
      * (unpublish or delete the post instead). Deleting a linked locale's
-     * translation simply unlinks it.
+     * translation simply unlinks it. The implementation lives in
+     * {@link GuidanceTranslationService#deleteTranslation}; this bean
+     * method keeps the {@code @Transactional} boundary and the public
+     * surface (the post's 404 runs before the call).
      *
      * @throws GuidanceNotFoundException   404 — unknown post, or no translation
      *                                     in this locale
@@ -988,22 +783,14 @@ public class GuidanceService {
     @Transactional
     public void deleteTranslation(long postId, String locale) {
         GuidancePost post = requirePost(postId);
-        String cleanLocale = GuidanceValidation.requireLocale(locale);
-        GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
-                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
-        if (cleanLocale.equals(post.getLocale())) {
-            throw new GuidanceValidationException(
-                    "the post's own-locale (" + cleanLocale + ") translation cannot be deleted — "
-                            + "unpublish or delete the post instead");
-        }
-        translations.delete(translation);
+        translationService.deleteTranslation(postId, locale, post.getLocale());
     }
 
     /** A post's translations, in locale order (the admin detail / alternates editor). */
     @Transactional(readOnly = true)
     public List<GuidanceTranslation> listTranslations(long postId) {
         requirePost(postId);
-        return translations.findAllByPostId(postId);
+        return translationService.listTranslations(postId);
     }
 
     /**
@@ -1013,7 +800,11 @@ public class GuidanceService {
      * travels with the row, so the locale-slug uniqueness holds and the
      * source stops claiming the slug publicly (the source is left a shell
      * with no translations, which the admin may hard-delete). The target
-     * must not already have a translation in that locale (409).
+     * must not already have a translation in that locale (409). The
+     * implementation lives in
+     * {@link GuidanceTranslationService#attachExistingPostAsTranslation};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface (the same-id 400 and both 404s run before the call).
      *
      * @throws GuidanceNotFoundException   404 — unknown target or source post
      * @throws GuidanceValidationException 400 — source == target
@@ -1026,59 +817,6 @@ public class GuidanceService {
             throw new GuidanceValidationException("source and target must be different posts");
         }
         requirePost(targetPostId);
-        GuidancePost source = requirePost(sourcePostId);
-        String locale = source.getLocale();
-        if (translations.existsByPostIdAndLocale(targetPostId, locale)) {
-            throw new GuidanceValidationException(
-                    "target already has a " + locale + " translation — update or delete it first");
-        }
-        Instant now = clock.instant();
-        return translations.findByPostIdAndLocale(sourcePostId, locale)
-                .map(t -> {
-                    t.reparentTo(targetPostId, now);
-                    return translations.save(t);
-                })
-                .orElseGet(() -> translations.save(GuidanceTranslation.forPost(
-                        targetPostId, locale, source.getSlug(), source.getTitle(),
-                        source.getBodyHtml(), source.getHeroImageAlt(), now)));
-    }
-
-    /**
-     * Keeps the post's own-locale translation in sync with its home
-     * content columns: every post owns at least one translation row, in
-     * its own locale, and the public reads key off translations. An
-     * existing row is upserted, not duplicated.
-     */
-    private void saveOwnTranslation(GuidancePost post, Instant now) {
-        translations.findByPostIdAndLocale(post.getId(), post.getLocale())
-                .ifPresentOrElse(
-                        existing -> {
-                            existing.update(post.getSlug(), post.getTitle(), post.getBodyHtml(),
-                                    post.getHeroImageAlt(), now);
-                            translations.save(existing);
-                        },
-                        () -> translations.save(GuidanceTranslation.forPost(post.getId(),
-                                post.getLocale(), post.getSlug(), post.getTitle(),
-                                post.getBodyHtml(), post.getHeroImageAlt(), now)));
-    }
-
-    // ------------------------------------------------- shared write guards
-
-    /**
-     * The content every guidance write validates and cleans before it
-     * touches a row: the title (required, trimmed, column-bounded), the
-     * body (required, and stored as the sanitizer's OUTPUT — the stored
-     * value is what every reader gets, so no rendering path can skip the
-     * sanitizer) and the hero alt (trimmed; null stays null). Create,
-     * update, the locale-scoped update and the translation create/update
-     * all run these checks in this order — the order of the checks lives
-     * in one place.
-     */
-    private record CleanedContent(String title, String bodyHtml, String heroAlt) {
-    }
-
-    private CleanedContent cleanedContent(String title, String body, String heroImageAlt) {
-        return new CleanedContent(requireTitle(title), sanitize(body),
-                heroImageAlt == null ? null : heroImageAlt.trim());
+        return translationService.attachExistingPostAsTranslation(targetPostId, requirePost(sourcePostId));
     }
 }

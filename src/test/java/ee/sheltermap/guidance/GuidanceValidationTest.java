@@ -8,12 +8,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The extracted validation seam directly: the locale and slug
+ * The extracted validation seam directly: the locale, slug, and content
  * rules in {@link GuidanceValidation}. The {@code GuidanceService}
- * delegates ({@code MAX_LOCALE_LENGTH}, {@code optionalAdminLocale}) are
- * covered by {@code GuidanceServiceTest}; this suite covers the class
- * that now owns the rules — the exact 400 vocabulary included, since the
- * frozen admin suite asserts on those messages.
+ * delegates ({@code MAX_LOCALE_LENGTH}, {@code MAX_TITLE_LENGTH},
+ * {@code optionalAdminLocale}) are covered by {@code GuidanceServiceTest};
+ * this suite covers the class that now owns the rules — the exact 400
+ * vocabulary included, since the frozen admin suite asserts on those
+ * messages.
  */
 class GuidanceValidationTest {
 
@@ -136,5 +137,48 @@ class GuidanceValidationTest {
                 slug -> "kelder-juhend".equals(slug) || "kelder-juhend-2".equals(slug);
         assertThat(GuidanceValidation.nextGeneratedSlug("Kelder juhend", takenUntilThree))
                 .isEqualTo("kelder-juhend-3");
+    }
+
+    // ------------------------------------------------------------- content
+
+    @Test
+    void aMissingOrOverlongTitleIsA400AndSurroundingSpacesAreTrimmed() {
+        assertThatThrownBy(() -> GuidanceValidation.requireTitle(null))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("title is required");
+        assertThatThrownBy(() -> GuidanceValidation.requireTitle("   "))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("title is required");
+        assertThatThrownBy(() -> GuidanceValidation.requireTitle("x".repeat(GuidanceValidation.MAX_TITLE_LENGTH + 1)))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("title must be at most 255 characters");
+        assertThat(GuidanceValidation.requireTitle("  Title  ")).isEqualTo("Title");
+    }
+
+    @Test
+    void aMissingBodyIsA400AndTheStoredBodyIsTheSanitizedOutput() {
+        assertThatThrownBy(() -> GuidanceValidation.sanitize(null))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("body is required");
+        assertThatThrownBy(() -> GuidanceValidation.sanitize("   "))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("body is required");
+        assertThat(GuidanceValidation.sanitize("<p>ok</p><script>alert(1)</script>"))
+                .doesNotContain("<script")
+                .contains("<p>ok</p>");
+    }
+
+    @Test
+    void cleanedContentTrimsTheAltAndChecksTheTitleBeforeTheBody() {
+        GuidanceValidation.CleanedContent content =
+                GuidanceValidation.cleanedContent(" T ", "<p>b</p>", "  alt  ");
+        assertThat(content.title()).isEqualTo("T");
+        assertThat(content.bodyHtml()).isEqualTo("<p>b</p>");
+        assertThat(content.heroAlt()).isEqualTo("alt");
+        assertThat(GuidanceValidation.cleanedContent("T", "<p>b</p>", null).heroAlt()).isNull();
+        // The title's 400 wins when both are missing (the write order).
+        assertThatThrownBy(() -> GuidanceValidation.cleanedContent("   ", null, null))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessage("title is required");
     }
 }
