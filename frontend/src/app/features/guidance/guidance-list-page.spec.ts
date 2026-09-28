@@ -539,7 +539,7 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Paging (guidance-index-paging / list-page-paging): the view is the URL
+  // Paging (list-page-paging): the view is the URL
   // (?page, ?size — defaults 1 and 20 omitted from the URL), the SERVER
   // does the slicing, the control is pointless at one page, and an
   // out-of-range page is an explicit state, never a bare empty list.

@@ -145,21 +145,21 @@
             <input
               id="shelter-location-input"
               type="text"
-              [value]="locationText()"
-              (input)="onLocationTextChange($event)"
-              (keydown.enter)="onLocationSubmitKey($event)"
+              [value]="capture.locationText()"
+              (input)="capture.onLocationTextChange($event)"
+              (keydown.enter)="capture.onLocationSubmitKey($event)"
               [placeholder]="'submit.locationPlaceholder' | t"
               autocomplete="off"
-              [disabled]="resolvingLink() || locating()"
+              [disabled]="capture.resolvingLink() || capture.locating()"
             />
             <button
               type="button"
               class="btn"
-              (click)="applyLocationInput()"
-              [disabled]="resolvingLink() || locating()"
+              (click)="capture.applyLocationInput()"
+              [disabled]="capture.resolvingLink() || capture.locating()"
             >
               {{
-                resolvingLink() ? ('submit.location.resolving' | t) : ('submit.location.set' | t)
+                capture.resolvingLink() ? ('submit.location.resolving' | t) : ('submit.location.set' | t)
               }}
             </button>
           </div>
@@ -176,20 +176,20 @@
             <input
               id="shelter-address-search"
               type="text"
-              [value]="addressQuery()"
-              (input)="onAddressQueryChange($event)"
-              (keydown.enter)="onAddressSearchKey($event)"
+              [value]="capture.addressQuery()"
+              (input)="capture.onAddressQueryChange($event)"
+              (keydown.enter)="capture.onAddressSearchKey($event)"
               [placeholder]="'submit.addressPlaceholder' | t"
               autocomplete="off"
-              [disabled]="searching()"
+              [disabled]="capture.searching()"
             />
             <button
               type="button"
               class="btn"
-              (click)="startAddressSearch()"
-              [disabled]="searching()"
+              (click)="capture.startAddressSearch()"
+              [disabled]="capture.searching()"
             >
-              {{ searching() ? ('submit.searching' | t) : ('submit.search' | t) }}
+              {{ capture.searching() ? ('submit.searching' | t) : ('submit.search' | t) }}
             </button>
           </div>
           <p class="location-attribution">
@@ -204,14 +204,14 @@
                the result list and the "no results" notice both arrive
                inside it. -->
           <div role="status">
-            @if (addressResults().length !== 0) {
+            @if (capture.addressResults().length !== 0) {
               <ul class="address-results">
-                @for (result of addressResults(); track result.displayName) {
+                @for (result of capture.addressResults(); track result.displayName) {
                   <li>
                     <button
                       type="button"
                       class="address-result"
-                      (click)="selectAddressResult(result)"
+                      (click)="capture.selectAddressResult(result)"
                     >
                       <span class="address-result__name">{{ result.displayName }}</span>
                       <span class="address-result__type">{{ result.type }}</span>
@@ -220,8 +220,8 @@
                 }
               </ul>
             }
-            @if (addressErrorText(); as addressErrorMsg) {
-              @if (addressError() === 'no-results') {
+            @if (capture.addressErrorText(); as addressErrorMsg) {
+              @if (capture.addressError() === 'no-results') {
                 <p class="location-note">{{ addressErrorMsg }}</p>
               } @else {
                 <p class="field-error" role="alert">{{ addressErrorMsg }}</p>
@@ -234,16 +234,16 @@
           <button
             type="button"
             class="btn"
-            (click)="useMyLocation()"
-            [disabled]="locating() || resolvingLink()"
+            (click)="capture.useMyLocation()"
+            [disabled]="capture.locating() || capture.resolvingLink()"
           >
-            {{ locating() ? ('submit.locating' | t) : ('submit.useMyLocation' | t) }}
+            {{ capture.locating() ? ('submit.locating' | t) : ('submit.useMyLocation' | t) }}
           </button>
           <!-- The keyboard path for the map pick: a pointer user clicks/
                drags the map, a keyboard user pans the focusable map and
                confirms the center here (the same capture, source
                'map-pick'). -->
-          <button type="button" class="btn" (click)="useMapCenter()">
+          <button type="button" class="btn" (click)="capture.useMapCenter()">
             {{ 'submit.useMapCenter' | t }}
           </button>
         </div>
@@ -252,14 +252,14 @@
            from shifting while they update. -->
         <p
           class="location-readout num-tabular"
-          [class.location-readout--empty]="location() === null"
+          [class.location-readout--empty]="capture.location() === null"
         >
-          {{ locationReadout() }}
+          {{ capture.locationReadout() }}
         </p>
-        @if (locationHint(); as locationHintText) {
+        @if (capture.locationHint(); as locationHintText) {
           <p class="location-hint">{{ locationHintText }}</p>
         }
-        @if (locationErrorText(); as locationErrorMsg) {
+        @if (capture.locationErrorText(); as locationErrorMsg) {
           <p class="field-error" role="alert">{{ locationErrorMsg }}</p>
         }
       </fieldset>

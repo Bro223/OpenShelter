@@ -125,7 +125,7 @@ Anchors, row by row:
   the second channel is confirmed — while an orphaned row (author erased) serves the
   depth frozen onto it at erasure (V35): nothing on a live row's standing can go stale
   (`src/main/java/ee/sheltermap/api/SubmitterVerification.java:10-13,26-33`; the
-  orphan-serving read, `src/main/java/ee/sheltermap/api/ShelterQueryService.java:413-415`).
+  orphan-serving read, `src/main/java/ee/sheltermap/api/ShelterQueryService.java:410-412`).
 - There is deliberately **no recency term** in the pin: NEW vs CONFIRMED rows without a
   reported depth share the community tone; the comment above that return —
   "the badge says NEW, not the pin" (`frontend/src/app/shared/leaflet-service.ts:86-88`).
@@ -191,13 +191,13 @@ both tallies read their inputs from the same dismissed-excluded store query
     moderator's "hide dismissed" scope (`excludeDismissed=true`,
     `src/main/java/ee/sheltermap/api/AdminController.java:398`) drops the dismissed rows in
     the domain (`openReportPage`,
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:415-439`) — and its
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:403-427`) — and its
     X-Total-Count *is* the sum of the per-shelter open counts the pins read
     (`listShelterReports` with `excludeDismissed`,
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:312-327`).
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:300-315`).
   - So: the count/tally filter lives in the store queries (`dismissedAt is null`); the list
     filter lives in the queue's open-scope reads (`openReportPage`/`openReportCount` at
-    `src/main/java/ee/sheltermap/api/AdminModerationService.java:415,449`).
+    `src/main/java/ee/sheltermap/api/AdminModerationService.java:403,437`).
 
 ## 4. Paging and filtering — the view IS the URL
 
@@ -205,18 +205,18 @@ both tallies read their inputs from the same dismissed-excluded store query
   legend's `tones` param — "URL-only (no localStorage), display-only", in
   `LegendFilterView`'s own words (`frontend/src/app/features/map/legend-view.ts:54-68`); the
   admin page carries the same idiom ("the view IS the URL",
-  `frontend/src/app/features/admin/admin-page.ts:371`). Public surfaces use page-level
+  `frontend/src/app/features/admin/admin-page.ts:352`). Public surfaces use page-level
   routes, admin tab panels use tab-namespaced query params
   (`frontend/src/app/shared/list-state.ts:16-20`).
 - **Clamp/normalize discipline.** A hand-typed illegal value is sanitized to the nearest
   legal value — never an error — and the URL is normalized in place, so the control and the
   URL can never quietly disagree (`syncFromParams` with `replaceUrl`,
   `frontend/src/app/features/map/legend-view.ts:120-156`; `normalizeListParams`,
-  `frontend/src/app/features/admin/admin-page.ts:422-512`).
+  `frontend/src/app/features/admin/admin-page.ts:403-493`).
 - **Per-list namespaced parameters.** Each admin paged list owns its own `{list}Page` /
   `{list}Size` pair — `guidancePage/guidanceSize`, `shelterPage/shelterSize`,
   `reportPage/reportSize`, `userPage/userSize`, `mediaPage/mediaSize`, `auditPage/auditSize`
-  (`frontend/src/app/features/admin/admin-page.ts:456-470`).
+  (`frontend/src/app/features/admin/admin-page.ts:437-451`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
   (`frontend/src/app/shared/paging.ts:1-16`); the four `PAGE_SIZE_` constants at

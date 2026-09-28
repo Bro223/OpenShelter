@@ -62,7 +62,7 @@ class GuidanceSearchTest {
 
     @Test
     void theSearchTermBoundIsTwoHundred() {
-        // the admin list's q bound (admin-guidance-search) — a present q
+        // the admin list's q bound — a present q
         // over this is a 400 (the controller enforces it).
         assertThat(GuidanceSearch.MAX_SEARCH_LENGTH).isEqualTo(200);
     }

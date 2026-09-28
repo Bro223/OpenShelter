@@ -320,7 +320,7 @@ class FakeAdminGateway {
   unpublishGuidancePost = vi.fn();
   deleteGuidancePost = vi.fn();
   reorderGuidanceOrder = vi.fn();
-  // The translations (bilingual-guidance): the post's per-locale rows —
+  // The translations: the post's per-locale rows —
   // list/create/update/delete (the home-locale row is the post itself;
   // its edit is the ordinary post edit, never these endpoints).
   listGuidanceTranslations = vi.fn();
@@ -399,7 +399,7 @@ describe('AdminPage', () => {
     admin.listUsers.mockResolvedValue(paged([]));
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
-    // The translations section (bilingual-guidance): open in the ordinary
+    // The translations section: open in the ordinary
     // edit-mode tests without a rows fetch. (A bare un-mocked vi.fn() here
     // would return undefined and the sync throw would trip the detail
     // fetch's .catch — which closes the editor by design.)
@@ -2352,7 +2352,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Post deleted.');
   });
 
-  // ---- translations (bilingual-guidance) ---------------------------------
+  // ---- translations (per-locale rows) ------------------------------------
   //
   // The open post's per-locale rows live in the section under the
   // editor: add a missing locale (the editor recreates in
@@ -3217,7 +3217,7 @@ describe('AdminPage', () => {
     )!;
   }
 
-  // ---- paged list view state (admin-page-size / admin-guidance-search) --------
+  // ---- paged list view state (size paging + the search filter) ----------------
 
   describe('AdminPage paged list view state', () => {
     it('guidance search: submit writes q to the URL, resets the page to 1; clear removes it (namespaced paging params)', async () => {
@@ -3911,7 +3911,7 @@ describe('AdminPage', () => {
       expect(element.textContent).toContain('No open reports.');
     });
 
-    // ---- the active tab in the URL (admin-tab-persist) ----------------------
+    // ---- the active tab in the URL (the tab query param) --------------------
     // The tab was the one admin state the page held in memory only: a
     // reload dropped it back to the first tab. It is URL-backed now — the
     // same omit-defaults + clamp discipline as the lists' params: absent

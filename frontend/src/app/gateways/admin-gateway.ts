@@ -265,7 +265,7 @@ export class AdminGateway {
 
   /**
    * GET /admin/guidance?locale=&q=&limit=&offset= -> PagedRows — the paged,
-   * searched admin list (admin-guidance-search / admin-page-size). The
+   * searched admin list (search + size paging). The
    * search filter runs over the RENDERED content (scoped: the locale's
    * row or the home columns; unscoped: ANY locale content), and
    * limit/offset then slice the FILTERED stored manual order — the order

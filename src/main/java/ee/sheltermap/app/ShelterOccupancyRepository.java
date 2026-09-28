@@ -8,9 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence seam for {@link ShelterOccupancyReport} (shelter-trust-and-
- * reports). Implementations live in {@code ee.sheltermap.persistence};
- * tests use in-memory fakes.
+ * Persistence seam for {@link ShelterOccupancyReport}. Implementations
+ * live in {@code ee.sheltermap.persistence}; tests use in-memory fakes.
  */
 public interface ShelterOccupancyRepository {
 

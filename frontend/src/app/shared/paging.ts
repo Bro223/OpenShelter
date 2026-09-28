@@ -1,5 +1,5 @@
 /**
- * The paging policy, in one place (list-page-paging, admin-page-size).
+ * The paging policy, in one place (list-page-paging, the admin size paging).
  *
  * The owner's paging contract: sizes 10..100 in steps of 10, default 20,
  * 1-based pages, and the server does the slicing (limit/offset) — the page

@@ -6,7 +6,7 @@
     {{ 'admin.retry' | t }}
   </button>
 } @else if ((rows() ?? []).length === 0) {
-  <!-- admin-guidance-search: the no-match state for a NON-EMPTY search —
+  <!-- the no-match state for a NON-EMPTY search —
        distinct from the "no posts yet" empty state (they mean different
        things); the term and the content language are in the copy. -->
   @if (searchTerm() !== '') {
@@ -28,7 +28,7 @@
   <!-- The list order IS the public order —
        the hint names the two mechanisms (PRIMARY: the keyboard-
        reachable move buttons; SECONDARY: drag & drop). Paged multi-page
-       lists (admin-page-size): the whole reorder is off — the hint
+       lists (multi-page): the whole reorder is off — the hint
        points at the size selector. -->
   @if (reorderable()) {
     <p class="admin-guidance-hint">{{ 'admin.guidance.order.hint' | t }}</p>

@@ -6,9 +6,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The moderator→submitter information request (moderation-dashboard-
- * completion) — ONE row per shelter (the UNIQUE shelter_id
- * bound): the admin asks, the submitter answers ONCE on their own row,
+ * The moderator→submitter information request — ONE row per shelter
+ * (the UNIQUE shelter_id bound): the admin asks, the submitter answers
+ * ONCE on their own row,
  * and the row is KEPT after the reply (audit posture — never deleted).
  *
  * <p>Guard vocabulary (the seam is the single source — both the admin

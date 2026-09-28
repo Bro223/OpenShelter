@@ -44,7 +44,7 @@ export class GuidanceGateway {
   /**
    * GET /api/guidance?locale=<active>&limit=<size>&offset=(page-1)*size ->
    * PagedRows<GuidancePostDto> — the PAGED public index
-   * (guidance-index-paging). One page's posts PLUS the un-paged total —
+   * — one page's posts PLUS the un-paged total —
    * the shared page-result shape (core/models PagedRows), same as the
    * admin's paged lists.
    * The server slices its stable order (pinned first, then publishedAt

@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * admin-guidance-search + the admin list's paging over the REAL persistence
+ * Admin guidance search + the admin list's paging over the REAL persistence
  * chain (Testcontainers Postgres + Flyway + the Spring Data queries):
  * {@code GET /admin/guidance} gains {@code q} (a case-insensitive substring
  * over the list's title and TAG-STRIPPED body — search what you see, scoped

@@ -1,5 +1,5 @@
 /**
- * The admin page's active-tab URL vocabulary (admin-tab-persist).
+ * The admin page's active-tab URL vocabulary (the tab query param).
  *
  * The /admin tabs share ONE route; the active tab is a query param
  * (`tab`) like every other list view state on the page — a reload, a

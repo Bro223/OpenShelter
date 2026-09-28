@@ -38,11 +38,11 @@ export class GuidanceOrderList {
   /** The CONTENT language this list belongs to —
    *  the empty state and the scope line name it. */
   readonly contentLocale = input('en');
-  /** The applied search term (admin-guidance-search): '' = no filter.
+  /** The applied search term (the q filter): '' = no filter.
    *  The empty state is the DISTINCT "no posts match {query}" copy for a
    *  non-empty term (it means something different from "no posts yet"). */
   readonly searchTerm = input('');
-  /** Manual order availability (admin-page-size's interaction rule): the
+  /** Manual order availability (the size-paging interaction rule): the
    *  DnD, the move buttons AND the full-list order PUT are all-rows-by-
    *  nature, so they are offered only while the whole (searched, scoped)
    *  list fits the current page; paged multi-page lists disable them with

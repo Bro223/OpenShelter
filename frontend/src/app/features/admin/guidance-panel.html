@@ -16,7 +16,7 @@
   <p class="admin-guidance-language__hint">{{ 'admin.guidance.language.hint' | t }}</p>
 </div>
 
-<!-- admin-guidance-search: the list's search — SUBMIT-based (Enter or
+<!-- the list's search — SUBMIT-based (Enter or
      the button), never per-keystroke; the term is URL-backed (`q`),
      scoped to the content locale's list, and a submit/clear resets
      the page to 1. The Clear button appears while a term is active. -->
@@ -131,7 +131,7 @@
   </div>
 }
 
-<!-- admin-page-size: an out-of-range page (the URL asks for one past
+<!-- an out-of-range page (the URL asks for one past
      the end of a NON-EMPTY scope) renders the explicit notice +
      first-page action INSTEAD of the list — never a bare empty list.
      The list itself renders the distinct no-match / no-posts-yet
@@ -164,7 +164,7 @@
     (cancelDelete)="onCancelDelete()"
     (reorder)="onReorder($event)"
   />
-  <!-- The shared page + size control (admin-page-size): namespaced
+  <!-- The shared page + size control: namespaced
        URL params (guidancePage/guidanceSize — the admin tabs share
        one route); nothing at one page or an empty list (the
        component's own rule). -->

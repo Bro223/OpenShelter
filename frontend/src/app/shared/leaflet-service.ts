@@ -48,9 +48,9 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
- * The marker tone class suffix. The reported state (shelter-trust-and-
- * reports, extended to EITHER report kind — an open does-not-exist report
- * or an open inaccurate-information report; the OR of the two per the
+ * The marker tone class suffix. The reported state (extended to EITHER
+ * report kind — an open does-not-exist report or an open
+ * inaccurate-information report; the OR of the two per the
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
  * every theme; the verified-green re-tint did not touch

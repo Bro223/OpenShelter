@@ -66,8 +66,8 @@ export class UnconfirmedView {
   readonly rejectRowFor = signal<AdminShelterDto | null>(null);
   /** The reject reason: required (non-blank — the shared blank validator,
    *  whitespace-only passes Validators.required), at most 500 characters.
-   *  Public so specs can drive it — page convention; the page
-   *  re-exposes it. */
+   *  Public so specs can drive it (the spec reaches the view through the
+   *  page's state object). */
   readonly rejectReason = new FormControl<string>('', {
     nonNullable: true,
     validators: [Validators.required, nameBlankValidator, Validators.maxLength(REJECT_REASON_MAX)],

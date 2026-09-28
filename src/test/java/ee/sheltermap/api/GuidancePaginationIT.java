@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * guidance-index-paging over the REAL persistence chain
+ * Public-index paging over the REAL persistence chain
  * (Testcontainers Postgres + Flyway + the Spring Data queries): the
  * public index's optional {@code limit} (1..200) / {@code offset} (>= 0)
  * paging —

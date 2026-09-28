@@ -8,7 +8,8 @@ import java.util.Objects;
 /**
  * One pending email/phone change per user per type, awaiting verification
  * via the OTHER channel. Code discipline mirrors {@code PendingVerification}:
- * stored <strong>hashed</strong> (SHA-256), attempts-limited and expiring.
+ * stored <strong>hashed</strong> (one-way — the keyed {@code v2:} form, or the
+ * legacy unkeyed SHA-256), attempts-limited and expiring.
  */
 public class PendingContactChange {
 

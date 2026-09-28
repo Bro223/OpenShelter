@@ -279,7 +279,7 @@ describe('GuidanceOrderList manual ordering', () => {
   });
 });
 
-// ---- paged scope (admin-page-size's interaction rule) ------------------------
+// ---- paged scope (the size-paging interaction rule) --------------------------
 
 describe('GuidanceOrderList paged scope', () => {
   it('a multi-page scope disables DnD and the move buttons, with the hint pointing at the size selector', async () => {

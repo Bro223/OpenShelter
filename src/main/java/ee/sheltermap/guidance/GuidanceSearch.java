@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The admin guidance search match (admin-guidance-search) — the one
+ * The admin guidance search match — the one
  * search vocabulary of the guidance feature: the searchable text of a
  * post/translation body and the case-insensitive substring match over
  * the title + stripped body.
@@ -31,7 +31,7 @@ public final class GuidanceSearch {
     }
 
     /**
-     * The admin list's query bound (admin-guidance-search): absent or
+     * The admin list's query bound: absent or
      * blank = no filter ({@code null} — the public {@code q}-less
      * behaviour, never a 400); a present-but-over-long value is a 400
      * (the uniform vocabulary, the locale bound's shape). The trimmed

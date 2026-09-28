@@ -7,8 +7,8 @@ import java.util.Optional;
 
 /**
  * Persistence seam for {@link GuidanceTranslation}. Implementations live
- * Implementations live in {@code ee.sheltermap.persistence}; tests use the
- * in-memory fake in the test tree.
+ * in {@code ee.sheltermap.persistence}; tests use the in-memory fake in
+ * the test tree.
  *
  * <p>Uniqueness is structural (the UNIQUE constraints): {@code (post_id, locale)}
  * and {@code (locale, slug)}. The JPA implementation surfaces a duplicate as a

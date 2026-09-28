@@ -40,7 +40,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * that cites a change name that was never filed — no directory for the
  * name exists or ever existed, so the archive-derived list cannot know
  * it. That list is maintained here, and every entry is verified at
- * runtime to still resolve to nothing — see
+ * runtime to still resolve to nothing. This check walks both the Java
+ * trees and the frontend tree — the frontend with the purpose-built
+ * comment extractor in {@link FrontendCommentExtractor}, which the Java
+ * state machine cannot replace — see
  * {@link #sourceCommentsContainNoNeverMadeChangeNames()}.
  *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
@@ -185,18 +188,37 @@ class SourceVocabularyTest {
      * writing an entry into a comment here would trip the very check it
      * feeds.)
      *
-     * <p>The one entry is the working name the guidance translation work
+     * <p>The first entry is the working name the guidance translation work
      * (V26 and the translation rows it added) was written under; the
-     * feature shipped without the change ever being filed.
+     * feature shipped without the change ever being filed. The four
+     * entries after it are the admin and guidance working names the
+     * family census (the verdict in
+     * reviews/polish/family-investigate.md) found the same way: each
+     * names live, shipped capability, but no change with its name was
+     * ever filed, so a reader has no proposal to open for any of them.
      */
-    private static final List<String> NEVER_MADE_CHANGE_NAMES = List.of("bilingual-guidance");
+    private static final List<String> NEVER_MADE_CHANGE_NAMES = List.of(
+            "bilingual-guidance", "admin-tab-persist", "admin-page-size",
+            "admin-guidance-search", "guidance-index-paging");
 
     /**
-     * Floor on the never-made list (measured 1 on a clean tree). The list
-     * cannot be derived, so pruning it to empty would let the check pass
-     * silently; the floor makes an empty list a loud failure.
+     * Floor on the never-made list (measured 5 on a clean tree — the one
+     * translation-work entry plus the four admin/guidance family entries).
+     * The list cannot be derived, so pruning it below the entries it was
+     * measured with would let the check pass on less than it was written
+     * for; the floor makes that a loud failure.
      */
-    private static final int MIN_NEVER_MADE_CHANGE_NAMES = 1;
+    private static final int MIN_NEVER_MADE_CHANGE_NAMES = 5;
+
+    /**
+     * Floor on the frontend files the never-made check must still walk
+     * (measured 230 on a clean tree: 157 .ts, 36 .html, 37 .scss — the
+     * same file set the id-shape walk floors at 180 under frontend/src in
+     * {@link #ROOT_FLOORS}). A re-rooted or pruned frontend tree that
+     * shrank this walk below the floor would let the frontend half of the
+     * check pass silently.
+     */
+    private static final int MIN_FRONTEND_NEVER_MADE_FILES = 180;
 
     /** A hex byte: one or two hex digits (FF, D8, 0A). */
     private static final Pattern HEX_BYTE = Pattern.compile("[0-9A-Fa-f]{1,2}");
@@ -259,10 +281,13 @@ class SourceVocabularyTest {
      * skipped whole (the test tree's JSON fixtures live in them). The
      * frontend tree is not walked: its comments span TS/SCSS and HTML syntax
      * this Java scanner does not parse, and it joins when an HTML/TS-aware
-     * scan says the tree is clean. A match must be a whole kebab token (a
-     * slug inside a longer identifier is a coincidental substring, not a
-     * citation), and a path token containing {@code /} is exempt: a comment
-     * that cites an archive document by path still resolves.
+     * scan says the tree is clean. (The never-made check below does walk the
+     * frontend with the purpose-built {@link FrontendCommentExtractor}; this
+     * check stays Java-only — joining it is a separate owner decision.) A
+     * match must be a whole kebab token (a slug inside a longer identifier
+     * is a coincidental substring, not a citation), and a path token
+     * containing {@code /} is exempt: a comment that cites an archive
+     * document by path still resolves.
      */
     @Test
     void sourceCommentsContainNoArchivedChangeNames() {
@@ -315,8 +340,15 @@ class SourceVocabularyTest {
      * later filed or archived is stale, and fails the guard until it is
      * removed.
      *
-     * <p>Scope is the same as the archived-name check: both Java trees'
-     * comment text only, whole kebab tokens, path tokens exempt.
+     * <p>Scope: the comment text of both Java trees (the Java scanner) and
+     * of {@code frontend/src} (the purpose-built extractor in
+     * {@link FrontendCommentExtractor}, which sees TS/SCSS line and block
+     * comments, HTML comments and the inline script/style bodies of the app
+     * entry page — the Java state machine would false-positive on a name in
+     * a template literal and false-negative on an HTML comment). Whole kebab
+     * tokens, path tokens exempt, in every tree. The frontend walk carries
+     * its own file-count floor ({@link #MIN_FRONTEND_NEVER_MADE_FILES}) so a
+     * re-rooted or pruned frontend tree cannot shrink it to a silent pass.
      */
     @Test
     void sourceCommentsContainNoNeverMadeChangeNames() {
@@ -346,6 +378,14 @@ class SourceVocabularyTest {
         if (scannedFiles[0] == 0) {
             fail("The source walk found no .java files — the scan is reading the wrong tree.");
         }
+        int[] frontendFiles = { 0 };
+        walkFrontendTreeForRefusedNames(root, NEVER_MADE_CHANGE_NAMES, hits, frontendFiles);
+        if (frontendFiles[0] < MIN_FRONTEND_NEVER_MADE_FILES) {
+            fail("Only " + frontendFiles[0] + " frontend source files were scanned for never-made "
+                    + "names (the floor is " + MIN_FRONTEND_NEVER_MADE_FILES + ") — the frontend walk "
+                    + "shrank to a fraction of the tree it is written for, and the frontend half of "
+                    + "this guard would check nothing.");
+        }
         if (!hits.isEmpty()) {
             fail(renderNeverMadeFailure(hits));
         }
@@ -371,6 +411,49 @@ class SourceVocabularyTest {
                     if (file.toString().endsWith(".java")) {
                         scannedFiles[0] += 1;
                         hits.addAll(refusedNameHits(root, file, names));
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException failure) {
+                    // An unreadable file is not evidence of a dead name, so the walk moves on.
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            // A subtree that disappears mid-walk is not evidence either.
+        }
+    }
+
+    /**
+     * Walks {@code frontend/src} and records every comment line carrying a
+     * refused name, counting the scanned .ts/.html/.scss files along the way.
+     * The comment text comes from the purpose-built frontend extractor — the
+     * Java state machine cannot parse TS template literals or HTML comments.
+     */
+    private static void walkFrontendTreeForRefusedNames(Path root, List<String> names, List<String> hits,
+                                                        int[] scannedFiles) {
+        Path tree = root.resolve("frontend/src");
+        if (!Files.isDirectory(tree)) {
+            fail("No frontend/src walk was executed: the scan started in the wrong directory " + tree
+                    + ". Anchor it at the real module root, not a build copy.");
+        }
+        try {
+            Files.walkFileTree(tree, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attributes) {
+                    return SKIPPED_DIRECTORIES.contains(dir.getFileName().toString())
+                            ? FileVisitResult.SKIP_SUBTREE
+                            : FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                    String fileName = file.getFileName().toString();
+                    if (fileName.endsWith(".ts") || fileName.endsWith(".html") || fileName.endsWith(".scss")) {
+                        scannedFiles[0] += 1;
+                        hits.addAll(frontendRefusedNameHits(root, file, names));
                     }
                     return FileVisitResult.CONTINUE;
                 }
@@ -670,6 +753,46 @@ class SourceVocabularyTest {
             }
         }
         return hits;
+    }
+
+    /**
+     * The comment lines of one frontend source file that carry a refused
+     * name, rendered for failure output. The comment text is extracted per
+     * syntax (.ts, .html, .scss), so a name in a string or template literal
+     * is not reported and a comment marker inside one does not confuse the
+     * scan — the same pinned-surface exemption the Java walk applies to its
+     * string literals.
+     */
+    private static List<String> frontendRefusedNameHits(Path root, Path file, List<String> names) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return List.of(); // unreadable, undecodable or vanished: the walk moves on, like the id walk
+        }
+        List<String> hits = new ArrayList<>();
+        String relativePath = root.relativize(file).toString().replace('\\', '/');
+        List<String> commentLines = frontendCommentTextByLine(file, String.join("\n", lines));
+        for (int index = 0; index < lines.size(); index++) {
+            String name = findRefusedName(commentLines.get(index), names);
+            if (name != null) {
+                hits.add(relativePath + ":" + (index + 1) + ": refused '" + name + "' — "
+                        + lines.get(index).trim());
+            }
+        }
+        return hits;
+    }
+
+    /** The comment text of one frontend source, one entry per source line, chosen by extension. */
+    private static List<String> frontendCommentTextByLine(Path file, String content) {
+        String fileName = file.getFileName().toString();
+        if (fileName.endsWith(".ts")) {
+            return FrontendCommentExtractor.tsCommentTextByLine(content);
+        }
+        if (fileName.endsWith(".html")) {
+            return FrontendCommentExtractor.htmlCommentTextByLine(content);
+        }
+        return FrontendCommentExtractor.scssCommentTextByLine(content); // the only remaining scanned extension
     }
 
     /**

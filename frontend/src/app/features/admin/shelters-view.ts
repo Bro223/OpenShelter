@@ -102,8 +102,8 @@ export class SheltersView {
    *  The paged view's URL-backed params are the search term, source
    *  filter, page and size. */
   readonly query = signal('');
-  /** Search input (public so specs can drive it — page convention; the
-   *  page re-exposes it). */
+  /** Search input (public so specs can drive it — the spec reaches the
+   *  view through the page's state object). */
   readonly searchQuery = new FormControl('', { nonNullable: true });
   /** The source filter chip (All / Registry / Community — the
    *  frontend-facing grouping the backend speaks), URL-backed (`source`). */
@@ -131,8 +131,8 @@ export class SheltersView {
   /** The row whose inline info-request panel is open (null = closed). */
   readonly infoFor = signal<number | null>(null);
   /** The question editor: required (non-blank — the shared blank validator),
-   *  at most 2000 characters (the V19 bound). Public so specs can drive
-   *  it (the page re-exposes it). */
+   *  at most 2000 characters (the V19 bound). Public so specs can drive it
+   *  (the spec reaches the view through the page's state object). */
   readonly requestMessage = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, nameBlankValidator, Validators.maxLength(INFO_REQUEST_MAX)],

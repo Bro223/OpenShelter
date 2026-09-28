@@ -79,7 +79,7 @@ public class GuidanceController {
      * tie-breakers. 200 with {@code []} when nothing is published in that
      * locale; 400 on a blank or over-long {@code locale}.
      *
-     * <p>Paging (guidance-index-paging): the optional {@code limit} (1..200)
+     * <p>Paging: the optional {@code limit} (1..200)
      * / {@code offset} (>= 0) slice the STABLE index order — the slice runs
      * last, over the ordered list, so consecutive pages tile the index
      * without overlap or skips (the shelter list's offset/limit
@@ -138,7 +138,7 @@ public class GuidanceController {
         Pagination.requireOffset(offset);
         List<PublicGuidanceView> published = guidance.listPublic(locale);
         int total = published.size();
-        // The slice runs LAST, over the stable order (guidance-index-paging).
+        // The slice runs LAST, over the stable order.
         List<PublicGuidanceView> page = Pagination.slice(published, offset, limit);
         // ONE batched read for the page's hero URLs (the pre-change
         // hero index loaded the WHOLE media library for every request).

@@ -1515,7 +1515,7 @@ class GuidanceServiceTest {
         assertThat(posts.findById(id).orElseThrow().isPublished()).isTrue();
     }
 
-    // ------------------------------------------------------------- paging (guidance-index-paging)
+    // ------------------------------------------------------------- paging
 
     /** Three published posts -> three index views in the service order. */
     private List<PublicGuidanceView> threeViews() {
@@ -1567,7 +1567,7 @@ class GuidanceServiceTest {
                 .containsExactly(rows.get(0).getId(), rows.get(1).getId(), rows.get(2).getId());
     }
 
-    // ------------------------------------------------ admin search (admin-guidance-search)
+    // ------------------------------------------------ admin search
 
     @Test
     void searchableBodyStripsEveryTagAndCollapsesWhitespace() {

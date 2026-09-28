@@ -128,7 +128,7 @@ const NEW_ASSET: MediaAssetDto = {
 class Host {
   post: AdminGuidancePostDto | null = EDIT_POST;
   assets: MediaAssetDto[] | null = MEDIA_ASSETS;
-  /** The translation-authoring locale (bilingual-guidance); null = the
+  /** The translation-authoring locale (per-locale rows); null = the
    *  ordinary create/edit form (set BEFORE the first detectChanges, like
    *  the page binds it — the branch switch recreates the editor). */
   target: string | null = null;
@@ -1745,7 +1745,7 @@ describe('GuidanceEditor', () => {
   });
 });
 
-// ---- translation authoring (bilingual-guidance) ------------------------------
+// ---- translation authoring (per-locale rows) ---------------------------------
 //
 // The editor's THIRD mode: the page recreates it (the template branch)
 // with the `translationTarget` locale — the form is prefilled from the
@@ -1836,7 +1836,7 @@ describe('translation authoring', () => {
   });
 });
 
-// ---- translation editing (bilingual-guidance) -------------------------------
+// ---- translation editing (per-locale rows) ----------------------------------
 //
 // The editor's FOURTH mode: the page recreates it (the template branch)
 // with the `translationEditMode` locale — the post was fetched SCOPED to
