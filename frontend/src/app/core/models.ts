@@ -902,7 +902,7 @@ export interface GuidancePostDto {
   /** Pinned posts sort first in the public index. */
   pinned: boolean;
   /**
-   * The SERVED translation's locale (bilingual-guidance): the language the
+   * The SERVED translation's locale (per-locale serving): the language the
    * reader is actually reading. The post's own locale unless the reader
    * asked for one the post lacks — then the default-locale translation is
    * served with `localeFallback` set (a 200 with the flag, never a 404).
@@ -914,7 +914,7 @@ export interface GuidancePostDto {
   updatedAt: string;
   /**
    * Each locale that HAS a translation, mapped to that translation's slug
-   * (bilingual-guidance) — the field a language switcher follows to open
+   * (per-locale slugs) — the field a language switcher follows to open
    * the same post in another language. Populated on the detail; `null` on
    * the index (kept lean). The map only carries locales that have a
    * translation, so the values are never null.
@@ -922,7 +922,7 @@ export interface GuidancePostDto {
   alternates: Record<string, string> | null;
   /**
    * `true` when the reader's requested locale had NO translation and the
-   * server served the default-locale one instead (bilingual-guidance) —
+   * server served the default-locale one instead (per-locale serving) —
    * a 200 with the flag, never a 404: a language switch must not dead-end
    * on a "no such page" error.
    */
@@ -1105,7 +1105,7 @@ export interface UpdateGuidancePostRequest {
 }
 
 /**
- * One guidance translation (bilingual-guidance, V26) — the row set behind
+ * One guidance translation (per-locale rows, V26) — the row set behind
  * GET /admin/guidance/{id}/translations (in locale order; the post's
  * own-locale row is always present — the source of the public detail's
  * `alternates` map) and the response of the create / update endpoints.
@@ -1134,7 +1134,7 @@ export interface GuidanceTranslationDto {
 }
 
 /**
- * POST /admin/guidance/{id}/translations body (bilingual-guidance) —
+ * POST /admin/guidance/{id}/translations body (per-locale rows) —
  * creates a translation of the post in a NEW locale. `locale` is required
  * (at most 5 characters; the post must NOT already have a translation
  * there — 409); `slug` omitted = the server generates one from the title
@@ -1155,7 +1155,7 @@ export interface CreateGuidanceTranslationRequest {
 }
 
 /**
- * PUT /admin/guidance/{id}/translations/{locale} body (bilingual-guidance)
+ * PUT /admin/guidance/{id}/translations/{locale} body (per-locale rows)
  * — a FULL replace of the translation named by the PATH locale (the locale
  * never moves here). `slug` omitted = KEEP the current one (a given slug
  * another translation in the locale holds → 409 naming it); the body is

@@ -15,7 +15,7 @@ import { parseTotal } from '../shared/paging';
  * send the reader's ACTIVE language (the I18nService locale signal, read
  * at call time: never a hard-coded value, never a route parameter), so the
  * index lists only that language's posts. The DETAIL never dead-ends on a
- * language switch (bilingual-guidance): a slug whose post has no
+ * language switch (per-locale serving): a slug whose post has no
  * translation in the active language is served in the default locale with
  * `localeFallback: true` (a 200 with the flag — the page tells the reader
  * which language is being shown), and `alternates` names every locale that
@@ -77,7 +77,7 @@ export class GuidanceGateway {
    * carrying the stored (sanitized) bodyHtml. A draft slug and an unknown
    * slug answer the SAME 404 (a draft's existence is never revealed).
    * A post WITHOUT a translation in the active language does NOT 404
-   * (bilingual-guidance): the server serves the default-locale translation
+   * (per-locale serving): the server serves the default-locale translation
    * with `localeFallback: true`, and `alternates` maps every locale that
    * has a translation to its slug (the detail only — the index is null).
    */

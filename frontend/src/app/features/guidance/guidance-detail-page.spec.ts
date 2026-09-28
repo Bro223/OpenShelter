@@ -715,7 +715,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Locale fallback (bilingual-guidance): a post without a translation in
+  // Locale fallback (per-locale serving): a post without a translation in
   // the reader's language is served in the default locale with the flag —
   // the readable notice names the language being shown and, when
   // `alternates` carries the reader's locale, links that version (the

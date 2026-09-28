@@ -1,6 +1,6 @@
 @use './admin-shared';
 
-/* The translations section (bilingual-guidance): the open post's
+/* The translations section (per-locale rows): the open post's
    per-locale rows under the editor form. One row per translation — the
    locale code, the home marker (that row is the post itself and is never
    offered the delete), the public slug, and the foreign row's two-tap

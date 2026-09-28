@@ -5,7 +5,7 @@ import type { AdminGuidancePostDto, GuidanceTranslationDto } from '../../core/mo
 import { ConfirmAction } from '../../shared/confirm-action';
 
 /**
- * The translations section (bilingual-guidance): the open post's
+ * The translations section (per-locale rows): the open post's
  * per-locale rows under the editor form (edit mode only — a create-mode
  * post has no id yet).
  *

@@ -592,7 +592,7 @@ describe('AdminGateway', () => {
     expect(api.delete).toHaveBeenCalledWith('/admin/guidance/11?confirm=true');
   });
 
-  // ---- translations (bilingual-guidance) ------------------------------------
+  // ---- translations (per-locale rows) -------------------------------------
 
   const TRANSLATION_ROW: GuidanceTranslationDto = {
     id: 401,

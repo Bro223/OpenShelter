@@ -100,8 +100,8 @@
      badges: --color-badge-new + --color-badge-new-text below (6.75:1
      light, 10.31:1 dark). */
   --color-new: #237a57;
-  /* Submitter-verified marker fill (submitter-verification-badge; the
-     verified-green re-tint): the ONE green-family value — the FULL pin
+  /* Submitter-verified marker fill (the verified-green re-tint): the
+     ONE green-family value — the FULL pin
      (two or more confirmed channels; the depth is carried by the shape,
      not by a second colour) AND the NEW state (--color-new is unified
      with this token, owner decision). The value is --color-success, the
@@ -391,8 +391,8 @@
      --color-verified, owner decision; the re-tint: green means
      verified). The brightened reported/CTA oranges stay the distinct family. */
   --color-new: #7fd49a;
-  /* Submitter-verified marker fill (submitter-verification-badge): the ONE
-     green-family value — the theme's success green, shared with --color-new.
+  /* Submitter-verified marker fill: the ONE green-family value — the theme's
+     success green, shared with --color-new.
      The theme layers override the same name set (the parity guard in
      design-tokens.spec.ts asserts both directions). */
   --color-verified: #7fd49a;

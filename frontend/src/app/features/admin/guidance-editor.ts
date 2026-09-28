@@ -110,7 +110,7 @@ export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** What Save emits — the page routes `id === null` to the create endpoint
  *  (the POST body) and a given id to the update endpoint (the PUT body).
- *  Translation authoring (bilingual-guidance) is a third shape: a given id
+ *  Translation authoring (per-locale rows) is a third shape: a given id
  *  with a `createTranslation` payload — the NEW row for that locale (the
  *  create endpoint, never the update one: the row does not exist yet).
  *  Translation editing is the fourth: a given id with an `updateTranslation`
@@ -125,11 +125,11 @@ export interface GuidanceEditorSave {
   /** Edit mode: the PUT /admin/guidance/{id} payload. `status` is NOT part
    *  of it — the publication state moves only through publish/unpublish. */
   update?: UpdateGuidancePostRequest;
-  /** Translation-authoring mode (bilingual-guidance): the
+  /** Translation-authoring mode (per-locale rows): the
    *  POST /admin/guidance/{id}/translations payload (the target `locale`
    *  required). */
   createTranslation?: CreateGuidanceTranslationRequest;
-  /** Translation-edit mode (bilingual-guidance): the target `locale` (the
+  /** Translation-edit mode (per-locale rows): the target `locale` (the
    *  endpoint's path key) + the PUT
    *  /admin/guidance/{id}/translations/{locale} body — the EXISTING row
    *  for that locale. */
@@ -561,7 +561,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   readonly translationTarget = input<string | null>(null);
   /**
    * The locale whose EXISTING translation row the form is editing in
-   * place (bilingual-guidance); null = not in translation-edit mode.
+   * place (per-locale rows); null = not in translation-edit mode.
    * Non-null = translation-edit mode (edit mode only): the parent scoped
    * the post fetch to this locale (the form is prefilled from THAT row —
    * the slug prefilled, a blank slug keeps it on save), the POST-level
@@ -770,7 +770,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       this.syncHeroImportDisabled();
       return;
     }
-    // The translation-authoring mode (bilingual-guidance): the form is
+    // The translation-authoring mode (per-locale rows): the form is
     // prefilled from the ON-SCREEN row (the admin translates from what
     // they see), but the slug starts blank — the server generates one
     // from the translated title (reusing the source slug could collide
@@ -1365,7 +1365,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     const translationTarget = this.translationTarget();
     const translationEdit = this.translationEditMode();
     if (post !== null && translationEdit !== null) {
-      // Translation edit (bilingual-guidance): emit the EXISTING row's
+      // Translation edit (per-locale rows): emit the EXISTING row's
       // payload for the target locale — the update endpoint, never the
       // create one (the row exists; a duplicate would 409 server-side,
       // but the UI must not even offer the other path). The home-locale
@@ -1389,7 +1389,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       return;
     }
     if (post !== null && translationTarget !== null) {
-      // Translation authoring (bilingual-guidance): emit the NEW-row
+      // Translation authoring (per-locale rows): emit the NEW-row
       // payload for the target locale — the create endpoint, never the
       // update one (the row does not exist yet; a duplicate would 409
       // server-side, but the UI must not even offer the other path).
