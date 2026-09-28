@@ -549,9 +549,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  editor stays open so the admin keeps the draft. */
   readonly serverError = input<string | null>(null);
   /**
-   * The locale the post is getting a NEW translation in (bilingual-
-   *  guidance); null = the ordinary create/edit form. Non-null =
-   *  translation-authoring mode (edit mode only): the form is prefilled
+   * The locale the post is getting a NEW translation in; null = the
+   *  ordinary create/edit form. Non-null = translation-authoring mode
+   *  (edit mode only): the form is prefilled
    *  from the on-screen row (the slug blank — the server generates one
    *  from the translated title), the POST-level fields (pinned, the home-
    *  locale declaration, the hero choice) are off the form — a translation

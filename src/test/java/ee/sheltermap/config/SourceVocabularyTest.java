@@ -19,6 +19,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -44,7 +45,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * trees and the frontend tree — the frontend with the purpose-built
  * comment extractor in {@link FrontendCommentExtractor}, which the Java
  * state machine cannot replace — see
- * {@link #sourceCommentsContainNoNeverMadeChangeNames()}.
+ * {@link #sourceCommentsContainNoNeverMadeChangeNames()}. Both name
+ * checks share one wrap-join rule: a refused name broken across one line
+ * break of a block comment is cited as if it were whole (the exact shape
+ * and its limit are in the checks' javadocs).
  *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
  * stays in the fast unit tier.
@@ -287,7 +291,10 @@ class SourceVocabularyTest {
      * match must be a whole kebab token (a slug inside a longer identifier
      * is a coincidental substring, not a citation), and a path token
      * containing {@code /} is exempt: a comment that cites an archive
-     * document by path still resolves.
+     * document by path still resolves. A name broken across one line break
+     * of a block comment is matched by the shared wrap-join rule — the same
+     * whole-token and path-token rules apply to the joined match, and a
+     * line comment ends with its line, so it never carries a wrap.
      */
     @Test
     void sourceCommentsContainNoArchivedChangeNames() {
@@ -349,6 +356,19 @@ class SourceVocabularyTest {
      * tokens, path tokens exempt, in every tree. The frontend walk carries
      * its own file-count floor ({@link #MIN_FRONTEND_NEVER_MADE_FILES}) so a
      * re-rooted or pruned frontend tree cannot shrink it to a silent pass.
+     *
+     * <p>Wrap rule: a refused name is also seen across one line break of a
+     * block comment (the Java, the TS/SCSS and the HTML shapes, the inline
+     * script/style bodies included). The break must be the name's own dash:
+     * the line ends with a dash prefix of the name, and the next line starts
+     * the remainder as a whole kebab token after its non-kebab lead-in (the
+     * wrap indent, the javadoc asterisk). A block comment must be open at
+     * the line's end — two adjacent line comments never join, and a line
+     * comment cannot carry a wrap at all. The same exemptions apply to the
+     * joined match: a longer kebab token is a substring, not a citation, and
+     * a path token split across the break still resolves. The documented
+     * limit: a mid-word break (the wrap landing inside a word, not at a
+     * dash) is not joined.
      */
     @Test
     void sourceCommentsContainNoNeverMadeChangeNames() {
@@ -389,6 +409,64 @@ class SourceVocabularyTest {
         if (!hits.isEmpty()) {
             fail(renderNeverMadeFailure(hits));
         }
+    }
+
+    /**
+     * The wrap-join rule, pinned: the dash break of one block comment is
+     * the only join, and every neighbouring shape stays exempt.
+     */
+    @Test
+    void wrapJoinSeesTheDashBreakAndNothingElse() {
+        // the dash break, at both split points of a multi-dash name
+        assertThat(findRefusedNameWrapped(" * the (bilingual-", " *  guidance) rows", NEVER_MADE_CHANGE_NAMES))
+                .isEqualTo("bilingual-guidance");
+        assertThat(findRefusedNameWrapped(" * the (admin-", " *  page-size clamp", NEVER_MADE_CHANGE_NAMES))
+                .isEqualTo("admin-page-size");
+        assertThat(findRefusedNameWrapped(" * the (admin-page-", " *  size clamp", NEVER_MADE_CHANGE_NAMES))
+                .isEqualTo("admin-page-size");
+        // the continuation starts a longer token: not a citation
+        assertThat(findRefusedNameWrapped(" * the (bilingual-", " *  guidancex rows", NEVER_MADE_CHANGE_NAMES))
+                .isNull();
+        // a word between the dash and the remainder: two phrases, not a token
+        assertThat(findRefusedNameWrapped(" * the (bilingual-", " *  the guidance rows", NEVER_MADE_CHANGE_NAMES))
+                .isNull();
+        // a longer kebab token on the first line: a coincidental substring
+        assertThat(findRefusedNameWrapped(" * the xxbilingual-", " *  guidance rows", NEVER_MADE_CHANGE_NAMES))
+                .isNull();
+        // a path token split across the break still resolves
+        assertThat(findRefusedNameWrapped(" * see docs/x/bilingual-", " *  guidance for the row",
+                NEVER_MADE_CHANGE_NAMES)).isNull();
+        // a mid-word break is the documented limit: not joined
+        assertThat(findRefusedNameWrapped(" * the (bilingu", " *  al-guidance rows", NEVER_MADE_CHANGE_NAMES))
+                .isNull();
+        // a name not on the list is never searched for, wrapped or whole
+        assertThat(findRefusedNameWrapped(" * the community-review-", " *  queue rows", NEVER_MADE_CHANGE_NAMES))
+                .isNull();
+    }
+
+    /**
+     * The wrap-join permission, pinned: only a block comment open at the
+     * line's end permits the join — a line comment ends with its line.
+     */
+    @Test
+    void onlyABlockCommentOpenAtTheLineEndPermitsTheWrapJoin() {
+        List<CommentLine> block = commentTextByLine(String.join("\n",
+                "/**",
+                " * the (bilingual-",
+                " *  guidance) wrap",
+                " */"));
+        assertThat(block.get(0).blockOpenAtLineEnd()).isTrue();
+        assertThat(block.get(1).blockOpenAtLineEnd()).isTrue();
+        assertThat(block.get(2).blockOpenAtLineEnd()).isTrue();
+        assertThat(block.get(3).blockOpenAtLineEnd()).isFalse();
+
+        List<CommentLine> lineComments = commentTextByLine(String.join("\n",
+                "// the (bilingual-",
+                "// guidance rows"));
+        assertThat(lineComments.get(0).blockOpenAtLineEnd()).isFalse();
+
+        List<CommentLine> sameLine = commentTextByLine("/* the (bilingual- guidance) same line */");
+        assertThat(sameLine.get(0).blockOpenAtLineEnd()).isFalse();
     }
 
     /**
@@ -742,14 +820,32 @@ class SourceVocabularyTest {
         } catch (IOException e) {
             return List.of(); // unreadable, undecodable or vanished: the walk moves on, like the id walk
         }
+        return hitsForCommentLines(root, file, commentTextByLine(String.join("\n", lines)), lines, names);
+    }
+
+    /**
+     * The comment lines of one source file that carry a refused name,
+     * rendered for failure output. The per-line match runs first; when a
+     * line carries no whole name but a block comment is still open at its
+     * end, the wrap-join rule of {@link #findRefusedNameWrapped} gets its
+     * chance on the pair. One hit per line: the whole-line match wins when
+     * both shapes are present.
+     */
+    private static List<String> hitsForCommentLines(Path root, Path file, List<CommentLine> commentLines,
+                                                    List<String> sourceLines, List<String> names) {
         List<String> hits = new ArrayList<>();
         String relativePath = root.relativize(file).toString().replace('\\', '/');
-        List<String> commentLines = commentTextByLine(String.join("\n", lines));
-        for (int index = 0; index < lines.size(); index++) {
-            String name = findRefusedName(commentLines.get(index), names);
+        for (int index = 0; index < sourceLines.size(); index++) {
+            String name = findRefusedName(commentLines.get(index).text(), names);
+            if (name == null
+                    && index + 1 < commentLines.size()
+                    && commentLines.get(index).blockOpenAtLineEnd()) {
+                name = findRefusedNameWrapped(commentLines.get(index).text(),
+                        commentLines.get(index + 1).text(), names);
+            }
             if (name != null) {
                 hits.add(relativePath + ":" + (index + 1) + ": refused '" + name + "' — "
-                        + lines.get(index).trim());
+                        + sourceLines.get(index).trim());
             }
         }
         return hits;
@@ -761,7 +857,8 @@ class SourceVocabularyTest {
      * syntax (.ts, .html, .scss), so a name in a string or template literal
      * is not reported and a comment marker inside one does not confuse the
      * scan — the same pinned-surface exemption the Java walk applies to its
-     * string literals.
+     * string literals. The wrap-join rule applies on top: the extractor's
+     * per-line entries carry the open-block-comment flag the rule reads.
      */
     private static List<String> frontendRefusedNameHits(Path root, Path file, List<String> names) {
         List<String> lines;
@@ -770,29 +867,20 @@ class SourceVocabularyTest {
         } catch (IOException e) {
             return List.of(); // unreadable, undecodable or vanished: the walk moves on, like the id walk
         }
-        List<String> hits = new ArrayList<>();
-        String relativePath = root.relativize(file).toString().replace('\\', '/');
-        List<String> commentLines = frontendCommentTextByLine(file, String.join("\n", lines));
-        for (int index = 0; index < lines.size(); index++) {
-            String name = findRefusedName(commentLines.get(index), names);
-            if (name != null) {
-                hits.add(relativePath + ":" + (index + 1) + ": refused '" + name + "' — "
-                        + lines.get(index).trim());
-            }
-        }
-        return hits;
+        return hitsForCommentLines(root, file, frontendCommentLines(file, String.join("\n", lines)),
+                lines, names);
     }
 
-    /** The comment text of one frontend source, one entry per source line, chosen by extension. */
-    private static List<String> frontendCommentTextByLine(Path file, String content) {
+    /** The comment lines of one frontend source, one entry per source line, chosen by extension. */
+    private static List<CommentLine> frontendCommentLines(Path file, String content) {
         String fileName = file.getFileName().toString();
         if (fileName.endsWith(".ts")) {
-            return FrontendCommentExtractor.tsCommentTextByLine(content);
+            return FrontendCommentExtractor.tsCommentLines(content);
         }
         if (fileName.endsWith(".html")) {
-            return FrontendCommentExtractor.htmlCommentTextByLine(content);
+            return FrontendCommentExtractor.htmlCommentLines(content);
         }
-        return FrontendCommentExtractor.scssCommentTextByLine(content); // the only remaining scanned extension
+        return FrontendCommentExtractor.scssCommentLines(content); // the only remaining scanned extension
     }
 
     /**
@@ -817,6 +905,70 @@ class SourceVocabularyTest {
             }
         }
         return null;
+    }
+
+    /**
+     * The wrap-join match: the first refused name broken across the one
+     * line break between {@code firstText} and {@code secondText}, or
+     * {@code null}. The break must be the name's own dash — the first line
+     * ends with a dash prefix of the name — and the remainder must start
+     * the second line as a whole kebab token after its non-kebab lead-in
+     * (the wrap indent, the javadoc asterisk). The caller has verified the
+     * pair sits inside one block comment
+     * ({@link CommentLine#blockOpenAtLineEnd()}); a mid-word break (the wrap
+     * landing inside a word) is not joined, and a name not on the list is
+     * never searched for, wrapped or whole.
+     */
+    private static String findRefusedNameWrapped(String firstText, String secondText, List<String> names) {
+        for (String name : names) {
+            for (int dash = name.indexOf('-'); dash >= 0; dash = name.indexOf('-', dash + 1)) {
+                String prefix = name.substring(0, dash + 1);
+                if (!firstText.endsWith(prefix)) {
+                    continue;
+                }
+                int start = firstText.length() - prefix.length();
+                if (start > 0 && isKebabChar(firstText.charAt(start - 1))) {
+                    continue; // a longer kebab token on the first line — a substring, not a citation
+                }
+                String rest = name.substring(dash + 1);
+                int secondStart = leadingNonKebabLength(secondText);
+                if (secondStart >= secondText.length() || !secondText.startsWith(rest, secondStart)) {
+                    continue;
+                }
+                int restEnd = secondStart + rest.length();
+                if (restEnd < secondText.length() && isKebabChar(secondText.charAt(restEnd))) {
+                    continue; // the remainder continues into a longer token
+                }
+                if (isSpanningPathToken(firstText, start, secondText, secondStart)) {
+                    continue; // a path token split across the break still resolves
+                }
+                return name;
+            }
+        }
+        return null;
+    }
+
+    /** The length of the leading run of characters that cannot start a kebab token. */
+    private static int leadingNonKebabLength(String text) {
+        int index = 0;
+        while (index < text.length() && !isKebabChar(text.charAt(index))) {
+            index++;
+        }
+        return index;
+    }
+
+    /** True when the whitespace-delimited token holding the wrapped name, split across the break, has a {@code /}. */
+    private static boolean isSpanningPathToken(String firstText, int nameStart, String secondText, int restStart) {
+        int firstTokenStart = nameStart;
+        while (firstTokenStart > 0 && !Character.isWhitespace(firstText.charAt(firstTokenStart - 1))) {
+            firstTokenStart--;
+        }
+        int secondTokenEnd = restStart;
+        while (secondTokenEnd < secondText.length() && !Character.isWhitespace(secondText.charAt(secondTokenEnd))) {
+            secondTokenEnd++;
+        }
+        return firstText.indexOf('/', firstTokenStart) >= 0
+                || secondText.substring(restStart, secondTokenEnd).indexOf('/') >= 0;
     }
 
     /** True when {@code [start, end)} is a full whitespace-delimited kebab token. */
@@ -847,7 +999,9 @@ class SourceVocabularyTest {
     }
 
     /**
-     * The comment text of a Java source, one entry per source line. A minimal
+     * The comment lines of a Java source, one entry per source line: the
+     * comment text and whether a block comment is still open at the line's
+     * end (the wrap-join permission). A minimal
      * state machine tracks line comments, block comments, string literals,
      * char literals and text blocks, so a slug-shaped word inside a literal
      * is not reported and a comment marker inside a string (a URL) does not
@@ -857,8 +1011,8 @@ class SourceVocabularyTest {
      * not end the block early, and a line-continuation backslash still ends
      * the source line.
      */
-    private static List<String> commentTextByLine(String content) {
-        List<String> result = new ArrayList<>();
+    private static List<CommentLine> commentTextByLine(String content) {
+        List<CommentLine> result = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         int state = CODE;
         for (int i = 0; i < content.length(); i++) {
@@ -885,14 +1039,14 @@ class SourceVocabularyTest {
                     state = CHAR;
                 }
                 else if (c == '\n') {
-                    result.add(current.toString());
+                    result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                     current.setLength(0);
                 }
             }
             else if (state == LINE_COMMENT) {
                 if (c == '\n') {
                     state = CODE;
-                    result.add(current.toString());
+                    result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                     current.setLength(0);
                 }
                 else {
@@ -905,7 +1059,7 @@ class SourceVocabularyTest {
                     i++;
                 }
                 else if (c == '\n') {
-                    result.add(current.toString());
+                    result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                     current.setLength(0);
                 }
                 else {
@@ -917,7 +1071,7 @@ class SourceVocabularyTest {
                 if (c == '\\') {
                     // a line-continuation backslash still ends the source line
                     if (next == '\n') {
-                        result.add(current.toString());
+                        result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                         current.setLength(0);
                     }
                     i++;
@@ -935,7 +1089,7 @@ class SourceVocabularyTest {
                     i += run - 1;
                 }
                 else if (c == '\n') {
-                    result.add(current.toString());
+                    result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                     current.setLength(0);
                 }
             }
@@ -948,12 +1102,12 @@ class SourceVocabularyTest {
                 }
                 else if (c == '\n') {
                     state = CODE;
-                    result.add(current.toString());
+                    result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
                     current.setLength(0);
                 }
             }
         }
-        result.add(current.toString());
+        result.add(new CommentLine(current.toString(), state == BLOCK_COMMENT));
         return result;
     }
 

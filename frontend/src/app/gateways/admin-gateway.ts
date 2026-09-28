@@ -381,9 +381,9 @@ export class AdminGateway {
    * (pinned block first, then the rest) — the server validates the list as a
    * permutation of all post ids BEFORE writing — an unknown id, a duplicate,
    * or a stale (short) list 400s with nothing written — then renumbers the
-   * positions 1..N in one transaction (all-or-nothing). SCOPED (admin-locale-
-   * scope, `locale` given): the FULL ordered id list of the posts VISIBLE IN
-   * that locale — the slot-preserving algorithm: the visible posts are
+   * positions 1..N in one transaction (all-or-nothing). SCOPED (a `locale`
+   * is given): the FULL ordered id list of the posts VISIBLE IN that locale —
+   * the slot-preserving algorithm: the visible posts are
    * rewritten into their slots of the GLOBAL order (sort_order asc, then the
    * published_at / id tie-breakers) in the submitted order; posts not visible
    * in the locale keep their values (the other languages are not disturbed),

@@ -40,10 +40,11 @@ import java.util.Objects;
  * attacker who holds the email cannot change it (needs the phone) and one who
  * holds the phone cannot change it (needs the email).
  *
- * <p>Discipline mirrors verification: code hashed (SHA-256) at rest, 15-min
- * TTL, 5-attempt limit, one pending change per (user, type) — a new request
- * replaces the old. Requests are additionally throttled per client IP at the
- * controller and by a resend cooldown anchored on the pending row.
+ * <p>Discipline mirrors verification: code hashed at rest (the keyed
+ * {@code v2:} form, or the legacy unkeyed SHA-256), 15-min TTL, 5-attempt
+ * limit, one pending change per (user, type) — a new request replaces the
+ * old. Requests are additionally throttled per client IP at the controller
+ * and by a resend cooldown anchored on the pending row.
  *
  * <p>The provisioned admin (kind {@code ADMIN}) is refused at every entry
  * point with 403: its contacts are the environment's — the e-mail is the

@@ -132,7 +132,13 @@ public class ApiErrorHandler {
                     .map(v -> "The value of " + v.getPropertyPath() + " is invalid")
                     .orElse("The request contains an invalid value");
         }
-        return "Malformed request";
+        // Unreachable: the handler above dispatches exactly the five types
+        // matched above (Spring routes to it only for those classes or a
+        // subclass of one). A sixth type reaching here means the handler
+        // list gained a class without a message branch — fail loud instead
+        // of inventing a client message.
+        throw new IllegalStateException("No malformed message for "
+                + ex.getClass().getSimpleName());
     }
 
     /**

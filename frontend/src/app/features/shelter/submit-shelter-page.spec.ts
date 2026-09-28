@@ -269,13 +269,13 @@ describe('SubmitShelterPage (/submit)', () => {
   }
 
   function typeLocation(el: HTMLElement, text: string): void {
-    const field = input(el, 'shelter-location-input');
+    const field = input(el, 'shelter-location');
     field.value = text;
     field.dispatchEvent(new Event('input'));
   }
 
   function typeAddressSearch(el: HTMLElement, text: string): void {
-    const field = input(el, 'shelter-address-search');
+    const field = input(el, 'shelter-address');
     field.value = text;
     field.dispatchEvent(new Event('input'));
   }
@@ -298,7 +298,7 @@ describe('SubmitShelterPage (/submit)', () => {
     nameInput.value = 'Kalamaja community shelter';
     nameInput.dispatchEvent(new Event('input'));
     typeLocation(el, locationText);
-    pressEnterIn(el, 'shelter-location-input');
+    pressEnterIn(el, 'shelter-location');
   }
 
   it('a valid submit POSTs the payload (locationKind PUBLIC) and shows the success panel — no navigation', async () => {
@@ -431,7 +431,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(gateway.create).not.toHaveBeenCalled();
     // The form controls are valid — the missing location is the only
     // blocker, and the capture input is where a keyboard user starts.
-    expect(document.activeElement).toBe(element.querySelector('#shelter-location-input'));
+    expect(document.activeElement).toBe(element.querySelector('#shelter-location'));
     expect(element.querySelector('.location-field .field-error')?.textContent).toContain(
       'Pick a location on the map',
     );
@@ -477,7 +477,7 @@ describe('SubmitShelterPage (/submit)', () => {
   it('typed coordinates via Enter move the marker, fly the map, update the readout', async () => {
     const { element, fixture } = await open();
     typeLocation(element, '59.0, 26.0');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(leaflet.pickCalls.at(-1)).toEqual([59, 26]);
@@ -505,7 +505,7 @@ describe('SubmitShelterPage (/submit)', () => {
   it('a reversed (lng, lat) paste is auto-swapped and shows the swap hint', async () => {
     const { element, fixture } = await open();
     typeLocation(element, '24.7535, 59.4370');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(leaflet.pickCalls.at(-1)).toEqual([59.437, 24.7535]);
@@ -517,7 +517,7 @@ describe('SubmitShelterPage (/submit)', () => {
   it('a DMS string places the equivalent decimal position', async () => {
     const { element, fixture } = await open();
     typeLocation(element, `59°26'13"N 24°45'12"E`);
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     // 59°26'13" = 59.43694…, 24°45'12" = 24.75333…
@@ -528,7 +528,7 @@ describe('SubmitShelterPage (/submit)', () => {
   it('a long-form Google link is parsed client-side (no network call)', async () => {
     const { element, fixture } = await open();
     typeLocation(element, 'https://www.google.com/maps/place/@59.43703,24.75353,17z');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(geo.resolve).not.toHaveBeenCalled(); // long links NEVER hit the network
@@ -540,7 +540,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
     fillValidForm(element);
     typeLocation(element, 'somewhere in a basement');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(element.textContent).toContain('No recognizable coordinates in that text');
@@ -552,7 +552,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
     fillValidForm(element);
     typeLocation(element, '59,4370 24,7535');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(element.textContent).toContain('Use a decimal point: 59.4370, 24.7535');
@@ -568,12 +568,12 @@ describe('SubmitShelterPage (/submit)', () => {
   it('a successful capture clears a prior location error (n3d)', async () => {
     const { element, fixture } = await open();
     typeLocation(element, 'somewhere in a basement');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
     expect(element.textContent).toContain('No recognizable coordinates in that text');
 
     typeLocation(element, '59.1, 25.5');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(element.querySelector('.location-field .field-error')).toBeNull();
@@ -593,11 +593,11 @@ describe('SubmitShelterPage (/submit)', () => {
     button(element, 'Use my location').click();
     fixture.detectChanges();
     // The smart input is disabled while the geolocation is in flight.
-    expect(input(element, 'shelter-location-input').disabled).toBe(true);
+    expect(input(element, 'shelter-location').disabled).toBe(true);
 
     // A newer capture happens while the geolocation is still in flight.
     typeLocation(element, '59.1, 25.5');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
     expect(element.textContent).toContain('59.10000, 25.50000');
     expect(element.textContent).toContain('Location from typed coordinates');
@@ -612,7 +612,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.textContent).toContain('Location from typed coordinates');
     expect(element.textContent).not.toContain('Location from your device location');
     // The settle did end the pending state (button + input back to normal).
-    expect(input(element, 'shelter-location-input').disabled).toBe(false);
+    expect(input(element, 'shelter-location').disabled).toBe(false);
     expect(button(element, 'Use my location').disabled).toBe(false);
   });
 
@@ -690,7 +690,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
     fillValidForm(element);
     typeLocation(element, '54.5, 25.0'); // open sea, west of Saaremaa
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     expect(element.textContent).toContain('The location is outside Estonia.');
@@ -876,7 +876,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -904,16 +904,16 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
-    expect(input(element, 'shelter-location-input').value).toBe('');
+    expect(input(element, 'shelter-location').value).toBe('');
 
     resultButton(element).click();
     fixture.detectChanges();
 
-    expect(input(element, 'shelter-location-input').value).toBe(GEO_RESULT.displayName);
+    expect(input(element, 'shelter-location').value).toBe(GEO_RESULT.displayName);
   });
 
   it('selecting a result leaves a non-empty address field untouched (pin still placed)', async () => {
@@ -922,7 +922,7 @@ describe('SubmitShelterPage (/submit)', () => {
     fillValidForm(element); // smart input carries user-typed coordinates + pin
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -930,7 +930,7 @@ describe('SubmitShelterPage (/submit)', () => {
     fixture.detectChanges();
 
     // Prefill, never overwrite (design decision 4).
-    expect(input(element, 'shelter-location-input').value).toBe('59.437, 24.754');
+    expect(input(element, 'shelter-location').value).toBe('59.437, 24.754');
     expect(leaflet.pickCalls.at(-1)).toEqual([59.43703, 24.75353]);
     expect(element.textContent).toContain('Location from the address search');
   });
@@ -940,7 +940,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
 
     typeAddressSearch(element, 'big ben, london');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -968,7 +968,7 @@ describe('SubmitShelterPage (/submit)', () => {
     fillValidForm(element); // pin placed first — it must survive the 429
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -985,7 +985,7 @@ describe('SubmitShelterPage (/submit)', () => {
     fillValidForm(element);
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -1004,7 +1004,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -1012,7 +1012,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.querySelector('.address-results')).toBeNull();
 
     // The retry succeeds — the error is cleared, the results are listed.
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -1038,7 +1038,7 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(geocode.search).toHaveBeenCalledTimes(1);
     expect(button(element, 'Searching…').disabled).toBe(true);
     // A second trigger while pending is ignored, not stacked.
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     expect(geocode.search).toHaveBeenCalledTimes(1);
 
     resolveSearch([GEO_RESULT]);
@@ -1077,7 +1077,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await open();
 
     typeAddressSearch(element, 'lossi 2, tartu');
-    pressEnterIn(element, 'shelter-address-search');
+    pressEnterIn(element, 'shelter-address');
     for (let i = 0; i < 5; i++) {
       await settle(fixture);
     }
@@ -1262,7 +1262,7 @@ describe('SubmitShelterPage (/submit)', () => {
       expect(element.querySelector('.banner--error')?.textContent).toContain(message);
       // Input preserved — the user can fix and retry.
       expect(input(element, 'shelter-name').value).toBe('Kalamaja community shelter');
-      expect(input(element, 'shelter-location-input').value).toBe('59.437, 24.754');
+      expect(input(element, 'shelter-location').value).toBe('59.437, 24.754');
       // No navigation away from the form.
       expect(router.url).toBe('/submit');
       // 403 adds the path back to verification; 400 does not.
@@ -1378,7 +1378,7 @@ describe('SubmitShelterPage (/submit)', () => {
     // The declaration mirrors the row's locationKind (PUBLIC = unchecked).
     expect(element.querySelector<HTMLInputElement>('#shelter-private')?.checked).toBe(false);
     // The smart input shows the saved pair (the same text its parser accepts).
-    expect(input(element, 'shelter-location-input').value).toBe('59.437, 24.754');
+    expect(input(element, 'shelter-location').value).toBe('59.437, 24.754');
     // The pin sits on the saved point — and the prefill names no capture
     // mode, so the "Location from …" hint line stays off.
     expect(leaflet.pickCalls.at(-1)).toEqual([59.437, 24.754]);
@@ -1478,7 +1478,7 @@ describe('SubmitShelterPage (/submit)', () => {
     const { element, fixture } = await openEdit('7');
 
     typeLocation(element, '58.9, 25.2');
-    pressEnterIn(element, 'shelter-location-input');
+    pressEnterIn(element, 'shelter-location');
     fixture.detectChanges();
 
     // The typed capture replaces the saved pin and takes its source copy.

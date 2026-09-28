@@ -37,8 +37,10 @@ import java.util.List;
  * start tag, or an attribute value with a {@code >} on such a tag, is
  * misread (no such nesting exists in the tree); an unterminated string
  * literal ends at its line end instead of swallowing the rest of the file;
- * and a name split across a line break never matches, the same per-line
- * semantics the Java scanner applies.
+ * and a name split across a line break is visible only through the
+ * {@link CommentLine#blockOpenAtLineEnd()} flag — the check's wrap-join
+ * rule joins only a break at the name's own dash inside one block comment,
+ * so a mid-word break is the documented limit.
  */
 final class FrontendCommentExtractor {
 
@@ -48,29 +50,31 @@ final class FrontendCommentExtractor {
     private FrontendCommentExtractor() {
     }
 
-    /** The comment text of one {@code .ts} file, one entry per source line. */
-    static List<String> tsCommentTextByLine(String content) {
-        return commentTextByLine(content, sourceCommentRanges(content, true));
+    /** The comment lines of one {@code .ts} file, one entry per source line. */
+    static List<CommentLine> tsCommentLines(String content) {
+        return commentLines(content, sourceCommentRanges(content, true));
     }
 
-    /** The comment text of one {@code .scss} file, one entry per source line. */
-    static List<String> scssCommentTextByLine(String content) {
-        return commentTextByLine(content, sourceCommentRanges(content, false));
+    /** The comment lines of one {@code .scss} file, one entry per source line. */
+    static List<CommentLine> scssCommentLines(String content) {
+        return commentLines(content, sourceCommentRanges(content, false));
     }
 
-    /** The comment text of one {@code .html} file, one entry per source line. */
-    static List<String> htmlCommentTextByLine(String content) {
-        return commentTextByLine(content, htmlCommentRanges(content));
+    /** The comment lines of one {@code .html} file, one entry per source line. */
+    static List<CommentLine> htmlCommentLines(String content) {
+        return commentLines(content, htmlCommentRanges(content));
     }
 
     /**
      * One entry per source line (for content without a trailing line end):
      * the comment text that falls on that line, in position order, empty when
-     * the line carries no comment. A block comment spanning several lines
-     * contributes each line's slice; delimiters are not part of the text.
+     * the line carries no comment, plus whether a block-style comment is
+     * still open at the line's end. A block comment spanning several lines
+     * contributes each line's slice; delimiters are not part of the text. A
+     * line comment ends with its line, so it never sets the flag.
      */
-    private static List<String> commentTextByLine(String content, List<CommentRange> ranges) {
-        List<String> lines = new ArrayList<>();
+    private static List<CommentLine> commentLines(String content, List<CommentRange> ranges) {
+        List<CommentLine> lines = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         int rangeIndex = 0;
         int lineStart = 0;
@@ -92,11 +96,18 @@ final class FrontendCommentExtractor {
                     break; // the range continues on the next line
                 }
             }
-            lines.add(current.toString());
+            lines.add(new CommentLine(current.toString(), blockOpenAt(ranges, rangeIndex, lineEnd)));
             current.setLength(0);
             lineStart = lineEnd + 1;
         }
         return lines;
+    }
+
+    /** True when the range at {@code rangeIndex} spans the line end: the block comment it bounds stays open. */
+    private static boolean blockOpenAt(List<CommentRange> ranges, int rangeIndex, int lineEnd) {
+        return rangeIndex < ranges.size()
+                && ranges.get(rangeIndex).start() < lineEnd
+                && ranges.get(rangeIndex).end() > lineEnd;
     }
 
     /**
@@ -280,3 +291,12 @@ final class FrontendCommentExtractor {
         }
     }
 }
+
+/**
+ * The comment text of one source line plus the wrap-join permission:
+ * whether a block-style comment (the TS/SCSS block comment or an HTML
+ * comment) is still open at the line's end, so the same comment continues
+ * on the next line. A line comment ends with its line and never sets the
+ * flag — two adjacent line comments are two comments, not a wrap.
+ */
+record CommentLine(String text, boolean blockOpenAtLineEnd) { }

@@ -3,7 +3,7 @@
 -- languages, and let the public surface answer "the same page in another
 -- language".
 --
--- The content model (bilingual-guidance): a guidance post is a logical
+-- The content model: a guidance post is a logical
 -- article. It carries ONE translation row per locale in this table — each
 -- row owns its own locale, slug, title, body_html and hero_image_alt. The
 -- post row (guidance_posts) keeps its lifecycle (status, pinned, hero_image_id,

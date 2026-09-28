@@ -336,7 +336,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
         ['capacity', 'shelter-capacity'],
       ]);
       if (!formFieldFocused && this.capture.location() === null) {
-        document.getElementById('shelter-location-input')?.focus();
+        document.getElementById('shelter-location')?.focus();
       }
       return;
     }
