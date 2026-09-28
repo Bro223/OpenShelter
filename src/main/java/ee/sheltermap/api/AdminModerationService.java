@@ -1,21 +1,15 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.app.ModerationAuditLog;
-import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.Pagination;
-import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ShelterNotFoundException;
-import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterService;
-import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.domain.AdminUser;
-import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewDecision;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
@@ -37,7 +31,12 @@ import java.util.stream.Collectors;
 /**
  * The admin moderation surface — manual
  * hide/restore of user shelters, hard delete of user shelters, and the two
- * report queues with their single-row moderation actions.
+ * report queues with their single-row moderation actions. The audit trail
+ * and the shelter edit history are served by {@link AdminAuditTrail}, the
+ * account list and the suspend/unsuspend guards by
+ * {@link AdminUserModeration} — collaborators, not Spring beans,
+ * constructed in the constructor so a rolled-back action leaves no row
+ * and the bean stays the only transactional surface.
  *
  * <p>Authorization is the controller's job (fresh kind lookup per
  * request); this service assumes an authenticated admin and owns the
@@ -68,6 +67,10 @@ import java.util.stream.Collectors;
  * user id (the controller's fresh kind lookup) is the actor of record.
  * Idempotent no-op calls (re-dismiss, same-status change)
  * record NOTHING — the audit row marks the change, not the request.
+ *
+ * <p>The nine constructor collaborators are the unit suite's frozen seam —
+ * the two components are constructed from them here, never injected (a
+ * constructor parameter would break the seam the suite freezes).
  */
 @Service
 public class AdminModerationService {
@@ -75,33 +78,26 @@ public class AdminModerationService {
     /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
 
-    /** The read-time rendering of a gone shelter's name in the audit trail. */
-    public static final String DELETED_SHELTER_NAME = "Deleted shelter";
+    /** The read-time rendering of a gone shelter's name in the audit trail — home: {@link AdminAuditTrail}. */
+    public static final String DELETED_SHELTER_NAME = AdminAuditTrail.DELETED_SHELTER_NAME;
 
-    /** The read-time rendering of a gone subject account in the audit trail. */
-    public static final String DELETED_ACCOUNT_NAME = "Deleted account";
+    /** The read-time rendering of a gone subject account in the audit trail — home: {@link AdminAuditTrail}. */
+    public static final String DELETED_ACCOUNT_NAME = AdminAuditTrail.DELETED_ACCOUNT_NAME;
 
     /**
      * The read-time rendering of a referent whose name no longer resolves
-     * (the literal was inlined five times across this class and
+     * (the literal was inlined five times across the admin classes and
      * {@code ShelterQueryService}): an erased actor's name in the queue /
      * audit rows, a vanished shelter's name in the report queue, and an
      * account whose profile name is blank.
      */
     public static final String UNKNOWN_NAME = "Unknown";
 
-    /** Plain-spoken 409 for a suspend/unsuspend of a GUEST account (no credentials). */
-    public static final String NON_REGISTERED_SUSPENSION_MESSAGE =
-            "Only registered user accounts can be suspended";
+    /** Plain-spoken 409 for a suspend/unsuspend of a GUEST account (no credentials) — home: {@link AdminUserModeration}. */
+    public static final String NON_REGISTERED_SUSPENSION_MESSAGE = AdminUserModeration.NON_REGISTERED_SUSPENSION_MESSAGE;
 
-    /**
-     * Plain-spoken 403 for a suspend/unsuspend of the provisioned ADMIN
-     * account: the environment-provisioned administrator is the
-     * deployment's access path — disabling it is a lockout vector, and the
-     * env vars (not the app) own the account.
-     */
-    public static final String PROVISIONED_ADMIN_SUSPENSION_MESSAGE =
-            "The environment-provisioned administrator account cannot be suspended or unsuspended";
+    /** Plain-spoken 403 for a suspend/unsuspend of the provisioned ADMIN account — home: {@link AdminUserModeration}. */
+    public static final String PROVISIONED_ADMIN_SUSPENSION_MESSAGE = AdminUserModeration.PROVISIONED_ADMIN_SUSPENSION_MESSAGE;
 
     private final ShelterQueryService queryService;
     private final ShelterRepository shelters;
@@ -112,6 +108,8 @@ public class AdminModerationService {
     private final ShelterService shelterService;
     private final ShelterHistoryLog history;
     private final ShelterInfoRequestLog infoRequests;
+    private final AdminAuditTrail auditTrail;
+    private final AdminUserModeration userModeration;
 
     public AdminModerationService(ShelterQueryService queryService,
                                   ShelterRepository shelters,
@@ -131,6 +129,8 @@ public class AdminModerationService {
         this.shelterService = Objects.requireNonNull(shelterService, "shelterService");
         this.history = Objects.requireNonNull(history, "history");
         this.infoRequests = Objects.requireNonNull(infoRequests, "infoRequests");
+        this.auditTrail = new AdminAuditTrail(audit, shelters, users, history);
+        this.userModeration = new AdminUserModeration(users, clock, audit);
     }
 
     /**
@@ -532,57 +532,16 @@ public class AdminModerationService {
      * names and moderator names resolve in ONE batched lookup each (no
      * N+1); a gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
      * outlives a hard delete).
+     *
+     * <p>The implementation lives in {@link AdminAuditTrail#listAudit};
+     * this bean method keeps the {@code @Transactional(readOnly = true)} boundary and the
+     * public surface.
      */
     @Transactional(readOnly = true)
     public Pagination.Paged<AdminAuditDto> listAudit(Integer limit, Integer offset) {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         long from = offset == null ? 0 : offset;
-        List<ModerationAuditLog.Row> rows = audit.findLatest(from, size);
-        long total = audit.countAll();
-        if (rows.isEmpty()) {
-            return new Pagination.Paged<>(List.of(), total);
-        }
-        return new Pagination.Paged<>(toAuditDtos(rows), total);
-    }
-
-    /**
-     * The trail's rows with their subject + moderator names: user-scoped
-     * rows carry a null shelterId + a subjectUserId, and both reference
-     * sets resolve in ONE batched lookup each (no N+1), dangling ids
-     * included (rendered at read time — "Deleted shelter" / "Deleted
-     * account").
-     */
-    private List<AdminAuditDto> toAuditDtos(List<ModerationAuditLog.Row> rows) {
-        Set<Long> shelterIds = rows.stream()
-                .map(ModerationAuditLog.Row::shelterId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Set<Long> subjectIds = rows.stream()
-                .map(ModerationAuditLog.Row::subjectUserId).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<Long, String> shelterNames = shelters.findByIds(shelterIds)
-                .stream().collect(Collectors.toMap(Shelter::getId, Shelter::getName));
-        Map<Long, User> subjects = users.findByIds(subjectIds);
-        Map<Long, User> moderators = users.findByIds(rows.stream()
-                .map(ModerationAuditLog.Row::moderatorId).filter(Objects::nonNull).collect(Collectors.toSet()));
-        return rows.stream()
-                .map(row -> {
-                    // V14: moderation_actions.moderator_id is ON DELETE SET NULL,
-                    // so a row can outlive its moderator with a null id. The lookup
-                    // must not take that null key — an immutable map throws on
-                    // get(null) instead of answering null — hence the guard, and the
-                    // "Unknown" fallback the spec promises for an erased moderator.
-                    Long moderatorId = row.moderatorId();
-                    User moderator = moderatorId == null ? null : moderators.get(moderatorId);
-                    return new AdminAuditDto(
-                            row.id(),
-                            row.shelterId(),
-                            auditSubjectName(row, shelterNames, subjects),
-                            row.action(),
-                            row.reason(),
-                            row.previousStatus(),
-                            row.newStatus(),
-                            moderator == null ? UNKNOWN_NAME : moderator.getData().name(),
-                            row.createdAt());
-                })
-                .toList();
+        return auditTrail.listAudit(from, size);
     }
 
     /**
@@ -598,73 +557,14 @@ public class AdminModerationService {
      * legally; every row carries its own name snapshot). Registry import
      * rows answer an empty list (the import keeps its own data_imports
      * audit and writes no history rows).
+     *
+     * <p>The implementation lives in {@link AdminAuditTrail#shelterHistory};
+     * this bean method keeps the {@code @Transactional(readOnly = true)} boundary and the
+     * public surface.
      */
     @Transactional(readOnly = true)
     public List<AdminShelterHistoryDto> shelterHistory(long shelterId) {
-        List<ShelterHistoryLog.Event> events = history.findByShelterId(shelterId);
-        if (events.isEmpty() && shelters.findById(shelterId).isEmpty()) {
-            throw new ShelterNotFoundException(shelterId);
-        }
-        if (events.isEmpty()) {
-            return List.of();
-        }
-        return toHistoryDtos(events);
-    }
-
-    /**
-     * The history rows with their actor names: ONE batched user lookup
-     * (no N+1); a dangling actor renders "Unknown".
-     */
-    private List<AdminShelterHistoryDto> toHistoryDtos(List<ShelterHistoryLog.Event> events) {
-        Map<Long, User> actors = users.findByIds(events.stream()
-                .map(ShelterHistoryLog.Event::actorUserId).filter(Objects::nonNull)
-                .collect(Collectors.toSet()));
-        return events.stream()
-                .map(event -> {
-                    User actor = event.actorUserId() == null ? null : actors.get(event.actorUserId());
-                    return new AdminShelterHistoryDto(
-                            event.id(),
-                            event.shelterName(),
-                            actor == null ? UNKNOWN_NAME : actor.getData().name(),
-                            event.action(),
-                            ShelterHistoryChanges.parse(event.changes()),
-                            event.createdAt());
-                })
-                .toList();
-    }
-
-    /**
-     * The audit row's subject text: a shelter row renders
-     * the shelter name (or "Deleted shelter" once the row is gone); a
-     * user-scoped row renders "Account: name (email)" (or "Deleted
-     * account" after the target's erasure). A guidance/media row
-     * resolves its stored {@code subjectLabel} FIRST — the label snapshot
-     * that outlives the deleted target; only a NULL label (every pre-V23
-     * row) falls through to the shelter /
-     * account resolution, so no existing row changes behaviour. The DTO
-     * shape is unchanged — this text occupies the existing shelter-name
-     * slot, which the frontend labels "Subject".
-     */
-    private static String auditSubjectName(ModerationAuditLog.Row row,
-                                           Map<Long, String> shelterNames,
-                                           Map<Long, User> subjects) {
-        if (row.subjectLabel() != null) {
-            return row.subjectLabel();
-        }
-        if (row.shelterId() != null) {
-            return shelterNames.getOrDefault(row.shelterId(), DELETED_SHELTER_NAME);
-        }
-        // Same dangling-id hazard as the moderator slot: the subject lookup may be
-        // an immutable empty map, so a null key must never reach it.
-        Long subjectId = row.subjectUserId();
-        User subject = subjectId == null ? null : subjects.get(subjectId);
-        if (subject == null) {
-            return DELETED_ACCOUNT_NAME;
-        }
-        String name = subject.getData().name();
-        String email = subject.getData().email();
-        String base = (name == null || name.isBlank()) ? UNKNOWN_NAME : name;
-        return "Account: " + base + (email == null || email.isBlank() ? "" : " (" + email + ")");
+        return auditTrail.shelterHistory(shelterId);
     }
 
     /**
@@ -681,20 +581,16 @@ public class AdminModerationService {
      * shared paging vocabulary, the controller's checks run BEFORE the
      * read). The answer's {@link Pagination.Paged#total()} is the tab's
      * population WITHOUT paging (the X-Total-Count value).
+     *
+     * <p>The implementation lives in {@link AdminUserModeration#listUsers};
+     * this bean method keeps the {@code @Transactional(readOnly = true)} boundary and the
+     * public surface.
      */
     @Transactional(readOnly = true)
     public Pagination.Paged<AdminUserDto> listUsers(Integer limit, Integer offset) {
         int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         long from = offset == null ? 0 : offset;
-        List<AdminUserDto> dtos = users.findAccountPage(from, size).stream()
-                .map(AdminModerationService::toUserDto)
-                .toList();
-        return new Pagination.Paged<>(dtos, users.countAccounts());
-    }
-
-    /** The tab's row: the account identity it needs plus the suspension state. */
-    private static AdminUserDto toUserDto(User user) {
-        return AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId());
+        return userModeration.listUsers(from, size);
     }
 
     /**
@@ -705,17 +601,14 @@ public class AdminModerationService {
      * vector — it cannot be disabled at all); GUEST → 409 (no
      * credentials). The audit row joins this transaction with the account
      * as subject (shelterless row).
+     *
+     * <p>The implementation lives in {@link AdminUserModeration#suspend};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface.
      */
     @Transactional
     public void suspendUser(long moderatorId, long userId) {
-        User user = requireSuspendableUser(userId);
-        if (user.isSuspended()) {
-            return; // already suspended: a no-op records no audit row
-        }
-        user.suspend(clock.instant());
-        users.save(user);
-        audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_SUSPEND,
-                null, null, null);
+        userModeration.suspend(moderatorId, userId);
     }
 
     /**
@@ -724,62 +617,14 @@ public class AdminModerationService {
      * no audit row). The same guards as {@link #suspendUser}: 404 unknown
      * id, 403 the provisioned admin (it is never suspended — there is
      * nothing to lift), 409 guest.
+     *
+     * <p>The implementation lives in {@link AdminUserModeration#unsuspend};
+     * this bean method keeps the {@code @Transactional} boundary and the
+     * public surface.
      */
     @Transactional
     public void unsuspendUser(long moderatorId, long userId) {
-        User user = requireSuspendableUser(userId);
-        if (!user.isSuspended()) {
-            return; // not suspended: a no-op records no audit row
-        }
-        user.unsuspend();
-        users.save(user);
-        audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_UNSUSPEND,
-                null, null, null);
-    }
-
-    /**
-     * The suspension guards, in order: 404 the unknown id, 403 the
-     * provisioned admin (the deployment's access path — a lockout vector,
-     * it cannot be disabled at all), 409 the guest (no credentials).
-     */
-    private User requireSuspendableUser(long userId) {
-        User user = requireUser(userId);
-        if (user instanceof AdminUser) {
-            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
-        }
-        if (!isRegistered(user)) {
-            throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
-        }
-        return user;
-    }
-
-    private User requireUser(long userId) {
-        User user = users.findById(userId);
-        if (user == null) {
-            throw new UserNotFoundException(userId);
-        }
-        return user;
-    }
-
-    /**
-     * REGISTERED only — the kind truth is the domain class (the in-memory
-     * fake mirrors the JPA impl's users.kind column the same way).
-     * AdminUser IS-A RegisteredUser, so it is excluded explicitly (the
-     * ADMIN kind is already refused above with the 403 — only GUEST
-     * reaches this guard today).
-     */
-    private static boolean isRegistered(User user) {
-        return user instanceof RegisteredUser && !(user instanceof AdminUser);
-    }
-
-    private static String kindName(User user) {
-        if (user instanceof AdminUser) {
-            return "ADMIN";
-        }
-        if (user instanceof RegisteredUser) {
-            return "REGISTERED";
-        }
-        return "GUEST";
+        userModeration.unsuspend(moderatorId, userId);
     }
 
     /** The target shelter's review state for the audit row (the FK guarantees the row exists). */

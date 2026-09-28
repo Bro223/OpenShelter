@@ -7,7 +7,7 @@ package ee.sheltermap.guidance;
  * a different URL will.
  *
  * <p>Like every import failure it never blocks the save:
- * {@code GuidanceService.resolveHeroOnSave} catches it, stores the post
+ * {@code HeroSaveResolver.resolveHeroOnSave} catches it, stores the post
  * with this message as its {@code heroImportError} and keeps the URL —
  * the admin sees the message against the hero field, fixes the URL, and
  * the next save retries the import (the hero falls back to the library

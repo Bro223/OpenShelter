@@ -8,8 +8,8 @@
 #   • `##`  anywhere          (unconverted heading marker)
 #   • a line starting with `# ` (unconverted h1 marker)
 #
-# The 2026-07 bodies were copy-pasted from .md files; MarkdownToHtml +
-# MarkdownMigrationDriver converted them to the sanitizer's allow-listed
+# The 2026-07 bodies were copy-pasted from .md files; a since-removed
+# one-off migration converted them to the sanitizer's allow-listed
 # HTML. This script is the tripwire that catches any future regression
 # (a re-paste, a bad import, a manual edit) the next time it runs.
 #

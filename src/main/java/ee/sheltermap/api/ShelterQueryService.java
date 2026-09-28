@@ -8,14 +8,11 @@ import ee.sheltermap.app.ShelterOccupancyRepository;
 import ee.sheltermap.app.ShelterOpenStatusRepository;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
-import ee.sheltermap.app.ShelterReportRepository.ReportTypeCount;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.OccupancyBand;
-import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
-import ee.sheltermap.domain.ReporterTrust;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
@@ -28,18 +25,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Read side of the shelter API. Returns <strong>DTOs only, never
@@ -83,8 +74,8 @@ public class ShelterQueryService {
     /** Freshness window for the live state blocks (occupancy, and the open/closed tap on the same level): reports older than this are silent. */
     public static final Duration OCCUPANCY_FRESHNESS_WINDOW = Duration.ofHours(2);
 
-    /** The recent-report log length the community pulse answers: newest first, the rest scroll away. */
-    public static final int RECENT_REPORTS_CAP = 10;
+    /** The recent-report log length the community pulse answers — home: {@link CommunityPulseAggregator}. */
+    public static final int RECENT_REPORTS_CAP = CommunityPulseAggregator.RECENT_REPORTS_CAP;
 
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
@@ -96,6 +87,8 @@ public class ShelterQueryService {
     private final ReporterTrustEvaluator trustEvaluator;
     private final ShelterInfoRequestLog infoRequests;
     private final Clock clock;
+    private final CommunityPulseAggregator pulseDerivation;
+    private final ShelterTrustBatch trustBatch;
 
     public ShelterQueryService(ShelterRepository shelterRepository,
                                UserRepository userRepository,
@@ -117,6 +110,11 @@ public class ShelterQueryService {
         this.trustEvaluator = trustEvaluator;
         this.infoRequests = infoRequests;
         this.clock = clock;
+        this.pulseDerivation = new CommunityPulseAggregator(openStatusRepository, occupancyRepository,
+                trustEvaluator, clock);
+        this.trustBatch = new ShelterTrustBatch(userRepository, reportRepository,
+                occupancyRepository, openStatusRepository, dataImportLog, moderationAudit,
+                infoRequests, clock, pulseDerivation);
     }
 
     /**
@@ -316,7 +314,8 @@ public class ShelterQueryService {
             return Optional.empty();
         }
         Projection projection = Projection.detail();
-        Batches batches = batchedLookupsFor(List.of(shelter), projection);
+        ShelterTrustBatch.Batches batches = trustBatch.lookup(List.of(shelter),
+                projection.includeInfoRequests(), projection.includeCommunityPulse());
         return Optional.of(toDto(shelter, batches, callerView(shelter.getId(), callerId), projection));
     }
 
@@ -367,7 +366,8 @@ public class ShelterQueryService {
         if (shelters.isEmpty()) {
             return List.of();
         }
-        Batches batches = batchedLookupsFor(shelters, projection);
+        ShelterTrustBatch.Batches batches = trustBatch.lookup(shelters, projection.includeInfoRequests(),
+                projection.includeCommunityPulse());
         return shelters.stream()
                 .map(shelter -> toDto(shelter, batches, CallerView.ANONYMOUS, projection))
                 .toList();
@@ -382,7 +382,7 @@ public class ShelterQueryService {
      * report stops counting; {@code reportTotal} is the sum over all
      * types.
      */
-    private ShelterDto toDto(Shelter shelter, Batches batches, CallerView caller,
+    private ShelterDto toDto(Shelter shelter, ShelterTrustBatch.Batches batches, CallerView caller,
                              Projection projection) {
         // null key: a registry row, or a row whose submitter's account
         // was erased — no author lookup.
@@ -471,239 +471,6 @@ public class ShelterQueryService {
                         request.replyMessage(), request.repliedAt());
     }
 
-    // ---- the batched trust lookups -------------------------------------------
-
-    /**
-     * The side-lookups the projections read over a batch of shelters —
-     * one query per lookup, no N+1. Each lookup is a named step below,
-     * in this order; the projection decides which of the optional
-     * lookups (information requests, community pulse) run at all.
-     */
-    private Batches batchedLookupsFor(List<Shelter> shelters, Projection projection) {
-        List<Long> shelterIds = shelters.stream().map(Shelter::getId).toList();
-        Map<Long, User> authors = creatorsFor(shelters);
-        Map<Long, Map<ShelterReportType, Long>> reportCounts = reportCountsFor(shelterIds);
-        Map<Long, ShelterDto.Occupancy> occupancy = freshOccupancyFor(shelterIds);
-        Map<Long, ShelterDto.OpenStatus> openStatus = freshOpenStatusFor(shelterIds);
-        Map<Long, Instant> lastVerified = lastVerifiedFor(shelters, shelterIds);
-        // Fetched ONLY for the /mine and admin projections (the
-        // information-request exchange rows + the requesting admin).
-        Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequestRows = projection.includeInfoRequests()
-                ? infoRequests.findByShelterIds(shelterIds)
-                : Map.of();
-        Map<Long, User> infoRequesters = projection.includeInfoRequests()
-                ? infoRequestersFor(infoRequestRows)
-                : Map.of();
-        // DETAIL-read only: the fresh-window aggregates + recent log.
-        Map<Long, ShelterDto.CommunityPulse> pulse = projection.includeCommunityPulse()
-                ? shelters.stream()
-                        .collect(Collectors.toMap(Shelter::getId,
-                                shelter -> communityPulse(shelter.getId())))
-                : Map.of();
-        return new Batches(authors, reportCounts, occupancy, openStatus,
-                lastVerified, infoRequestRows, infoRequesters, pulse);
-    }
-
-    /** The shared batched lookups of both shelter projections. */
-    private record Batches(
-            Map<Long, User> authors,
-            Map<Long, Map<ShelterReportType, Long>> reportCounts,
-            Map<Long, ShelterDto.Occupancy> occupancy,
-            Map<Long, ShelterDto.OpenStatus> openStatus,
-            Map<Long, Instant> lastVerified,
-            Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequests,
-            Map<Long, User> infoRequesters,
-            Map<Long, ShelterDto.CommunityPulse> communityPulse) {
-    }
-
-    /**
-     * The batch's creators in ONE lookup — distinct non-null author ids;
-     * missing ids (deleted users) simply stay absent from the returned
-     * map.
-     */
-    private Map<Long, User> creatorsFor(List<Shelter> shelters) {
-        Set<Long> authorIds = shelters.stream()
-                .map(Shelter::getCreatedBy)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        return userRepository.findByIds(authorIds);
-    }
-
-    /** The report counts by type for the whole batch in ONE query. */
-    private Map<Long, Map<ShelterReportType, Long>> reportCountsFor(List<Long> shelterIds) {
-        return reportRepository.countByTypeForShelterIds(shelterIds).stream()
-                .collect(Collectors.groupingBy(ReportTypeCount::shelterId,
-                        Collectors.toMap(ReportTypeCount::type, ReportTypeCount::count)));
-    }
-
-    /**
-     * The fresh occupancy rows for the whole batch in ONE query (the 2 h
-     * window is applied in SQL); the derivation — latest band wins,
-     * agreeing count, newest timestamp — is in memory.
-     */
-    private Map<Long, ShelterDto.Occupancy> freshOccupancyFor(List<Long> shelterIds) {
-        return deriveOccupancy(occupancyRepository.findFreshByShelterIds(
-                shelterIds, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
-    }
-
-    /**
-     * The fresh open/closed taps for the whole batch in ONE query (the
-     * same 2 h window as occupancy); latest tap wins, agreeing count,
-     * newest timestamp.
-     */
-    private Map<Long, ShelterDto.OpenStatus> freshOpenStatusFor(List<Long> shelterIds) {
-        return deriveOpenStatus(openStatusRepository.findFreshByShelterIds(
-                shelterIds, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
-    }
-
-    /**
-     * The per-entry "last verified" stamp. Registry rows carry the
-     * newest VERIFYING import of their source (OK or NOT_MODIFIED — a 304
-     * re-check is a verification; FAILED / SKIPPED runs verify nothing;
-     * one lookup per distinct source in the batch, at most two). USER
-     * rows carry the newest of (a) OPEN_CONFIRMED reports by a user
-     * OTHER than the submitter (a self-confirm never verifies — the
-     * auto-confirm rule; a legacy unclaimed row with a null author
-     * accepts any reporter, same precedent) and (b) CONFIRM /
-     * AUTO_CONFIRM moderation actions (the admin's manual confirm is a
-     * verification too). Null = never verified — the UNDER_REVIEW
-     * "not yet verified" signal.
-     */
-    private Map<Long, Instant> lastVerifiedFor(List<Shelter> shelters, List<Long> shelterIds) {
-        Map<Long, List<ShelterReportRepository.ConfirmedAt>> confirmedByShelter = reportRepository
-                .latestOpenConfirmedByShelterIds(shelterIds).stream()
-                .collect(Collectors.groupingBy(ShelterReportRepository.ConfirmedAt::shelterId));
-        Map<Long, Instant> confirmingActions = moderationAudit
-                .latestConfirmationByShelterIds(shelterIds).stream()
-                .collect(Collectors.toMap(ModerationAuditLog.LatestConfirmation::shelterId,
-                        ModerationAuditLog.LatestConfirmation::latestAt));
-        Map<ShelterSource, Instant> importVerifiedAt = importVerifiedAtFor(shelters);
-        Map<Long, Instant> result = new HashMap<>();
-        for (Shelter shelter : shelters) {
-            Instant verified = shelter.getSource() == ShelterSource.USER
-                    ? latestCommunityVerification(shelter,
-                            confirmedByShelter.get(shelter.getId()),
-                            confirmingActions.get(shelter.getId()))
-                    : importVerifiedAt.get(shelter.getSource());
-            if (verified != null) {
-                result.put(shelter.getId(), verified);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * The newest verifying import per distinct non-user source in the
-     * batch — one lookup per source (at most two: Päästeamet and
-     * municipality).
-     */
-    private Map<ShelterSource, Instant> importVerifiedAtFor(List<Shelter> shelters) {
-        Map<ShelterSource, Instant> bySource = new HashMap<>();
-        shelters.stream().map(Shelter::getSource)
-                .filter(source -> source != ShelterSource.USER)
-                .distinct()
-                .forEach(source -> bySource.put(source,
-                        dataImportLog.findLatestVerifiedBySource(source.name())
-                                .map(DataImportLog.Row::importedAt)
-                                .orElse(null)));
-        return bySource;
-    }
-
-    /** The newest of the non-submitter OPEN_CONFIRMED reports and the confirming audit action. */
-    private static Instant latestCommunityVerification(Shelter shelter,
-                                                       List<ShelterReportRepository.ConfirmedAt> reports,
-                                                       Instant confirmingActionAt) {
-        Instant best = confirmingActionAt;
-        Long createdById = shelter.getCreatedBy();
-        if (reports == null) {
-            return best;
-        }
-        for (ShelterReportRepository.ConfirmedAt report : reports) {
-            // The submitter's own OPEN_CONFIRMED never verifies (the
-            // auto-confirm rule); a legacy unclaimed row (null author)
-            // accepts any reporter.
-            if (createdById != null && createdById.equals(report.userId())) {
-                continue;
-            }
-            if (best == null || report.latestAt().isAfter(best)) {
-                best = report.latestAt();
-            }
-        }
-        return best;
-    }
-
-    /**
-     * The requesting admins behind the batch's information-request rows
-     * in ONE lookup — the admin projection renders the name; the /mine
-     * list ignores it.
-     */
-    private Map<Long, User> infoRequestersFor(
-            Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequestRows) {
-        Set<Long> requesterIds = infoRequestRows.values().stream()
-                .map(ShelterInfoRequestLog.InfoRequest::requestedBy)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        return userRepository.findByIds(requesterIds);
-    }
-
-    /**
-     * over the fresh rows (the 2 h window already applied in SQL):
-     * the MOST RECENT report's band wins (ties broken by user id — the
-     * timestamptz precision makes ties vanishingly rare, but the output
-     * stays deterministic), {@code reportCount} is the number of fresh
-     * reports agreeing with that band (1 = the UI hedges, 2+ = firm), and
-     * {@code lastReportedAt} is the newest fresh report's time.
-     */
-    private static Map<Long, ShelterDto.Occupancy> deriveOccupancy(List<ShelterOccupancyReport> fresh) {
-        Map<Long, List<ShelterOccupancyReport>> byShelter = fresh.stream()
-                .collect(Collectors.groupingBy(ShelterOccupancyReport::getShelterId));
-        Map<Long, ShelterDto.Occupancy> result = new HashMap<>();
-        byShelter.forEach((shelterId, rows) -> {
-            ShelterOccupancyReport latest = rows.stream()
-                    .max(Comparator.comparing(ShelterOccupancyReport::getUpdatedAt)
-                            .thenComparing(ShelterOccupancyReport::getUserId))
-                    .orElseThrow();
-            OccupancyBand band = latest.getBand();
-            long agreeing = rows.stream().filter(r -> r.getBand() == band).count();
-            Instant lastReportedAt = rows.stream()
-                    .map(ShelterOccupancyReport::getUpdatedAt)
-                    .max(Instant::compareTo)
-                    .orElseThrow();
-            result.put(shelterId, new ShelterDto.Occupancy(band, (int) agreeing, lastReportedAt));
-        });
-        return result;
-    }
-
-    /**
-     * Live open/closed state (same level as capacity) over the fresh rows
-     * (the 2 h window already applied in SQL, the same window as
-     * occupancy): the MOST RECENT tap's state wins — the tie-break is
-     * exactly the occupancy derivation (ties broken by user id — the
-     * timestamptz precision makes ties vanishingly rare, but the output
-     * stays deterministic), {@code reportCount} is the number of fresh
-     * taps agreeing with that state, and {@code reportedAt} is the newest
-     * fresh tap's time. Null (absent) when nothing is fresh.
-     */
-    private static Map<Long, ShelterDto.OpenStatus> deriveOpenStatus(List<ShelterOpenStatusReport> fresh) {
-        Map<Long, List<ShelterOpenStatusReport>> byShelter = fresh.stream()
-                .collect(Collectors.groupingBy(ShelterOpenStatusReport::getShelterId));
-        Map<Long, ShelterDto.OpenStatus> result = new HashMap<>();
-        byShelter.forEach((shelterId, rows) -> {
-            ShelterOpenStatusReport latest = rows.stream()
-                    .max(Comparator.comparing(ShelterOpenStatusReport::getCreatedAt)
-                            .thenComparing(ShelterOpenStatusReport::getUserId))
-                    .orElseThrow();
-            OpenStatusState state = latest.getState();
-            long agreeing = rows.stream().filter(r -> r.getState() == state).count();
-            Instant reportedAt = rows.stream()
-                    .map(ShelterOpenStatusReport::getCreatedAt)
-                    .max(Instant::compareTo)
-                    .orElseThrow();
-            result.put(shelterId, new ShelterDto.OpenStatus(state.name(), reportedAt, (int) agreeing));
-        });
-        return result;
-    }
-
     // ---- the admin shelter list ------------------------------------------------
 
     /**
@@ -777,7 +544,9 @@ public class ShelterQueryService {
 
     /** The batched admin mapping over a batch of shelters (no N+1). */
     private List<AdminShelterDto> toAdminDtos(List<Shelter> shelters) {
-        Batches batches = batchedLookupsFor(shelters, Projection.admin());
+        Projection admin = Projection.admin();
+        ShelterTrustBatch.Batches batches = trustBatch.lookup(shelters, admin.includeInfoRequests(),
+                admin.includeCommunityPulse());
         return shelters.stream()
                 .map(shelter -> toAdminDto(shelter, batches))
                 .toList();
@@ -808,7 +577,7 @@ public class ShelterQueryService {
         return "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
     }
 
-    private AdminShelterDto toAdminDto(Shelter shelter, Batches batches) {
+    private AdminShelterDto toAdminDto(Shelter shelter, ShelterTrustBatch.Batches batches) {
         // null key: a registry row, or a row whose submitter's account
         // was erased — no submitter name.
         Long createdById = shelter.getCreatedBy();
@@ -858,129 +627,33 @@ public class ShelterQueryService {
     // ---- community pulse (report aggregation UI) -------------------------------
 
     /**
-     * The community pulse (report aggregation UI), DETAIL-read only.
-     *
-     * <p>The fresh window is the SAME 2 h read-time window as the occupancy
-     * and open/closed taps (clock minus the window, applied at read —
-     * no cleanup job). The plain counts are unweighted; the shares are
-     * trust-weighted with the SAME derived weight the auto-hide tally uses
-     * (see {@code ShelterReportService}); taps and bands carry no damp
-     * flag (damping is a NON_EXISTENT-report concept), so every fresh
-     * report contributes at least the baseline weight. The recent log is
-     * the merged fresh taps + bands, newest first, capped — it carries NO
-     * reporter identity (privacy: the public log says "a community
-     * member", never who).
-     */
-    private ShelterDto.CommunityPulse communityPulse(long shelterId) {
-        Instant freshSince = clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW);
-        List<ShelterOpenStatusReport> taps =
-                openStatusRepository.findFreshByShelterIds(List.of(shelterId), freshSince);
-        List<ShelterOccupancyReport> bands =
-                occupancyRepository.findFreshByShelterIds(List.of(shelterId), freshSince);
-        Set<Long> reporters = new HashSet<>();
-        taps.forEach(tap -> reporters.add(tap.getUserId()));
-        bands.forEach(band -> reporters.add(band.getUserId()));
-        Map<Long, Integer> weights = new HashMap<>();
-        reporters.forEach(userId -> weights.put(userId, trustEvaluator.weight(userId)));
-        return new ShelterDto.CommunityPulse(
-                deriveOpenClosedPulse(taps, weights),
-                deriveOccupancyPulse(bands, weights),
-                deriveRecentReports(taps, bands));
-    }
-
-    /**
-     * The fresh open/closed aggregate: the PLAIN counts per state and the
-     * trust-weighted share of votes that say OPEN (0..1 — 0.5 is an exact
-     * equal split, the gauge's straight-up needle). Null when nothing is
-     * fresh — the UI renders an explicit empty state, never a neutral
-     * arrow.
+     * Frozen test seam: the derivation now lives in
+     * {@link CommunityPulseAggregator#deriveOpenClosedPulse} — this
+     * delegate keeps the frozen {@code CommunityPulseTest} reference.
      */
     static ShelterDto.CommunityPulse.OpenClosed deriveOpenClosedPulse(
             List<ShelterOpenStatusReport> fresh, Map<Long, Integer> weights) {
-        if (fresh.isEmpty()) {
-            return null;
-        }
-        long open = 0;
-        long closed = 0;
-        double weightedOpen = 0;
-        double weightedClosed = 0;
-        for (ShelterOpenStatusReport tap : fresh) {
-            int weight = weightOf(weights, tap.getUserId());
-            if (tap.getState() == OpenStatusState.OPEN) {
-                open++;
-                weightedOpen += weight;
-            } else {
-                closed++;
-                weightedClosed += weight;
-            }
-        }
-        // Non-empty fresh input + baseline weight ≥ 1 → the sum is ≥ 1.
-        double openShare = weightedOpen / (weightedOpen + weightedClosed);
-        return new ShelterDto.CommunityPulse.OpenClosed((int) open, (int) closed, openShare);
+        return CommunityPulseAggregator.deriveOpenClosedPulse(fresh, weights);
     }
 
     /**
-     * The fresh how-full aggregate: the PLAIN counts per band and the
-     * trust-weighted position on the empty→full scale — SPACE = 0,
-     * GETTING_FULL = 0.5, FULL = 1 (the gauge's straight-up needle is an
-     * exact empty/full tie). Null when nothing is fresh.
+     * Frozen test seam: the derivation now lives in
+     * {@link CommunityPulseAggregator#deriveOccupancyPulse} — this
+     * delegate keeps the frozen {@code CommunityPulseTest} reference.
      */
     static ShelterDto.CommunityPulse.OccupancyBands deriveOccupancyPulse(
             List<ShelterOccupancyReport> fresh, Map<Long, Integer> weights) {
-        if (fresh.isEmpty()) {
-            return null;
-        }
-        long space = 0;
-        long gettingFull = 0;
-        long full = 0;
-        double weightedPosition = 0;
-        double weightedTotal = 0;
-        for (ShelterOccupancyReport band : fresh) {
-            int weight = weightOf(weights, band.getUserId());
-            weightedTotal += weight;
-            switch (band.getBand()) {
-                case SPACE -> space++;
-                case GETTING_FULL -> {
-                    gettingFull++;
-                    weightedPosition += 0.5 * weight;
-                }
-                case FULL -> {
-                    full++;
-                    weightedPosition += weight;
-                }
-            }
-        }
-        return new ShelterDto.CommunityPulse.OccupancyBands(
-                (int) space, (int) gettingFull, (int) full, weightedPosition / weightedTotal);
+        return CommunityPulseAggregator.deriveOccupancyPulse(fresh, weights);
     }
 
     /**
-     * The recent-report log: the merged fresh taps + bands, newest first
-     * (ties broken by kind — timestamptz precision makes ties vanishingly
-     * rare, but the output stays deterministic), capped at
-     * {@link #RECENT_REPORTS_CAP}. Privacy: an entry carries ONLY what was
-     * reported and when — never a reporter id or name (the UI says "a
-     * community member").
+     * Frozen test seam: the derivation now lives in
+     * {@link CommunityPulseAggregator#deriveRecentReports} — this
+     * delegate keeps the frozen {@code CommunityPulseTest} reference.
      */
     static List<ShelterDto.CommunityPulse.RecentReport> deriveRecentReports(
             List<ShelterOpenStatusReport> taps, List<ShelterOccupancyReport> bands) {
-        List<ShelterDto.CommunityPulse.RecentReport> merged =
-                new ArrayList<>(taps.size() + bands.size());
-        taps.forEach(tap -> merged.add(new ShelterDto.CommunityPulse.RecentReport(
-                tap.getState().name(), tap.getCreatedAt())));
-        bands.forEach(band -> merged.add(new ShelterDto.CommunityPulse.RecentReport(
-                band.getBand().name(), band.getUpdatedAt())));
-        merged.sort(Comparator.comparing(ShelterDto.CommunityPulse.RecentReport::reportedAt)
-                .reversed()
-                .thenComparing(ShelterDto.CommunityPulse.RecentReport::kind));
-        return merged.size() <= RECENT_REPORTS_CAP
-                ? List.copyOf(merged)
-                : List.copyOf(merged.subList(0, RECENT_REPORTS_CAP));
-    }
-
-    /** A reporter absent from the weight map gets the baseline weight (defensive — the map is built over every reporter). */
-    private static int weightOf(Map<Long, Integer> weights, long userId) {
-        return weights.getOrDefault(userId, ReporterTrust.BASELINE);
+        return CommunityPulseAggregator.deriveRecentReports(taps, bands);
     }
 
     /**
