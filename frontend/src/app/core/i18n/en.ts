@@ -185,7 +185,7 @@ export const EN: Messages = {
   // as the entries' accessible description (aria-describedby).
   'map.legend.hint': 'Click to select or unselect',
   'map.geoNote':
-    'Your browser asks first — your location is never sent to our servers and is used only to find the nearest shelter.',
+    'Your browser asks first — your location is never sent to our servers and is used only to find the shelters around the position your browser shares.',
   'map.aroundYou': 'Show shelters around you',
   'map.locating': 'Finding your location…',
   'map.anchorLabel': 'Find shelters near an address',

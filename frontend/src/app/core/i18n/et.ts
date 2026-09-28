@@ -91,7 +91,7 @@ export const ET: Messages = {
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
   // MACHINE DRAFT — awaiting native Estonian review; do not treat as final.
   'how.sources':
-    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis „Register”. Kogukonna asukohad lisavad kasutajad: kinnitamata kasutajal on kollane kolmnurk, osaliselt kinnitatud kasutajal kollane ring ja täielikult kinnitatud kasutajal roheline ring. Avatud teatega asukoht on märgitud punase märgisega. Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
+    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis „Register”. Kogukonna asukohad lisavad kasutajad: osaliselt kinnitatud kasutajal on kollane ring ja täielikult kinnitatud kasutajal roheline ring. Avatud teatega asukoht on märgitud punase märgisega. Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
   'how.report':
     'Kinnitatud kontoga kasutajad saavad lisada varjupaiga või teatada, et loetletud asukoht on suletud, ebatäpne või kadunud. Teated lähevad administraatoritele, kes need üle vaatavad ning võivad asukoha peita või parandada.',
   'how.nearest':
@@ -191,7 +191,7 @@ export const ET: Messages = {
   // Estonian review; do not treat as final.
   'map.legend.hint': 'Klõpsa, et valida või tühista',
   'map.geoNote':
-    'Sinu brauser küsib esmalt luba. Asukohta ei saadeta kunagi meie serveritesse ja seda kasutatakse ainult lähima varjupaiga leidmiseks.',
+    'Sinu brauser küsib esmalt luba. Asukohta ei saadeta kunagi meie serveritesse ja seda kasutatakse ainult selleks, et leida varjupaigad sinu brauseri poolt jagatud asukoha ümbruses.',
   'map.aroundYou': 'Näita varjupaiku minu ümbruses',
   'map.locating': 'Sinu asukohta määratakse…',
   'map.anchorLabel': 'Leia varjupaikad aadressi lähedal',
