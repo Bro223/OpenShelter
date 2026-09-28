@@ -324,7 +324,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
                 "POST /admin/guidance/{id}/publish",
                 "POST /admin/guidance/{id}/unpublish",
                 "DELETE /admin/guidance/{id}",
-                // AdminGuidanceController — translations (bilingual-guidance)
+                // AdminGuidanceController — translations (per-locale rows)
                 "GET /admin/guidance/{id}/translations",
                 "POST /admin/guidance/{id}/translations",
                 "PUT /admin/guidance/{id}/translations/{locale}",

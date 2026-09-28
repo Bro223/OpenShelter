@@ -11,15 +11,15 @@ import { isPrivateLocation } from '../../shared/shelter-copy';
  * every USER row in the NEW state — a client-side filter of the FULL
  * shelters list (the unconfirmed subset IS the queue, newest first).
  *
- * Presentation only (the extracted-panel contract): the page owns the
- * rows, the reject-reason form control and the review mutations; the
- * panel renders the queue and emits the intents.
+ * Presentation only (the extracted-panel contract): the Unconfirmed
+ * view owns the rows, the reject-reason form control and the review
+ * mutations; the panel renders the queue and emits the intents.
  *
  * Deliberately UN-PAGED: the queue is a filter of the WHOLE un-paged
- * scope (the page keeps the full list so the Shelters tab's paging never
- * hollows out the queue) — there is no server-side scope to page
- * through, so the shared paging control has nothing to page (the owner's
- * "every admin list pages" rule applies where the endpoint pages).
+ * scope (the Unconfirmed view keeps the full list so the Shelters tab's
+ * paging never hollows out the queue) — there is no server-side scope
+ * to page through, so the shared paging control has nothing to page (the
+ * owner's "every admin list pages" rule applies where the endpoint pages).
  */
 @Component({
   selector: 'app-unconfirmed-panel',
@@ -37,8 +37,8 @@ export class UnconfirmedPanel {
   readonly busy = input(false);
   /** The row whose reject-reason editor is open (null = closed). */
   readonly rejectFor = input<number | null>(null);
-  /** The reject reason (the PAGE owns the control — it validates and
-   *  resets it from the mutation path). */
+  /** The reject reason (the Unconfirmed view owns the control — it
+   *  validates and resets it from the mutation path). */
   readonly rejectReason = input.required<FormControl<string>>();
 
   readonly retry = output<void>();

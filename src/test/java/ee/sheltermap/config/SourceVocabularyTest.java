@@ -36,6 +36,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * as changes are archived — see
  * {@link #sourceCommentsContainNoArchivedChangeNames()}.
  *
+ * <p>A third check refuses the third dead reference: a source comment
+ * that cites a change name that was never filed — no directory for the
+ * name exists or ever existed, so the archive-derived list cannot know
+ * it. That list is maintained here, and every entry is verified at
+ * runtime to still resolve to nothing — see
+ * {@link #sourceCommentsContainNoNeverMadeChangeNames()}.
+ *
  * <p>Plain JUnit 5 with no Spring context: the check is a file walk, so it
  * stays in the fast unit tier.
  *
@@ -161,6 +168,36 @@ class SourceVocabularyTest {
      */
     private static final int MIN_ARCHIVED_CHANGE_NAMES = 70;
 
+    /**
+     * Change names that were planned or drafted but never filed as an
+     * openspec change: no directory for the name exists in
+     * {@code openspec/changes/} (live) or the archive — or ever did — so
+     * the archive-derived refused list cannot know it, and a comment
+     * citing it is dead by construction: the reader cannot open a
+     * proposal, because none was ever written.
+     *
+     * <p>The list cannot be derived at runtime (there is no directory to
+     * derive from), so it is maintained here — and every entry is checked
+     * at runtime to still resolve to nothing, so a same-named change that
+     * is later filed or archived turns the stale entry red instead of
+     * silently refusing a resolvable name. (The entries sit in the string
+     * literal on purpose: this file's own comments are scanned too, and
+     * writing an entry into a comment here would trip the very check it
+     * feeds.)
+     *
+     * <p>The one entry is the working name the guidance translation work
+     * (V26 and the translation rows it added) was written under; the
+     * feature shipped without the change ever being filed.
+     */
+    private static final List<String> NEVER_MADE_CHANGE_NAMES = List.of("bilingual-guidance");
+
+    /**
+     * Floor on the never-made list (measured 1 on a clean tree). The list
+     * cannot be derived, so pruning it to empty would let the check pass
+     * silently; the floor makes an empty list a loud failure.
+     */
+    private static final int MIN_NEVER_MADE_CHANGE_NAMES = 1;
+
     /** A hex byte: one or two hex digits (FF, D8, 0A). */
     private static final Pattern HEX_BYTE = Pattern.compile("[0-9A-Fa-f]{1,2}");
 
@@ -258,6 +295,59 @@ class SourceVocabularyTest {
         }
         if (!hits.isEmpty()) {
             fail(renderRefusedNameFailure(hits, refusedNames.size()));
+        }
+    }
+
+    /**
+     * Fails when a comment in either Java tree cites a change name that
+     * was never filed.
+     *
+     * <p>The archived-name check above derives its refused list from the
+     * archive, so it cannot know a name that never became a change
+     * directory at all: no live directory, no archived directory, nothing
+     * to derive from. Such a name is the deadest of dead references — the
+     * reader cannot open a proposal, because none was ever written. This
+     * check refuses the maintained list {@link #NEVER_MADE_CHANGE_NAMES}
+     * and keeps that list honest the way the archive keeps the derived
+     * list honest: a floor ({@link #MIN_NEVER_MADE_CHANGE_NAMES}) so the
+     * list cannot be pruned to a silent pass, and a runtime check that
+     * every entry still resolves to nothing — an entry whose name was
+     * later filed or archived is stale, and fails the guard until it is
+     * removed.
+     *
+     * <p>Scope is the same as the archived-name check: both Java trees'
+     * comment text only, whole kebab tokens, path tokens exempt.
+     */
+    @Test
+    void sourceCommentsContainNoNeverMadeChangeNames() {
+        Path root = moduleRoot();
+        if (NEVER_MADE_CHANGE_NAMES.size() < MIN_NEVER_MADE_CHANGE_NAMES) {
+            fail("Only " + NEVER_MADE_CHANGE_NAMES.size()
+                    + " never-made change name(s) are listed (the floor is "
+                    + MIN_NEVER_MADE_CHANGE_NAMES + ") — the list is empty, and this guard would pass silently.");
+        }
+        List<String> stale = staleNeverMadeNames(root);
+        if (!stale.isEmpty()) {
+            fail("Never-made list entry(ies) that now resolve: " + stale + " — a same-named change is live or "
+                    + "archived, so the name is no longer never-made. The archive-derived check owns it "
+                    + "now; remove the stale entry from NEVER_MADE_CHANGE_NAMES.");
+        }
+        List<String> hits = new ArrayList<>();
+        int[] scannedFiles = { 0 };
+        for (String javaRoot : List.of("src/main/java", "src/test/java")) {
+            Path tree = root.resolve(javaRoot);
+            if (!Files.isDirectory(tree)) {
+                fail("No " + javaRoot + " walk was executed: the scan started in the wrong "
+                        + "directory " + tree + ". Anchor it at the real module root, not a "
+                        + "build copy.");
+            }
+            walkTreeForRefusedNames(root, tree, NEVER_MADE_CHANGE_NAMES, hits, scannedFiles);
+        }
+        if (scannedFiles[0] == 0) {
+            fail("The source walk found no .java files — the scan is reading the wrong tree.");
+        }
+        if (!hits.isEmpty()) {
+            fail(renderNeverMadeFailure(hits));
         }
     }
 
@@ -508,6 +598,24 @@ class SourceVocabularyTest {
      * change names.
      */
     private static List<String> archivedChangeNames(Path root) {
+        Set<String> names = new TreeSet<>(archivedDirectoryNames(root));
+        try (var liveEntries = Files.list(root.resolve(CHANGES_DIR))) {
+            for (String entry : liveEntries.map(p -> p.getFileName().toString()).toList()) {
+                if (!entry.startsWith(".") && !entry.equals("archive")) {
+                    names.remove(entry);
+                }
+            }
+        } catch (IOException e) {
+            fail("The live changes could not be read: " + e.getMessage());
+        }
+        return List.copyOf(names);
+    }
+
+    /**
+     * The runtime truth the refused lists are derived from: every archived
+     * directory name plus its date-stripped slug.
+     */
+    private static Set<String> archivedDirectoryNames(Path root) {
         Set<String> names = new TreeSet<>();
         try (var archiveEntries = Files.list(root.resolve(ARCHIVE_DIR))) {
             for (String entry : archiveEntries.map(p -> p.getFileName().toString()).toList()) {
@@ -520,16 +628,27 @@ class SourceVocabularyTest {
         } catch (IOException e) {
             fail("The change archive could not be read: " + e.getMessage());
         }
+        return names;
+    }
+
+    /**
+     * The never-made entries that now resolve — a same-named change is
+     * live or archived — so the entry's never-made claim is stale: the
+     * archive-derived check owns such a name, and the entry is dead weight
+     * at best and a false refusal of a resolvable name at worst.
+     */
+    private static List<String> staleNeverMadeNames(Path root) {
+        Set<String> resolvable = new TreeSet<>(archivedDirectoryNames(root));
         try (var liveEntries = Files.list(root.resolve(CHANGES_DIR))) {
             for (String entry : liveEntries.map(p -> p.getFileName().toString()).toList()) {
                 if (!entry.startsWith(".") && !entry.equals("archive")) {
-                    names.remove(entry);
+                    resolvable.add(entry);
                 }
             }
         } catch (IOException e) {
             fail("The live changes could not be read: " + e.getMessage());
         }
-        return List.copyOf(names);
+        return NEVER_MADE_CHANGE_NAMES.stream().filter(resolvable::contains).toList();
     }
 
     /** The comment lines of one Java source file that carry a refused name, rendered for failure output. */
@@ -722,6 +841,20 @@ class SourceVocabularyTest {
     private static final int STRING = 3;
     private static final int CHAR = 4;
     private static final int TEXT_BLOCK = 5;
+
+    /** Renders the never-made hit list plus the one-sentence fix a reader needs. */
+    private static String renderNeverMadeFailure(List<String> hits) {
+        StringBuilder message = new StringBuilder()
+                .append(hits.size())
+                .append(" source comment(s) cite a change name that was never filed (")
+                .append(NEVER_MADE_CHANGE_NAMES.size())
+                .append(" name(s) listed in NEVER_MADE_CHANGE_NAMES):\n");
+        for (String hit : hits) {
+            message.append("  ").append(hit).append('\n');
+        }
+        return message.append("A name that was never filed resolves to nothing — keep the "
+                + "constraint it stated, drop the name.").toString();
+    }
 
     /** Renders the refused-name hit list plus the one-sentence fix a reader needs. */
     private static String renderRefusedNameFailure(List<String> hits, int nameCount) {

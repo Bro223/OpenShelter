@@ -462,7 +462,7 @@ public class AdminGuidanceController {
         guidance.delete(adminAccess.requireAdmin(), id, confirm);
     }
 
-    // ------------------------------------------------- translations (bilingual-guidance)
+    // ------------------------------------------------- translations (per-locale rows)
 
     /**
      * The post's translations, in locale order (the admin alternates editor).

@@ -719,7 +719,7 @@ public class GuidanceService {
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
     }
 
-    // ------------------------------------------------- translation linking (bilingual-guidance)
+    // ------------------------------------------------- translation linking (per-locale rows)
 
     /**
      * Creates a translation for a post in a locale it does not already

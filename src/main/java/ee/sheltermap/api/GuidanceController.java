@@ -152,7 +152,7 @@ public class GuidanceController {
     }
 
     /**
-     * The public detail (+ bilingual-guidance): PUBLISHED only, by slug
+     * The public detail (+ per-locale serving): PUBLISHED only, by slug
      * (never by id). A slug held by a draft answers the same 404 as an unknown
      * slug. When the post has no translation in the requested locale, the
      * default-locale translation is served with {@code localeFallback: true}

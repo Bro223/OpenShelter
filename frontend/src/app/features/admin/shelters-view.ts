@@ -23,7 +23,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
 /** The reject reason's hard limit — mirrored by the backend
  *  contract: required, at most 500 characters. Shared by
- *  the unconfirmed queue's reject (admin-page.ts) and this view's
+ *  the unconfirmed queue's reject (unconfirmed-view.ts) and this view's
  *  mark-inaccurate reason. */
 export const REJECT_REASON_MAX = 500;
 
@@ -36,10 +36,10 @@ export const INFO_REQUEST_MAX = 2000;
  * loads and the banner copy, the route/router for the URL contract, the
  * host element for the two-tap confirm's focus handling, and the
  * page-level shared feedback it joins (one in-flight mutation at a time,
- * one banner). `reviewRefetch` is the page's cross-tab review-action
- * refetch (the queue's full list AND the paged leg) — the row actions
- * that refetch afterwards trigger it, and the Unconfirmed tab's
- * confirm/reject call it directly.
+ * one banner). `reviewRefetch` is the cross-tab review-action refetch —
+ * the page wires it to UnconfirmedView.refreshShelters (the queue's
+ * full list AND the paged leg); this tab's row actions trigger it, and
+ * the Unconfirmed tab's confirm/reject call the same refetch directly.
  */
 interface SheltersViewDeps {
   admin: AdminGateway;
@@ -87,12 +87,12 @@ export class SheltersView {
   // ---- list view -------------------------------------------------------------
   /** The Shelters tab's current PAGE (server-paged — the owner's
    *  list-page-paging follow-up): null = loading; [] = loaded and empty.
-   *  The un-paged queue lives in the page's queueRows (the Unconfirmed
-   *  tab). */
+   *  The un-paged queue lives in UnconfirmedView.queueRows (the
+   *  Unconfirmed tab). */
   readonly rows = signal<AdminShelterDto[] | null>(null);
   /** The load error (the page-level banner copy) — SHARED with the
-   *  unconfirmed queue (one endpoint, one banner): the page's loadQueue
-   *  clears it when the queue loads. */
+   *  unconfirmed queue (one endpoint, one banner): the Unconfirmed view's
+   *  load() clears it when the queue loads. */
   readonly loadError = signal<string | null>(null);
   /** The APPLIED name/address search term — the URL's `shelterQ` (the
    *  tab-scoped param: the guidance tab keeps its own `q` on the shared

@@ -1018,7 +1018,7 @@ class GuidanceServiceTest {
                 .isEqualTo("Eesti originaal");
     }
 
-    // ------------------------------------------------- translation updates (bilingual-guidance)
+    // ------------------------------------------------- translation updates (per-locale rows)
 
     @Test
     void updatingATranslationReplacesTheRowContentAndKeepsTheSlugWhenOmitted() {

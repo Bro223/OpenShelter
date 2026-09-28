@@ -16,7 +16,7 @@ import java.util.Map;
  * no placeholder, no broken state).
  *
  * <p>{@code locale} is the SERVED translation's locale (the language the
- * reader is actually reading). {@code alternates} (bilingual-guidance)
+ * reader is actually reading). {@code alternates} (per-locale slugs)
  * maps each locale that has a translation to that translation's slug —
  * the field the frontend language switcher follows to open the SAME page
  * in another language; it is populated on the detail and {@code null} on
