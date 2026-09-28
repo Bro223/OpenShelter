@@ -61,7 +61,7 @@ class PasswordResetServiceTest {
 
     @Test
     void aRefusedSendWritesNoTokenRowAndAnchorsNoCooldown() {
-        // Send-first-then-commit (reviews F2): the token row is written ONLY
+        // Send-first-then-commit: the token row is written ONLY
         // after the channel accepts. A refusal leaves no row — and, just as
         // important, no cooldown/cap anchor: the retry right after the
         // outage is NOT throttled into a no-op for a code nobody received.

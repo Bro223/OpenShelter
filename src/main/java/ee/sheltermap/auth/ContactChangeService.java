@@ -111,7 +111,7 @@ public class ContactChangeService {
     /**
      * Starts an email change: checks the target, enforces the cooldown,
      * then sends an SMS code to the current phone and persists the pending
-     * change — send-first-then-commit (reviews F2/F5): the send happens
+     * change — send-first-then-commit: the send happens
      * OUTSIDE any transaction, and the pending row is written ONLY after
      * the provider accepts. A refused send therefore leaves NO pending
      * row and anchors NO cooldown — the user may retry immediately

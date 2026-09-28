@@ -341,7 +341,7 @@
         "type" : "object"
       },
       "AdminUserDto" : {
-        "description" : "The admin user-suspension list row — the account identity the Users tab needs plus its suspension state. kind is the machine value (GUEST | REGISTERED | ADMIN); guests never appear in the list (they have no credentials to suspend), and an ADMIN row is listed so the provisioned account is visible but not suspendable (409).",
+        "description" : "The admin user-suspension list row — the account identity the Users tab needs plus its suspension state. kind is the machine value (REGISTERED | ADMIN); guests never appear in the list (they have no credentials to suspend), and an ADMIN row is listed so the provisioned account is visible but not suspendable (403).",
         "properties" : {
           "email" : {
             "description" : "admin-only: the account's e-mail, served from /admin/* only (the reporter-identity convention).",
@@ -352,7 +352,7 @@
             "type" : "integer"
           },
           "kind" : {
-            "description" : "The account kind (machine value): REGISTERED | ADMIN. Guests never appear in the list; an ADMIN row is not suspendable (409).",
+            "description" : "The account kind (machine value): REGISTERED | ADMIN. Guests never appear in the list; an ADMIN row is not suspendable (403).",
             "type" : "string"
           },
           "name" : {

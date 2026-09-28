@@ -252,9 +252,9 @@ public class ApiErrorHandler {
      *   <li>{@link ImportOwnedShelterException} — a registry row under an
      *       admin write: the registry import rebuilds it as ACTIVE on every
      *       run, so the edit would silently revert;</li>
-     *   <li>{@link NonSuspendableUserException} — an account kind that
-     *       cannot be suspended (the ADMIN lockout vector; GUEST has no
-     *       credentials);</li>
+     *   <li>{@link NonSuspendableUserException} — a GUEST account (no
+     *       credentials exist to stop); the provisioned ADMIN is refused
+     *       earlier with the 403 {@link ProvisionedAdminProtectedException};</li>
      *   <li>{@link DuplicateInfoRequestException} — one information
      *       exchange per shelter; the replied row is kept, so a
      *       re-request collides;</li>

@@ -16,10 +16,10 @@ import java.time.Instant;
  */
 @Schema(description = "The admin user-suspension list row — the account "
         + "identity the Users tab needs plus its suspension state. kind is "
-        + "the machine value (GUEST | REGISTERED | ADMIN); guests never "
-        + "appear in the list (they have no credentials to suspend), and an "
-        + "ADMIN row is listed so the provisioned account is visible but not "
-        + "suspendable (409).")
+        + "the machine value (REGISTERED | ADMIN); guests never appear in "
+        + "the list (they have no credentials to suspend), and an ADMIN "
+        + "row is listed so the provisioned account is visible but not "
+        + "suspendable (403).")
 public record AdminUserDto(
         Long id,
         String name,
@@ -28,7 +28,7 @@ public record AdminUserDto(
         String email,
         @Schema(description = "The account kind (machine value): REGISTERED "
                 + "| ADMIN. Guests never appear in the list; an ADMIN row is "
-                + "not suspendable (409).")
+                + "not suspendable (403).")
         String kind,
         @Schema(description = "The suspension stamp; null while the account "
                 + "is active.")

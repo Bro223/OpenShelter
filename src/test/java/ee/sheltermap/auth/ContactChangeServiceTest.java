@@ -130,7 +130,7 @@ class ContactChangeServiceTest {
 
     @Test
     void aRefusedSendWritesNoPendingRowAndAnchorsNoCooldown() {
-        // Send-first-then-commit (reviews F2/F5): the pending row is the
+        // Send-first-then-commit: the pending row is the
         // cooldown anchor. A refused send must not leave it behind —
         // otherwise the outage would throttle the user's retry for a code
         // nobody received. The clock is FIXED: the retry lands inside the

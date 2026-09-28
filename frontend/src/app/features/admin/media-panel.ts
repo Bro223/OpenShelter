@@ -95,13 +95,13 @@ export class MediaPanel {
   }
 
   /** The file input's change: hand the chosen file to the page (the
-   *  input value resets FIRST — the same file stays re-selectable). */
+   *  file input's value resets FIRST — the same file stays re-selectable). */
   onFileChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
+    const fileInput = event.target as HTMLInputElement;
     // Index access (not .item): FileList is indexable, and the spec sets
     // a plain array on `files`.
-    const file = input.files?.[0];
-    input.value = '';
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
     if (file !== null && file !== undefined) {
       this.fileChosen.emit(file);
     }
