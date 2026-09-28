@@ -56,28 +56,38 @@ const MIN_ADMIN_TABS = 9;
  * switchTab split into applyTab (the shared half) + navigateTab (the URL
  * write). The tab vocabulary itself (parse/default/values) went to
  * shared/admin-tab.ts; no larger seam came out, so the ceiling moved
- * with the measured number. It is LOWERED HERE, in the same commit, to
- * the size measured after two seams came out in the same pattern (a
- * page-owned state object — the panels are already extracted, and the
- * state must survive tab switches): the guidance tab's state (the post
+ * with the measured number. It was LOWERED to the size measured after two
+ * seams came out in the same pattern (a page-owned state object — the
+ * panels are already extracted, and the state must survive tab switches):
+ * the guidance tab's state (the post
  * list + its search, the publishedAt merge, the editor lifecycle, the
  * delete confirms, the translations, the content-locale subscription) into
  * `guidance-view.ts`, and the four server-paged tabs (reports, users,
  * media, audit) — the URL's namespaced page/size params, the view-key
  * rule, the sequence guard, the out-of-range flag — into one shared
- * `paged-view.ts` they are four instances of.
+ * `paged-view.ts` they are four instances of. It is LOWERED HERE, in the
+ * same commit, to the size measured after the review-queue state (the full
+ * shelters list, the reject-reason editor, the confirm/reject row actions
+ * and their cross-tab refetch) came out into `unconfirmed-view.ts` in the
+ * same page-owned state-object pattern; the page keeps two spec-pinned
+ * re-exposures on it (the `rejectReason` getter, the `rejectRow`
+ * delegate) — the spec is the contract and drives them directly.
  * Same idiom as the count floors above: crossing the ceiling
  * fails the build, and RAISING it is a decision — change it in the same
  * commit that legitimately grows the file, with the reason, never as a
  * silent default; lowering it follows the same commit that legitimately
  * shrinks the file.
  *
- * What comes out FIRST when the ceiling bites next: the review-queue
- * state (the full shelters list, the reject-reason editor, the
- * confirm/reject row actions and their refetch) — the page's largest
- * remaining tab, the same pattern.
+ * What comes out FIRST when the ceiling bites next: no state-object seam
+ * is left — the remaining tab sections (media, users, reports) are
+ * row-action handlers whose paged state already lives in the PagedView
+ * instances, and the established pattern keeps row actions on the page.
+ * The last coherent block is the shared URL normalizer (the clamping pass
+ * over ALL the tabs' params — extracting it would have to keep it one
+ * atomic replaceUrl navigation, so it becomes a shared object the page
+ * calls, not a per-tab view).
  */
-const ADMIN_PAGE_MAX_LINES = 981;
+const ADMIN_PAGE_MAX_LINES = 901;
 
 function featureDirs(): string[] {
   return readdirSync(FEATURES_DIR).filter((entry) =>
@@ -168,9 +178,10 @@ describe('frontend architecture guard', () => {
     expect(
       lines,
       `admin-page.ts is ${lines} lines — the ceiling is ${ADMIN_PAGE_MAX_LINES}. ` +
-        'Extract before adding (next seam: the guidance tab’s state — see ' +
-        'the ceiling note above), or raise the ceiling deliberately in ' +
-        'this same commit with the reason.',
+        'Extract before adding (see the ceiling note above — the row-action ' +
+        'sections stay on the page by pattern; the last candidate is the ' +
+        'URL normalizer), or raise the ceiling deliberately in this same ' +
+        'commit with the reason.',
     ).toBeLessThanOrEqual(ADMIN_PAGE_MAX_LINES);
   });
 });

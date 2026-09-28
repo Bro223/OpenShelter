@@ -101,19 +101,21 @@
   <!-- The community review queue: a client-side filter of the FULL shelters
        list (the unconfirmed subset IS the queue — the Shelters tab's paging
        must not hollow it out), so the panel renders the whole filtered
-       scope, un-paged. -->
+       scope, un-paged. The panel renders through the UnconfirmedView state
+       object (unconfirmed-view.ts): inputs in, outputs out, like every tab
+       panel. -->
   @if (tab() === 'unconfirmed') {
     <app-unconfirmed-panel
-      [rows]="unconfirmedRows()"
+      [rows]="unconfirmed.rows()"
       [loadError]="shelters.loadError()"
       [busy]="busy()"
-      [rejectFor]="rejectRowFor() === null ? null : rejectRowFor()!.id"
-      [rejectReason]="rejectReason"
-      (retry)="loadQueue()"
-      (confirmRow)="confirmRow($event)"
-      (openRejectEditor)="openRejectEditor($event)"
-      (rejectRow)="rejectRow($event)"
-      (cancelReject)="cancelReject()"
+      [rejectFor]="unconfirmed.rejectRowFor() === null ? null : unconfirmed.rejectRowFor()!.id"
+      [rejectReason]="unconfirmed.rejectReason"
+      (retry)="unconfirmed.load()"
+      (confirmRow)="unconfirmed.confirmRow($event)"
+      (openRejectEditor)="unconfirmed.openRejectEditor($event)"
+      (rejectRow)="unconfirmed.rejectRow($event)"
+      (cancelReject)="unconfirmed.cancelReject()"
     />
   }
 

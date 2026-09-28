@@ -6,11 +6,10 @@ import {
   Injector,
   OnInit,
   OnDestroy,
-  computed,
   signal,
 } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
-import { FormControl, Validators } from '@angular/forms';
+import type { FormControl } from '@angular/forms';
 import localeEnGB from '@angular/common/locales/en-GB';
 import { ActivatedRoute, Router, type Params } from '@angular/router';
 import type {
@@ -24,7 +23,6 @@ import type {
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { PAGE_SIZE_DEFAULT, parsePage, parseSize } from '../../shared/paging';
@@ -41,9 +39,10 @@ import { MediaPanel } from './media-panel';
 import { PagedView } from './paged-view';
 import { ReportsPanel } from './reports-panel';
 import { SheltersPanel } from './shelters-panel';
-import { REJECT_REASON_MAX, SheltersView } from './shelters-view';
+import { SheltersView } from './shelters-view';
 import { SiteTextsPanel } from './site-texts-panel';
 import { UnconfirmedPanel } from './unconfirmed-panel';
+import { UnconfirmedView } from './unconfirmed-view';
 import { UsersPanel } from './users-panel';
 
 registerLocaleData(localeEnGB, 'en-GB');
@@ -72,9 +71,9 @@ export type AdminTab =
  * owns the state, the URL-backed views and the gateway calls; the panels
  * render and emit intents). Each list's URL→state→load seam lives one level
  * down in a page-owned view object the template feeds the panel through
- * (SheltersView, GuidanceView, and four PagedView instances for the
- * server-paged tabs) — the state survives tab switches (the lazy-load
- * rule): a visit after a load keeps the in-memory rows.
+ * (UnconfirmedView, SheltersView, GuidanceView, and four PagedView
+ * instances for the server-paged tabs) — the state survives tab switches
+ * (the lazy-load rule): a visit after a load keeps the in-memory rows.
  *
  *  - UNCONFIRMED (first, default) — the community review queue: every USER
  *    row in the NEW state (client-side filter of the FULL shelters list —
@@ -196,28 +195,11 @@ export class AdminPage implements OnInit, OnDestroy {
   );
 
   // ---- unconfirmed (review-queue) tab ------------------------------------------
-  /** The queue's source: the FULL un-paged shelters list — the queue is a
-   *  filter of the WHOLE scope, so the Shelters tab's paging must not
-   *  hollow it out. null = loading; [] = loaded and empty. */
-  protected readonly queueRows = signal<AdminShelterDto[] | null>(null);
-  /** The queue: USER rows in the NEW state (client-side filter of the
-   *  full list — no extra endpoint), newest first. The backend is
-   *  id-ordered (auto-increment id = creation order) and carries NO creation
-   *  timestamp on the admin projection (verified against the live API), so
-   *  the id IS the creation-order proxy. */
-  protected readonly unconfirmedRows = computed(() =>
-    (this.queueRows() ?? [])
-      .filter((row) => row.source === 'USER' && row.reviewStatus === 'NEW')
-      .sort((a, b) => b.id - a.id),
-  );
-  /** The row whose reject-reason editor is open (null = closed). */
-  protected readonly rejectRowFor = signal<AdminShelterDto | null>(null);
-  /** The reject reason: required (non-blank — the shared blank validator,
-   *  whitespace-only passes Validators.required), at most 500 characters. */
-  readonly rejectReason = new FormControl<string>('', {
-    nonNullable: true,
-    validators: [Validators.required, nameBlankValidator, Validators.maxLength(REJECT_REASON_MAX)],
-  });
+  /** The reject reason control (public so specs can drive it — page
+   *  convention; the view owns the control). */
+  get rejectReason(): FormControl<string> {
+    return this.unconfirmed.rejectReason;
+  }
 
   // ---- shelters tab ----------------------------------------------------------
   // The Shelters tab's state — the URL→state→load seam (the applied
@@ -281,10 +263,12 @@ export class AdminPage implements OnInit, OnDestroy {
 
   /** The Shelters tab's URL→state→load seam: constructed here — with the
    *  shared UI state — because it joins the page's feedback (one in-flight
-   *  mutation, one banner) and the cross-tab review-action refetch
-   *  coordinates through it. The template feeds the panel through it; see
-   *  shelters-view.ts for the URL contract. */
-  protected readonly shelters = new SheltersView({
+   *  mutation, one banner). The template feeds the panel through it; see
+   *  shelters-view.ts for the URL contract. Its review-triggering row
+   *  actions refetch through the page's `reviewRefetch` wiring (the queue's
+   *  full list AND this tab's page — the Unconfirmed view owns the
+   *  refetch). */
+  protected readonly shelters: SheltersView = new SheltersView({
     admin: this.admin,
     i18n: this.i18n,
     route: this.route,
@@ -294,7 +278,26 @@ export class AdminPage implements OnInit, OnDestroy {
     error: this.error,
     success: this.success,
     clearFeedback: () => this.clearFeedback(),
-    reviewRefetch: () => this.refreshShelters(),
+    reviewRefetch: () => this.unconfirmed.refreshShelters(),
+  });
+
+  /** The Unconfirmed (review-queue) tab's state object: the queue's FULL
+   *  un-paged shelters list (the queue is a filter of the WHOLE scope —
+   *  the Shelters tab's paging must not hollow it out), the reject-reason
+   *  editor, and the two row actions and their cross-tab refetch (see
+   *  unconfirmed-view.ts for the contract). The load error is the Shelters
+   *  view's (one endpoint, one banner — the panel's [loadError] stays
+   *  wired to it); this view's refreshShelters is the `reviewRefetch`
+   *  target above. */
+  protected readonly unconfirmed: UnconfirmedView = new UnconfirmedView({
+    admin: this.admin,
+    i18n: this.i18n,
+    loadError: this.shelters.loadError,
+    busy: this.busy,
+    error: this.error,
+    success: this.success,
+    clearFeedback: () => this.clearFeedback(),
+    sheltersPagedRefresh: () => this.shelters.refreshPagedView(),
   });
 
   /** The Guidance tab's URL→state→load seam (the same pattern — the post
@@ -542,8 +545,8 @@ export class AdminPage implements OnInit, OnDestroy {
     // that list loads immediately (the queue stays warm for every active
     // tab); the Shelters tab's paged view and the other tabs load lazily
     // on first switch (a visit after a load keeps the in-memory rows —
-    // the queue does not refetch itself).
-    this.loadQueue();
+       // the queue does not refetch itself).
+    this.unconfirmed.load();
   }
 
   // -------------------------------------------------------------------------
@@ -621,94 +624,11 @@ export class AdminPage implements OnInit, OnDestroy {
   // -------------------------------------------------------------------------
   // Unconfirmed (review-queue) tab
   // -------------------------------------------------------------------------
-  /** The queue's source: the FULL un-paged shelters list (the queue is a
-   *  filter of the whole scope — the Shelters tab's paging must not
-   *  hollow it out). The error state is shared with the Shelters tab
-   *  (one endpoint, one banner). */
-  loadQueue(): void {
-    this.queueRows.set(null);
-    this.shelters.loadError.set(null);
-    this.admin
-      .listShelters()
-      .then((page) => this.queueRows.set(page.rows))
-      .catch((error: unknown) =>
-        this.shelters.loadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))),
-      );
-  }
-  /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
-   *  The shelters list refetches so both this queue and the Shelters tab
-   *  show the new state. */
-  async confirmRow(row: AdminShelterDto): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.reviewShelter(row.id, { action: 'CONFIRM' });
-      this.success.set(this.i18n.t('admin.shelters.success.confirmed'));
-      await this.refreshShelters();
-    } catch (error) {
-      // A 409 (the row moved since this list load) surfaces the server
-      // message verbatim — the admin reloads and re-acts.
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /** Open the inline reject-reason editor for the row. */
-  openRejectEditor(row: AdminShelterDto): void {
-    this.clearFeedback();
-    this.rejectReason.reset('');
-    this.rejectRowFor.set(row);
-  }
-
-  cancelReject(): void {
-    this.rejectRowFor.set(null);
-  }
-
-  /** "Reject": the reason is REQUIRED (non-blank, ≤500). On success the
-   *  editor closes and the shelters list refetches (the queue recomputes). */
+  /** "Reject" (the spec-pinned entry point — the view owns the action):
+   *  the reason is REQUIRED (non-blank, ≤500); on success the editor
+   *  closes and the shelters list refetches (the queue recomputes). */
   async rejectRow(row: AdminShelterDto): Promise<void> {
-    const reason = this.rejectReason.value.trim();
-    if (reason === '' || reason.length > REJECT_REASON_MAX) {
-      this.rejectReason.markAsTouched();
-      return;
-    }
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.reviewShelter(row.id, { action: 'REJECT', reason });
-      this.success.set(this.i18n.t('admin.shelters.success.rejected'));
-      this.rejectRowFor.set(null);
-      await this.refreshShelters();
-    } catch (error) {
-      // The editor STAYS open on failure (the admin keeps the reason).
-      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Review-action refetch (cross-tab)
-  // -------------------------------------------------------------------------
-  /** The review actions' refetch — the Unconfirmed tab's confirm/reject,
-   *  and the Shelters tab's request-info / mark-inaccurate /
-   *  clear-inaccurate row actions (which trigger it through the view):
-   *  the queue's full list always (the action changed the queue's
-   *  scope), the Shelters tab's page when it is loaded (both views of
-   *  the same endpoint — kept quiet, no loading flash over an
-   *  already-rendered list; the paged leg's fetch-sequence guard lives
-   *  with the view, so a URL-driven load in flight supersedes it). */
-  private async refreshShelters(): Promise<void> {
-    const page = await this.admin.listShelters();
-    this.queueRows.set(page.rows);
-    await this.shelters.refreshPagedView();
+    await this.unconfirmed.rejectRow(row);
   }
 
   // -------------------------------------------------------------------------

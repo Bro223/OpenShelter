@@ -205,18 +205,18 @@ both tallies read their inputs from the same dismissed-excluded store query
   legend's `tones` param — "URL-only (no localStorage), display-only", in
   `LegendFilterView`'s own words (`frontend/src/app/features/map/legend-view.ts:54-68`); the
   admin page carries the same idiom ("the view IS the URL",
-  `frontend/src/app/features/admin/admin-page.ts:368`). Public surfaces use page-level
+  `frontend/src/app/features/admin/admin-page.ts:371`). Public surfaces use page-level
   routes, admin tab panels use tab-namespaced query params
   (`frontend/src/app/shared/list-state.ts:16-20`).
 - **Clamp/normalize discipline.** A hand-typed illegal value is sanitized to the nearest
   legal value — never an error — and the URL is normalized in place, so the control and the
   URL can never quietly disagree (`syncFromParams` with `replaceUrl`,
   `frontend/src/app/features/map/legend-view.ts:120-156`; `normalizeListParams`,
-  `frontend/src/app/features/admin/admin-page.ts:419-509`).
+  `frontend/src/app/features/admin/admin-page.ts:422-512`).
 - **Per-list namespaced parameters.** Each admin paged list owns its own `{list}Page` /
   `{list}Size` pair — `guidancePage/guidanceSize`, `shelterPage/shelterSize`,
   `reportPage/reportSize`, `userPage/userSize`, `mediaPage/mediaSize`, `auditPage/auditSize`
-  (`frontend/src/app/features/admin/admin-page.ts:453-467`).
+  (`frontend/src/app/features/admin/admin-page.ts:456-470`).
 - **Frontend paging policy** (one place, so it cannot drift): sizes 10..100 in steps of 10,
   default 20, 1-based pages, the server does the slicing
   (`frontend/src/app/shared/paging.ts:1-16`); the four `PAGE_SIZE_` constants at
