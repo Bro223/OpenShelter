@@ -7,6 +7,7 @@ import { skip } from 'rxjs';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { GuidancePostDto, PagedRows } from '../../core/models';
+import { ApiSrcsetPipe, ApiUrlPipe } from '../../core/api-url';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -45,6 +46,8 @@ import { Pagination } from '../../shared/pagination';
     LoadingIndicator,
     Pagination,
     TranslatePipe,
+    ApiUrlPipe,
+    ApiSrcsetPipe,
   ],
   templateUrl: './guidance-list-page.html',
   styleUrl: './guidance-list-page.scss',

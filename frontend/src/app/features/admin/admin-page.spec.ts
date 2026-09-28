@@ -468,6 +468,18 @@ describe('AdminPage', () => {
     );
   }
 
+  /** The Unconfirmed tab button, looked up by label PREFIX rather than
+   *  exact text: since P5 the label carries the queue's count
+   *  ('Unconfirmed (n)' once the queue has loaded) — the count is
+   *  state, not part of the tab's identity. */
+  function unconfirmedTab(root: HTMLElement): HTMLButtonElement | null {
+    return (
+      [...root.querySelectorAll<HTMLButtonElement>('button.admin-tab')].find(
+        (b) => (b.textContent ?? '').trim().startsWith('Unconfirmed'),
+      ) ?? null
+    );
+  }
+
   /** Let a fire-and-forget load settle (the page's own promise chains). */
   async function settle(fixture: {
     whenStable(): Promise<unknown>;
@@ -1158,8 +1170,14 @@ describe('AdminPage', () => {
 
     // The default tab is Unconfirmed (the queue filters the shelters list —
     // no extra endpoint call).
+    // RE-PIN (owner-ruled P5 — the pinned-spec conflict cleared
+    // deliberately): the tab now carries the queue's count — free
+    // client-side data (the queue's own rows, no endpoint; a number needs
+    // no translation, the tab word supplies the context). The exact-word
+    // pin pre-dated the count. 1 here: only USER_ROW is USER+NEW in the
+    // fixture (USER_ROW_HIDDEN is CONFIRMED, REGISTRY_ROW is registry).
     const active = element.querySelector<HTMLButtonElement>('.admin-tab--active');
-    expect(active?.textContent?.trim()).toBe('Unconfirmed');
+    expect(active?.textContent?.trim()).toBe('Unconfirmed (1)');
     const rows = element.querySelectorAll('tr.admin-row');
     expect(rows.length).toBe(1);
     expect(rows[0].textContent).toContain('Kommunaali Varjend');
@@ -3671,7 +3689,7 @@ describe('AdminPage', () => {
       await router.navigate(['/admin'], { queryParams: { source: 'REGISTRY' } });
       await settle(fixture);
       expect(router.url).toContain('source=REGISTRY');
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('true');
       await toShelters(element, fixture);
       expect(admin.listShelters).toHaveBeenLastCalledWith({
         source: 'REGISTRY',
@@ -3945,7 +3963,7 @@ describe('AdminPage', () => {
       // The Shelters tab is active (the default Unconfirmed queue is not)
       // — today (pre-fix) a fresh load always opens the first tab.
       expect(buttonByText(element, 'Shelters')!.getAttribute('aria-pressed')).toBe('true');
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('false');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('false');
       expect(element.querySelector('#admin-search')).not.toBeNull();
       // And its paged view loaded from the URL's view (the queue leg
       // loads separately in ngOnInit — the paged call is the proof).
@@ -3956,7 +3974,7 @@ describe('AdminPage', () => {
       admin.listShelters.mockResolvedValue(paged([USER_ROW]));
       const element = await freshLoadAt({ tab: 'BOGUS' });
       // The fallback is the default tab (the review queue renders)…
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('true');
       expect(element.querySelector('#admin-search')).toBeNull();
       // …and the stray value is normalized OUT of the URL — the same
       // replaceUrl discipline as the lists' params (the URL never keeps a
@@ -3967,7 +3985,7 @@ describe('AdminPage', () => {
     it('a fresh load with the default tab spelled out (?tab=unconfirmed) opens it and normalizes the URL to absence', async () => {
       admin.listShelters.mockResolvedValue(paged([USER_ROW]));
       const element = await freshLoadAt({ tab: 'unconfirmed' });
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('true');
       // Omit-defaults: the default's URL form is the param's ABSENCE.
       expect(router.url).toBe('/admin');
     });
@@ -4022,7 +4040,7 @@ describe('AdminPage', () => {
       await settle(fixture);
       // The previous tab (the default — its URL form is absence) is
       // active again.
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('true');
       expect(router.url).toBe('/admin');
     });
 
@@ -4050,7 +4068,7 @@ describe('AdminPage', () => {
       // ngOnInit (the normalization re-emission is a no-op there).
       expect(admin.listShelters).toHaveBeenCalledTimes(1);
       // The page reads the default tab (the fallback, never a blank page).
-      expect(buttonByText(element, 'Unconfirmed')!.getAttribute('aria-pressed')).toBe('true');
+      expect(unconfirmedTab(element)!.getAttribute('aria-pressed')).toBe('true');
     });
 
     it('every tab value is URL-addressable: a URL step to ?tab=… applies that tab (back/forward, a hand-edited link)', async () => {
@@ -4077,7 +4095,10 @@ describe('AdminPage', () => {
         await settle(fixture);
         // The URL's tab is the active tab — the URL step applied the
         // switch (back/forward and a hand-edited link take this path).
-        const pressed = buttonByText(element, labels[tab]);
+        const pressed =
+          tab === 'unconfirmed'
+            ? unconfirmedTab(element)
+            : buttonByText(element, labels[tab]);
         expect(pressed, `?tab=${tab}: no tab button '${labels[tab]}'`).not.toBeNull();
         expect(pressed!.getAttribute('aria-pressed'), `?tab=${tab} not active`).toBe('true');
       }

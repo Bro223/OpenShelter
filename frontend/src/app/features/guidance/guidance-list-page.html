@@ -71,9 +71,9 @@
                      ladder) is never too small. -->
                 <img
                   class="guidance-post__hero"
-                  [src]="heroUrl"
+                  [src]="heroUrl | apiUrl"
                   [alt]="post.heroImageAlt ?? ''"
-                  [attr.srcset]="post.heroImageSrcset ?? null"
+                  [attr.srcset]="(post.heroImageSrcset ?? null) | apiSrcset"
                   sizes="400px"
                   width="400"
                   height="300"
@@ -90,6 +90,18 @@
             <h2 class="guidance-post__title">
               <a [routerLink]="['/blog', post.slug]">{{ post.title }}</a>
             </h2>
+            @if (post.pinned) {
+              <!-- The editorial pin marker (P3a): the server sorts pinned
+                   posts first, but in the 4-column grid position is a
+                   weak "read this first" signal — the marker says it in
+                   words. The label reuses the admin's existing Pinned
+                   value (admin.guidance.col.pinned): no new key, no new
+                   copy. A card sibling of the title (not a title child),
+                   so the heading keeps its own accessible name. -->
+              <span class="badge badge--private guidance-post__pin">
+                {{ 'admin.guidance.col.pinned' | t }}
+              </span>
+            }
             <p class="guidance-post__date">
               {{ post.publishedAt | date: 'medium' : undefined : i18n.locale() }}
             </p>

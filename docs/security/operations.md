@@ -67,7 +67,7 @@ line.
 | `JWT_SECRET` | `app.jwt.secret` | ≥ 32 bytes, unique per environment, fail-closed outside dev/test |
 | `PII_AES_KEY` | `app.pii.aes-key` | 32-byte base64, `openssl rand -base64 32`, **unique per environment**, offline backup mandatory |
 | `PII_HMAC_KEY` | `app.pii.hmac-key` | same as above; rotates together with the AES key (README "PII at rest" D6) |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `app.admin.*` | BOTH set = an admin is seeded at startup; both empty = no admin exists. Strong password; rotate on exposure |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | `app.admin.*` | both set = an admin is created at startup ONLY IF no user with that email exists (create-if-absent — the seeder never re-hashes, so the env vars cannot rotate an existing admin; see §6); both empty = no admin exists. Strong password |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | datasource | production DB: dedicated user, no `postgres` superuser, strong password |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_FROM` | e-mail | `MAIL_PROVIDER=smtp-pulse` to go live; `SMTP_FROM` must be a verified sender |
 | `SMS_PROVIDER=twilio` + `TWILIO_*` | SMS | the sender fails fast at boot with missing credentials (no silent no-op) |
@@ -245,8 +245,51 @@ monitoring is health-probe + logs + the admin alert ring:
 | Incident | Immediate action |
 |----------|------------------|
 | Suspected **PII key** exposure | Rotate BOTH PII keys (AES + HMAC together, in one migration pass per README D6) + rotate `JWT_SECRET`; until the re-encryption migration lands, old-slot rows stay decryptable under their tag — plan the downtime accordingly. Until tooling exists (README D6: deliberately not built until scheduled), rotation is a manual re-encrypt migration — schedule it, don't improvise it. |
-| Suspected **admin credential** exposure | Change `ADMIN_PASSWORD` + restart (the seeder is idempotent; the existing row keeps its id) + review `moderation_actions` + `shelter_history` for the exposure window. |
+| Suspected **admin credential** exposure | Changing `ADMIN_PASSWORD` + restart does **not** rotate an existing admin — the seeder is create-if-absent and leaves the existing row untouched (verified; see "Rotating the provisioned admin's password" below). Rotate per that procedure + review `moderation_actions` + `shelter_history` for the exposure window. |
 | Suspected **JWT secret** exposure | Rotate `JWT_SECRET` + restart — every outstanding access/refresh token dies (15 min / 30 days) — acceptable, state it. |
 | **DB compromised/exposed** | Rotate DB password, take the DB offline, assess from the dump what leaked (PII is ciphertext — the keys are the question, see first row), restore from the last clean backup, re-run the registry import. |
 | **SMS/e-mail abuse in progress** | The per-contact cap already bounds volume; identify the contact(s) from the 429 log lines + the admin alert ring; the durable send log shows the volume; worst case, flip the provider to `dev` (console) temporarily — verification sends stop, but so does the abuse. |
 | **Bad data on the map (live emergency)** | Admin: mark inaccurate / request info / hide / delete (all audited); the provenance + "reported (n)" surfaces carry the warning until then. |
+
+### Rotating the provisioned admin's password
+
+The seeder is **create-if-absent** (`AdminSeeder.run`, verified): both env
+vars unset → no admin exists (no-op); `ADMIN_PASSWORD` shorter than 8
+characters → boot refused; a user with `ADMIN_EMAIL` ALREADY exists (any
+kind) → **no-op — the row is left completely untouched** (the seeder never
+re-hashes, never flips kind, never touches claims); only a missing row is
+created (kind ADMIN, Argon2id hash of `ADMIN_PASSWORD`).
+
+**Consequence: changing `ADMIN_PASSWORD` and restarting does not rotate an
+existing admin** — the running password silently drifts from the
+environment. There is also no in-app path: the provisioned admin is the
+deployment's access path, and the account surface refuses to mutate it —
+deletion, password reset, suspension and contact change all answer 403.
+
+What actually rotates it, in order of preference:
+
+1. **Swap the hash in place (keeps the user id — the audit trail keeps its
+   references).** Stop the app, generate an Argon2id hash of the new
+   password in the same form the app verifies (`Argon2PasswordEncoder`
+   with the Spring Security defaults, `SecurityConfig:69` — the hash
+   string embeds its own parameters), then:
+
+   ```sql
+   UPDATE user_credentials SET password_hash = '<new argon2id hash>'
+   WHERE user_id = <admin id>;
+   ```
+
+   Start the app and log in once to confirm before declaring the rotation
+done — the seeder stays a no-op on the restart (the row still exists).
+   **Gap (a finding):** the repo ships no hash-generation tooling for
+   this step; close it before the first rotation is needed.
+2. **De-provision + re-provision (the app's own mechanics, new id).** Stop
+   the app, set the new `ADMIN_PASSWORD`, then delete the admin's row:
+   `DELETE FROM users WHERE email = '<ADMIN_EMAIL>' AND kind = 'ADMIN';`
+   (the credentials row cascades with the user; the
+   `moderation_actions.moderator_id` FK is `ON DELETE SET NULL` and
+   `shelter_history.actor_user_id` has no FK — the old id renders
+   "Unknown" in both, the existing dangling-reference convention). Start
+   the app: the seeder creates the admin fresh, with the new password and
+   a new user id. The deletion anonymises the admin's past audit rows —
+   prefer procedure 1 when the audit trail is still load-bearing.

@@ -194,25 +194,32 @@ class SourceVocabularyTest {
      *
      * <p>The first entry is the working name the guidance translation work
      * (V26 and the translation rows it added) was written under; the
-     * feature shipped without the change ever being filed. The four
-     * entries after it are the admin and guidance working names the
+     * feature shipped without the change ever being filed. The next four
+     * entries are the admin and guidance working names the
      * family census (the verdict in
-     * reviews/polish/family-investigate.md) found the same way: each
-     * names live, shipped capability, but no change with its name was
-     * ever filed, so a reader has no proposal to open for any of them.
+     * reviews/polish/family-investigate.md) found the same way. The sixth
+     * entry is the admin content-locale working name, verified
+     * never-filed the same way (no live or archive directory, and
+     * `git log --all -S` under openspec/ empty — the verdict in
+     * reviews/polish/wrap-closer.md §3). Each names live, shipped
+     * capability, but no change with its name was ever filed, so a
+     * reader has no proposal to open for any of them.
      */
     private static final List<String> NEVER_MADE_CHANGE_NAMES = List.of(
             "bilingual-guidance", "admin-tab-persist", "admin-page-size",
-            "admin-guidance-search", "guidance-index-paging");
+            "admin-guidance-search", "guidance-index-paging", "admin-locale-scope");
 
     /**
-     * Floor on the never-made list (measured 5 on a clean tree — the one
-     * translation-work entry plus the four admin/guidance family entries).
-     * The list cannot be derived, so pruning it below the entries it was
-     * measured with would let the check pass on less than it was written
-     * for; the floor makes that a loud failure.
+     * Floor on the never-made list (measured 6 on a clean tree — the one
+     * translation-work entry, the four admin/guidance family entries,
+     * and the sixth working name verified never-filed the family way:
+     * no live or archive directory, `git log --all -S` under openspec/
+     * empty — reviews/polish/wrap-closer.md §3). The list cannot be
+     * derived, so pruning it below the entries it was measured with
+     * would let the check pass on less than it was written for; the
+     * floor makes that a loud failure.
      */
-    private static final int MIN_NEVER_MADE_CHANGE_NAMES = 5;
+    private static final int MIN_NEVER_MADE_CHANGE_NAMES = 6;
 
     /**
      * Floor on the frontend files the never-made check must still walk

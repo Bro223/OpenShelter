@@ -83,6 +83,14 @@
   }
 }
 
+/* The editorial pin marker (P3a): the card's "read this first" chip.
+   The NEUTRAL description-chip vocabulary (badge--private — it labels
+   the post, not a state to act on). Content-sized on the card's column
+   axis so the chip never stretches the grid track. */
+.guidance-post__pin {
+  align-self: flex-start;
+}
+
 .guidance-post__date {
   color: var(--color-muted);
   font-size: var(--text-sm);

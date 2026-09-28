@@ -21,7 +21,7 @@
       [attr.aria-pressed]="tab() === 'unconfirmed' ? 'true' : 'false'"
       (click)="switchTab('unconfirmed')"
     >
-      {{ 'admin.tabs.unconfirmed' | t }}
+      {{ 'admin.tabs.unconfirmed' | t }}{{ unconfirmed.tabCount() }}
     </button>
     <button
       type="button"

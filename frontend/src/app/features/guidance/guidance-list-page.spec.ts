@@ -457,12 +457,22 @@ describe('GuidanceListPage (/blog)', () => {
       'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
     guidanceGateway.rows = [
       guidancePost({ heroImageUrl: heroUrl, heroImageAlt: 'A kettle on a camp stove' }),
+      // The pinned sibling: the card-shape re-pin below (P3a).
+      guidancePost({
+        slug: 'power-outages',
+        title: 'Power outages',
+        pinned: true,
+        heroImageUrl: heroUrl,
+        heroImageAlt: 'A kettle on a camp stove',
+      }),
     ];
     const { element } = await open('/blog');
 
     const card = element.querySelector('.guidance-post') as HTMLElement;
     // The card's direct children, in order: thumbnail -> title -> date
     // (the thumbnail is the card's TOP element, not a row sibling).
+    // The non-pinned shape is unchanged — the pin marker is conditional
+    // on the DTO's `pinned` (the pinned card is re-pinned below).
     expect([...card.children].map((c) => c.className)).toEqual([
       'guidance-post__hero',
       'guidance-post__title',
@@ -472,6 +482,23 @@ describe('GuidanceListPage (/blog)', () => {
     const img = card.querySelector('.guidance-post__hero') as Element;
     const link = card.querySelector('.guidance-post__title a') as Element;
     expect(img.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // RE-PIN (owner-ruled P3a — the pinned-spec conflict cleared
+    // deliberately): a PINNED card gains exactly one direct child between
+    // title and date — the pin badge. Before it, the DTO's `pinned` was
+    // rendered nowhere on the public surface, so the server's
+    // pinned-first sort was the only "read this first" (positional, and
+    // weak in a 4-column grid). The badge reuses the admin's existing
+    // Pinned value (admin.guidance.col.pinned) — no new key, no new copy;
+    // it is a card sibling, so the heading keeps its own accessible name.
+    const pinnedCard = element.querySelectorAll('.guidance-post')[1] as HTMLElement;
+    expect([...pinnedCard.children].map((c) => c.className)).toEqual([
+      'guidance-post__hero',
+      'guidance-post__title',
+      'badge badge--private guidance-post__pin',
+      'guidance-post__date',
+    ]);
+    expect(pinnedCard.querySelector('.guidance-post__pin')?.textContent?.trim()).toBe('Pinned');
   });
 
   it('falls back to an empty (decorative) alt when the stored alt is null', async () => {
