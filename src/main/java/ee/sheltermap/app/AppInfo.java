@@ -4,11 +4,10 @@ package ee.sheltermap.app;
  * App-level display facts shared across packages.
  *
  * <p>{@link #APP_DISPLAY_NAME} is the product name used in every
- * user-received message (e-mail, SMS, SMTP subject). It lives here —
- * in the dependency-free {@code app} layer, which both {@code auth}
- * and {@code verification} already import (verification → app is
- * acyclic: {@code app} imports only {@code domain}) — so the brand
- * cannot drift between channels.
+ * user-received message (e-mail, SMS, SMTP subject). It lives here, in
+ * the {@code app} layer both {@code auth} and {@code verification}
+ * already import (and that imports neither of them back) — so the
+ * brand cannot drift between channels.
  *
  * <p>Deliberately one spelling of the brand: the product is
  * OpenShelter (frontend {@code core/title.ts} APP_NAME, browser tabs,

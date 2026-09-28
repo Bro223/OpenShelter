@@ -13,9 +13,9 @@ import java.util.function.Supplier;
  * null manager) it runs directly.
  *
  * <p>The boundary belongs to the service because the provider send sits
- * OUTSIDE any transaction (send-first-then-commit, reviews F2), so the
- * seam is called per phase, not around the whole flow. Package-private:
- * it is a wiring detail of the auth services, not a public API.
+ * OUTSIDE any transaction (send-first-then-commit), so the seam is
+ * called per phase, not around the whole flow. Package-private: it is
+ * a wiring detail of the auth services, not a public API.
  */
 final class Transactions {
 

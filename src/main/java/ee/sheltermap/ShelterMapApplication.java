@@ -7,9 +7,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 /**
  * OpenShelter backend — application entry point.
  *
- * <p>The packages {@code domain}, {@code app}, {@code verification},
- * {@code auth}, {@code ingestion}, {@code api} and {@code persistence} hold
- * the application code; this class is the entry point only.</p>
+ * <p>The application code lives in the sub-packages under this root;
+ * this class is the entry point only.</p>
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

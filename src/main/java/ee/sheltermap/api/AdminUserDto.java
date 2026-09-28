@@ -8,11 +8,11 @@ import java.time.Instant;
 /**
  * The admin user-suspension list row — the account
  * identity the Users tab needs plus its suspension state. {@code kind}
- * is the machine value (GUEST | REGISTERED | ADMIN); guests never
- * appear in the list (they have no credentials to suspend), and an
- * ADMIN row is listed so the provisioned account is visible but not
- * suspendable (409). E-mail is admin-only data, served from
- * {@code /admin/*} only (the reporter-identity convention).
+ * is the machine value (REGISTERED | ADMIN); guests never appear in
+ * the list (they have no credentials to suspend), and an ADMIN row is
+ * listed so the provisioned account is visible but not suspendable
+ * (403). E-mail is admin-only data, served from {@code /admin/*} only
+ * (the reporter-identity convention).
  */
 @Schema(description = "The admin user-suspension list row — the account "
         + "identity the Users tab needs plus its suspension state. kind is "

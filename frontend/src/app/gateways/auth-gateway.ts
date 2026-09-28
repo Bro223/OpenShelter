@@ -45,10 +45,11 @@ export class AuthGateway {
   }
 
   /**
-   * POST /auth/password-reset/request -> always 200 (anti-enumeration:
-   * the UI must never distinguish "unknown email"). The ack body carries
-   * the server's resend cooldown in seconds — the UI runs its countdown
-   * from it, because the server silently skips sends inside the cooldown.
+   * POST /auth/password-reset/request -> 200 (anti-enumeration: the UI
+   * must never distinguish "unknown email" — the one exception, the
+   * provisioned admin e-mail, is refused 403). The ack body carries the
+   * server's resend cooldown in seconds — the UI runs its countdown from
+   * it, because the server silently skips sends inside the cooldown.
    */
   requestPasswordReset(email: string): Promise<ResendAck> {
     const body: PasswordResetRequest = { email };
@@ -58,8 +59,10 @@ export class AuthGateway {
   /**
    * POST /auth/password-reset/confirm -> 200. The e-mail scopes the 6-digit
    * code to the account it was sent to; ANY failure (unknown email / wrong /
-   * expired / used / over-limit) answers 400 with one generic message, so
-   * the page must not treat the 400 as account-existence information.
+   * expired / used / over-limit) answers 400 with one generic message — the
+   * provisioned admin e-mail is refused 403, the (IP, e-mail) anti-guess
+   * bucket 429 — so the page must not treat the 400 as account-existence
+   * information.
    */
   resetPassword(email: string, code: string, newPassword: string): Promise<void> {
     const body: PasswordResetConfirmRequest = { email, code, newPassword };
