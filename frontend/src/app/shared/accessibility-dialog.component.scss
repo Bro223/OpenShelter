@@ -157,15 +157,29 @@
   text-decoration: none;
 }
 
-/* Primary buttons INVERT: the --color-text value as the fill, black
-   text (--color-bg-surface — the btn--primary convention) = 14.67:1.
-   The hover takes the primary-hover token (black on it 11.79:1). */
+/* Primary buttons OUTLINE (owner request): the theme's black surface
+   token as the fill, the --color-text yellow as the border AND the
+   label — the same outlined language as the uniform badge ruling below
+   (label + border 14.67:1 on the fill). The hover fill is
+   --color-surface-hover (the theme's dark amber surface; label + border
+   on it 10.83:1) — NOT --color-primary-hover: that token is a LIGHT
+   fill (the old filled button's hover), and the yellow label on it
+   measures 1.24:1 — the unreadable hover this request exists to avoid.
+   :focus-visible is the global --color-primary ring, drawn 2px outside
+   the border on the page background (10.23:1 on the black page/band);
+   :active keeps the hover fill (no .btn variant in the app declares
+   :active — app-wide convention); :disabled inherits .btn's opacity
+   0.55 (effective label + border on black 4.66:1 — past the text and
+   the UI floors). design-tokens.spec.ts pins the rule + its enforced
+   pairs. */
 [data-theme='black-and-yellow'] .btn--primary {
-  background: var(--color-text);
+  background: var(--color-bg-surface);
+  border-color: var(--color-text);
+  color: var(--color-text);
 }
 
 [data-theme='black-and-yellow'] .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--color-surface-hover);
 }
 
 /* The chrome band (header, footer + its links, the <900px menu panel)
