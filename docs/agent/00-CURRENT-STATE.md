@@ -91,13 +91,13 @@ Anchors, row by row:
   yellow is the *same* `#ffd400` in every theme
   (`frontend/src/styles.scss:182,431`; `frontend/src/app/core/theme-tokens.ts:140-141`).
 - **`--color-new` is unified with the verified green — one value per theme** (owner
-  decision, enforced in a spec: `frontend/src/app/design-tokens.spec.ts:924`). Light
+  decision, enforced in a spec: `frontend/src/app/design-tokens.spec.ts:941`). Light
   `frontend/src/styles.scss:102,115`; high-contrast `frontend/src/styles.scss:393,398`;
   black-and-yellow `frontend/src/app/core/theme-tokens.ts:98-99,103`.
 - **Red-orange is reserved for reported**: no other state uses the red family — the pick
   pin's own comment: "red is reserved for" (`frontend/src/styles.scss:898-899`); the
   marker-meaning pin keeps it a distinct family in every theme
-  (`frontend/src/app/design-tokens.spec.ts:960`). The pin palette has no grey — the
+  (`frontend/src/app/design-tokens.spec.ts:977`). The pin palette has no grey — the
   marker's owner-decision record says "there is no grey in it"
   (`frontend/src/styles.scss:831-832`).
 - **Depth is carried by hue, in words** (WCAG 1.4.1 — never colour alone on a pin):
@@ -326,7 +326,7 @@ both tallies read their inputs from the same dismissed-excluded store query
    written for" (`docs/autopilot/findings/LEDGER.md:265`), and the literal-token audit
    being blind to computed `color-mix()` fills — the spec's own words:
    "the token pairs above pass while the mix can still fail"
-   (`frontend/src/app/design-tokens.spec.ts:866-876`). Lesson: a green guard
+   (`frontend/src/app/design-tokens.spec.ts:883-893`). Lesson: a green guard
    proves the guard ran, not that the behaviour exists — verify the path the guard was
    written for, then trust the guard.
 

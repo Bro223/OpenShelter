@@ -742,6 +742,23 @@ describe('design tokens', () => {
     ).flatMap(([fg, bg]) =>
       (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
     ),
+    // The dense admin tab bar's active underline (admin-page.scss
+    // .admin-tab--active): the 2px --color-primary line on the page
+    // background. A NEW pair to the design (the underline is the app's
+    // active-nav idiom on the page-surface accent token) — computed but not
+    // previously pinned, so it is added to the UI-component-boundary floor
+    // (WCAG 1.4.11) in all three themes: light 5.33 / high-contrast 9.41 /
+    // black-and-yellow 10.23 (the focus ring rides the same pair).
+    ...(
+      [['--color-primary', '--color-bg']] as [string, string][]
+    ).flatMap(([fg, bg]) =>
+      (['light', 'high-contrast', 'black-and-yellow'] as const).map((theme) => ({
+        theme,
+        fg,
+        bg,
+        min: 3,
+      })),
+    ),
     // Black-and-yellow UI boundaries: the band's background is pure black,
     // so its edges clear 3:1 here (divider + ghost-button edge 4.58:1,
     // the ghost's resting/hover fills are the documented exemptions

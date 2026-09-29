@@ -12,28 +12,39 @@
   padding: var(--space-8) var(--space-16);
 }
 
-/* The tab row: a scrollable row of chips (mobile: the tabs scroll, the
-   page doesn't wrap). The active tab is the primary fill. */
+/* The tab row: a scrollable row of DENSE tabs (mobile: the tabs scroll,
+   the page doesn't wrap). Repeated in-view navigation, not an action row —
+   the deliberate exception to the 48px .btn rule (report §9): 32px targets
+   (above WCAG 2.5.8's 24px floor), borderless muted text at rest, the
+   active tab in the page text colour with the 2px accent underline — the
+   app's active-nav idiom (page-shell.scss .shell-nav a.active) on the
+   page-surface accent token. */
 .admin-tabs {
   display: flex;
   gap: var(--space-8);
   overflow-x: auto;
-  padding-bottom: var(--space-8);
   margin-bottom: var(--space-16);
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.admin-tab--active {
-  background: var(--color-primary);
-  /* The tab is a ghost button: without this the ghost border rims the
-     primary fill (pre-extraction behaviour, lost in the stylesheet split).
-     Text on primary is --color-bg-surface (the token contract for text on
-     the primary fill). */
+/* The dense tab: the .btn base keeps the inline-flex centring and the 1px
+   (now transparent) border, so the box model only loses the ghost border's
+   paint. This rule overrides the 48px target, the ghost border, the text
+   colour and the type step for this one control group; the global .btn
+   keeps its 48px rule for every action target (design-tokens.spec.ts
+   "48px touch targets" pin — untouched). */
+.admin-tab {
+  min-height: var(--space-32);
+  padding: 0 var(--space-12);
   border-color: transparent;
-  color: var(--color-bg-surface);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
 
-  &:hover:not(:disabled) {
-    background: var(--color-primary-hover);
-    color: var(--color-bg-surface);
-  }
+.admin-tab--active {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary);
+  text-decoration-thickness: var(--space-2);
+  text-underline-offset: var(--space-4);
 }

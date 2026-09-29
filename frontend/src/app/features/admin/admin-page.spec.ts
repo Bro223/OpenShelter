@@ -2237,21 +2237,31 @@ describe('AdminPage', () => {
     );
   });
 
-  it('the active tab fills primary without a ghost border or off-contract text (admin-page.scss)', () => {
+  it('the active tab is the underline idiom without a fill or off-contract text (admin-page.scss)', () => {
+    // RE-PINNED (owner decision: the dense tab bar — the active tab is the
+    // 2px accent underline, not the primary fill). The fill contract this
+    // test used to pin (text-on-primary --color-bg-surface) belongs to the
+    // retired filled-tab design: as active-tab text on the page surface the
+    // token is illegible in every theme (light #ffffff on #f4f6f8 = 1.08:1,
+    // high-contrast #141414 on #0a0a0a = 1.07:1, black-and-yellow
+    // #000000 on #000000 = 1.0:1), so the underline state cannot keep it.
+    // Deliberate re-pin, not a loosening: the rule-existence assertion and
+    // the --color-text-inverse negative check survive, and the underline's
+    // pair (--color-primary on --color-bg) is enforced at 3:1 in
+    // design-tokens.spec.ts.
     const scss = readFileSync(`${process.cwd()}/src/app/features/admin/admin-page.scss`, 'utf8');
     const block = scss.match(/\.admin-tab--active \{[\s\S]*?\n\}/);
     expect(block, 'admin-page.scss must keep the .admin-tab--active rule').not.toBeNull();
     const rule = block![0];
-    // The tab is a ghost button: without this the ghost border rims the
-    // primary fill.
-    expect(rule, 'the active tab must hide the ghost border').toMatch(/border-color: transparent/);
-    // Text on primary is --color-bg-surface (the token contract for text
-    // on the primary fill). An undefined var() — the split's
-    // --color-text-inverse — silently falls back to the inherited text
-    // colour and breaks the light theme's contrast.
-    expect(rule, 'the active tab text follows the text-on-primary contract').toMatch(
-      /color: var\(--color-bg-surface\)/,
+    expect(rule, 'the active tab paints no fill (the dense idiom is underline, not primary fill)').not
+      .toMatch(/background/);
+    expect(rule, 'the active tab text is the page text token').toMatch(/color: var\(--color-text\)/);
+    expect(rule, 'the underline is the 2px accent — the app active-nav idiom').toMatch(
+      /text-decoration: underline/,
     );
+    expect(rule).toMatch(/text-decoration-color: var\(--color-primary\)/);
+    expect(rule).toMatch(/text-decoration-thickness: var\(--space-2\)/);
+    expect(rule).toMatch(/text-underline-offset: var\(--space-4\)/);
     expect(rule, 'no undefined --color-text-inverse token').not.toMatch(/--color-text-inverse/);
   });
 
