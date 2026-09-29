@@ -1901,6 +1901,66 @@ describe('design tokens', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  it('the theme layer outlines the black-and-yellow .btn--primary (owner request): black surface fill, theme-yellow border + label, a hover fill dark enough for the label', () => {
+    // Before this pin: the B&Y .btn--primary was the inverted FILL (the
+    // --color-text yellow as the fill, the black --color-bg-surface label,
+    // the light-fill --color-primary-hover on hover). Owner request:
+    // OUTLINED instead — black fill, yellow border + yellow label, and a
+    // hover fill that stays dark while the label stays readable (the
+    // light primary-hover fill under a yellow label is 1.24:1 — the
+    // unreadable state). Mechanism assertion — jsdom cannot measure
+    // computed style (the repo's established pattern); the token pairs
+    // the rule rests on are contrast-checked below against the runtime
+    // tokens the page actually applies.
+    const themeScss = readFileSync(
+      `${SRC_DIR}/app/shared/accessibility-dialog.component.scss`,
+      'utf8',
+    );
+    expect(themeScss).toMatch(
+      /\[data-theme='black-and-yellow'\] \.btn--primary \{\s*background: var\(--color-bg-surface\);\s*border-color: var\(--color-text\);\s*color: var\(--color-text\);\s*\}/s,
+    );
+    expect(themeScss).toMatch(
+      /\[data-theme='black-and-yellow'\] \.btn--primary:hover:not\(:disabled\) \{\s*background: var\(--color-surface-hover\);\s*\}/s,
+    );
+    // The pairs sit in the ENFORCED list at their thresholds (text 4.5:1,
+    // focus-ring boundary 3:1) — not described in a comment. Every one is
+    // already a member of CONTRAST_CHECKS (the yellow-on-black text pairs
+    // fan across all three themes in TEXT_PAIRS; the focus ring rides the
+    // admin-tab-underline boundary pair); this pin fails if any of them
+    // is dropped from the enforced set again.
+    const enforced = new Set(CONTRAST_CHECKS.map((c) => `${c.theme}|${c.fg}|${c.bg}|${c.min}`));
+    expect(
+      enforced.has('black-and-yellow|--color-text|--color-bg-surface|4.5'),
+      'the outlined button label + border vs the black fill must sit in the enforced contrast list at 4.5:1',
+    ).toBe(true);
+    expect(
+      enforced.has('black-and-yellow|--color-text|--color-bg|4.5'),
+      'the outlined button border vs the black page must sit in the enforced contrast list at 4.5:1',
+    ).toBe(true);
+    expect(
+      enforced.has('black-and-yellow|--color-text|--color-surface-hover|4.5'),
+      'the hover label + border vs the dark hover fill must sit in the enforced contrast list at 4.5:1',
+    ).toBe(true);
+    expect(
+      enforced.has('black-and-yellow|--color-primary|--color-bg|3'),
+      'the focus ring vs the black page must sit in the enforced contrast list at 3:1',
+    ).toBe(true);
+    // Measured on the runtime tokens the page actually applies.
+    const label = byTokens.get('--color-text')!;
+    const fill = byTokens.get('--color-bg-surface')!;
+    const hoverFill = byTokens.get('--color-surface-hover')!;
+    const page = byTokens.get('--color-bg')!;
+    const ring = byTokens.get('--color-primary')!;
+    expect(contrast(label, fill), 'label + border on the black fill').toBeGreaterThanOrEqual(4.5);
+    expect(contrast(label, page), 'label + border against the black page').toBeGreaterThanOrEqual(4.5);
+    expect(contrast(label, hoverFill), 'hover label + border on the dark hover fill').toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(contrast(ring, page), 'focus ring against the black page (drawn outside the border)').toBeGreaterThanOrEqual(
+      3,
+    );
+  });
+
   it('form controls and links carry explicit token colours (UA defaults do not follow [data-theme])', () => {
     // The "dark text on a dark background" bug class: <a>/<button>/<input>
     // without a scoped colour rule fall back to the UA stylesheet (blue
