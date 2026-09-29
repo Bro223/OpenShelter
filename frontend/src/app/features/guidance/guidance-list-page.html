@@ -73,7 +73,7 @@
                   class="guidance-post__hero"
                   [src]="heroUrl | apiUrl"
                   [alt]="post.heroImageAlt ?? ''"
-                  [attr.srcset]="(post.heroImageSrcset ?? null) | apiSrcset"
+                  [attr.srcset]="post.heroImageSrcset ?? null | apiSrcset"
                   sizes="400px"
                   width="400"
                   height="300"

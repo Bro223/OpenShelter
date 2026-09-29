@@ -16,12 +16,7 @@ import {
  *  the edit-mode prefill: the pin comes from the row being edited, not
  *  from a capture — it renders no "Location from …" hint. */
 export type LocationSource =
-  | 'typed'
-  | 'link'
-  | 'geolocation'
-  | 'map-pick'
-  | 'address-search'
-  | 'saved';
+  'typed' | 'link' | 'geolocation' | 'map-pick' | 'address-search' | 'saved';
 
 /** The ONE shared location state: every capture mode writes it, the map
  *  marker + the read-only readout read it. */

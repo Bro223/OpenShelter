@@ -14,11 +14,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
-import type {
-  CreateShelterRequest,
-  MineShelterDto,
-  ShelterDto,
-} from '../../core/models';
+import type { CreateShelterRequest, MineShelterDto, ShelterDto } from '../../core/models';
 import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';

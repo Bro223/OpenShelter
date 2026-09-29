@@ -749,9 +749,7 @@ describe('design tokens', () => {
     // previously pinned, so it is added to the UI-component-boundary floor
     // (WCAG 1.4.11) in all three themes: light 5.33 / high-contrast 9.41 /
     // black-and-yellow 10.23 (the focus ring rides the same pair).
-    ...(
-      [['--color-primary', '--color-bg']] as [string, string][]
-    ).flatMap(([fg, bg]) =>
+    ...([['--color-primary', '--color-bg']] as [string, string][]).flatMap(([fg, bg]) =>
       (['light', 'high-contrast', 'black-and-yellow'] as const).map((theme) => ({
         theme,
         fg,

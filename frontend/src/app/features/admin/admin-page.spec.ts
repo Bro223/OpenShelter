@@ -474,8 +474,8 @@ describe('AdminPage', () => {
    *  state, not part of the tab's identity. */
   function unconfirmedTab(root: HTMLElement): HTMLButtonElement | null {
     return (
-      [...root.querySelectorAll<HTMLButtonElement>('button.admin-tab')].find(
-        (b) => (b.textContent ?? '').trim().startsWith('Unconfirmed'),
+      [...root.querySelectorAll<HTMLButtonElement>('button.admin-tab')].find((b) =>
+        (b.textContent ?? '').trim().startsWith('Unconfirmed'),
       ) ?? null
     );
   }
@@ -2253,9 +2253,13 @@ describe('AdminPage', () => {
     const block = scss.match(/\.admin-tab--active \{[\s\S]*?\n\}/);
     expect(block, 'admin-page.scss must keep the .admin-tab--active rule').not.toBeNull();
     const rule = block![0];
-    expect(rule, 'the active tab paints no fill (the dense idiom is underline, not primary fill)').not
-      .toMatch(/background/);
-    expect(rule, 'the active tab text is the page text token').toMatch(/color: var\(--color-text\)/);
+    expect(
+      rule,
+      'the active tab paints no fill (the dense idiom is underline, not primary fill)',
+    ).not.toMatch(/background/);
+    expect(rule, 'the active tab text is the page text token').toMatch(
+      /color: var\(--color-text\)/,
+    );
     expect(rule, 'the underline is the 2px accent — the app active-nav idiom').toMatch(
       /text-decoration: underline/,
     );
@@ -3568,8 +3572,9 @@ describe('AdminPage', () => {
       });
       // …the search composes WITH the chip (AND on the server) and resets
       // the page to 1.
-      views(fixture.debugElement.query(By.directive(AdminPage))!.componentInstance as AdminPage)
-        .shelters.searchQuery.setValue('kelder');
+      views(
+        fixture.debugElement.query(By.directive(AdminPage))!.componentInstance as AdminPage,
+      ).shelters.searchQuery.setValue('kelder');
       (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
         new Event('submit', { bubbles: true, cancelable: true }),
       );
@@ -4106,9 +4111,7 @@ describe('AdminPage', () => {
         // The URL's tab is the active tab — the URL step applied the
         // switch (back/forward and a hand-edited link take this path).
         const pressed =
-          tab === 'unconfirmed'
-            ? unconfirmedTab(element)
-            : buttonByText(element, labels[tab]);
+          tab === 'unconfirmed' ? unconfirmedTab(element) : buttonByText(element, labels[tab]);
         expect(pressed, `?tab=${tab}: no tab button '${labels[tab]}'`).not.toBeNull();
         expect(pressed!.getAttribute('aria-pressed'), `?tab=${tab} not active`).toBe('true');
       }

@@ -44,7 +44,15 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
  */
 @Component({
   selector: 'app-guidance-detail-page',
-  imports: [DatePipe, RouterLink, BannerComponent, LoadingIndicator, TranslatePipe, ApiUrlPipe, ApiSrcsetPipe],
+  imports: [
+    DatePipe,
+    RouterLink,
+    BannerComponent,
+    LoadingIndicator,
+    TranslatePipe,
+    ApiUrlPipe,
+    ApiSrcsetPipe,
+  ],
   templateUrl: './guidance-detail-page.html',
   styleUrl: './guidance-detail-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

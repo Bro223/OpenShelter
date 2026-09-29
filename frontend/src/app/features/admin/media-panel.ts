@@ -32,7 +32,15 @@ import { PAGE_SIZES } from '../../shared/paging';
  */
 @Component({
   selector: 'app-media-panel',
-  imports: [DatePipe, LoadingIndicator, ListState, Pagination, TranslatePipe, ApiUrlPipe, ApiSrcsetPipe],
+  imports: [
+    DatePipe,
+    LoadingIndicator,
+    ListState,
+    Pagination,
+    TranslatePipe,
+    ApiUrlPipe,
+    ApiSrcsetPipe,
+  ],
   templateUrl: './media-panel.html',
   styleUrl: './media-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

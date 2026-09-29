@@ -69,7 +69,7 @@
                 class="admin-media-thumb"
                 [src]="row.url | apiUrl"
                 [alt]="row.originalFilename"
-                [attr.srcset]="(row.srcset ?? null) | apiSrcset"
+                [attr.srcset]="row.srcset ?? null | apiSrcset"
                 sizes="48px"
                 width="48"
                 height="48"

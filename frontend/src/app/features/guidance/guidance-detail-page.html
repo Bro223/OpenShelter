@@ -43,7 +43,7 @@
             class="guidance-detail__hero"
             [src]="heroUrl | apiUrl"
             [alt]="p.heroImageAlt ?? ''"
-            [attr.srcset]="(p.heroImageSrcset ?? null) | apiSrcset"
+            [attr.srcset]="p.heroImageSrcset ?? null | apiSrcset"
             sizes="704px"
             fetchpriority="high"
             decoding="async"

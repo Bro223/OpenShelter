@@ -526,7 +526,7 @@ export class AdminPage implements OnInit, OnDestroy {
     // that list loads immediately (the queue stays warm for every active
     // tab); the Shelters tab's paged view and the other tabs load lazily
     // on first switch (a visit after a load keeps the in-memory rows —
-       // the queue does not refetch itself).
+    // the queue does not refetch itself).
     this.unconfirmed.load();
   }
 
@@ -744,7 +744,9 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   private patchUser(id: number, patch: Partial<AdminUserDto>): void {
-    this.users.rows.update((rows) => (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    this.users.rows.update((rows) =>
+      (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
   }
 
   // -------------------------------------------------------------------------

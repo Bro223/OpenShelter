@@ -68,9 +68,7 @@ export class UnconfirmedView {
    *  translation, the tab word supplies the context). '' while the
    *  initial load is in flight: before a load, `(0)` would read "empty"
    *  for "unknown". P5 (owner-ruled): the queue depth on the tab. */
-  readonly tabCount = computed(() =>
-    this.queueRows() === null ? '' : ` (${this.rows().length})`,
-  );
+  readonly tabCount = computed(() => (this.queueRows() === null ? '' : ` (${this.rows().length})`));
   /** The row whose reject-reason editor is open (null = closed). */
   readonly rejectRowFor = signal<AdminShelterDto | null>(null);
   /** The reject reason: required (non-blank — the shared blank validator,

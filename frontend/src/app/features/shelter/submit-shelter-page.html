@@ -159,7 +159,9 @@
               [disabled]="capture.resolvingLink() || capture.locating()"
             >
               {{
-                capture.resolvingLink() ? ('submit.location.resolving' | t) : ('submit.location.set' | t)
+                capture.resolvingLink()
+                  ? ('submit.location.resolving' | t)
+                  : ('submit.location.set' | t)
               }}
             </button>
           </div>

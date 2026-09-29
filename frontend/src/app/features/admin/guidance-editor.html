@@ -143,7 +143,7 @@
             class="guidance-editor__hero-thumb"
             [src]="hero.url | apiUrl"
             [alt]="hero.name"
-            [attr.srcset]="(hero.srcset ?? null) | apiSrcset"
+            [attr.srcset]="hero.srcset ?? null | apiSrcset"
             sizes="56px"
             width="56"
             height="56"
@@ -204,7 +204,7 @@
                     <img
                       [src]="asset.url | apiUrl"
                       [alt]="asset.originalFilename"
-                      [attr.srcset]="(asset.srcset ?? null) | apiSrcset"
+                      [attr.srcset]="asset.srcset ?? null | apiSrcset"
                       sizes="72px"
                       width="72"
                       height="72"
