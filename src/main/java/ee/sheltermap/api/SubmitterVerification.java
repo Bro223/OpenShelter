@@ -8,18 +8,20 @@ import java.util.Set;
  * The submitter's verification DEPTH, served with every shelter row.
  *
  * <p>For a row whose author is still alive it is derived on EVERY read
- * from the author's CURRENT active claims — a row added while its
- * submitter had one channel upgrades itself the moment the second
- * channel is confirmed, so the badge cannot go stale (the same
- * derive-on-read discipline as {@code Provenance} and the reporter weights).
+ * from the author's EVER-REACHED claims ({@code RegisteredUser#everLevels()})
+ * — the "is or was" rule: a row added while its submitter had one
+ * channel upgrades itself the moment a second channel is confirmed, and
+ * a channel that was later revoked does NOT un-reach it, so the badge
+ * cannot go stale or regress (the same derive-on-read discipline as
+ * {@code Provenance} and the reporter weights).
  *
  * <p>When the author is gone (the account was erased) the row serves the
- * depth FROZEN on it instead — the V35 snapshot, the standing the row
- * had while the account was active; {@link #stored} is the read seam for
+ * depth FROZEN on it instead — the V35 snapshot, the highest standing the
+ * row's submitter ever reached; {@link #stored} is the read seam for
  * that column. {@code null} (the record field is absent) means no depth
  * to serve: a registry row, an orphan whose snapshot is null (a pre-V35
- * orphan, or an author with nothing confirmed at erasure), or a live
- * author with no confirmed channel yet.
+ * orphan, or a submitter with nothing ever confirmed), or a live author
+ * with no confirmed channel yet.
  */
 public enum SubmitterVerification {
 
@@ -33,8 +35,11 @@ public enum SubmitterVerification {
     FULL;
 
     /**
-     * @param levels the author's active (non-revoked) claim levels; null or
-     *               empty when there is no author or nothing is confirmed yet
+     * @param levels the depth levels to reduce — for the pin rule this is
+     *               the submitter's EVER-reached set
+     *               ({@code RegisteredUser#everLevels()}), not only the
+     *               currently active claims; null or empty when there is
+     *               no author or nothing was ever confirmed
      * @return {@code null} when nothing is verifiable, the single level when
      *         exactly one is confirmed, {@link #FULL} at two or more
      */

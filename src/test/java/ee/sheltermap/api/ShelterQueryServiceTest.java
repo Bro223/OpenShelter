@@ -504,6 +504,32 @@ class ShelterQueryServiceTest {
     }
 
     @Test
+    void aRevokedChannelStillServesItsDepthForALivingAuthor() {
+        // The owner's "is or was" pin rule at the read seam: the depth is
+        // the HIGHEST the author ever reached — a revocation stops the
+        // channel counting as CURRENT verification (levels()), but it does
+        // not un-reach it, so the pin keeps the standing it once had.
+        // Pre-fix this read ABSENT (the current-active rule) — the owner's
+        // complaint: a partially-verified pin invisible to the legend's
+        // "added by a partially verified user" filter.
+        RegisteredUser author = new RegisteredUser("Liisa", "liisa@example.ee", "+3725550002");
+        author.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp",
+                "liisa@example.ee", NOW));
+        users.save(author);
+        userShelter.setCreatedBy(author.getId());
+
+        author.revoke(VerificationLevel.EMAIL, NOW);
+        users.save(author);
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+        assertThat(dto.submitterVerification()).isEqualTo(SubmitterVerification.EMAIL);
+        // The write-capability boolean is the CURRENT state (no active
+        // claim left -> false on this pre-V31 fixture); the pin's depth is
+        // the history. The two fields deliberately disagree here.
+        assertThat(dto.submitterVerified()).isFalse();
+    }
+
+    @Test
     void unverifiedCreatorGetsSubmitterVerifiedFalse() {
         userShelter.setCreatedBy(saveUser("Priit", "priit@example.ee", false));
 

@@ -165,12 +165,12 @@ public class AccountService {
         List<Shelter> mine = shelterRepository.findByCreatedBy(userId);
         // The V35 depth freeze: the submitter's verification DEPTH as the
         // orphaned rows read it at this very moment — the same pure
-        // function over the same active claim set the live derivation
-        // serves, so each orphaned row keeps exactly the standing it had
-        // while the account was active. Computed BEFORE the user row goes:
+        // function over the same EVER-reached claim set the live derivation
+        // serves, so each orphaned row keeps the highest standing its
+        // submitter ever reached. Computed BEFORE the user row goes:
         // the claim set cascades away with it, and this is the last moment
         // it can be read.
-        SubmitterVerification depthAtErasure = SubmitterVerification.of(user.getData().levels());
+        SubmitterVerification depthAtErasure = SubmitterVerification.of(user.everLevels());
         purgePrivateHomesAndOrphanPublicRows(mine, depthAtErasure);
 
         // The audit rows stay; their free text goes.
@@ -188,10 +188,10 @@ public class AccountService {
      * is purged; a public community row is orphaned — {@code created_by}
      * and the submitter-facing review note go NULL, the review and open
      * status stay exactly as they were, and the V35 depth snapshot is
-     * re-frozen to {@code depthAtErasure} (the row's standing at the
-     * moment of the erasure): the live derivation dies with the author,
+     * re-frozen to {@code depthAtErasure} (the highest standing the row's
+     * submitter ever reached): the live derivation dies with the author,
      * so the orphaned row serves this frozen depth instead of it. A null
-     * here means the author had nothing confirmed — the row reads
+     * here means the submitter never confirmed anything — the row reads
      * unverified, exactly as it read before the erasure.
      */
     private void purgePrivateHomesAndOrphanPublicRows(List<Shelter> shelters,

@@ -28,6 +28,9 @@ class UserHierarchyTest {
         User guest = new GuestUser();
         assertThat(guest.canWrite()).isFalse();
         assertThat(guest.getData().levels()).isEmpty();
+        // the ever-reached standing is empty for a guest too — the base
+        // answer every claim-less kind inherits
+        assertThat(guest.everLevels()).isEmpty();
     }
 
     @Test
@@ -76,9 +79,34 @@ class UserHierarchyTest {
         user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
         assertThat(snapshot.levels()).isEmpty();
         assertThat(user.getData().levels()).containsExactly(VerificationLevel.EMAIL);
+        // the ever-reached twin rides on the same frozen snapshot
+        assertThat(snapshot.everLevels()).isEmpty();
+        assertThat(user.getData().everLevels()).containsExactly(VerificationLevel.EMAIL);
         // …and the snapshot's collection cannot be mutated through the snapshot
         assertThatThrownBy(() -> snapshot.levels().add(VerificationLevel.SMART_ID))
                 .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void everLevelsSurviveRevocation() {
+        // The pin's "is or was" rule at the domain seam: levels() is the
+        // CURRENT standing (a revocation lowers it), everLevels() is the
+        // MONOTONIC one — every channel ever confirmed, revoked included.
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
+        assertThat(user.everLevels()).isEmpty();
+
+        user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
+        assertThat(user.everLevels()).containsExactly(VerificationLevel.EMAIL);
+
+        user.addVerification(claim(VerificationLevel.SMART_ID, "smart-id-ext-ref"));
+        assertThat(user.everLevels())
+                .containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.SMART_ID);
+
+        user.revoke(VerificationLevel.EMAIL, REVOKED_AT);
+        assertThat(user.levels()).containsExactly(VerificationLevel.SMART_ID);
+        // a revocation does not un-reach a channel
+        assertThat(user.everLevels())
+                .containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.SMART_ID);
     }
 
     @Test

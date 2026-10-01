@@ -40,9 +40,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * standing while the account is ACTIVE (the baseline the owner's rule
  * preserves), erases the account, and re-reads the SAME row: a fully
  * verified row must stay fully verified, a partially verified row must
- * stay partial, and a row that was unverified must stay unverified. If any
- * of the three fails, the invariant is broken — that is a bug to report,
- * not a test to bend.
+ * stay partial, and a row whose author LOST every channel keeps the depth
+ * the author had ever reached (the "is or was" rule — a revocation does
+ * not un-reach a channel; the erasure freezes that depth). If any of the
+ * three fails, the invariant is broken — that is a bug to report, not a
+ * test to bend.
  *
  * <p>Full-stack MockMvc against real services, security chain, JWT filter
  * and Postgres (the same acceptance seam as {@code AccountDeletionIT}).
@@ -187,23 +189,33 @@ class AccountErasureStandingIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void anUnverifiedRowStaysUnverifiedAfterTheAuthorErasesTheAccount() throws Exception {
-        // The author verified at write time (submission requires one
-        // channel) and then LOST it: the row reads unverified — no depth —
-        // while the account is still active.
+    void aChannelRevokedBeforeErasureStillFreezesItsDepthAfterTheAccountGoes() throws Exception {
+        // The owner's "is or was" pin rule, pinned at the erasure seam:
+        // a pin carries the HIGHEST depth its submitter ever reached — a
+        // later revocation does not un-reach a channel. The author
+        // verified at write time (submission requires one channel) and
+        // then LOST it: the row STILL reads that channel's depth while the
+        // account is active, and the erasure freezes that depth onto the
+        // orphaned row.
+        //
+        // Deliberate update (this test's old shape): it used to assert the
+        // row reads NO depth once the only channel is revoked — while
+        // active and after the erasure — the current-active rule. That pin
+        // predates the owner's policy and is superseded by it: the "is or
+        // was" depth is monotonic, so the revoked channel keeps counting
+        // and the frozen snapshot is that single level, not nothing.
         Auth user = register("Vermata", "vermata-erasure@example.ee", "+3725006003", "vermata-pass");
         confirm(user, VerificationLevel.EMAIL);
-        long rowId = submit(user, "Vermata Unverified Shelter");
+        long rowId = submit(user, "Vermata Revoked Channel Shelter");
         revoke(user, VerificationLevel.EMAIL);
 
-        // The standing the row had while the account was ACTIVE: unverified
-        // (no depth to report). The boolean keeps the write-time snapshot —
-        // it says who the author WAS at the write; the pin's currency is
-        // the depth, and that is absent.
+        // The standing the row had while the account was ACTIVE: the depth
+        // the author reached. The boolean keeps the write-time snapshot —
+        // it says who the author WAS at the write.
         mvc.perform(get("/api/shelters/" + rowId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submitterVerified").value(true))
-                .andExpect(jsonPath("$.submitterVerification").doesNotExist())
+                .andExpect(jsonPath("$.submitterVerification").value("EMAIL"))
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"));
 
         mvc.perform(delete("/account").header("Authorization", "Bearer " + user.token()))
@@ -212,12 +224,13 @@ class AccountErasureStandingIT extends AbstractPersistenceIT {
         // The row is orphaned and survives the erasure…
         assertThat(shelters.findById(rowId)).isPresent();
         assertThat(shelters.findById(rowId).orElseThrow().getCreatedBy()).isNull();
-        // …still unverified: erasure grants no standing and takes none away
-        // from a row that had none at read time.
+        // …carrying the ever-reached depth: the frozen snapshot is the
+        // single level the author had ever confirmed — erasure grants no
+        // standing and takes none away.
         mvc.perform(get("/api/shelters/" + rowId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submitterVerified").value(true))
-                .andExpect(jsonPath("$.submitterVerification").doesNotExist())
+                .andExpect(jsonPath("$.submitterVerification").value("EMAIL"))
                 .andExpect(jsonPath("$.reviewStatus").value("NEW"));
     }
 }

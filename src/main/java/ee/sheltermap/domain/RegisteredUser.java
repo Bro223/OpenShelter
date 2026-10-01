@@ -104,6 +104,24 @@ public class RegisteredUser extends User {
         return Collections.unmodifiableSet(active);
     }
 
+    /**
+     * Derived, never stored: the levels of EVERY claim the account ever
+     * confirmed, revoked ones included — the "is or was" standing the pin
+     * rule reads. A revocation removes the channel from the CURRENT
+     * capability set ({@link #levels()}) but does not un-reach it: the
+     * strongest standing an account ever held is monotonic, and that is
+     * what a shelter pin carries (owner policy: a pin expresses the
+     * highest depth its submitter ever reached, and an erasure freezes
+     * exactly that). Served on the {@link UserData} snapshot alongside
+     * {@link #levels()}.
+     */
+    public Set<VerificationLevel> everLevels() {
+        Set<VerificationLevel> ever = verifications.stream()
+                .map(VerificationClaim::getLevel)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return Collections.unmodifiableSet(ever);
+    }
+
     @Override
     public boolean canWrite() {
         return DEFAULT_POLICY.allows(levels(), Capability.SUBMIT_SHELTER);
@@ -111,7 +129,7 @@ public class RegisteredUser extends User {
 
     @Override
     public UserData getData() {
-        return new UserData(name, email, phone, levels());
+        return new UserData(name, email, phone, levels(), everLevels());
     }
 
     @Override

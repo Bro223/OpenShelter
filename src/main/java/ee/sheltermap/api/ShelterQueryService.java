@@ -400,16 +400,18 @@ public class ShelterQueryService {
                 : (author != null && !author.getData().levels().isEmpty());
         // The depth behind that boolean. A row with a live author stays
         // live by construction — the claim set is re-read on every
-        // request, so a row confirmed on one channel upgrades itself once
-        // the second is, with no backfill and no stored flag to go stale.
+        // request, and the depth is the highest the author EVER reached
+        // ("is or was"): a row confirmed on one channel upgrades itself
+        // once the second is, and a later revocation does not un-reach a
+        // channel, with no backfill and no stored flag to go stale.
         // An orphaned row (the author erased) serves the V35 snapshot
-        // instead — the depth frozen onto it at erasure, the standing it
-        // had while the account was active; a null there (pre-V35 orphans,
-        // an author with nothing confirmed at erasure, registry rows)
+        // instead — the depth frozen onto it at erasure, the highest
+        // standing it ever had; a null there (pre-V35 orphans,
+        // a submitter with nothing ever confirmed, registry rows)
         // resolves UNVERIFIED — the no-backfill decision.
         SubmitterVerification submitterVerification = author == null
                 ? SubmitterVerification.stored(shelter.getSubmitterVerificationSnapshot())
-                : SubmitterVerification.of(author.getData().levels());
+                : SubmitterVerification.of(author.everLevels());
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);

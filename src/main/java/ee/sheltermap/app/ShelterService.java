@@ -223,11 +223,12 @@ public class ShelterService {
         // (addPlace's canWrite gate guarantees this account may submit; a
         // policy that ever allowed writing with no claims would snapshot
         // false, which is the honest answer). The DEPTH twin (V35) rides
-        // alongside — the same claim set in the depth form; the erasure
-        // later re-freezes it to the account's last standing, while the
-        // boolean stays the write-time answer.
+        // alongside — the highest standing the submitter EVER reached, so
+        // a channel revoked before this write still counts; the erasure
+        // later re-freezes it to that same ever-reached standing, while
+        // the boolean stays the current-at-write answer.
         place.setSubmitterVerifiedAtCreation(!user.getData().levels().isEmpty());
-        SubmitterVerification depthAtWrite = SubmitterVerification.of(user.getData().levels());
+        SubmitterVerification depthAtWrite = SubmitterVerification.of(user.everLevels());
         place.setSubmitterVerificationSnapshot(depthAtWrite == null ? null : depthAtWrite.name());
         // community-review-queue v2: new community rows publish
         // immediately with the unverified trust state — the public list

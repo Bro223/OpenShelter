@@ -2,6 +2,7 @@ package ee.sheltermap.domain;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Abstract base of ALL users — every kind IS-A {@code User} (the "Bird",
@@ -55,6 +56,16 @@ public abstract class User {
     /** Assigned by persistence/repositories; {@code null} until persisted. */
     public void setId(Long id) {
         this.id = id;
+    }
+
+    /**
+     * The levels of every channel this account ever confirmed —
+     * revoked claims included (the pin's "is or was" standing). A
+     * guest has no claims, so the base answer is empty;
+     * {@link RegisteredUser} derives it from the full claim set.
+     */
+    public Set<VerificationLevel> everLevels() {
+        return Set.of();
     }
 
     /** Immutable snapshot of this user's data — never live internals. */
