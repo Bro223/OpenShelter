@@ -685,6 +685,16 @@
     font-size: var(--text-ios-zoom-floor);
   }
 
+  /* Roomier vertical tap padding on the filter rows: with the 16px line
+     box the rows were 24px tall — a small finger target. space-8 top and
+     bottom makes them 32px; horizontal padding, the transparent border
+     and the swatch slot geometry are untouched, so the entries still
+     read as one set and the legend stays a 1:1 key to the pins. */
+  .map-legend .legend-item {
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-8);
+  }
+
   /* The trust chips ("Open" / "Has capacity") ride the global .chip at
      14.4px (--text-md) — lift them to the same tap-target token. */
   .filter-trust .trust-chip {
