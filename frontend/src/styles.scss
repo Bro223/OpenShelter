@@ -539,6 +539,28 @@ textarea {
   background-color: var(--color-bg-surface);
 }
 
+/* iOS Safari auto-zooms the page whenever an input with a font size below
+   16px gains focus. The app's text tokens (0.75–1rem) sit under that floor
+   on several controls (the map's anchor search included), so tap-to-search
+   zoomed the whole UI. In the narrow layout (mirrors --bp-narrow: 900px)
+   every form control is lifted to 16px; desktop sizes are untouched. */
+@media (max-width: 900px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* iOS double-tap zoom on tap targets: buttons and links get
+   touch-action: manipulation, which removes the double-tap gesture (and the
+   legacy 300ms click delay) without disabling two-finger pinch zoom. The
+   Leaflet map keeps its own touch handling and is not covered here. */
+button,
+a {
+  touch-action: manipulation;
+}
+
 /* Placeholder text follows the theme like the control text does: the UA
    placeholder (Chromium: a light-dark grey) follows the OS colour
    scheme, NOT [data-theme] — on the black black-and-yellow input surface
