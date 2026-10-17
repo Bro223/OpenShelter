@@ -676,6 +676,19 @@
      source). */
   .map-legend {
     position: static;
+    /* Filter tap targets: the legend's 12.8px text (--text-xs) is small
+       to read and tap on a phone — lift it to the iOS zoom floor
+       (--text-ios-zoom-floor; the same token the global input rule uses).
+       Swatch geometry is untouched: the 14px slot keeps the legend a 1:1
+       key to the map pins, and the row's line-height: 1 pins the row to
+       the taller 16px line box. */
+    font-size: var(--text-ios-zoom-floor);
+  }
+
+  /* The trust chips ("Open" / "Has capacity") ride the global .chip at
+     14.4px (--text-md) — lift them to the same tap-target token. */
+  .filter-trust .trust-chip {
+    font-size: var(--text-ios-zoom-floor);
   }
 
   .map-page__sidebar {

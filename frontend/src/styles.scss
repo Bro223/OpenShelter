@@ -209,6 +209,13 @@
   --text-xl: 1.1rem; /* brand, panel titles */
   --text-3xl: 1.6rem; /* page titles */
 
+  /* iOS Safari auto-zoom floor: focusing any form control whose font
+     size is below 16px makes the browser zoom the page in. This is a
+     browser-mandated minimum for focused/tapped controls, not a type
+     scale step — used by the narrow-viewport rules in this file and in
+     map-page.scss (filter chips + legend). */
+  --text-ios-zoom-floor: 16px;
+
   --font-weight-medium: 550; /* labels, buttons */
   --font-weight-semibold: 600; /* row names, badges */
   --font-weight-title: 650; /* page titles, section titles */
@@ -548,7 +555,7 @@ textarea {
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: var(--text-ios-zoom-floor);
   }
 }
 
