@@ -39,5 +39,9 @@ module.exports = {
   '/auth': api,
   '/account': { ...api, bypass: (req) => (isBrowserNavigation(req) ? '/index.html' : undefined) },
   '/verify/': api,
-  '/admin/': api,
+  // '/admin' is ALSO an Angular route (the single admin page; the API
+  // only lives at /admin/<something>): same route-vs-API rule as
+  // '/account' above — a browser navigation (F5 on /admin/) must reach
+  // index.html, not the backend's 401 JSON.
+  '/admin': { ...api, bypass: (req) => (isBrowserNavigation(req) ? '/index.html' : undefined) },
 };
