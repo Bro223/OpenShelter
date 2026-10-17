@@ -10,10 +10,14 @@ import java.util.List;
  * ({@code https://opendata.smit.ee/gis/varjumiskohad.csv}).
  *
  * <p>Format (verified against the live file): UTF-8, semicolon-separated,
- * header {@code id;nimi;aadress;lest_x;lest_y}, fields double-quoted in the
- * live file (addresses contain commas — the delimiter is the semicolon,
- * never the comma). The header is validated quote-aware, so the same five
- * column names are accepted whether or not the fields are quoted.
+ * header {@code id;nimi;aadress;tyyp;lest_x;lest_y} since the publisher
+ * added the {@code tyyp} (type) column (verified 2026-10); the earlier
+ * {@code id;nimi;aadress;lest_x;lest_y} shape is still accepted. Fields are
+ * double-quoted in the live file (addresses contain commas — the delimiter
+ * is the semicolon, never the comma). The header is validated quote-aware,
+ * so each known column set is accepted whether or not the fields are quoted.
+ * {@code tyyp} carries the publisher's shelter type, which the app's shelter
+ * model does not store — its value is parsed away, never persisted.
  * Coordinates are EPSG:3301 (L-EST97) meters; the mapping to WGS84
  * happens in the client via {@link LEst97Transformer}.
  *
@@ -25,9 +29,14 @@ import java.util.List;
  */
 public final class RegistryCsvParser {
 
-    /** The five expected header column names, in order. */
-    private static final List<String> EXPECTED_COLUMNS =
+    /** The original five expected header column names, in order. */
+    private static final List<String> EXPECTED_COLUMNS_FIVE =
             List.of("id", "nimi", "aadress", "lest_x", "lest_y");
+
+    /** The current live header: the publisher inserted the {@code tyyp}
+     *  (type) column after {@code aadress} (verified 2026-10). */
+    private static final List<String> EXPECTED_COLUMNS_SIX =
+            List.of("id", "nimi", "aadress", "tyyp", "lest_x", "lest_y");
 
     private RegistryCsvParser() {
     }
@@ -97,13 +106,16 @@ public final class RegistryCsvParser {
 
     /**
      * The header line, run through the same quote-aware splitter as the data
-     * rows: {@code id;nimi;aadress;lest_x;lest_y} and
-     * {@code "id";"nimi";"aadress";"lest_x";"lest_y"} both validate to the
-     * same five names, and nothing else does. A genuinely wrong or truncated
-     * header still throws — the failure must stay loud, not become lenient.
+     * rows: each known column set validates the same whether or not the
+     * fields are double-quoted, as the live file serves them, and nothing
+     * else does — in particular a {@code tyyp} column in any other position
+     * is a different dataset shape and must still fail. A genuinely wrong or
+     * truncated header throws — the failure must stay loud, not lenient.
      */
     private static boolean isExpectedHeader(String line) {
-        return EXPECTED_COLUMNS.equals(splitFields(line.trim()));
+        List<String> columns = splitFields(line.trim());
+        return EXPECTED_COLUMNS_FIVE.equals(columns)
+                || EXPECTED_COLUMNS_SIX.equals(columns);
     }
 
     /**
@@ -142,9 +154,24 @@ public final class RegistryCsvParser {
         return fields;
     }
 
-    /** One row: {@code "id";"nimi";"aadress";"x";"y"} — null when unusable. */
+    /**
+     * One row — null when unusable. Two shapes follow the two accepted
+     * headers: the legacy {@code "id";"nimi";"aadress";"x";"y"} and the
+     * current {@code "id";"nimi";"aadress";"tyyp";"x";"y"}, where the
+     * {@code tyyp} (type) value is intentionally dropped — the shelter
+     * model has no type column, and persisting it would be a schema
+     * decision, not a parsing one.
+     */
     private static Row toRow(List<String> fields) {
-        if (fields.size() != 5) {
+        int xIndex;
+        int yIndex;
+        if (fields.size() == EXPECTED_COLUMNS_FIVE.size()) {
+            xIndex = 3;
+            yIndex = 4;
+        } else if (fields.size() == EXPECTED_COLUMNS_SIX.size()) {
+            xIndex = 4;
+            yIndex = 5;
+        } else {
             return null;
         }
         String id = fields.get(0).trim();
@@ -153,8 +180,8 @@ public final class RegistryCsvParser {
         if (id.isEmpty() || name.isEmpty() || address.isEmpty()) {
             return null; // no id cannot dedupe/delist; blank name/address are unusable
         }
-        double x = parseCoordinate(fields.get(3));
-        double y = parseCoordinate(fields.get(4));
+        double x = parseCoordinate(fields.get(xIndex));
+        double y = parseCoordinate(fields.get(yIndex));
         if (Double.isNaN(x) || Double.isNaN(y)) {
             return null;
         }

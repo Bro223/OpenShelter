@@ -81,6 +81,50 @@ class RegistryCsvParserTest {
     }
 
     @Test
+    void acceptsSixColumnLiveHeaderWithTyypColumn() {
+        // The live file now serves a tyyp (type) column after aadress
+        // (verified 2026-10); coordinates shift to the last two fields and
+        // the type value is parsed away, never carried into the Row.
+        String body = "\"id\";\"nimi\";\"aadress\";\"tyyp\";\"lest_x\";\"lest_y\"\n"
+                + "\"PÕ81166\";\"Vasalemma Kogukonnamaja\";\"Harju maakond, Lääne-Harju vald, Ranna tee 8\";\"Varjelu\";6567275.63;516551.56\n";
+
+        RegistryCsvParser.Parsed parsed = RegistryCsvParser.parse(body);
+
+        assertThat(parsed.dropped()).isZero();
+        assertThat(parsed.rows()).hasSize(1);
+        RegistryCsvParser.Row first = parsed.rows().get(0);
+        assertThat(first.externalId()).isEqualTo("PÕ81166");
+        assertThat(first.name()).isEqualTo("Vasalemma Kogukonnamaja");
+        assertThat(first.address())
+                .isEqualTo("Harju maakond, Lääne-Harju vald, Ranna tee 8");
+        assertThat(first.lestX()).isEqualTo(6567275.63);
+        assertThat(first.lestY()).isEqualTo(516551.56);
+    }
+
+    @Test
+    void sixColumnHeaderWithTyypInWrongPositionFailsDeterministically() {
+        // tyyp in any position other than after aadress is a different
+        // dataset shape — the header check must stay strict there.
+        String body = "\"id\";\"nimi\";\"tyyp\";\"aadress\";\"lest_x\";\"lest_y\"\n"
+                + "\"P1\";\"A\";\"Varjelu\";\"a\";1.0;2.0\n";
+
+        assertThatThrownBy(() -> RegistryCsvParser.parse(body))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unexpected CSV header");
+    }
+
+    @Test
+    void sixColumnRowWithBadCoordinatesIsDroppedNotFatal() {
+        String body = "\"id\";\"nimi\";\"aadress\";\"tyyp\";\"lest_x\";\"lest_y\"\n"
+                + "\"P1\";\"A\";\"a\";\"Varjelu\";abc;2.0\n";
+
+        RegistryCsvParser.Parsed parsed = RegistryCsvParser.parse(body);
+
+        assertThat(parsed.rows()).isEmpty();
+        assertThat(parsed.dropped()).isEqualTo(1);
+    }
+
+    @Test
     void dropsMalformedRowsAndCountsThem() {
         String body = csv(
                 "\"LÕ41281\";\"Good row\";\"Pärnu maakond, Pärnu linn, Linnatu 1\";5100000.0;4000000.0",
